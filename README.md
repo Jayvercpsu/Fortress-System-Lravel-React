@@ -27,9 +27,9 @@ You are free to use, modify, and distribute this software with proper attributio
  
 🔐 LOGIN CREDENTIALS
 
-| Email                                                       | Password | Role       |
-| ----------------------------------------------------------- | -------- | ---------- |
-| [headadmin@buildbooks.com](mailto:headadmin@buildbooks.com) | password | Head Admin |
+Email - headadmin@buildbooks.com
+Pass - password
+Role - Head Admin 
 
 > Head Admin creates all other users from the dashboard.
  
