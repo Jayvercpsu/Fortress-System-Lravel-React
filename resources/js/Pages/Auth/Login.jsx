@@ -19,7 +19,7 @@ export default function Login() {
                 <div style={{ width: 400 }}>
                     <div style={{ textAlign: 'center', marginBottom: 32 }}>
                         <div style={{ width: 56, height: 56, background: '#1b8a7a', borderRadius: 12, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 28, margin: '0 auto 12px' }}>🏗️</div>
-                        <h1 style={{ color: '#e6edf3', fontSize: 24, fontWeight: 700, margin: 0 }}>BuildBooks</h1>
+                        <h1 style={{ color: '#e6edf3', fontSize: 24, fontWeight: 700, margin: 0 }}>Fortress Login Page</h1>
                         <p style={{ color: '#8b949e', fontSize: 13, marginTop: 4 }}>Payroll • Expenses • Projects</p>
                     </div>
 

@@ -13,89 +13,99 @@ use Illuminate\Support\Facades\Auth;
 
 class ForemansController extends Controller
 {
-    public function storeAttendance(Request $request)
+    public function submitAll(Request $request)
     {
         $request->validate([
-            'entries' => 'required|array',
-            'entries.*.worker_name' => 'required|string',
-            'entries.*.worker_role' => 'required|string',
-            'entries.*.date'        => 'required|date',
-            'entries.*.hours'       => 'required|numeric|min:0',
+            'attendance'                         => 'nullable|array',
+            'attendance.*.worker_name'           => 'required_with:attendance|string',
+            'attendance.*.worker_role'           => 'required_with:attendance|string',
+            'attendance.*.date'                  => 'required_with:attendance|date',
+            'attendance.*.hours'                 => 'required_with:attendance|numeric|min:0',
+
+            'week_start'                         => 'nullable|date',
+            'scopes'                             => 'nullable|array',
+            'scopes.*.scope_of_work'             => 'required_with:scopes|string',
+            'scopes.*.percent_completed'         => 'required_with:scopes|numeric|min:0|max:100',
+
+            'material_items'                     => 'nullable|array',
+            'material_items.*.material_name'     => 'required_with:material_items|string',
+            'material_items.*.quantity'          => 'required_with:material_items|string',
+            'material_items.*.unit'              => 'required_with:material_items|string',
+            'material_items.*.remarks'           => 'nullable|string',
+
+            'issue_title'                        => 'nullable|string',
+            'description'                        => 'nullable|string',
+            'severity'                           => 'nullable|in:low,medium,high',
+
+            'item_delivered'                     => 'nullable|string',
+            'quantity'                           => 'nullable|string',
+            'delivery_date'                      => 'nullable|date',
+            'supplier'                           => 'nullable|string',
+            'status'                             => 'nullable|in:received,incomplete,rejected',
         ]);
 
-        foreach ($request->entries as $entry) {
-            Attendance::create([
-                'foreman_id'  => Auth::id(),
-                'worker_name' => $entry['worker_name'],
-                'worker_role' => $entry['worker_role'],
-                'date'        => $entry['date'],
-                'hours'       => $entry['hours'],
+        $foremanId = Auth::id();
+ 
+        if (!empty($request->attendance)) {
+            foreach ($request->attendance as $entry) {
+                Attendance::create([
+                    'foreman_id'  => $foremanId,
+                    'worker_name' => $entry['worker_name'],
+                    'worker_role' => $entry['worker_role'],
+                    'date'        => $entry['date'],
+                    'hours'       => $entry['hours'],
+                ]);
+            }
+        } 
+
+        if (!empty($request->scopes) && $request->week_start) {
+            foreach ($request->scopes as $scope) {
+                if ($scope['percent_completed'] !== '' && $scope['percent_completed'] !== null) {
+                    WeeklyAccomplishment::create([
+                        'foreman_id'        => $foremanId,
+                        'week_start'        => $request->week_start,
+                        'scope_of_work'     => $scope['scope_of_work'],
+                        'percent_completed' => $scope['percent_completed'],
+                    ]);
+                }
+            }
+        }
+ 
+        if (!empty($request->material_items)) {
+            foreach ($request->material_items as $item) {
+                if (!empty($item['material_name'])) {
+                    MaterialRequest::create([
+                        'foreman_id'    => $foremanId,
+                        'material_name' => $item['material_name'],
+                        'quantity'      => $item['quantity'],
+                        'unit'          => $item['unit'],
+                        'remarks'       => $item['remarks'] ?? null,
+                    ]);
+                }
+            }
+        }
+ 
+        if (!empty($request->issue_title) && !empty($request->description)) {
+            IssueReport::create([
+                'foreman_id'  => $foremanId,
+                'issue_title' => $request->issue_title,
+                'description' => $request->description,
+                'severity'    => $request->severity ?? 'medium',
+            ]);
+        }
+ 
+        if (!empty($request->item_delivered) && !empty($request->delivery_date)) {
+            DeliveryConfirmation::create([
+                'foreman_id'     => $foremanId,
+                'item_delivered' => $request->item_delivered,
+                'quantity'       => $request->quantity,
+                'delivery_date'  => $request->delivery_date,
+                'supplier'       => $request->supplier,
+                'status'         => $request->status ?? 'received',
             ]);
         }
 
-        return back()->with('success', 'Attendance submitted.');
-    }
-
-    public function storeAccomplishment(Request $request)
-    {
-        $request->validate([
-            'week_start'   => 'required|date',
-            'scopes'       => 'required|array',
-            'scopes.*.scope_of_work'     => 'required|string',
-            'scopes.*.percent_completed' => 'required|numeric|min:0|max:100',
-        ]);
-
-        foreach ($request->scopes as $scope) {
-            WeeklyAccomplishment::create([
-                'foreman_id'        => Auth::id(),
-                'week_start'        => $request->week_start,
-                'scope_of_work'     => $scope['scope_of_work'],
-                'percent_completed' => $scope['percent_completed'],
-            ]);
-        }
-
-        return back()->with('success', 'Weekly accomplishment submitted.');
-    }
-
-    public function storeMaterialRequest(Request $request)
-    {
-        $request->validate([
-            'items' => 'required|array',
-            'items.*.material_name' => 'required|string',
-            'items.*.quantity'      => 'required|string',
-            'items.*.unit'          => 'required|string',
-            'items.*.remarks'       => 'nullable|string',
-        ]);
-
-        foreach ($request->items as $item) {
-            MaterialRequest::create([
-                'foreman_id'    => Auth::id(),
-                'material_name' => $item['material_name'],
-                'quantity'      => $item['quantity'],
-                'unit'          => $item['unit'],
-                'remarks'       => $item['remarks'] ?? null,
-            ]);
-        }
-
-        return back()->with('success', 'Material request submitted.');
-    }
-
-    public function storeIssueReport(Request $request)
-    {
-        $request->validate([
-            'issue_title' => 'required|string',
-            'description' => 'required|string',
-            'severity'    => 'required|in:low,medium,high',
-        ]);
-
-        IssueReport::create([
-            'foreman_id'  => Auth::id(),
-            'issue_title' => $request->issue_title,
-            'description' => $request->description,
-            'severity'    => $request->severity,
-        ]);
-
-        return back()->with('success', 'Issue reported.');
+        return back()->with('success', 'All entries submitted successfully.');
     }
 
     public function storeProgressPhoto(Request $request)
@@ -114,27 +124,5 @@ class ForemansController extends Controller
         ]);
 
         return back()->with('success', 'Photo uploaded.');
-    }
-
-    public function storeDelivery(Request $request)
-    {
-        $request->validate([
-            'item_delivered' => 'required|string',
-            'quantity'       => 'required|string',
-            'delivery_date'  => 'required|date',
-            'supplier'       => 'nullable|string',
-            'status'         => 'required|in:received,incomplete,rejected',
-        ]);
-
-        DeliveryConfirmation::create([
-            'foreman_id'     => Auth::id(),
-            'item_delivered' => $request->item_delivered,
-            'quantity'       => $request->quantity,
-            'delivery_date'  => $request->delivery_date,
-            'supplier'       => $request->supplier,
-            'status'         => $request->status,
-        ]);
-
-        return back()->with('success', 'Delivery confirmed.');
     }
 }

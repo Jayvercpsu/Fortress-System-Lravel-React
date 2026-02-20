@@ -8,8 +8,6 @@ const SCOPES = [
     'CHB Laying with Plastering','Garage Flooring','Roofbeam','Roofing and Tinsmithry',
 ];
 
-const DAYS = ['S','M','T','W','T','F'];
-
 const sectionStyle = { background: '#161b22', border: '1px solid #30363d', borderRadius: 12, marginBottom: 20, overflow: 'hidden' };
 const headerStyle = { background: '#1c2128', padding: '14px 20px', borderBottom: '1px solid #30363d', display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer' };
 const inputStyle = { background: '#1c2128', border: '1px solid #30363d', borderRadius: 8, padding: '8px 12px', color: '#e6edf3', fontSize: 13, outline: 'none', width: '100%', boxSizing: 'border-box' };
@@ -17,27 +15,48 @@ const btnStyle = { background: '#2ea043', color: '#fff', border: 'none', borderR
 
 export default function ForemanDashboard({ user, attendances, accomplishments, materialRequests, issueReports, deliveries }) {
     const [open, setOpen] = useState('attendance');
+    const [submitting, setSubmitting] = useState(false);
 
-    const attForm = useForm({ entries: [{ worker_name: '', worker_role: 'Labor', date: '', hours: 8 }] });
-    const accForm = useForm({ week_start: '', scopes: SCOPES.map(s => ({ scope_of_work: s, percent_completed: '' })) });
-    const matForm = useForm({ items: [{ material_name: '', quantity: '', unit: '', remarks: '' }] });
-    const issueForm = useForm({ issue_title: '', description: '', severity: 'medium' });
-    const delivForm = useForm({ item_delivered: '', quantity: '', delivery_date: '', supplier: '', status: 'received' });
+    const [attEntries, setAttEntries] = useState([{ worker_name: '', worker_role: 'Labor', date: '', hours: 8 }]);
+    const [weekStart, setWeekStart] = useState('');
+    const [scopes, setScopes] = useState(SCOPES.map(s => ({ scope_of_work: s, percent_completed: '' })));
+    const [matItems, setMatItems] = useState([{ material_name: '', quantity: '', unit: '', remarks: '' }]);
+    const [issue, setIssue] = useState({ issue_title: '', description: '', severity: 'medium' });
+    const [delivery, setDelivery] = useState({ item_delivered: '', quantity: '', delivery_date: '', supplier: '', status: 'received' });
 
     const toggle = (key) => setOpen(open === key ? null : key);
 
-    const addAttRow = () => attForm.setData('entries', [...attForm.data.entries, { worker_name: '', worker_role: 'Labor', date: '', hours: 8 }]);
-    const addMatRow = () => matForm.setData('items', [...matForm.data.items, { material_name: '', quantity: '', unit: '', remarks: '' }]);
+    const addAttRow = () => setAttEntries([...attEntries, { worker_name: '', worker_role: 'Labor', date: '', hours: 8 }]);
+    const addMatRow = () => setMatItems([...matItems, { material_name: '', quantity: '', unit: '', remarks: '' }]);
+
+    const handleSubmitAll = () => {
+        setSubmitting(true);
+        router.post('/foreman/submit-all', {
+            attendance: attEntries,
+            week_start: weekStart,
+            scopes: scopes,
+            material_items: matItems,
+            issue_title: issue.issue_title,
+            description: issue.description,
+            severity: issue.severity,
+            item_delivered: delivery.item_delivered,
+            quantity: delivery.quantity,
+            delivery_date: delivery.delivery_date,
+            supplier: delivery.supplier,
+            status: delivery.status,
+        }, {
+            onFinish: () => setSubmitting(false),
+        });
+    };
 
     return (
         <>
             <Head title="Foreman Dashboard" />
             <Layout title={`Foreman — ${user.fullname}`}>
-
-                {/* DAILY ATTENDANCE */}
+ 
                 <div style={sectionStyle}>
                     <div style={headerStyle} onClick={() => toggle('attendance')}>
-                        <div style={{ fontWeight: 600, fontSize: 15 }}>📋 Daily Attendance</div>
+                        <div style={{ fontWeight: 600, fontSize: 15 }}><i className="fi fi-rr-clipboard-user" style={{ marginRight: 8 }}></i> Daily Attendance</div>
                         <span style={{ color: '#8b949e', fontSize: 12 }}>{open === 'attendance' ? '▲' : '▼'}</span>
                     </div>
                     {open === 'attendance' && (
@@ -51,52 +70,46 @@ export default function ForemanDashboard({ user, attendances, accomplishments, m
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    {attForm.data.entries.map((entry, idx) => (
+                                    {attEntries.map((entry, idx) => (
                                         <tr key={idx}>
                                             <td style={{ padding: '6px 8px' }}>
-                                                <input value={entry.worker_name} onChange={e => { const arr = [...attForm.data.entries]; arr[idx].worker_name = e.target.value; attForm.setData('entries', arr); }} style={inputStyle} placeholder="Name" />
+                                                <input value={entry.worker_name} onChange={e => { const arr = [...attEntries]; arr[idx].worker_name = e.target.value; setAttEntries(arr); }} style={inputStyle} placeholder="Name" />
                                             </td>
                                             <td style={{ padding: '6px 8px' }}>
-                                                <select value={entry.worker_role} onChange={e => { const arr = [...attForm.data.entries]; arr[idx].worker_role = e.target.value; attForm.setData('entries', arr); }} style={{ ...inputStyle, width: 'auto' }}>
+                                                <select value={entry.worker_role} onChange={e => { const arr = [...attEntries]; arr[idx].worker_role = e.target.value; setAttEntries(arr); }} style={{ ...inputStyle, width: 'auto' }}>
                                                     {['Foreman','Skilled','Labor'].map(r => <option key={r}>{r}</option>)}
                                                 </select>
                                             </td>
                                             <td style={{ padding: '6px 8px' }}>
-                                                <input type="date" value={entry.date} onChange={e => { const arr = [...attForm.data.entries]; arr[idx].date = e.target.value; attForm.setData('entries', arr); }} style={inputStyle} />
+                                                <input type="date" value={entry.date} onChange={e => { const arr = [...attEntries]; arr[idx].date = e.target.value; setAttEntries(arr); }} style={inputStyle} />
                                             </td>
                                             <td style={{ padding: '6px 8px' }}>
-                                                <input type="number" value={entry.hours} onChange={e => { const arr = [...attForm.data.entries]; arr[idx].hours = e.target.value; attForm.setData('entries', arr); }} style={{ ...inputStyle, width: 80 }} />
+                                                <input type="number" value={entry.hours} onChange={e => { const arr = [...attEntries]; arr[idx].hours = e.target.value; setAttEntries(arr); }} style={{ ...inputStyle, width: 80 }} />
                                             </td>
                                             <td style={{ padding: '6px 8px' }}>
-                                                {attForm.data.entries.length > 1 && (
-                                                    <button onClick={() => attForm.setData('entries', attForm.data.entries.filter((_, i) => i !== idx))} style={{ background: 'rgba(248,81,73,0.12)', color: '#f87171', border: 'none', borderRadius: 6, padding: '4px 8px', cursor: 'pointer', fontSize: 12 }}>✕</button>
+                                                {attEntries.length > 1 && (
+                                                    <button onClick={() => setAttEntries(attEntries.filter((_, i) => i !== idx))} style={{ background: 'rgba(248,81,73,0.12)', color: '#f87171', border: 'none', borderRadius: 6, padding: '4px 8px', cursor: 'pointer', fontSize: 12 }}>✕</button>
                                                 )}
                                             </td>
                                         </tr>
                                     ))}
                                 </tbody>
                             </table>
-                            <div style={{ display: 'flex', gap: 10 }}>
-                                <button onClick={addAttRow} style={{ ...btnStyle, background: '#21262d', color: '#8b949e', border: '1px solid #30363d' }}>+ Add Row</button>
-                                <button onClick={() => attForm.post('/foreman/attendance')} disabled={attForm.processing} style={btnStyle}>
-                                    {attForm.processing ? 'Submitting...' : 'Submit Attendance'}
-                                </button>
-                            </div>
+                            <button onClick={addAttRow} style={{ ...btnStyle, background: '#21262d', color: '#8b949e', border: '1px solid #30363d' }}>+ Add Row</button>
                         </div>
                     )}
                 </div>
-
-                {/* WEEKLY ACCOMPLISHMENT */}
+ 
                 <div style={sectionStyle}>
                     <div style={headerStyle} onClick={() => toggle('accomplishment')}>
-                        <div style={{ fontWeight: 600, fontSize: 15 }}>📊 Weekly Accomplishment</div>
+                        <div style={{ fontWeight: 600, fontSize: 15 }}><i className="fi fi-rr-chart-line-up" style={{ marginRight: 8 }}></i> Weekly Accomplishment</div>
                         <span style={{ color: '#8b949e', fontSize: 12 }}>{open === 'accomplishment' ? '▲' : '▼'}</span>
                     </div>
                     {open === 'accomplishment' && (
                         <div style={{ padding: 20 }}>
                             <div style={{ marginBottom: 16 }}>
                                 <label style={{ display: 'block', color: '#8b949e', fontSize: 12, marginBottom: 6 }}>Week Start Date</label>
-                                <input type="date" value={accForm.data.week_start} onChange={e => accForm.setData('week_start', e.target.value)} style={{ ...inputStyle, width: 200 }} />
+                                <input type="date" value={weekStart} onChange={e => setWeekStart(e.target.value)} style={{ ...inputStyle, width: 200 }} />
                             </div>
                             <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: 16 }}>
                                 <thead>
@@ -106,27 +119,23 @@ export default function ForemanDashboard({ user, attendances, accomplishments, m
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    {accForm.data.scopes.map((scope, idx) => (
+                                    {scopes.map((scope, idx) => (
                                         <tr key={idx} style={{ borderBottom: '1px solid #21262d' }}>
                                             <td style={{ padding: '8px', color: '#e6edf3', fontSize: 13 }}>{scope.scope_of_work}</td>
                                             <td style={{ padding: '8px', textAlign: 'center' }}>
-                                                <input type="number" min="0" max="100" value={scope.percent_completed} onChange={e => { const arr = [...accForm.data.scopes]; arr[idx].percent_completed = e.target.value; accForm.setData('scopes', arr); }} style={{ ...inputStyle, width: 80, textAlign: 'center' }} placeholder="0" />
+                                                <input type="number" min="0" max="100" value={scope.percent_completed} onChange={e => { const arr = [...scopes]; arr[idx].percent_completed = e.target.value; setScopes(arr); }} style={{ ...inputStyle, width: 80, textAlign: 'center' }} placeholder="0" />
                                             </td>
                                         </tr>
                                     ))}
                                 </tbody>
                             </table>
-                            <button onClick={() => accForm.post('/foreman/accomplishment')} disabled={accForm.processing} style={btnStyle}>
-                                {accForm.processing ? 'Submitting...' : 'Submit Accomplishment'}
-                            </button>
                         </div>
                     )}
-                </div>
+                </div> 
 
-                {/* MATERIAL REQUEST */}
                 <div style={sectionStyle}>
                     <div style={headerStyle} onClick={() => toggle('material')}>
-                        <div style={{ fontWeight: 600, fontSize: 15 }}>🛒 Material Request</div>
+                        <div style={{ fontWeight: 600, fontSize: 15 }}><i className="fi fi-rr-shopping-cart" style={{ marginRight: 8 }}></i> Material Request</div>
                         <span style={{ color: '#8b949e', fontSize: 12 }}>{open === 'material' ? '▲' : '▼'}</span>
                     </div>
                     {open === 'material' && (
@@ -140,33 +149,27 @@ export default function ForemanDashboard({ user, attendances, accomplishments, m
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    {matForm.data.items.map((item, idx) => (
+                                    {matItems.map((item, idx) => (
                                         <tr key={idx}>
-                                            <td style={{ padding: '6px 8px 6px 0' }}><input value={item.material_name} onChange={e => { const arr = [...matForm.data.items]; arr[idx].material_name = e.target.value; matForm.setData('items', arr); }} style={inputStyle} placeholder="e.g. CHB 4 inch" /></td>
-                                            <td style={{ padding: '6px 8px' }}><input value={item.quantity} onChange={e => { const arr = [...matForm.data.items]; arr[idx].quantity = e.target.value; matForm.setData('items', arr); }} style={inputStyle} placeholder="e.g. 500" /></td>
-                                            <td style={{ padding: '6px 8px' }}><input value={item.unit} onChange={e => { const arr = [...matForm.data.items]; arr[idx].unit = e.target.value; matForm.setData('items', arr); }} style={inputStyle} placeholder="pcs / bags" /></td>
-                                            <td style={{ padding: '6px 8px' }}><input value={item.remarks} onChange={e => { const arr = [...matForm.data.items]; arr[idx].remarks = e.target.value; matForm.setData('items', arr); }} style={inputStyle} placeholder="Optional" /></td>
+                                            <td style={{ padding: '6px 8px 6px 0' }}><input value={item.material_name} onChange={e => { const arr = [...matItems]; arr[idx].material_name = e.target.value; setMatItems(arr); }} style={inputStyle} placeholder="e.g. CHB 4 inch" /></td>
+                                            <td style={{ padding: '6px 8px' }}><input value={item.quantity} onChange={e => { const arr = [...matItems]; arr[idx].quantity = e.target.value; setMatItems(arr); }} style={inputStyle} placeholder="e.g. 500" /></td>
+                                            <td style={{ padding: '6px 8px' }}><input value={item.unit} onChange={e => { const arr = [...matItems]; arr[idx].unit = e.target.value; setMatItems(arr); }} style={inputStyle} placeholder="pcs / bags" /></td>
+                                            <td style={{ padding: '6px 8px' }}><input value={item.remarks} onChange={e => { const arr = [...matItems]; arr[idx].remarks = e.target.value; setMatItems(arr); }} style={inputStyle} placeholder="Optional" /></td>
                                             <td style={{ padding: '6px 8px' }}>
-                                                {matForm.data.items.length > 1 && <button onClick={() => matForm.setData('items', matForm.data.items.filter((_, i) => i !== idx))} style={{ background: 'rgba(248,81,73,0.12)', color: '#f87171', border: 'none', borderRadius: 6, padding: '4px 8px', cursor: 'pointer', fontSize: 12 }}>✕</button>}
+                                                {matItems.length > 1 && <button onClick={() => setMatItems(matItems.filter((_, i) => i !== idx))} style={{ background: 'rgba(248,81,73,0.12)', color: '#f87171', border: 'none', borderRadius: 6, padding: '4px 8px', cursor: 'pointer', fontSize: 12 }}>✕</button>}
                                             </td>
                                         </tr>
                                     ))}
                                 </tbody>
                             </table>
-                            <div style={{ display: 'flex', gap: 10 }}>
-                                <button onClick={addMatRow} style={{ ...btnStyle, background: '#21262d', color: '#8b949e', border: '1px solid #30363d' }}>+ Add Item</button>
-                                <button onClick={() => matForm.post('/foreman/material-request')} disabled={matForm.processing} style={btnStyle}>
-                                    {matForm.processing ? 'Submitting...' : 'Submit Request'}
-                                </button>
-                            </div>
+                            <button onClick={addMatRow} style={{ ...btnStyle, background: '#21262d', color: '#8b949e', border: '1px solid #30363d' }}>+ Add Item</button>
                         </div>
                     )}
                 </div>
-
-                {/* ISSUE REPORT */}
+ 
                 <div style={sectionStyle}>
                     <div style={headerStyle} onClick={() => toggle('issue')}>
-                        <div style={{ fontWeight: 600, fontSize: 15 }}>⚠️ Issue Report</div>
+                        <div style={{ fontWeight: 600, fontSize: 15 }}><i className="fi fi-rr-exclamation" style={{ marginRight: 8 }}></i> Issue Report</div>
                         <span style={{ color: '#8b949e', fontSize: 12 }}>{open === 'issue' ? '▲' : '▼'}</span>
                     </div>
                     {open === 'issue' && (
@@ -174,11 +177,11 @@ export default function ForemanDashboard({ user, attendances, accomplishments, m
                             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 16 }}>
                                 <div>
                                     <label style={{ display: 'block', color: '#8b949e', fontSize: 12, marginBottom: 6 }}>Issue Title</label>
-                                    <input value={issueForm.data.issue_title} onChange={e => issueForm.setData('issue_title', e.target.value)} style={inputStyle} placeholder="Brief title of issue" />
+                                    <input value={issue.issue_title} onChange={e => setIssue({ ...issue, issue_title: e.target.value })} style={inputStyle} placeholder="Brief title of issue" />
                                 </div>
                                 <div>
                                     <label style={{ display: 'block', color: '#8b949e', fontSize: 12, marginBottom: 6 }}>Severity</label>
-                                    <select value={issueForm.data.severity} onChange={e => issueForm.setData('severity', e.target.value)} style={inputStyle}>
+                                    <select value={issue.severity} onChange={e => setIssue({ ...issue, severity: e.target.value })} style={inputStyle}>
                                         <option value="low">Low</option>
                                         <option value="medium">Medium</option>
                                         <option value="high">High</option>
@@ -187,19 +190,15 @@ export default function ForemanDashboard({ user, attendances, accomplishments, m
                             </div>
                             <div style={{ marginBottom: 16 }}>
                                 <label style={{ display: 'block', color: '#8b949e', fontSize: 12, marginBottom: 6 }}>Description</label>
-                                <textarea value={issueForm.data.description} onChange={e => issueForm.setData('description', e.target.value)} rows={4} style={{ ...inputStyle, resize: 'vertical' }} placeholder="Describe the issue in detail..." />
+                                <textarea value={issue.description} onChange={e => setIssue({ ...issue, description: e.target.value })} rows={4} style={{ ...inputStyle, resize: 'vertical' }} placeholder="Describe the issue in detail..." />
                             </div>
-                            <button onClick={() => issueForm.post('/foreman/issue-report')} disabled={issueForm.processing} style={btnStyle}>
-                                {issueForm.processing ? 'Submitting...' : 'Submit Report'}
-                            </button>
                         </div>
                     )}
                 </div>
-
-                {/* DELIVERY CONFIRMATION */}
+ 
                 <div style={sectionStyle}>
                     <div style={headerStyle} onClick={() => toggle('delivery')}>
-                        <div style={{ fontWeight: 600, fontSize: 15 }}>🚚 Delivery Confirmation</div>
+                        <div style={{ fontWeight: 600, fontSize: 15 }}><i className="fi fi-rr-truck-side" style={{ marginRight: 8 }}></i> Delivery Confirmation</div>
                         <span style={{ color: '#8b949e', fontSize: 12 }}>{open === 'delivery' ? '▲' : '▼'}</span>
                     </div>
                     {open === 'delivery' && (
@@ -213,23 +212,30 @@ export default function ForemanDashboard({ user, attendances, accomplishments, m
                                 ].map(([label, key, type, placeholder]) => (
                                     <div key={key}>
                                         <label style={{ display: 'block', color: '#8b949e', fontSize: 12, marginBottom: 6 }}>{label}</label>
-                                        <input type={type} value={delivForm.data[key]} onChange={e => delivForm.setData(key, e.target.value)} style={inputStyle} placeholder={placeholder} />
+                                        <input type={type} value={delivery[key]} onChange={e => setDelivery({ ...delivery, [key]: e.target.value })} style={inputStyle} placeholder={placeholder} />
                                     </div>
                                 ))}
                                 <div>
                                     <label style={{ display: 'block', color: '#8b949e', fontSize: 12, marginBottom: 6 }}>Status</label>
-                                    <select value={delivForm.data.status} onChange={e => delivForm.setData('status', e.target.value)} style={inputStyle}>
+                                    <select value={delivery.status} onChange={e => setDelivery({ ...delivery, status: e.target.value })} style={inputStyle}>
                                         <option value="received">Received</option>
                                         <option value="incomplete">Incomplete</option>
                                         <option value="rejected">Rejected</option>
                                     </select>
                                 </div>
                             </div>
-                            <button onClick={() => delivForm.post('/foreman/delivery')} disabled={delivForm.processing} style={btnStyle}>
-                                {delivForm.processing ? 'Submitting...' : 'Confirm Delivery'}
-                            </button>
                         </div>
                     )}
+                </div>
+ 
+                <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 8, marginBottom: 32 }}>
+                    <button
+                        onClick={handleSubmitAll}
+                        disabled={submitting}
+                        style={{ ...btnStyle, padding: '12px 36px', fontSize: 15, borderRadius: 10, opacity: submitting ? 0.7 : 1 }}
+                    >
+                        {submitting ? 'Submitting...' : '✔ Submit All'}
+                    </button>
                 </div>
 
             </Layout>

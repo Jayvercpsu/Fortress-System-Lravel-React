@@ -33,10 +33,6 @@ Route::middleware(['auth', 'role:hr'])->group(function () {
 
 Route::middleware(['auth', 'role:foreman'])->group(function () {
     Route::get('/foreman', [DashboardController::class, 'foreman'])->name('foreman.dashboard');
-    Route::post('/foreman/attendance', [ForemansController::class, 'storeAttendance'])->name('foreman.attendance');
-    Route::post('/foreman/accomplishment', [ForemansController::class, 'storeAccomplishment'])->name('foreman.accomplishment');
-    Route::post('/foreman/material-request', [ForemansController::class, 'storeMaterialRequest'])->name('foreman.material');
-    Route::post('/foreman/issue-report', [ForemansController::class, 'storeIssueReport'])->name('foreman.issue');
+    Route::post('/foreman/submit-all', [ForemansController::class, 'submitAll'])->name('foreman.submit_all');
     Route::post('/foreman/progress-photo', [ForemansController::class, 'storeProgressPhoto'])->name('foreman.photo');
-    Route::post('/foreman/delivery', [ForemansController::class, 'storeDelivery'])->name('foreman.delivery');
 });
