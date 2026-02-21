@@ -1,5 +1,6 @@
 import { Link, router, usePage } from '@inertiajs/react';
 import { useEffect, useState } from 'react';
+import { Moon, Sun } from 'lucide-react';
 
 const navByRole = {
     head_admin: [
@@ -18,6 +19,7 @@ const navByRole = {
     ],
     admin: [
         { label: 'Dashboard', href: '/admin', icon: 'fi fi-rr-dashboard' },
+        { label: 'Projects', href: '/projects', icon: 'fi fi-rr-diagram-project' },
         { label: 'Attendance', href: '/attendance', icon: 'fi fi-rr-calendar-check' },
         { label: 'Materials', href: '/materials', icon: 'fi fi-rr-shopping-cart' },
         { label: 'Delivery', href: '/delivery', icon: 'fi fi-rr-truck-side' },
@@ -192,7 +194,7 @@ export default function Layout({ children, title }) {
                                 color: 'var(--text-main)',
                             }}
                         >
-                            <span style={{ fontSize: 16, lineHeight: 1 }}>{isDark ? '☀️' : '🌙'}</span>
+                            {isDark ? <Sun size={16} strokeWidth={2} /> : <Moon size={16} strokeWidth={2} />}
                         </button>
                     </div>
 
@@ -266,3 +268,4 @@ export default function Layout({ children, title }) {
         </>
     );
 }
+

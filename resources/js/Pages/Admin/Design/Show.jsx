@@ -1,7 +1,8 @@
 import Layout from '../../../Components/Layout';
-import { Head, useForm, usePage } from '@inertiajs/react';
+import { Head, Link, useForm, usePage } from '@inertiajs/react';
 import { useEffect } from 'react';
 import toast from 'react-hot-toast';
+import { ArrowLeft } from 'lucide-react';
 
 const money = (value) =>
     `P ${Number(value || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -57,6 +58,27 @@ export default function AdminDesignShow({ projectId, design }) {
         <>
             <Head title={`Design Tracker #${projectId}`} />
             <Layout title={`Design Tracker - Project #${projectId}`}>
+                <div style={{ marginBottom: 12 }}>
+                    <Link
+                        href={`/projects/${projectId}`}
+                        style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: 8,
+                            color: 'var(--text-main)',
+                            textDecoration: 'none',
+                            border: '1px solid var(--border-color)',
+                            background: 'var(--button-bg)',
+                            borderRadius: 8,
+                            padding: '8px 12px',
+                            fontSize: 13,
+                        }}
+                    >
+                        <ArrowLeft size={16} />
+                        Back to Project
+                    </Link>
+                </div>
+
                 <form onSubmit={submit} style={{ display: 'grid', gap: 16 }}>
                     <div style={{ ...cardStyle, display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
                         <div>
