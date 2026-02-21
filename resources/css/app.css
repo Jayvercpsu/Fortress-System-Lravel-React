@@ -17,6 +17,13 @@
     --surface-2: #1c2128; /* inner bars/background strips */
     --row-divider: #21262d; /* row borders */
     --success: #2ea043;
+    --toast-bg: #161b22;
+    --toast-text: #e6edf3;
+    --toast-border: #30363d;
+    --toast-success-bg: #12321f;
+    --toast-success-border: #2ea043;
+    --toast-error-bg: #3a1a1d;
+    --toast-error-border: #ef4444;
 }
 
 /* Light Theme */
@@ -34,4 +41,11 @@
     --surface-2: #f6f8fa;
     --row-divider: #eaeef2;
     --success: #1f883d;
+    --toast-bg: #ffffff;
+    --toast-text: #24292f;
+    --toast-border: #d0d7de;
+    --toast-success-bg: #dafbe1;
+    --toast-success-border: #1f883d;
+    --toast-error-bg: #ffebe9;
+    --toast-error-border: #cf222e;
 }

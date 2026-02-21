@@ -1,6 +1,7 @@
 <?php
 use App\Http\Controllers\Auth\AuthController;
 use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\DesignController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\ForemansController;
 use App\Http\Controllers\PayrollController;
@@ -35,4 +36,9 @@ Route::middleware(['auth', 'role:foreman'])->group(function () {
     Route::get('/foreman', [DashboardController::class, 'foreman'])->name('foreman.dashboard');
     Route::post('/foreman/submit-all', [ForemansController::class, 'submitAll'])->name('foreman.submit_all');
     Route::post('/foreman/progress-photo', [ForemansController::class, 'storeProgressPhoto'])->name('foreman.photo');
+});
+
+Route::middleware(['auth', 'role:head_admin,admin'])->group(function () {
+    Route::get('/projects/{project}/design', [DesignController::class, 'show'])->name('design.show');
+    Route::patch('/projects/{project}/design', [DesignController::class, 'update'])->name('design.update');
 });
