@@ -1,5 +1,7 @@
 import Layout from '../../../Components/Layout';
+import ActionButton from '../../../Components/ActionButton';
 import DataTable from '../../../Components/DataTable';
+import DatePickerInput from '../../../Components/DatePickerInput';
 import { Head, Link, router, useForm } from '@inertiajs/react';
 import { useEffect, useState } from 'react';
 import toast from 'react-hot-toast';
@@ -217,7 +219,7 @@ export default function AdminBuildShow({
             label: 'Date',
             render: (expense) =>
                 editingExpenseId === expense.id ? (
-                    <input type="date" value={editData.date} onChange={(e) => setEditData('date', e.target.value)} style={inputStyle} />
+                    <DatePickerInput value={editData.date} onChange={(value) => setEditData('date', value)} style={inputStyle} />
                 ) : (
                     <div style={{ fontSize: 13 }}>{expense.date || '-'}</div>
                 ),
@@ -260,26 +262,26 @@ export default function AdminBuildShow({
             render: (expense) =>
                 editingExpenseId === expense.id ? (
                     <div style={{ display: 'inline-flex', gap: 8 }}>
-                        <button type="button" onClick={() => setEditingExpenseId(null)} style={{ ...inputStyle, width: 'auto', padding: '6px 10px', cursor: 'pointer' }}>
+                        <ActionButton type="button" variant="neutral" onClick={() => setEditingExpenseId(null)}>
                             Cancel
-                        </button>
-                        <button
+                        </ActionButton>
+                        <ActionButton
                             type="button"
+                            variant="success"
                             onClick={(e) => submitEditExpense(e, expense.id)}
                             disabled={updatingExpense}
-                            style={{ background: 'var(--success)', color: '#fff', border: 'none', borderRadius: 8, padding: '6px 10px', cursor: updatingExpense ? 'not-allowed' : 'pointer', opacity: updatingExpense ? 0.7 : 1 }}
                         >
                             Save
-                        </button>
+                        </ActionButton>
                     </div>
                 ) : (
                     <div style={{ display: 'inline-flex', gap: 8 }}>
-                        <button type="button" onClick={() => startEditExpense(expense)} style={{ ...inputStyle, width: 'auto', padding: '6px 10px', cursor: 'pointer' }}>
+                        <ActionButton type="button" variant="edit" onClick={() => startEditExpense(expense)}>
                             Edit
-                        </button>
-                        <button type="button" onClick={() => deleteExpense(expense.id)} style={{ background: '#ef4444', color: '#fff', border: 'none', borderRadius: 8, padding: '6px 10px', cursor: 'pointer' }}>
+                        </ActionButton>
+                        <ActionButton type="button" variant="danger" onClick={() => deleteExpense(expense.id)}>
                             Delete
-                        </button>
+                        </ActionButton>
                     </div>
                 ),
         },
@@ -456,7 +458,7 @@ export default function AdminBuildShow({
                             </label>
                             <label>
                                 <div style={{ fontSize: 12, marginBottom: 6 }}>Date</div>
-                                <input type="date" value={expenseData.date} onChange={(e) => setExpenseData('date', e.target.value)} style={inputStyle} />
+                                <DatePickerInput value={expenseData.date} onChange={(value) => setExpenseData('date', value)} style={inputStyle} />
                                 {expenseErrors.date && <div style={{ color: '#f87171', fontSize: 12, marginTop: 4 }}>{expenseErrors.date}</div>}
                             </label>
                             <label>

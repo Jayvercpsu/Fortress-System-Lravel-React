@@ -15,7 +15,7 @@ export default function UsersIndex({ users = [], userTable = {} }) {
         to: userTable?.to ?? null,
     };
 
-    const navigateTable = (overrides = {}) => {
+    const listQueryParams = (overrides = {}) => {
         const params = {
             search: overrides.search !== undefined ? overrides.search : table.search,
             per_page: overrides.per_page !== undefined ? overrides.per_page : table.perPage,
@@ -23,28 +23,27 @@ export default function UsersIndex({ users = [], userTable = {} }) {
         };
 
         if (!params.search) delete params.search;
+        return params;
+    };
 
-        router.get('/users', params, {
+    const listQueryString = (overrides = {}) => {
+        const params = new URLSearchParams(listQueryParams(overrides));
+        const qs = params.toString();
+        return qs ? `?${qs}` : '';
+    };
+
+    const navigateTable = (overrides = {}) => {
+        router.get('/users', listQueryParams(overrides), {
             preserveState: true,
             preserveScroll: true,
             replace: true,
         });
     };
 
-    const deleteQueryString = () => {
-        const params = new URLSearchParams({
-            ...(table.search ? { search: table.search } : {}),
-            per_page: String(table.perPage),
-            page: String(table.page),
-        });
-        const qs = params.toString();
-        return qs ? `?${qs}` : '';
-    };
-
     const deleteUser = (id) => {
         if (!confirm('Delete this user?')) return;
 
-        router.delete(`/users/${id}${deleteQueryString()}`, {
+        router.delete(`/users/${id}${listQueryString()}`, {
             preserveScroll: true,
         });
     };
@@ -102,21 +101,37 @@ export default function UsersIndex({ users = [], userTable = {} }) {
             key: 'actions',
             label: 'Actions',
             render: (user) => (
-                <button
-                    type="button"
-                    onClick={() => deleteUser(user.id)}
-                    style={{
-                        background: 'rgba(248,81,73,0.12)',
-                        color: '#f87171',
-                        border: '1px solid rgba(248,81,73,0.25)',
-                        borderRadius: 6,
-                        padding: '5px 12px',
-                        fontSize: 12,
-                        cursor: 'pointer',
-                    }}
-                >
-                    Delete
-                </button>
+                <div style={{ display: 'inline-flex', gap: 8 }}>
+                    <Link
+                        href={`/users/${user.id}/edit${listQueryString()}`}
+                        style={{
+                            background: 'var(--button-bg)',
+                            color: 'var(--text-main)',
+                            border: '1px solid var(--border-color)',
+                            borderRadius: 6,
+                            padding: '5px 12px',
+                            fontSize: 12,
+                            textDecoration: 'none',
+                        }}
+                    >
+                        Edit
+                    </Link>
+                    <button
+                        type="button"
+                        onClick={() => deleteUser(user.id)}
+                        style={{
+                            background: 'rgba(248,81,73,0.12)',
+                            color: '#f87171',
+                            border: '1px solid rgba(248,81,73,0.25)',
+                            borderRadius: 6,
+                            padding: '5px 12px',
+                            fontSize: 12,
+                            cursor: 'pointer',
+                        }}
+                    >
+                        Delete
+                    </button>
+                </div>
             ),
         },
     ];

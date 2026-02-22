@@ -6,7 +6,10 @@ use App\Models\BuildProject;
 use App\Models\DesignProject;
 use App\Models\Expense;
 use App\Models\Project;
+use App\Models\User;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 use Inertia\Inertia;
 
 class ProjectController extends Controller
@@ -81,7 +84,17 @@ class ProjectController extends Controller
     {
         abort_unless($request->user()->role === 'head_admin', 403);
 
-        return Inertia::render('HeadAdmin/Projects/Create');
+        return Inertia::render('HeadAdmin/Projects/Create', [
+            'foremen' => User::query()
+                ->where('role', 'foreman')
+                ->orderBy('fullname')
+                ->get(['id', 'fullname'])
+                ->map(fn (User $user) => [
+                    'id' => $user->id,
+                    'fullname' => $user->fullname,
+                ])
+                ->values(),
+        ]);
     }
 
     public function store(Request $request)
@@ -198,6 +211,15 @@ class ProjectController extends Controller
 
         return Inertia::render('HeadAdmin/Projects/Edit', [
             'project' => $this->projectPayload($project),
+            'foremen' => User::query()
+                ->where('role', 'foreman')
+                ->orderBy('fullname')
+                ->get(['id', 'fullname'])
+                ->map(fn (User $user) => [
+                    'id' => $user->id,
+                    'fullname' => $user->fullname,
+                ])
+                ->values(),
         ]);
     }
 
@@ -211,6 +233,38 @@ class ProjectController extends Controller
         return redirect()
             ->route('projects.show', ['project' => $project->id])
             ->with('success', 'Project updated.');
+    }
+
+    public function destroy(Request $request, Project $project)
+    {
+        abort_unless($request->user()->role === 'head_admin', 403);
+
+        $projectId = (string) $project->id;
+        $filePaths = $project->files()->pluck('file_path')->filter()->values()->all();
+
+        DB::transaction(function () use ($project, $projectId) {
+            DesignProject::where('project_id', $projectId)->delete();
+            BuildProject::where('project_id', $projectId)->delete();
+            Expense::where('project_id', $projectId)->delete();
+            $project->files()->delete();
+            $project->updates()->delete();
+            $project->delete();
+        });
+
+        foreach ($filePaths as $filePath) {
+            Storage::disk('public')->delete($filePath);
+        }
+        Storage::disk('public')->deleteDirectory('project-files/' . $projectId);
+
+        $query = array_filter([
+            'search' => $request->query('search'),
+            'per_page' => $request->query('per_page'),
+            'page' => $request->query('page'),
+        ], fn ($value) => $value !== null && $value !== '');
+
+        return redirect()
+            ->route('projects.index', $query)
+            ->with('success', 'Project deleted.');
     }
 
     public function updateFinancials(Request $request, Project $project)

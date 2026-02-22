@@ -1,4 +1,5 @@
 import Layout from '../../Components/Layout';
+import DatePickerInput from '../../Components/DatePickerInput';
 import { Head, router } from '@inertiajs/react';
 import { useState } from 'react';
 
@@ -200,12 +201,11 @@ export default function ForemanDashboard({
                                             </td>
 
                                             <td style={{ padding: '6px 8px' }}>
-                                                <input
-                                                    type="date"
+                                                <DatePickerInput
                                                     value={entry.date}
-                                                    onChange={(e) => {
+                                                    onChange={(value) => {
                                                         const arr = [...attEntries];
-                                                        arr[idx].date = e.target.value;
+                                                        arr[idx].date = value;
                                                         setAttEntries(arr);
                                                     }}
                                                     style={inputStyle}
@@ -281,10 +281,9 @@ export default function ForemanDashboard({
                                 <label style={{ display: 'block', color: 'var(--text-muted)', fontSize: 12, marginBottom: 6 }}>
                                     Week Start Date
                                 </label>
-                                <input
-                                    type="date"
+                                <DatePickerInput
                                     value={weekStart}
-                                    onChange={(e) => setWeekStart(e.target.value)}
+                                    onChange={(value) => setWeekStart(value)}
                                     style={{ ...inputStyle, width: 200 }}
                                 />
                             </div>
@@ -561,13 +560,22 @@ export default function ForemanDashboard({
                                         <label style={{ display: 'block', color: 'var(--text-muted)', fontSize: 12, marginBottom: 6 }}>
                                             {label}
                                         </label>
-                                        <input
-                                            type={type}
-                                            value={delivery[key]}
-                                            onChange={(e) => setDelivery({ ...delivery, [key]: e.target.value })}
-                                            style={inputStyle}
-                                            placeholder={placeholder}
-                                        />
+                                        {type === 'date' ? (
+                                            <DatePickerInput
+                                                value={delivery[key]}
+                                                onChange={(value) => setDelivery({ ...delivery, [key]: value })}
+                                                style={inputStyle}
+                                                placeholder="YYYY-MM-DD"
+                                            />
+                                        ) : (
+                                            <input
+                                                type={type}
+                                                value={delivery[key]}
+                                                onChange={(e) => setDelivery({ ...delivery, [key]: e.target.value })}
+                                                style={inputStyle}
+                                                placeholder={placeholder}
+                                            />
+                                        )}
                                     </div>
                                 ))}
 

@@ -1,4 +1,5 @@
 import Layout from './Layout';
+import ActionButton from './ActionButton';
 import DataTable from './DataTable';
 import { Head, router, useForm } from '@inertiajs/react';
 import { useState } from 'react';
@@ -158,26 +159,26 @@ export default function MaterialsManagerPage({ materials = [], materialTable = {
             render: (row) =>
                 editingId === row.id ? (
                     <div style={{ display: 'inline-flex', gap: 8 }}>
-                        <button type="button" onClick={() => setEditingId(null)} style={{ ...inputStyle, width: 'auto', padding: '6px 10px', cursor: 'pointer' }}>
+                        <ActionButton type="button" variant="neutral" onClick={() => setEditingId(null)}>
                             Cancel
-                        </button>
-                        <button
+                        </ActionButton>
+                        <ActionButton
                             type="button"
+                            variant="success"
                             onClick={(e) => submitEdit(e, row.id)}
                             disabled={updating}
-                            style={{ background: 'var(--success)', color: '#fff', border: 'none', borderRadius: 8, padding: '6px 10px', cursor: updating ? 'not-allowed' : 'pointer', opacity: updating ? 0.7 : 1 }}
                         >
                             Save
-                        </button>
+                        </ActionButton>
                     </div>
                 ) : (
                     <div style={{ display: 'inline-flex', gap: 8 }}>
-                        <button type="button" onClick={() => startEdit(row)} style={{ ...inputStyle, width: 'auto', padding: '6px 10px', cursor: 'pointer' }}>
+                        <ActionButton type="button" variant="edit" onClick={() => startEdit(row)}>
                             Edit
-                        </button>
-                        <button type="button" onClick={() => deleteMaterial(row.id)} style={{ background: '#ef4444', color: '#fff', border: 'none', borderRadius: 8, padding: '6px 10px', cursor: 'pointer' }}>
+                        </ActionButton>
+                        <ActionButton type="button" variant="danger" onClick={() => deleteMaterial(row.id)}>
                             Delete
-                        </button>
+                        </ActionButton>
                     </div>
                 ),
         },

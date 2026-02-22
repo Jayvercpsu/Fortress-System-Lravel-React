@@ -1,4 +1,5 @@
 import Layout from '../../../Components/Layout';
+import DatePickerInput from '../../../Components/DatePickerInput';
 import { Head, useForm } from '@inertiajs/react';
 import toast from 'react-hot-toast';
 
@@ -12,7 +13,7 @@ const inputStyle = {
     fontSize: 13,
 };
 
-export default function HeadAdminProjectsCreate() {
+export default function HeadAdminProjectsCreate({ foremen = [] }) {
     const { data, setData, post, processing, errors } = useForm({
         name: '',
         client: '',
@@ -27,7 +28,6 @@ export default function HeadAdminProjectsCreate() {
     const submit = (e) => {
         e.preventDefault();
         post('/projects', {
-            onSuccess: () => toast.success('Project created.'),
             onError: () => toast.error('Please check required fields.'),
         });
     };
@@ -42,7 +42,6 @@ export default function HeadAdminProjectsCreate() {
                         ['client', 'Client'],
                         ['type', 'Type'],
                         ['location', 'Location'],
-                        ['assigned', 'Assigned To'],
                     ].map(([key, label]) => (
                         <label key={key}>
                             <div style={{ fontSize: 12, marginBottom: 6 }}>{label}</div>
@@ -52,8 +51,31 @@ export default function HeadAdminProjectsCreate() {
                     ))}
 
                     <label>
+                        <div style={{ fontSize: 12, marginBottom: 6 }}>Assigned To</div>
+                        <select
+                            value={data.assigned}
+                            onChange={(e) => setData('assigned', e.target.value)}
+                            style={inputStyle}
+                            disabled={foremen.length === 0}
+                        >
+                            <option value="">{foremen.length === 0 ? 'No foreman users available' : 'Select foreman'}</option>
+                            {foremen.map((foreman) => (
+                                <option key={foreman.id} value={foreman.fullname}>
+                                    {foreman.fullname}
+                                </option>
+                            ))}
+                        </select>
+                        {foremen.length === 0 && (
+                            <div style={{ color: 'var(--text-muted)', fontSize: 12, marginTop: 4 }}>
+                                Add a user with role `foreman` first to assign this project.
+                            </div>
+                        )}
+                        {errors.assigned && <div style={{ color: '#f87171', fontSize: 12, marginTop: 4 }}>{errors.assigned}</div>}
+                    </label>
+
+                    <label>
                         <div style={{ fontSize: 12, marginBottom: 6 }}>Target Date</div>
-                        <input type="date" value={data.target} onChange={(e) => setData('target', e.target.value)} style={inputStyle} />
+                        <DatePickerInput value={data.target} onChange={(value) => setData('target', value)} style={inputStyle} />
                         {errors.target && <div style={{ color: '#f87171', fontSize: 12, marginTop: 4 }}>{errors.target}</div>}
                     </label>
 

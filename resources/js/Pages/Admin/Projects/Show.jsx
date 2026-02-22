@@ -1,4 +1,5 @@
 import Layout from '../../../Components/Layout';
+import ActionButton from '../../../Components/ActionButton';
 import DataTable from '../../../Components/DataTable';
 import Modal from '../../../Components/Modal';
 import { Head, Link, router, useForm, usePage } from '@inertiajs/react';
@@ -173,16 +174,12 @@ export default function AdminProjectsShow({
             align: 'right',
             render: (file) => (
                 <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
-                    <button
-                        type="button"
-                        onClick={() => setPreviewFile(file)}
-                        style={{ background: 'transparent', border: 'none', color: '#60a5fa', fontSize: 13, cursor: 'pointer', padding: 0 }}
-                    >
+                    <ActionButton type="button" variant="view" onClick={() => setPreviewFile(file)}>
                         Open
-                    </button>
-                    <button type="button" onClick={() => deleteFile(file.id)} style={{ background: '#ef4444', color: '#fff', border: 'none', borderRadius: 8, padding: '6px 10px', cursor: 'pointer' }}>
+                    </ActionButton>
+                    <ActionButton type="button" variant="danger" onClick={() => deleteFile(file.id)}>
                         Delete
-                    </button>
+                    </ActionButton>
                 </div>
             ),
         },
