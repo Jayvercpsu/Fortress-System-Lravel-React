@@ -19,5 +19,6 @@ class User extends Authenticatable {
     public function issueReports()      { return $this->hasMany(IssueReport::class, 'foreman_id'); }
     public function progressPhotos()    { return $this->hasMany(ProgressPhoto::class, 'foreman_id'); }
     public function deliveries()        { return $this->hasMany(DeliveryConfirmation::class, 'foreman_id'); }
+    public function workers()           { return $this->hasMany(Worker::class, 'foreman_id'); }
     public function detail()            { return $this->hasOne(UserDetail::class); }
 }

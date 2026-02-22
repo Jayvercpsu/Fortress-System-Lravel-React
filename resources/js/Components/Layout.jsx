@@ -35,6 +35,8 @@ const navByRole = {
     ],
     foreman: [
         { label: 'Dashboard', href: '/foreman', icon: 'fi fi-rr-helmet-safety' },
+        { label: 'Attendance', href: '/foreman/attendance', icon: 'fi fi-rr-calendar-check' },
+        { label: 'Workers', href: '/foreman/workers', icon: 'fi fi-rr-users' },
         { label: 'Settings', href: '/settings', icon: 'fi fi-rr-settings' },
     ],
 };
@@ -123,9 +125,11 @@ export default function Layout({ children, title }) {
                     <nav style={{ flex: 1 }}>
                         {navItems.map((item) => {
                             const itemPath = item.href.replace(/\/+$/, '') || '/';
+                            const exactOnlyPaths = new Set(['/head-admin', '/admin', '/hr', '/foreman']);
+                            const exactOnly = exactOnlyPaths.has(itemPath);
                             const active =
                                 currentPath === itemPath ||
-                                (itemPath !== '/' && currentPath.startsWith(`${itemPath}/`));
+                                (!exactOnly && itemPath !== '/' && currentPath.startsWith(`${itemPath}/`));
 
                             return (
                                 <Link

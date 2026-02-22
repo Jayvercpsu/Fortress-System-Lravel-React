@@ -1,9 +1,11 @@
 <?php
 use App\Http\Controllers\Auth\AuthController;
+use App\Http\Controllers\AttendanceController;
 use App\Http\Controllers\BuildController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\DesignController;
 use App\Http\Controllers\ExpenseController;
+use App\Http\Controllers\ForemanWorkerController;
 use App\Http\Controllers\MaterialController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\ForemansController;
@@ -49,11 +51,21 @@ Route::middleware(['auth', 'role:hr'])->group(function () {
 
 Route::middleware(['auth', 'role:foreman'])->group(function () {
     Route::get('/foreman', [DashboardController::class, 'foreman'])->name('foreman.dashboard');
+    Route::get('/foreman/attendance', [ForemansController::class, 'attendanceIndex'])->name('foreman.attendance.index');
+    Route::post('/foreman/attendance', [ForemansController::class, 'storeAttendance'])->name('foreman.attendance.store');
+    Route::patch('/foreman/attendance/{attendance}', [ForemansController::class, 'updateAttendance'])->name('foreman.attendance.update');
+    Route::get('/foreman/workers', [ForemanWorkerController::class, 'index'])->name('foreman.workers.index');
+    Route::post('/foreman/workers', [ForemanWorkerController::class, 'store'])->name('foreman.workers.store');
+    Route::patch('/foreman/workers/{worker}', [ForemanWorkerController::class, 'update'])->name('foreman.workers.update');
+    Route::delete('/foreman/workers/{worker}', [ForemanWorkerController::class, 'destroy'])->name('foreman.workers.destroy');
     Route::post('/foreman/submit-all', [ForemansController::class, 'submitAll'])->name('foreman.submit_all');
     Route::post('/foreman/progress-photo', [ForemansController::class, 'storeProgressPhoto'])->name('foreman.photo');
 });
 
 Route::middleware(['auth', 'role:head_admin,admin'])->group(function () {
+    Route::get('/attendance/summary', [AttendanceController::class, 'summary'])->name('attendance.summary');
+    Route::get('/attendance', [AttendanceController::class, 'index'])->name('attendance.index');
+
     Route::get('/projects', [ProjectController::class, 'index'])->name('projects.index');
     Route::get('/projects/create', [ProjectController::class, 'create'])->name('projects.create');
     Route::post('/projects', [ProjectController::class, 'store'])->name('projects.store');

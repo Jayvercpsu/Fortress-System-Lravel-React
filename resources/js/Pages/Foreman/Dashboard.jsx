@@ -62,18 +62,13 @@ const btnStyle = {
 
 export default function ForemanDashboard({
     user,
-    attendances,
     accomplishments,
     materialRequests,
     issueReports,
     deliveries,
 }) {
-    const [open, setOpen] = useState('attendance');
+    const [open, setOpen] = useState('accomplishment');
     const [submitting, setSubmitting] = useState(false);
-
-    const [attEntries, setAttEntries] = useState([
-        { worker_name: '', worker_role: 'Labor', date: '', hours: 8 },
-    ]);
 
     const [weekStart, setWeekStart] = useState('');
     const [scopes, setScopes] = useState(SCOPES.map((s) => ({ scope_of_work: s, percent_completed: '' })));
@@ -98,9 +93,6 @@ export default function ForemanDashboard({
 
     const toggle = (key) => setOpen(open === key ? null : key);
 
-    const addAttRow = () =>
-        setAttEntries([...attEntries, { worker_name: '', worker_role: 'Labor', date: '', hours: 8 }]);
-
     const addMatRow = () =>
         setMatItems([...matItems, { material_name: '', quantity: '', unit: '', remarks: '' }]);
 
@@ -110,7 +102,6 @@ export default function ForemanDashboard({
         router.post(
             '/foreman/submit-all',
             {
-                attendance: attEntries,
                 week_start: weekStart,
                 scopes,
                 material_items: matItems,
@@ -133,8 +124,8 @@ export default function ForemanDashboard({
         <>
             <Head title="Foreman Dashboard" />
             <Layout title={`Foreman — ${user.fullname}`}>
-                {/* DAILY ATTENDANCE */}
-                <div style={sectionStyle}>
+                {/* DAILY ATTENDANCE (moved to /foreman/attendance) */}
+                {false && <div style={sectionStyle}>
                     <div style={headerStyle} onClick={() => toggle('attendance')}>
                         <div style={{ fontWeight: 600, fontSize: 15 }}>
                             <i className="fi fi-rr-clipboard-user" style={{ marginRight: 8 }} />
@@ -150,7 +141,7 @@ export default function ForemanDashboard({
                             <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: 12 }}>
                                 <thead>
                                     <tr>
-                                        {['Worker Name', 'Role', 'Date', 'Hours', ''].map((h, i) => (
+                                        {['Worker Name', 'Role', 'Project', 'Date', 'Time In', 'Time Out', 'Hours', ''].map((h, i) => (
                                             <th
                                                 key={i}
                                                 style={{
@@ -174,11 +165,7 @@ export default function ForemanDashboard({
                                             <td style={{ padding: '6px 8px' }}>
                                                 <input
                                                     value={entry.worker_name}
-                                                    onChange={(e) => {
-                                                        const arr = [...attEntries];
-                                                        arr[idx].worker_name = e.target.value;
-                                                        setAttEntries(arr);
-                                                    }}
+                                                    onChange={(e) => updateAttEntry(idx, 'worker_name', e.target.value)}
                                                     style={inputStyle}
                                                     placeholder="Name"
                                                 />
@@ -187,11 +174,7 @@ export default function ForemanDashboard({
                                             <td style={{ padding: '6px 8px' }}>
                                                 <select
                                                     value={entry.worker_role}
-                                                    onChange={(e) => {
-                                                        const arr = [...attEntries];
-                                                        arr[idx].worker_role = e.target.value;
-                                                        setAttEntries(arr);
-                                                    }}
+                                                    onChange={(e) => updateAttEntry(idx, 'worker_role', e.target.value)}
                                                     style={{ ...inputStyle, width: 'auto' }}
                                                 >
                                                     {['Foreman', 'Skilled', 'Labor'].map((r) => (
@@ -201,27 +184,55 @@ export default function ForemanDashboard({
                                             </td>
 
                                             <td style={{ padding: '6px 8px' }}>
+                                                <select
+                                                    value={entry.project_id ?? ''}
+                                                    onChange={(e) => updateAttEntry(idx, 'project_id', e.target.value)}
+                                                    style={inputStyle}
+                                                >
+                                                    <option value="">Select project (optional)</option>
+                                                    {projects.map((project) => (
+                                                        <option key={project.id} value={project.id}>
+                                                            {project.name}
+                                                        </option>
+                                                    ))}
+                                                </select>
+                                            </td>
+
+                                            <td style={{ padding: '6px 8px' }}>
                                                 <DatePickerInput
                                                     value={entry.date}
-                                                    onChange={(value) => {
-                                                        const arr = [...attEntries];
-                                                        arr[idx].date = value;
-                                                        setAttEntries(arr);
-                                                    }}
+                                                    onChange={(value) => updateAttEntry(idx, 'date', value)}
                                                     style={inputStyle}
                                                 />
                                             </td>
 
                                             <td style={{ padding: '6px 8px' }}>
                                                 <input
+                                                    type="time"
+                                                    value={entry.time_in ?? ''}
+                                                    onChange={(e) => updateAttEntry(idx, 'time_in', e.target.value)}
+                                                    style={{ ...inputStyle, minWidth: 110 }}
+                                                />
+                                            </td>
+
+                                            <td style={{ padding: '6px 8px' }}>
+                                                <input
+                                                    type="time"
+                                                    value={entry.time_out ?? ''}
+                                                    onChange={(e) => updateAttEntry(idx, 'time_out', e.target.value)}
+                                                    style={{ ...inputStyle, minWidth: 110 }}
+                                                />
+                                            </td>
+
+                                            <td style={{ padding: '6px 8px' }}>
+                                                <input
                                                     type="number"
+                                                    step="0.1"
+                                                    min="0"
                                                     value={entry.hours}
-                                                    onChange={(e) => {
-                                                        const arr = [...attEntries];
-                                                        arr[idx].hours = e.target.value;
-                                                        setAttEntries(arr);
-                                                    }}
+                                                    onChange={(e) => updateAttEntry(idx, 'hours', e.target.value)}
                                                     style={{ ...inputStyle, width: 80 }}
+                                                    title={entry.time_in && entry.time_out ? 'Auto-calculated from time in/out' : 'Manual hours'}
                                                 />
                                             </td>
 
@@ -259,9 +270,12 @@ export default function ForemanDashboard({
                             >
                                 + Add Row
                             </button>
+                            <div style={{ marginTop: 8, fontSize: 12, color: 'var(--text-muted)' }}>
+                                Hours are auto-calculated when both Time In and Time Out are provided.
+                            </div>
                         </div>
                     )}
-                </div>
+                </div>}
 
                 {/* WEEKLY ACCOMPLISHMENT */}
                 <div style={sectionStyle}>
