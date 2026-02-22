@@ -1,5 +1,6 @@
 import { useForm, Head } from '@inertiajs/react';
 import { Settings } from 'lucide-react';
+import toast from 'react-hot-toast';
 
 export default function Login() {
     const { data, setData, post, errors, processing } = useForm({
@@ -9,7 +10,13 @@ export default function Login() {
 
     const submit = (e) => {
         e.preventDefault();
-        post('/login');
+        post('/login', {
+            onError: (formErrors) => {
+                if (formErrors?.email === 'Invalid credentials.') {
+                    toast.error(formErrors.email, { id: 'login-invalid-credentials' });
+                }
+            },
+        });
     };
 
     return (
@@ -92,7 +99,7 @@ export default function Login() {
                                     }}
                                 />
 
-                                {errors.email && (
+                                {errors.email && errors.email !== 'Invalid credentials.' && (
                                     <p style={{ color: '#f85149', fontSize: 12, marginTop: 4 }}>
                                         {errors.email}
                                     </p>
