@@ -1,4 +1,5 @@
 import { useForm, Head } from '@inertiajs/react';
+import { Settings } from 'lucide-react';
 
 export default function Login() {
     const { data, setData, post, errors, processing } = useForm({
@@ -37,11 +38,10 @@ export default function Login() {
                                 display: 'flex',
                                 alignItems: 'center',
                                 justifyContent: 'center',
-                                fontSize: 28,
                                 margin: '0 auto 12px',
                             }}
                         >
-                            🏗️
+                            <Settings size={28} strokeWidth={2.25} color="#fff" />
                         </div>
 
                         <h1 style={{ color: 'var(--text-main)', fontSize: 24, fontWeight: 700, margin: 0 }}>
