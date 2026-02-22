@@ -43,7 +43,6 @@ class ForemanWorkerController extends Controller
         $workers = collect($paginator->items())->map(fn (Worker $worker) => [
             'id' => $worker->id,
             'name' => $worker->name,
-            'default_rate_per_hour' => $worker->default_rate_per_hour !== null ? (float) $worker->default_rate_per_hour : null,
             'birth_date' => optional($worker->birth_date)?->toDateString(),
             'place_of_birth' => $worker->place_of_birth,
             'sex' => $worker->sex,
@@ -121,7 +120,6 @@ class ForemanWorkerController extends Controller
                     ->where(fn ($query) => $query->where('foreman_id', $foremanId))
                     ->ignore($workerId),
             ],
-            'default_rate_per_hour' => 'nullable|numeric|min:0',
             'birth_date' => 'nullable|date|before_or_equal:today',
             'place_of_birth' => 'nullable|string|max:255',
             'sex' => 'nullable|in:male,female,other',

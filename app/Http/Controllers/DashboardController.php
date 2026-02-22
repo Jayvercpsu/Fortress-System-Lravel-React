@@ -6,11 +6,14 @@ use App\Models\Attendance;
 use App\Models\MaterialRequest;
 use App\Models\IssueReport;
 use App\Models\Payroll;
+use App\Models\Project;
 use App\Models\WeeklyAccomplishment;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Auth;
 use Inertia\Inertia;
 
 class DashboardController extends Controller {
+    private const PH_TIMEZONE = 'Asia/Manila';
     public function headAdmin() {
         $stats = [
             'total_users'     => User::where('role', '!=', 'head_admin')->count(),
@@ -52,9 +55,40 @@ class DashboardController extends Controller {
         $materialRequests = MaterialRequest::where('foreman_id', $user->id)->latest()->take(10)->get();
         $issueReports   = IssueReport::where('foreman_id', $user->id)->latest()->take(10)->get();
         $deliveries     = \App\Models\DeliveryConfirmation::where('foreman_id', $user->id)->latest()->take(10)->get();
+        $projects = Project::query()
+            ->orderBy('name')
+            ->get(['id', 'name'])
+            ->map(fn (Project $project) => ['id' => $project->id, 'name' => $project->name])
+            ->values();
+
+        $foremanAttendanceToday = null;
+        $foremanName = trim((string) ($user->fullname ?? ''));
+        if ($foremanName !== '') {
+            $phToday = Carbon::now(self::PH_TIMEZONE)->toDateString();
+            $selfLog = Attendance::query()
+                ->with('project:id,name')
+                ->where('foreman_id', $user->id)
+                ->whereDate('date', $phToday)
+                ->where('worker_role', 'Foreman')
+                ->where('worker_name', $foremanName)
+                ->orderByDesc('id')
+                ->first();
+
+            if ($selfLog) {
+                $foremanAttendanceToday = [
+                    'id' => $selfLog->id,
+                    'date' => optional($selfLog->date)?->toDateString(),
+                    'project_id' => $selfLog->project_id,
+                    'project_name' => $selfLog->project?->name,
+                    'time_in' => $selfLog->time_in,
+                    'time_out' => $selfLog->time_out,
+                    'hours' => (float) ($selfLog->hours ?? 0),
+                ];
+            }
+        }
 
         return Inertia::render('Foreman/Dashboard', compact(
-            'user', 'attendances', 'accomplishments', 'materialRequests', 'issueReports', 'deliveries'
+            'user', 'attendances', 'accomplishments', 'materialRequests', 'issueReports', 'deliveries', 'projects', 'foremanAttendanceToday'
         ));
     }
 }

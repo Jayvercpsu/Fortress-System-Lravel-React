@@ -8,10 +8,13 @@ use Illuminate\Notifications\Notifiable;
 class User extends Authenticatable {
     use HasFactory, Notifiable;
 
-    protected $fillable = ['fullname', 'email', 'password', 'role'];
+    protected $fillable = ['fullname', 'email', 'password', 'role', 'default_rate_per_hour'];
     protected $hidden   = ['password', 'remember_token'];
 
-    protected $casts = ['password' => 'hashed'];
+    protected $casts = [
+        'password' => 'hashed',
+        'default_rate_per_hour' => 'decimal:2',
+    ];
 
     public function attendances()       { return $this->hasMany(Attendance::class, 'foreman_id'); }
     public function accomplishments()   { return $this->hasMany(WeeklyAccomplishment::class, 'foreman_id'); }

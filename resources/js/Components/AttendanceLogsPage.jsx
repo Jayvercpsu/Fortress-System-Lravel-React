@@ -25,7 +25,17 @@ const inputStyle = {
 
 function timeLabel(time) {
     if (!time) return '-';
-    return String(time).slice(0, 5);
+    const raw = String(time).trim();
+    const match = raw.match(/^(\d{1,2}):(\d{2})/);
+    if (!match) return raw;
+
+    const hours24 = Number(match[1]);
+    const minutes = match[2];
+    if (Number.isNaN(hours24)) return raw;
+
+    const period = hours24 >= 12 ? 'PM' : 'AM';
+    const hours12 = hours24 % 12 || 12;
+    return `${hours12}:${minutes} ${period}`;
 }
 
 export default function AttendanceLogsPage({
@@ -138,7 +148,7 @@ export default function AttendanceLogsPage({
                 <div style={{ display: 'grid', gap: 16 }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
                         <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
-                            Browse attendance logs with project/foreman/date filters.
+                            Browse attendance logs with project/foreman/date filters. Times are shown in Philippine time (Asia/Manila).
                         </div>
                         <ActionButton href="/attendance/summary" variant="view" style={{ padding: '8px 12px', fontSize: 13 }}>
                             Cutoff Summary

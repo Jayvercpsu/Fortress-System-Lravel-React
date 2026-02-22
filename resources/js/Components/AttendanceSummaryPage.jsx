@@ -133,7 +133,7 @@ export default function AttendanceSummaryPage({
                 <div style={{ display: 'grid', gap: 16 }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
                         <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
-                            Generate cutoff totals by worker, foreman, and project.
+                            Generate cutoff totals by worker, foreman, and project. Cutoff/date filters follow Philippine time (Asia/Manila).
                         </div>
                         <ActionButton href="/attendance" variant="view" style={{ padding: '8px 12px', fontSize: 13 }}>
                             View Logs

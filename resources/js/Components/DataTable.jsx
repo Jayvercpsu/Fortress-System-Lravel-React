@@ -31,6 +31,7 @@ export default function DataTable({
     onServerPerPageChange,
     topLeftExtra = null,
     topRightExtra = null,
+    getRowStyle,
 }) {
     const [query, setQuery] = useState('');
     const [page, setPage] = useState(1);
@@ -168,7 +169,10 @@ export default function DataTable({
                         )}
 
                         {pagedRows.map((row, index) => (
-                            <tr key={resolveRowKey(row, index)}>
+                            <tr
+                                key={resolveRowKey(row, index)}
+                                style={typeof getRowStyle === 'function' ? getRowStyle(row, index) : undefined}
+                            >
                                 {columns.map((column) => (
                                     <td
                                         key={`${resolveRowKey(row, index)}-${column.key}`}

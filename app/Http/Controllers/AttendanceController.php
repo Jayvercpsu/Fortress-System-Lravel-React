@@ -12,6 +12,8 @@ use Inertia\Inertia;
 
 class AttendanceController extends Controller
 {
+    private const PH_TIMEZONE = 'Asia/Manila';
+
     public function index(Request $request)
     {
         $this->authorizeRole($request);
@@ -49,7 +51,9 @@ class AttendanceController extends Controller
                 'time_out' => $attendance->time_out,
                 'hours' => (float) ($attendance->hours ?? 0),
                 'selfie_path' => $attendance->selfie_path,
-                'created_at' => optional($attendance->created_at)?->toDateTimeString(),
+                'created_at' => $attendance->created_at
+                    ? $attendance->created_at->copy()->timezone(self::PH_TIMEZONE)->format('Y-m-d h:i:s A')
+                    : null,
             ])
             ->values();
 

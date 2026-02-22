@@ -6,7 +6,9 @@ use App\Models\Attendance;
 use App\Models\Payroll;
 use App\Models\PayrollCutoff;
 use App\Models\PayrollDeduction;
+use App\Models\User;
 use App\Models\Worker;
+use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -50,6 +52,8 @@ class PayrollController extends Controller
             'net'           => $net,
             'week_start'    => $request->week_start,
         ]);
+
+        $this->syncWorkerDefaultRate((string) $request->worker_name, (float) $request->rate_per_hour);
 
         return back()->with('success', 'Payroll entry added.');
     }
@@ -95,6 +99,8 @@ class PayrollController extends Controller
             'status' => $validated['status'],
         ]);
 
+        $this->syncWorkerDefaultRate((string) $validated['worker_name'], (float) $validated['rate_per_hour']);
+
         return back()->with('success', 'Payroll entry updated.');
     }
 
@@ -137,6 +143,145 @@ class PayrollController extends Controller
             ],
             'today' => now()->toDateString(),
         ]);
+    }
+
+    public function workerRates(Request $request)
+    {
+        [$search, $perPage] = $this->runTableParams($request);
+
+        $needle = mb_strtolower($search);
+
+        $workerRows = Worker::query()
+            ->with('foreman:id,fullname')
+            ->orderBy('name')
+            ->get()
+            ->map(function (Worker $worker) use ($needle) {
+                $row = [
+                    'id' => $worker->id,
+                    'entity_type' => 'worker',
+                    'name' => $worker->name,
+                    'person_type' => 'Worker',
+                    'foreman_name' => $worker->foreman?->fullname,
+                    'phone' => $worker->phone,
+                    'sex' => $worker->sex,
+                    'default_rate_per_hour' => $worker->default_rate_per_hour !== null ? (float) $worker->default_rate_per_hour : null,
+                    'updated_at' => optional($worker->updated_at)?->toDateTimeString(),
+                ];
+
+                if ($needle === '') {
+                    return $row;
+                }
+
+                $haystack = mb_strtolower(implode(' | ', [
+                    $row['name'] ?? '',
+                    $row['person_type'] ?? '',
+                    $row['foreman_name'] ?? '',
+                    $row['phone'] ?? '',
+                    $row['sex'] ?? '',
+                ]));
+
+                return str_contains($haystack, $needle) ? $row : null;
+            })
+            ->filter()
+            ->values();
+
+        $foremanRows = User::query()
+            ->where('role', 'foreman')
+            ->orderBy('fullname')
+            ->get(['id', 'fullname', 'email', 'default_rate_per_hour', 'updated_at'])
+            ->map(function (User $foreman) use ($needle) {
+                $row = [
+                    'id' => $foreman->id,
+                    'entity_type' => 'foreman',
+                    'name' => $foreman->fullname,
+                    'person_type' => 'Foreman',
+                    'foreman_name' => null,
+                    'phone' => null,
+                    'sex' => null,
+                    'email' => $foreman->email,
+                    'default_rate_per_hour' => $foreman->default_rate_per_hour !== null ? (float) $foreman->default_rate_per_hour : null,
+                    'updated_at' => optional($foreman->updated_at)?->toDateTimeString(),
+                ];
+
+                if ($needle === '') {
+                    return $row;
+                }
+
+                $haystack = mb_strtolower(implode(' | ', [
+                    $row['name'] ?? '',
+                    $row['person_type'] ?? '',
+                    $row['email'] ?? '',
+                ]));
+
+                return str_contains($haystack, $needle) ? $row : null;
+            })
+            ->filter()
+            ->values();
+
+        $allRows = $workerRows
+            ->concat($foremanRows)
+            ->sortBy(fn ($row) => sprintf('%s|%s', (string) ($row['person_type'] ?? ''), (string) ($row['name'] ?? '')), SORT_NATURAL | SORT_FLAG_CASE)
+            ->values();
+
+        $currentPage = max(1, (int) $request->query('page', 1));
+        $total = $allRows->count();
+        $items = $allRows->forPage($currentPage, $perPage)->values();
+
+        $paginator = new LengthAwarePaginator(
+            $items,
+            $total,
+            $perPage,
+            $currentPage,
+            [
+                'path' => $request->url(),
+                'query' => $request->query(),
+            ]
+        );
+
+        return Inertia::render('HR/WorkerRates', [
+            'workerRates' => $items,
+            'workerRateTable' => [
+                'search' => $search,
+                'per_page' => $paginator->perPage(),
+                'current_page' => $paginator->currentPage(),
+                'last_page' => max(1, $paginator->lastPage()),
+                'total' => $paginator->total(),
+                'from' => $paginator->firstItem(),
+                'to' => $paginator->lastItem(),
+            ],
+        ]);
+    }
+
+    public function updateWorkerRate(Request $request, Worker $worker)
+    {
+        $validated = $request->validate([
+            'default_rate_per_hour' => 'required|numeric|min:0',
+        ]);
+
+        $worker->update([
+            'default_rate_per_hour' => round((float) $validated['default_rate_per_hour'], 2),
+        ]);
+
+        return redirect()
+            ->route('payroll.worker_rates', $this->tableQueryParams($request))
+            ->with('success', 'Worker rate updated.');
+    }
+
+    public function updateForemanRate(Request $request, User $user)
+    {
+        abort_unless($user->role === 'foreman', 404);
+
+        $validated = $request->validate([
+            'default_rate_per_hour' => 'required|numeric|min:0',
+        ]);
+
+        $user->update([
+            'default_rate_per_hour' => round((float) $validated['default_rate_per_hour'], 2),
+        ]);
+
+        return redirect()
+            ->route('payroll.worker_rates', $this->tableQueryParams($request))
+            ->with('success', 'Foreman rate updated.');
     }
 
     public function generateFromAttendance(Request $request)
@@ -484,6 +629,18 @@ class PayrollController extends Controller
             return round((float) $workerRate, 2);
         }
 
+        $foremanRate = User::query()
+            ->where('role', 'foreman')
+            ->where('fullname', $workerName)
+            ->whereNotNull('default_rate_per_hour')
+            ->where('default_rate_per_hour', '>', 0)
+            ->orderByDesc('id')
+            ->value('default_rate_per_hour');
+
+        if ($foremanRate !== null) {
+            return round((float) $foremanRate, 2);
+        }
+
         $exactRate = Payroll::query()
             ->where('worker_name', $workerName)
             ->where('rate_per_hour', '>', 0)
@@ -584,8 +741,67 @@ class PayrollController extends Controller
             }
         }
 
+        $foremen = User::query()
+            ->where('role', 'foreman')
+            ->whereNotNull('fullname')
+            ->where('fullname', '!=', '')
+            ->orderByDesc('id')
+            ->get(['fullname', 'default_rate_per_hour']);
+
+        foreach ($foremen as $foreman) {
+            $name = trim((string) $foreman->fullname);
+            if ($name === '') {
+                continue;
+            }
+
+            $key = mb_strtolower($name);
+            if (!isset($options[$key])) {
+                $options[$key] = [
+                    'value' => $name,
+                    'label' => $name,
+                    'name' => $name,
+                    'default_rate_per_hour' => null,
+                    'role' => 'Foreman',
+                ];
+            } elseif (empty($options[$key]['role'])) {
+                $options[$key]['role'] = 'Foreman';
+            }
+
+            if ($foreman->default_rate_per_hour !== null && (float) $foreman->default_rate_per_hour > 0) {
+                $options[$key]['default_rate_per_hour'] = (float) $foreman->default_rate_per_hour;
+            }
+        }
+
         return collect(array_values($options))
             ->sortBy('label', SORT_NATURAL | SORT_FLAG_CASE)
             ->values();
+    }
+
+    private function syncWorkerDefaultRate(string $workerName, float $ratePerHour): void
+    {
+        $name = trim($workerName);
+        $rate = round($ratePerHour, 2);
+
+        if ($name === '' || $rate < 0) {
+            return;
+        }
+
+        Worker::query()
+            ->where('name', $name)
+            ->update(['default_rate_per_hour' => $rate]);
+
+        User::query()
+            ->where('role', 'foreman')
+            ->where('fullname', $name)
+            ->update(['default_rate_per_hour' => $rate]);
+    }
+
+    private function tableQueryParams(Request $request): array
+    {
+        return array_filter([
+            'search' => $request->query('search'),
+            'per_page' => $request->query('per_page'),
+            'page' => $request->query('page'),
+        ], fn ($value) => $value !== null && $value !== '');
     }
 }

@@ -31,6 +31,7 @@ const navByRole = {
     hr: [
         { label: 'Dashboard', href: '/hr', icon: 'fi fi-rr-dashboard' },
         { label: 'Payroll', href: '/payroll/run', icon: 'fi fi-rr-money-bill-wave' },
+        { label: 'Worker Rates', href: '/payroll/worker-rates', icon: 'fi fi-rr-users' },
         { label: 'Settings', href: '/settings', icon: 'fi fi-rr-settings' },
     ],
     foreman: [

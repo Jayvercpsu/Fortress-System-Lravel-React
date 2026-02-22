@@ -254,11 +254,22 @@ export default function PayrollRun({
                                 Create or regenerate a cutoff payroll from attendance logs. Existing draft/generated cutoff rows for the same range will be replaced.
                             </div>
                         </div>
-                        <ActionButton href="/payroll" variant="neutral">Open Manual Payroll (Fallback)</ActionButton>
+                        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                            <ActionButton href="/payroll/worker-rates" variant="neutral">Worker Rates</ActionButton>
+                            <ActionButton href="/payroll" variant="neutral">Open Manual Payroll (Fallback)</ActionButton>
+                        </div>
                     </div>
 
                     <form onSubmit={submitGenerate} style={{ ...cardStyle, display: 'grid', gap: 12 }}>
-                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr)) auto', gap: 12, alignItems: 'end' }}>
+                        <div
+                            style={{
+                                display: 'grid',
+                                gridTemplateColumns: 'repeat(2, minmax(220px, 320px)) auto',
+                                gap: 12,
+                                alignItems: 'end',
+                                justifyContent: 'start',
+                            }}
+                        >
                             <label>
                                 <div style={{ fontSize: 12, marginBottom: 6 }}>Cutoff Start</div>
                                 <DatePickerInput
@@ -286,7 +297,7 @@ export default function PayrollRun({
                                 )}
                             </label>
 
-                            <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                            <div style={{ display: 'flex', justifyContent: 'flex-start' }}>
                                 <ActionButton type="submit" variant="success" disabled={generateForm.processing} style={{ padding: '10px 16px', fontSize: 13 }}>
                                     {generateForm.processing ? 'Generating...' : 'Generate Payroll'}
                                 </ActionButton>

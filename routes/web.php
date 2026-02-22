@@ -51,6 +51,9 @@ Route::middleware(['auth', 'role:hr'])->group(function () {
     Route::post('/payroll/{payroll}/deductions', [PayrollController::class, 'addDeduction'])->name('payroll.deductions.store');
     Route::patch('/payroll-deductions/{payrollDeduction}', [PayrollController::class, 'updateDeduction'])->name('payroll.deductions.update');
     Route::delete('/payroll-deductions/{payrollDeduction}', [PayrollController::class, 'destroyDeduction'])->name('payroll.deductions.destroy');
+    Route::get('/payroll/worker-rates', [PayrollController::class, 'workerRates'])->name('payroll.worker_rates');
+    Route::patch('/payroll/worker-rates/{worker}', [PayrollController::class, 'updateWorkerRate'])->name('payroll.worker_rates.update');
+    Route::patch('/payroll/foreman-rates/{user}', [PayrollController::class, 'updateForemanRate'])->name('payroll.foreman_rates.update');
     Route::get('/payroll', [PayrollController::class, 'index'])->name('payroll.index');
     Route::post('/payroll', [PayrollController::class, 'store'])->name('payroll.store');
     Route::patch('/payroll/{payroll}', [PayrollController::class, 'update'])->name('payroll.update');
@@ -61,6 +64,8 @@ Route::middleware(['auth', 'role:foreman'])->group(function () {
     Route::get('/foreman', [DashboardController::class, 'foreman'])->name('foreman.dashboard');
     Route::get('/foreman/attendance', [ForemansController::class, 'attendanceIndex'])->name('foreman.attendance.index');
     Route::post('/foreman/attendance', [ForemansController::class, 'storeAttendance'])->name('foreman.attendance.store');
+    Route::post('/foreman/attendance/time-in', [ForemansController::class, 'timeInAttendance'])->name('foreman.attendance.time_in');
+    Route::post('/foreman/attendance/time-out', [ForemansController::class, 'timeOutAttendance'])->name('foreman.attendance.time_out');
     Route::patch('/foreman/attendance/{attendance}', [ForemansController::class, 'updateAttendance'])->name('foreman.attendance.update');
     Route::get('/foreman/workers', [ForemanWorkerController::class, 'index'])->name('foreman.workers.index');
     Route::post('/foreman/workers', [ForemanWorkerController::class, 'store'])->name('foreman.workers.store');

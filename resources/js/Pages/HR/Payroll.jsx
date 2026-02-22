@@ -307,8 +307,13 @@ export default function Payroll({ payrolls = [], totalPayable = 0, workerOptions
                             display: 'flex',
                             alignItems: 'center',
                             justifyContent: 'flex-end',
+                            gap: 8,
+                            flexWrap: 'wrap',
                         }}
                     >
+                        <ActionButton href="/payroll/worker-rates" variant="neutral">
+                            Worker Rates
+                        </ActionButton>
                         <button
                             onClick={() => setShowForm((v) => !v)}
                             style={{

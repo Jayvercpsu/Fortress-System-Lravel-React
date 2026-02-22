@@ -2,6 +2,7 @@ import Layout from '../../Components/Layout';
 import DataTable from '../../Components/DataTable';
 import ActionButton from '../../Components/ActionButton';
 import SearchableDropdown from '../../Components/SearchableDropdown';
+import Modal from '../../Components/Modal';
 import { Head, router, usePage } from '@inertiajs/react';
 import { useEffect, useMemo, useState } from 'react';
 import toast from 'react-hot-toast';
@@ -25,17 +26,64 @@ const inputStyle = {
     boxSizing: 'border-box',
 };
 
-function timeLabel(time) {
-    return time ? String(time).slice(0, 5) : '-';
+const PH_TIMEZONE = 'Asia/Manila';
+
+function getPhNowParts(nowValue = Date.now()) {
+    const parts = new Intl.DateTimeFormat('en-US', {
+        timeZone: PH_TIMEZONE,
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+        hour12: false,
+    }).formatToParts(new Date(nowValue));
+
+    const read = (type) => Number(parts.find((p) => p.type === type)?.value ?? 0);
+
+    return {
+        year: read('year'),
+        month: read('month'),
+        day: read('day'),
+        hour: read('hour'),
+        minute: read('minute'),
+        second: read('second'),
+    };
 }
 
-export default function ForemanAttendance({ projects = [], workers = [], attendances = [], attendanceTable = {}, stats = {} }) {
-    const { flash } = usePage().props;
-    const todayLabel = new Date().toLocaleDateString(undefined, {
+function getPhDateIso(nowValue = Date.now()) {
+    const { year, month, day } = getPhNowParts(nowValue);
+    return `${String(year).padStart(4, '0')}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+}
+
+function getPhTodayLabel(nowValue = Date.now()) {
+    return new Intl.DateTimeFormat(undefined, {
+        timeZone: PH_TIMEZONE,
         year: 'numeric',
         month: 'short',
         day: '2-digit',
-    });
+    }).format(new Date(nowValue));
+}
+
+function timeLabel(time) {
+    if (!time) return '-';
+    const raw = String(time).slice(0, 5);
+    const [hour, minute] = raw.split(':').map(Number);
+    if ([hour, minute].some((n) => Number.isNaN(n))) return raw;
+    const period = hour >= 12 ? 'PM' : 'AM';
+    const hour12 = hour % 12 || 12;
+    return `${String(hour12).padStart(2, '0')}:${String(minute).padStart(2, '0')} ${period}`;
+}
+
+export default function ForemanAttendance({
+    projects = [],
+    workers = [],
+    attendances = [],
+    attendanceTable = {},
+    stats = {},
+}) {
+    const { flash } = usePage().props;
     const [editingId, setEditingId] = useState(null);
     const [editRow, setEditRow] = useState({
         worker_name: '',
@@ -60,8 +108,20 @@ export default function ForemanAttendance({ projects = [], workers = [], attenda
     );
 
     const [rows, setRows] = useState([
-        { worker_name: '', worker_role: 'Labor', project_id: '', time_in: '', time_out: '', hours: 8 },
+        { worker_name: '', worker_role: 'Labor', project_id: '', time_in: '', time_out: '', hours: 0 },
     ]);
+    const [clockTick, setClockTick] = useState(Date.now());
+    const phTodayIso = useMemo(() => getPhDateIso(clockTick), [clockTick]);
+    const todayLabel = useMemo(() => getPhTodayLabel(clockTick), [clockTick]);
+
+    const projectOptions = useMemo(
+        () => (Array.isArray(projects) ? projects.map((project) => ({ id: project.id, name: project.name })) : []),
+        [projects]
+    );
+    const roleOptions = useMemo(
+        () => ['Skilled', 'Labor'].map((role) => ({ id: role, name: role })),
+        []
+    );
 
     useEffect(() => {
         if (flash?.success) toast.success(flash.success);
@@ -79,10 +139,13 @@ export default function ForemanAttendance({ projects = [], workers = [], attenda
         return Math.round(((end - start) / 60) * 10) / 10;
     };
 
-    const updateRow = (idx, field, value) => {
+    const updateRow = (idx, field, value, option = null) => {
         setRows((prev) => {
             const next = [...prev];
             next[idx] = { ...next[idx], [field]: value };
+            if (field === 'worker_name' && option?.role) {
+                next[idx].worker_role = option.role;
+            }
             const computed = computeHours(next[idx]);
             if (computed !== null) next[idx].hours = computed;
             return next;
@@ -90,7 +153,7 @@ export default function ForemanAttendance({ projects = [], workers = [], attenda
     };
 
     const addRow = () =>
-        setRows((prev) => [...prev, { worker_name: '', worker_role: 'Labor', project_id: '', time_in: '', time_out: '', hours: 8 }]);
+        setRows((prev) => [...prev, { worker_name: '', worker_role: 'Labor', project_id: '', time_in: '', time_out: '', hours: 0 }]);
 
     const removeRow = (idx) => setRows((prev) => prev.filter((_, i) => i !== idx));
 
@@ -120,18 +183,19 @@ export default function ForemanAttendance({ projects = [], workers = [], attenda
             toast.error('Add at least one attendance row with worker name.');
             return;
         }
+        const payload = payloadRows.map(({ hours, ...row }) => row);
 
         const params = new URLSearchParams(buildListParams());
         const qs = params.toString();
 
         router.post(
             `/foreman/attendance${qs ? `?${qs}` : ''}`,
-            { attendance: payloadRows },
+            { attendance: payload },
             {
                 preserveScroll: true,
                 onError: () => toast.error('Unable to submit attendance. Check the form fields.'),
                 onSuccess: () => {
-                    setRows([{ worker_name: '', worker_role: 'Labor', project_id: '', time_in: '', time_out: '', hours: 8 }]);
+                    setRows([{ worker_name: '', worker_role: 'Labor', project_id: '', time_in: '', time_out: '', hours: 0 }]);
                 },
             }
         );
@@ -170,7 +234,6 @@ export default function ForemanAttendance({ projects = [], workers = [], attenda
                 project_id: editRow.project_id || null,
                 time_in: editRow.time_in || null,
                 time_out: editRow.time_out || null,
-                hours: editRow.hours,
             },
             {
                 preserveScroll: true,
@@ -191,97 +254,54 @@ export default function ForemanAttendance({ projects = [], workers = [], attenda
         {
             key: 'worker_name',
             label: 'Worker',
-            render: (row) =>
-                editingId === row.id ? (
-                    <div style={{ minWidth: 220 }}>
-                        <SearchableDropdown
-                            options={workers}
-                            value={editRow.worker_name}
-                            onChange={(selectedName) => updateEditRow('worker_name', selectedName)}
-                            getOptionLabel={(option) => option.name}
-                            getOptionValue={(option) => option.name}
-                            placeholder={workers.length ? 'Select worker' : 'No workers yet'}
-                            searchPlaceholder="Search workers..."
-                            emptyMessage="No workers found"
-                            disabled={workers.length === 0}
-                            clearable
-                            style={{ ...inputStyle, minHeight: 38, padding: '7px 9px' }}
-                            dropdownWidth={320}
-                        />
-                    </div>
-                ) : (
-                    <div style={{ fontWeight: 700 }}>{row.worker_name}</div>
-                ),
+            render: (row) => (
+                <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                    <span style={{ fontWeight: 700 }}>{row.worker_name}</span>
+                    {row.is_foreman_self_log && (
+                        <span
+                            style={{
+                                fontSize: 11,
+                                fontWeight: 600,
+                                padding: '2px 8px',
+                                borderRadius: 999,
+                                border: '1px solid rgba(59, 130, 246, 0.22)',
+                                background: 'rgba(59, 130, 246, 0.10)',
+                                color: '#60a5fa',
+                                lineHeight: 1.4,
+                            }}
+                        >
+                            You
+                        </span>
+                    )}
+                </div>
+            ),
             searchAccessor: (row) => row.worker_name,
         },
         {
             key: 'worker_role',
             label: 'Role',
             width: 90,
-            render: (row) =>
-                editingId === row.id ? (
-                    <select value={editRow.worker_role} onChange={(e) => updateEditRow('worker_role', e.target.value)} style={inputStyle}>
-                        {['Foreman', 'Skilled', 'Labor'].map((r) => (
-                            <option key={r} value={r}>
-                                {r}
-                            </option>
-                        ))}
-                    </select>
-                ) : (
-                    row.worker_role
-                ),
+            render: (row) => row.worker_role,
             searchAccessor: (row) => row.worker_role,
         },
         {
             key: 'project_name',
             label: 'Project',
-            render: (row) =>
-                editingId === row.id ? (
-                    <select value={editRow.project_id ?? ''} onChange={(e) => updateEditRow('project_id', e.target.value)} style={inputStyle}>
-                        <option value="">Select project (optional)</option>
-                        {projects.map((project) => (
-                            <option key={project.id} value={project.id}>
-                                {project.name}
-                            </option>
-                        ))}
-                    </select>
-                ) : (
-                    row.project_name || '-'
-                ),
+            render: (row) => row.project_name || '-',
             searchAccessor: (row) => row.project_name,
         },
         {
             key: 'time',
             label: 'Time In/Out',
             width: 190,
-            render: (row) =>
-                editingId === row.id ? (
-                    <div style={{ display: 'flex', gap: 6 }}>
-                        <input type="time" value={editRow.time_in ?? ''} onChange={(e) => updateEditRow('time_in', e.target.value)} style={{ ...inputStyle, minWidth: 84 }} />
-                        <input type="time" value={editRow.time_out ?? ''} onChange={(e) => updateEditRow('time_out', e.target.value)} style={{ ...inputStyle, minWidth: 84 }} />
-                    </div>
-                ) : (
-                    `${timeLabel(row.time_in)} - ${timeLabel(row.time_out)}`
-                ),
+            render: (row) => `${timeLabel(row.time_in)} - ${timeLabel(row.time_out)}`,
         },
         {
             key: 'hours',
             label: 'Hours',
             width: 90,
             align: 'right',
-            render: (row) =>
-                editingId === row.id ? (
-                    <input
-                        type="number"
-                        step="0.1"
-                        min="0"
-                        value={editRow.hours}
-                        onChange={(e) => updateEditRow('hours', e.target.value)}
-                        style={{ ...inputStyle, width: 80, textAlign: 'right' }}
-                    />
-                ) : (
-                    <div style={{ fontWeight: 700 }}>{Number(row.hours || 0).toFixed(1)}</div>
-                ),
+            render: (row) => <div style={{ fontWeight: 700 }}>{Number(row.hours || 0).toFixed(1)}</div>,
             searchAccessor: (row) => row.hours,
         },
         {
@@ -290,19 +310,12 @@ export default function ForemanAttendance({ projects = [], workers = [], attenda
             align: 'right',
             width: 160,
             render: (row) =>
-                editingId === row.id ? (
-                    <div style={{ display: 'inline-flex', gap: 8 }}>
-                        <ActionButton type="button" variant="neutral" onClick={() => setEditingId(null)}>
-                            Cancel
-                        </ActionButton>
-                        <ActionButton type="button" variant="success" onClick={() => saveEdit(row.id)}>
-                            Save
-                        </ActionButton>
-                    </div>
-                ) : row.can_edit_today ? (
+                row.can_edit_today ? (
                     <ActionButton type="button" variant="edit" onClick={() => startEdit(row)}>
                         Edit
                     </ActionButton>
+                ) : row.is_foreman_self_log && row.date === phTodayIso && !row.time_out ? (
+                    <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>Use Time Out</span>
                 ) : (
                     <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>Locked</span>
                 ),
@@ -340,7 +353,7 @@ export default function ForemanAttendance({ projects = [], workers = [], attenda
                         <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: 12 }}>
                             <thead>
                                 <tr>
-                                    {['Worker Name', 'Role', 'Project', 'Time In', 'Time Out', 'Hours', ''].map((h, i) => (
+                                    {['Worker Name', 'Role', 'Project', 'Time In', 'Time Out', ''].map((h, i) => (
                                         <th
                                             key={i}
                                             style={{
@@ -364,7 +377,7 @@ export default function ForemanAttendance({ projects = [], workers = [], attenda
                                             <SearchableDropdown
                                                 options={workers}
                                                 value={entry.worker_name}
-                                                onChange={(selectedName) => updateRow(idx, 'worker_name', selectedName)}
+                                                onChange={(selectedName, option) => updateRow(idx, 'worker_name', selectedName, option)}
                                                 getOptionLabel={(option) => option.name}
                                                 getOptionValue={(option) => option.name}
                                                 placeholder={workers.length ? 'Select worker' : 'No workers yet'}
@@ -377,32 +390,41 @@ export default function ForemanAttendance({ projects = [], workers = [], attenda
                                             />
                                         </td>
                                         <td style={{ padding: '6px 8px' }}>
-                                            <select value={entry.worker_role} onChange={(e) => updateRow(idx, 'worker_role', e.target.value)} style={inputStyle}>
-                                                {['Foreman', 'Skilled', 'Labor'].map((r) => (
-                                                    <option key={r} value={r}>
-                                                        {r}
-                                                    </option>
-                                                ))}
-                                            </select>
+                                            <div style={{ minWidth: 150 }}>
+                                                <SearchableDropdown
+                                                    options={roleOptions}
+                                                    value={entry.worker_role}
+                                                    onChange={(value) => updateRow(idx, 'worker_role', value || 'Labor')}
+                                                    getOptionLabel={(option) => option.name}
+                                                    getOptionValue={(option) => option.id}
+                                                    placeholder="Select role"
+                                                    searchPlaceholder="Search roles..."
+                                                    emptyMessage="No roles found"
+                                                    style={{ ...inputStyle, minHeight: 38, padding: '7px 9px' }}
+                                                    dropdownWidth={240}
+                                                />
+                                            </div>
                                         </td>
-                                        <td style={{ padding: '6px 8px' }}>
-                                            <select value={entry.project_id ?? ''} onChange={(e) => updateRow(idx, 'project_id', e.target.value)} style={inputStyle}>
-                                                <option value="">Select project (optional)</option>
-                                                {projects.map((project) => (
-                                                    <option key={project.id} value={project.id}>
-                                                        {project.name}
-                                                    </option>
-                                                ))}
-                                            </select>
+                                        <td style={{ padding: '6px 8px', minWidth: 220 }}>
+                                            <SearchableDropdown
+                                                options={projectOptions}
+                                                value={entry.project_id ?? ''}
+                                                onChange={(value) => updateRow(idx, 'project_id', value)}
+                                                getOptionLabel={(option) => option.name}
+                                                getOptionValue={(option) => option.id}
+                                                placeholder="Select project (optional)"
+                                                searchPlaceholder="Search projects..."
+                                                emptyMessage="No projects found"
+                                                clearable
+                                                style={{ ...inputStyle, minHeight: 38, padding: '7px 9px' }}
+                                                dropdownWidth={320}
+                                            />
                                         </td>
                                         <td style={{ padding: '6px 8px' }}>
                                             <input type="time" value={entry.time_in ?? ''} onChange={(e) => updateRow(idx, 'time_in', e.target.value)} style={{ ...inputStyle, minWidth: 110 }} />
                                         </td>
                                         <td style={{ padding: '6px 8px' }}>
                                             <input type="time" value={entry.time_out ?? ''} onChange={(e) => updateRow(idx, 'time_out', e.target.value)} style={{ ...inputStyle, minWidth: 110 }} />
-                                        </td>
-                                        <td style={{ padding: '6px 8px' }}>
-                                            <input type="number" step="0.1" min="0" value={entry.hours} onChange={(e) => updateRow(idx, 'hours', e.target.value)} style={{ ...inputStyle, width: 80 }} />
                                         </td>
                                         <td style={{ padding: '6px 8px' }}>
                                             {rows.length > 1 && (
@@ -451,9 +473,117 @@ export default function ForemanAttendance({ projects = [], workers = [], attenda
                             onServerSearchChange={(value) => navigateTable({ search: value, page: 1 })}
                             onServerPerPageChange={(value) => navigateTable({ per_page: value, page: 1 })}
                             onServerPageChange={(value) => navigateTable({ page: value })}
+                            getRowStyle={(row) => {
+                                if (!(row?.is_foreman_self_log && row?.date === phTodayIso)) return undefined;
+                                return row?.time_out
+                                    ? { background: 'rgba(59, 130, 246, 0.06)' }
+                                    : { background: 'rgba(34, 197, 94, 0.08)' };
+                            }}
                         />
                     </div>
                 </div>
+
+                <Modal
+                    open={!!editingId}
+                    onClose={() => setEditingId(null)}
+                    title="Edit Attendance Log"
+                    maxWidth={720}
+                >
+                    <div style={{ display: 'grid', gap: 12 }}>
+                        <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 0.8fr', gap: 12 }}>
+                            <div>
+                                <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 6 }}>Worker</div>
+                                <SearchableDropdown
+                                    options={workers}
+                                    value={editRow.worker_name}
+                                    onChange={(selectedName, option) => {
+                                        updateEditRow('worker_name', selectedName);
+                                        if (option?.role) updateEditRow('worker_role', option.role);
+                                    }}
+                                    getOptionLabel={(option) => option.name}
+                                    getOptionValue={(option) => option.name}
+                                    placeholder={workers.length ? 'Select worker' : 'No workers yet'}
+                                    searchPlaceholder="Search workers..."
+                                    emptyMessage="No workers found"
+                                    disabled={workers.length === 0}
+                                    clearable
+                                    style={{ ...inputStyle, minHeight: 38, padding: '7px 9px' }}
+                                    dropdownWidth={320}
+                                />
+                            </div>
+                            <div>
+                                <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 6 }}>Role</div>
+                                <SearchableDropdown
+                                    options={roleOptions}
+                                    value={editRow.worker_role}
+                                    onChange={(value) => updateEditRow('worker_role', value || 'Labor')}
+                                    getOptionLabel={(option) => option.name}
+                                    getOptionValue={(option) => option.id}
+                                    placeholder="Select role"
+                                    searchPlaceholder="Search roles..."
+                                    emptyMessage="No roles found"
+                                    style={{ ...inputStyle, minHeight: 38, padding: '7px 9px' }}
+                                    dropdownWidth={240}
+                                />
+                            </div>
+                        </div>
+
+                        <div>
+                            <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 6 }}>Project</div>
+                            <SearchableDropdown
+                                options={projectOptions}
+                                value={editRow.project_id ?? ''}
+                                onChange={(value) => updateEditRow('project_id', value)}
+                                getOptionLabel={(option) => option.name}
+                                getOptionValue={(option) => option.id}
+                                placeholder="Select project (optional)"
+                                searchPlaceholder="Search projects..."
+                                emptyMessage="No projects found"
+                                clearable
+                                style={{ ...inputStyle, minHeight: 38, padding: '7px 9px' }}
+                                dropdownWidth={360}
+                            />
+                        </div>
+
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                            <div>
+                                <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 6 }}>Time In</div>
+                                <input
+                                    type="time"
+                                    value={editRow.time_in ?? ''}
+                                    onChange={(e) => updateEditRow('time_in', e.target.value)}
+                                    style={inputStyle}
+                                />
+                            </div>
+                            <div>
+                                <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 6 }}>Time Out</div>
+                                <input
+                                    type="time"
+                                    value={editRow.time_out ?? ''}
+                                    onChange={(e) => updateEditRow('time_out', e.target.value)}
+                                    style={inputStyle}
+                                />
+                            </div>
+                        </div>
+
+                        <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+                            Hours are auto-calculated when both Time In and Time Out are provided.
+                        </div>
+
+                        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+                            <ActionButton type="button" variant="neutral" onClick={() => setEditingId(null)}>
+                                Cancel
+                            </ActionButton>
+                            <ActionButton
+                                type="button"
+                                variant="success"
+                                onClick={() => editingId && saveEdit(editingId)}
+                            >
+                                Save
+                            </ActionButton>
+                        </div>
+                    </div>
+                </Modal>
             </Layout>
         </>
     );
