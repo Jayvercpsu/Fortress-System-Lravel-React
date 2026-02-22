@@ -42,7 +42,7 @@ Route::middleware(['auth', 'role:admin'])->group(function () {
     Route::get('/admin', [DashboardController::class, 'admin'])->name('admin.dashboard');
 });
 
-Route::middleware(['auth', 'role:hr'])->group(function () {
+Route::middleware(['auth', 'role:head_admin,hr'])->group(function () {
     Route::get('/hr', [DashboardController::class, 'hr'])->name('hr.dashboard');
     Route::get('/payroll/run', [PayrollController::class, 'run'])->name('payroll.run');
     Route::post('/payroll/run/generate', [PayrollController::class, 'generateFromAttendance'])->name('payroll.run.generate');

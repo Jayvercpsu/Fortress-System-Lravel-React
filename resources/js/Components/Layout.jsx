@@ -8,7 +8,8 @@ const navByRole = {
         { label: 'Projects', href: '/projects', icon: 'fi fi-rr-diagram-project' },
         { label: 'Builders', href: '/builders', icon: 'fi fi-rr-users' },
         { label: 'Attendance', href: '/attendance', icon: 'fi fi-rr-calendar-check' },
-        { label: 'Payroll', href: '/payroll', icon: 'fi fi-rr-money-bill-wave' },
+        { label: 'Payroll', href: '/payroll/run', icon: 'fi fi-rr-money-bill-wave' },
+        { label: 'Worker Rates', href: '/payroll/worker-rates', icon: 'fi fi-rr-users' },
         { label: 'Materials', href: '/materials', icon: 'fi fi-rr-shopping-cart' },
         { label: 'Delivery', href: '/delivery', icon: 'fi fi-rr-truck-side' },
         { label: 'Issues', href: '/issues', icon: 'fi fi-rr-exclamation' },
@@ -130,6 +131,7 @@ export default function Layout({ children, title }) {
                             const exactOnly = exactOnlyPaths.has(itemPath);
                             const aliasPathsByHref = {
                                 '/payroll/run': ['/payroll'],
+                                '/payroll/worker-rates': ['/payroll/worker-rates'],
                             };
                             const aliases = aliasPathsByHref[itemPath] || [];
                             const active =
