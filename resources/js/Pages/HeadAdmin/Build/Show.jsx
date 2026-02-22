@@ -1,6 +1,7 @@
 import Layout from '../../../Components/Layout';
-import { Head, Link, router, useForm, usePage } from '@inertiajs/react';
-import { useEffect, useMemo, useState } from 'react';
+import DataTable from '../../../Components/DataTable';
+import { Head, Link, router, useForm } from '@inertiajs/react';
+import { useEffect, useState } from 'react';
 import toast from 'react-hot-toast';
 import { ArrowLeft } from 'lucide-react';
 
@@ -26,8 +27,15 @@ const inputStyle = {
 
 const today = () => new Date().toISOString().slice(0, 10);
 
-export default function HeadAdminBuildShow({ projectId, build, expenses = [] }) {
-    const { flash } = usePage().props;
+export default function HeadAdminBuildShow({
+    projectId,
+    build,
+    expenses = [],
+    expenseTotal = 0,
+    expenseCategoryTotals = [],
+    materialOptions = [],
+    expenseTable = {},
+}) {
     const [activeTab, setActiveTab] = useState(() => {
         const tab = new URLSearchParams(window.location.search).get('tab');
         return tab === 'expenses' ? 'expenses' : 'tracker';
@@ -37,10 +45,9 @@ export default function HeadAdminBuildShow({ projectId, build, expenses = [] }) 
     const { data, setData, patch, processing, errors } = useForm({
         construction_contract: build.construction_contract ?? 0,
         total_client_payment: build.total_client_payment ?? 0,
-        materials_cost: build.materials_cost ?? 0,
-        labor_cost: build.labor_cost ?? 0,
-        equipment_cost: build.equipment_cost ?? 0,
     });
+
+    const availableCategories = Array.isArray(materialOptions) ? materialOptions : [];
 
     const {
         data: expenseData,
@@ -50,7 +57,7 @@ export default function HeadAdminBuildShow({ projectId, build, expenses = [] }) 
         errors: expenseErrors,
         reset: resetExpense,
     } = useForm({
-        category: 'materials',
+        category: availableCategories[0] ?? '',
         amount: '',
         note: '',
         date: today(),
@@ -69,25 +76,25 @@ export default function HeadAdminBuildShow({ projectId, build, expenses = [] }) 
         date: today(),
     });
 
-    const totalExpenses =
-        Number(data.materials_cost || 0) + Number(data.labor_cost || 0) + Number(data.equipment_cost || 0);
+    const totalExpenseAmount = Number(expenseTotal || 0);
+    const expenseBreakdown = Array.isArray(expenseCategoryTotals) ? expenseCategoryTotals : [];
+    const expenseTableState = {
+        search: expenseTable?.search ?? '',
+        perPage: Number(expenseTable?.per_page ?? 5),
+        page: Number(expenseTable?.current_page ?? 1),
+        lastPage: Number(expenseTable?.last_page ?? 1),
+        total: Number(expenseTable?.total ?? expenses.length ?? 0),
+        from: expenseTable?.from ?? null,
+        to: expenseTable?.to ?? null,
+    };
+    const totalExpenses = totalExpenseAmount;
     const remainingBudget = Number(data.total_client_payment || 0) - totalExpenses;
     const budgetVsActual = Number(data.construction_contract || 0) - totalExpenses;
     const paymentProgress =
         Number(data.construction_contract || 0) > 0
             ? (Number(data.total_client_payment || 0) / Number(data.construction_contract || 0)) * 100
             : 0;
-
-    const expenseTotal = useMemo(
-        () => expenses.reduce((sum, expense) => sum + Number(expense.amount || 0), 0),
-        [expenses]
-    );
-    const remainingIncome = Number(data.construction_contract || 0) - expenseTotal;
-
-    useEffect(() => {
-        if (flash?.error) toast.error(flash.error);
-        if (flash?.success) toast.success(flash.success);
-    }, [flash?.error, flash?.success]);
+    const remainingIncome = Number(data.construction_contract || 0) - totalExpenseAmount;
 
     useEffect(() => {
         const url = new URL(window.location.href);
@@ -98,6 +105,42 @@ export default function HeadAdminBuildShow({ projectId, build, expenses = [] }) 
         }
         window.history.replaceState({}, '', url.toString());
     }, [activeTab]);
+
+    useEffect(() => {
+        if (availableCategories.length === 0) return;
+        if (!expenseData.category || !availableCategories.includes(expenseData.category)) {
+            setExpenseData('category', availableCategories[0]);
+        }
+    }, [availableCategories, expenseData.category]);
+
+    const buildExpenseQueryParams = (overrides = {}) => {
+        const params = {
+            tab: 'expenses',
+            expense_search:
+                overrides.expense_search !== undefined ? overrides.expense_search : expenseTableState.search,
+            expense_per_page:
+                overrides.expense_per_page !== undefined ? overrides.expense_per_page : expenseTableState.perPage,
+            expense_page:
+                overrides.expense_page !== undefined ? overrides.expense_page : expenseTableState.page,
+        };
+
+        if (!params.expense_search) delete params.expense_search;
+        return params;
+    };
+
+    const navigateExpenseTable = (overrides = {}) => {
+        router.get(`/projects/${projectId}/build`, buildExpenseQueryParams(overrides), {
+            preserveState: true,
+            preserveScroll: true,
+            replace: true,
+        });
+    };
+
+    const expenseActionQuery = (overrides = {}) => {
+        const params = new URLSearchParams(buildExpenseQueryParams(overrides));
+        const queryString = params.toString();
+        return queryString ? `?${queryString}` : '';
+    };
 
     const submit = (e) => {
         e.preventDefault();
@@ -110,7 +153,7 @@ export default function HeadAdminBuildShow({ projectId, build, expenses = [] }) 
 
     const submitExpense = (e) => {
         e.preventDefault();
-        postExpense(`/projects/${projectId}/expenses`, {
+        postExpense(`/projects/${projectId}/expenses${expenseActionQuery({ expense_page: 1 })}`, {
             preserveScroll: true,
             onSuccess: () => {
                 resetExpense('category', 'amount', 'note');
@@ -133,7 +176,7 @@ export default function HeadAdminBuildShow({ projectId, build, expenses = [] }) 
 
     const submitEditExpense = (e, expenseId) => {
         e.preventDefault();
-        patchExpense(`/expenses/${expenseId}`, {
+        patchExpense(`/expenses/${expenseId}${expenseActionQuery()}`, {
             preserveScroll: true,
             onSuccess: () => {
                 setEditingExpenseId(null);
@@ -144,12 +187,103 @@ export default function HeadAdminBuildShow({ projectId, build, expenses = [] }) 
     };
 
     const deleteExpense = (expenseId) => {
-        router.delete(`/expenses/${expenseId}`, {
+        router.delete(`/expenses/${expenseId}${expenseActionQuery()}`, {
             preserveScroll: true,
             onSuccess: () => toast.success('Expense deleted.'),
             onError: () => toast.error('Unable to delete expense.'),
         });
     };
+
+    const expenseTableColumns = [
+        {
+            key: 'category',
+            label: 'Category',
+            render: (expense) =>
+                editingExpenseId === expense.id ? (
+                    <select value={editData.category} onChange={(e) => setEditData('category', e.target.value)} style={inputStyle}>
+                        {Array.from(new Set([...(availableCategories || []), editData.category].filter(Boolean))).map((option) => (
+                            <option key={option} value={option}>
+                                {option}
+                            </option>
+                        ))}
+                    </select>
+                ) : (
+                    <div style={{ fontWeight: 600, textTransform: 'capitalize' }}>{expense.category || '-'}</div>
+                ),
+            searchAccessor: (expense) => expense.category,
+        },
+        {
+            key: 'date',
+            label: 'Date',
+            render: (expense) =>
+                editingExpenseId === expense.id ? (
+                    <input type="date" value={editData.date} onChange={(e) => setEditData('date', e.target.value)} style={inputStyle} />
+                ) : (
+                    <div style={{ fontSize: 13 }}>{expense.date || '-'}</div>
+                ),
+            searchAccessor: (expense) => expense.date,
+        },
+        {
+            key: 'note',
+            label: 'Note',
+            render: (expense) =>
+                editingExpenseId === expense.id ? (
+                    <div style={{ display: 'grid', gap: 6 }}>
+                        <input value={editData.note} onChange={(e) => setEditData('note', e.target.value)} style={inputStyle} />
+                        {(editErrors.category || editErrors.amount || editErrors.date || editErrors.note) && (
+                            <div style={{ color: '#f87171', fontSize: 12 }}>
+                                {editErrors.category || editErrors.amount || editErrors.date || editErrors.note}
+                            </div>
+                        )}
+                    </div>
+                ) : (
+                    <div style={{ fontSize: 13, color: expense.note ? 'var(--text-main)' : 'var(--text-muted)' }}>{expense.note || '-'}</div>
+                ),
+            searchAccessor: (expense) => expense.note,
+        },
+        {
+            key: 'amount',
+            label: 'Amount',
+            align: 'right',
+            render: (expense) =>
+                editingExpenseId === expense.id ? (
+                    <input type="number" step="0.01" min="0" value={editData.amount} onChange={(e) => setEditData('amount', e.target.value)} style={{ ...inputStyle, textAlign: 'right' }} />
+                ) : (
+                    <div style={{ fontWeight: 700 }}>{money(expense.amount)}</div>
+                ),
+            searchAccessor: (expense) => expense.amount,
+        },
+        {
+            key: 'actions',
+            label: 'Actions',
+            align: 'right',
+            render: (expense) =>
+                editingExpenseId === expense.id ? (
+                    <div style={{ display: 'inline-flex', gap: 8 }}>
+                        <button type="button" onClick={() => setEditingExpenseId(null)} style={{ ...inputStyle, width: 'auto', padding: '6px 10px', cursor: 'pointer' }}>
+                            Cancel
+                        </button>
+                        <button
+                            type="button"
+                            onClick={(e) => submitEditExpense(e, expense.id)}
+                            disabled={updatingExpense}
+                            style={{ background: 'var(--success)', color: '#fff', border: 'none', borderRadius: 8, padding: '6px 10px', cursor: updatingExpense ? 'not-allowed' : 'pointer', opacity: updatingExpense ? 0.7 : 1 }}
+                        >
+                            Save
+                        </button>
+                    </div>
+                ) : (
+                    <div style={{ display: 'inline-flex', gap: 8 }}>
+                        <button type="button" onClick={() => startEditExpense(expense)} style={{ ...inputStyle, width: 'auto', padding: '6px 10px', cursor: 'pointer' }}>
+                            Edit
+                        </button>
+                        <button type="button" onClick={() => deleteExpense(expense.id)} style={{ background: '#ef4444', color: '#fff', border: 'none', borderRadius: 8, padding: '6px 10px', cursor: 'pointer' }}>
+                            Delete
+                        </button>
+                    </div>
+                ),
+        },
+    ];
 
     return (
         <>
@@ -240,24 +374,23 @@ export default function HeadAdminBuildShow({ projectId, build, expenses = [] }) 
                                 <input type="number" step="0.01" min="0" value={data.total_client_payment} onChange={(e) => setData('total_client_payment', e.target.value)} style={inputStyle} />
                                 {errors.total_client_payment && <div style={{ color: '#f87171', fontSize: 12, marginTop: 4 }}>{errors.total_client_payment}</div>}
                             </label>
-
-                            <label>
-                                <div style={{ fontSize: 12, marginBottom: 6 }}>Materials Cost</div>
-                                <input type="number" step="0.01" min="0" value={data.materials_cost} onChange={(e) => setData('materials_cost', e.target.value)} style={inputStyle} />
-                                {errors.materials_cost && <div style={{ color: '#f87171', fontSize: 12, marginTop: 4 }}>{errors.materials_cost}</div>}
-                            </label>
-
-                            <label>
-                                <div style={{ fontSize: 12, marginBottom: 6 }}>Labor Cost</div>
-                                <input type="number" step="0.01" min="0" value={data.labor_cost} onChange={(e) => setData('labor_cost', e.target.value)} style={inputStyle} />
-                                {errors.labor_cost && <div style={{ color: '#f87171', fontSize: 12, marginTop: 4 }}>{errors.labor_cost}</div>}
-                            </label>
-
-                            <label>
-                                <div style={{ fontSize: 12, marginBottom: 6 }}>Equipment Cost</div>
-                                <input type="number" step="0.01" min="0" value={data.equipment_cost} onChange={(e) => setData('equipment_cost', e.target.value)} style={inputStyle} />
-                                {errors.equipment_cost && <div style={{ color: '#f87171', fontSize: 12, marginTop: 4 }}>{errors.equipment_cost}</div>}
-                            </label>
+                            <div style={{ gridColumn: '1 / -1', border: '1px dashed var(--border-color)', borderRadius: 10, padding: 12 }}>
+                                <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 8 }}>
+                                    Expense totals below are automatically linked to the Expenses tab and Project Overview.
+                                </div>
+                                {expenseBreakdown.length === 0 ? (
+                                    <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>No expense entries yet.</div>
+                                ) : (
+                                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}>
+                                        {expenseBreakdown.map((item) => (
+                                            <div key={item.category} style={{ border: '1px solid var(--border-color)', borderRadius: 8, padding: '8px 10px' }}>
+                                                <div style={{ fontSize: 12, color: 'var(--text-muted)', textTransform: 'capitalize' }}>{item.category}</div>
+                                                <div style={{ fontWeight: 600 }}>{money(item.amount)}</div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
                         </div>
 
                         <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
@@ -298,8 +431,23 @@ export default function HeadAdminBuildShow({ projectId, build, expenses = [] }) 
                         <form onSubmit={submitExpense} style={{ ...cardStyle, display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 12 }}>
                             <label>
                                 <div style={{ fontSize: 12, marginBottom: 6 }}>Category</div>
-                                <input value={expenseData.category} onChange={(e) => setExpenseData('category', e.target.value)} style={inputStyle} />
+                                <select value={expenseData.category} onChange={(e) => setExpenseData('category', e.target.value)} style={inputStyle} disabled={availableCategories.length === 0}>
+                                    {availableCategories.length === 0 ? (
+                                        <option value="">No materials yet</option>
+                                    ) : (
+                                        availableCategories.map((option) => (
+                                            <option key={option} value={option}>
+                                                {option}
+                                            </option>
+                                        ))
+                                    )}
+                                </select>
                                 {expenseErrors.category && <div style={{ color: '#f87171', fontSize: 12, marginTop: 4 }}>{expenseErrors.category}</div>}
+                                {availableCategories.length === 0 && (
+                                    <div style={{ color: 'var(--text-muted)', fontSize: 12, marginTop: 4 }}>
+                                        Add categories in the `Materials` page first.
+                                    </div>
+                                )}
                             </label>
                             <label>
                                 <div style={{ fontSize: 12, marginBottom: 6 }}>Amount</div>
@@ -319,7 +467,7 @@ export default function HeadAdminBuildShow({ projectId, build, expenses = [] }) 
                             <div style={{ gridColumn: '1 / -1', display: 'flex', justifyContent: 'flex-end' }}>
                                 <button
                                     type="submit"
-                                    disabled={creatingExpense}
+                                    disabled={creatingExpense || availableCategories.length === 0}
                                     style={{
                                         background: 'var(--success)',
                                         color: '#fff',
@@ -337,51 +485,25 @@ export default function HeadAdminBuildShow({ projectId, build, expenses = [] }) 
                             </div>
                         </form>
 
-                        <div style={{ ...cardStyle, display: 'grid', gap: 10 }}>
-                            {expenses.length === 0 && <div style={{ color: 'var(--text-muted)', fontSize: 13 }}>No expenses yet.</div>}
-
-                            {expenses.map((expense) => (
-                                <div key={expense.id} style={{ border: '1px solid var(--border-color)', borderRadius: 10, padding: 12 }}>
-                                    {editingExpenseId === expense.id ? (
-                                        <form onSubmit={(e) => submitEditExpense(e, expense.id)} style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 10 }}>
-                                            <input value={editData.category} onChange={(e) => setEditData('category', e.target.value)} style={inputStyle} />
-                                            <input type="number" step="0.01" min="0" value={editData.amount} onChange={(e) => setEditData('amount', e.target.value)} style={inputStyle} />
-                                            <input type="date" value={editData.date} onChange={(e) => setEditData('date', e.target.value)} style={inputStyle} />
-                                            <input value={editData.note} onChange={(e) => setEditData('note', e.target.value)} style={inputStyle} />
-                                            {(editErrors.category || editErrors.amount || editErrors.date || editErrors.note) && (
-                                                <div style={{ gridColumn: '1 / -1', color: '#f87171', fontSize: 12 }}>
-                                                    {editErrors.category || editErrors.amount || editErrors.date || editErrors.note}
-                                                </div>
-                                            )}
-                                            <div style={{ gridColumn: '1 / -1', display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
-                                                <button type="button" onClick={() => setEditingExpenseId(null)} style={{ ...inputStyle, width: 'auto', padding: '8px 12px', cursor: 'pointer' }}>
-                                                    Cancel
-                                                </button>
-                                                <button type="submit" disabled={updatingExpense} style={{ background: 'var(--success)', color: '#fff', border: 'none', borderRadius: 8, padding: '8px 12px', cursor: updatingExpense ? 'not-allowed' : 'pointer', opacity: updatingExpense ? 0.7 : 1 }}>
-                                                    Save
-                                                </button>
-                                            </div>
-                                        </form>
-                                    ) : (
-                                        <div style={{ display: 'grid', gap: 6 }}>
-                                            <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10 }}>
-                                                <div style={{ fontWeight: 600 }}>{expense.category}</div>
-                                                <div style={{ fontWeight: 700 }}>{money(expense.amount)}</div>
-                                            </div>
-                                            <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{expense.date}</div>
-                                            {expense.note && <div style={{ fontSize: 13 }}>{expense.note}</div>}
-                                            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 4 }}>
-                                                <button type="button" onClick={() => startEditExpense(expense)} style={{ ...inputStyle, width: 'auto', padding: '6px 10px', cursor: 'pointer' }}>
-                                                    Edit
-                                                </button>
-                                                <button type="button" onClick={() => deleteExpense(expense.id)} style={{ background: '#ef4444', color: '#fff', border: 'none', borderRadius: 8, padding: '6px 10px', cursor: 'pointer' }}>
-                                                    Delete
-                                                </button>
-                                            </div>
-                                        </div>
-                                    )}
-                                </div>
-                            ))}
+                        <div style={{ ...cardStyle }}>
+                            <DataTable
+                                columns={expenseTableColumns}
+                                rows={expenses}
+                                rowKey="id"
+                                searchPlaceholder="Search expenses..."
+                                emptyMessage="No expenses yet."
+                                serverSide
+                                serverSearchValue={expenseTableState.search}
+                                serverPage={expenseTableState.page}
+                                serverPerPage={expenseTableState.perPage}
+                                serverTotalItems={expenseTableState.total}
+                                serverTotalPages={expenseTableState.lastPage}
+                                serverFrom={expenseTableState.from}
+                                serverTo={expenseTableState.to}
+                                onServerSearchChange={(value) => navigateExpenseTable({ expense_search: value, expense_page: 1 })}
+                                onServerPerPageChange={(value) => navigateExpenseTable({ expense_per_page: value, expense_page: 1 })}
+                                onServerPageChange={(value) => navigateExpenseTable({ expense_page: value })}
+                            />
                         </div>
                     </div>
                 )}

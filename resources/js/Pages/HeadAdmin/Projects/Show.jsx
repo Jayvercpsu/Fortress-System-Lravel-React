@@ -1,4 +1,6 @@
 import Layout from '../../../Components/Layout';
+import DataTable from '../../../Components/DataTable';
+import Modal from '../../../Components/Modal';
 import { Head, Link, router, useForm, usePage } from '@inertiajs/react';
 import { useEffect, useState } from 'react';
 import toast from 'react-hot-toast';
@@ -23,9 +25,19 @@ const inputStyle = {
 const money = (value) =>
     `P ${Number(value || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
-export default function HeadAdminProjectsShow({ project, files = [], updates = [] }) {
+export default function HeadAdminProjectsShow({
+    project,
+    files = [],
+    fileTable = {},
+    updates = [],
+    updateTable = {},
+}) {
     const { flash } = usePage().props;
-    const [tab, setTab] = useState('overview');
+    const [tab, setTab] = useState(() => {
+        const active = new URLSearchParams(window.location.search).get('tab');
+        return ['overview', 'files', 'updates'].includes(active) ? active : 'overview';
+    });
+    const [previewFile, setPreviewFile] = useState(null);
 
     const {
         data: fileData,
@@ -49,32 +61,153 @@ export default function HeadAdminProjectsShow({ project, files = [], updates = [
         if (flash?.error) toast.error(flash.error);
     }, [flash?.success, flash?.error]);
 
+    useEffect(() => {
+        const url = new URL(window.location.href);
+        url.searchParams.set('tab', tab);
+        window.history.replaceState({}, '', url.toString());
+    }, [tab]);
+
+    const fileTableState = {
+        search: fileTable?.search ?? '',
+        perPage: Number(fileTable?.per_page ?? 5),
+        page: Number(fileTable?.current_page ?? 1),
+        lastPage: Number(fileTable?.last_page ?? 1),
+        total: Number(fileTable?.total ?? files.length ?? 0),
+        from: fileTable?.from ?? null,
+        to: fileTable?.to ?? null,
+    };
+
+    const updateTableState = {
+        search: updateTable?.search ?? '',
+        perPage: Number(updateTable?.per_page ?? 5),
+        page: Number(updateTable?.current_page ?? 1),
+        lastPage: Number(updateTable?.last_page ?? 1),
+        total: Number(updateTable?.total ?? updates.length ?? 0),
+        from: updateTable?.from ?? null,
+        to: updateTable?.to ?? null,
+    };
+
+    const projectShowQueryParams = (overrides = {}) => {
+        const params = {
+            tab: overrides.tab !== undefined ? overrides.tab : tab,
+            files_search: overrides.files_search !== undefined ? overrides.files_search : fileTableState.search,
+            files_per_page: overrides.files_per_page !== undefined ? overrides.files_per_page : fileTableState.perPage,
+            files_page: overrides.files_page !== undefined ? overrides.files_page : fileTableState.page,
+            updates_search: overrides.updates_search !== undefined ? overrides.updates_search : updateTableState.search,
+            updates_per_page: overrides.updates_per_page !== undefined ? overrides.updates_per_page : updateTableState.perPage,
+            updates_page: overrides.updates_page !== undefined ? overrides.updates_page : updateTableState.page,
+        };
+
+        Object.keys(params).forEach((key) => {
+            if (params[key] === '' || params[key] === null || params[key] === undefined) delete params[key];
+        });
+
+        return params;
+    };
+
+    const projectShowQueryString = (overrides = {}) => {
+        const params = new URLSearchParams(projectShowQueryParams(overrides));
+        const queryString = params.toString();
+        return queryString ? `?${queryString}` : '';
+    };
+
+    const navigateProjectTable = (overrides = {}) => {
+        router.get(`/projects/${project.id}`, projectShowQueryParams(overrides), {
+            preserveState: true,
+            preserveScroll: true,
+            replace: true,
+        });
+    };
+
     const uploadFile = (e) => {
         e.preventDefault();
-        postFile(`/projects/${project.id}/files`, {
+        postFile(`/projects/${project.id}/files${projectShowQueryString({ tab: 'files', files_page: 1 })}`, {
             forceFormData: true,
-            onSuccess: () => toast.success('File uploaded.'),
             onError: () => toast.error('Upload failed.'),
         });
     };
 
     const addUpdate = (e) => {
         e.preventDefault();
-        postUpdate(`/projects/${project.id}/updates`, {
+        postUpdate(`/projects/${project.id}/updates${projectShowQueryString({ tab: 'updates', updates_page: 1 })}`, {
             onSuccess: () => {
                 resetUpdate('note');
-                toast.success('Update added.');
             },
             onError: () => toast.error('Unable to add update.'),
         });
     };
 
     const deleteFile = (id) => {
-        router.delete(`/project-files/${id}`, {
-            onSuccess: () => toast.success('File deleted.'),
+        router.delete(`/project-files/${id}${projectShowQueryString({ tab: 'files' })}`, {
             onError: () => toast.error('Unable to delete file.'),
         });
     };
+
+    const previewUrl = previewFile ? `/storage/${previewFile.file_path}` : '';
+    const previewExt = (previewFile?.original_name || '').split('.').pop()?.toLowerCase() || '';
+    const isImagePreview = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'svg'].includes(previewExt);
+    const isPdfPreview = previewExt === 'pdf';
+
+    const fileColumns = [
+        {
+            key: 'original_name',
+            label: 'File Name',
+            render: (file) => <div style={{ fontWeight: 600 }}>{file.original_name}</div>,
+            searchAccessor: (file) => file.original_name,
+        },
+        {
+            key: 'uploaded_by_name',
+            label: 'Uploaded By',
+            render: (file) => <div>{file.uploaded_by_name || 'Unknown'}</div>,
+            searchAccessor: (file) => file.uploaded_by_name,
+        },
+        {
+            key: 'created_at',
+            label: 'Uploaded At',
+            render: (file) => <div style={{ fontSize: 13 }}>{file.created_at || '-'}</div>,
+            searchAccessor: (file) => file.created_at,
+        },
+        {
+            key: 'actions',
+            label: 'Actions',
+            align: 'right',
+            render: (file) => (
+                <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+                    <button
+                        type="button"
+                        onClick={() => setPreviewFile(file)}
+                        style={{ background: 'transparent', border: 'none', color: '#60a5fa', fontSize: 13, cursor: 'pointer', padding: 0 }}
+                    >
+                        Open
+                    </button>
+                    <button type="button" onClick={() => deleteFile(file.id)} style={{ background: '#ef4444', color: '#fff', border: 'none', borderRadius: 8, padding: '6px 10px', cursor: 'pointer' }}>
+                        Delete
+                    </button>
+                </div>
+            ),
+        },
+    ];
+
+    const updateColumns = [
+        {
+            key: 'note',
+            label: 'Remark / Update',
+            render: (update) => <div style={{ fontSize: 13 }}>{update.note}</div>,
+            searchAccessor: (update) => update.note,
+        },
+        {
+            key: 'created_by_name',
+            label: 'Posted By',
+            render: (update) => <div>{update.created_by_name || 'Unknown'}</div>,
+            searchAccessor: (update) => update.created_by_name,
+        },
+        {
+            key: 'created_at',
+            label: 'Created At',
+            render: (update) => <div style={{ fontSize: 13 }}>{update.created_at || '-'}</div>,
+            searchAccessor: (update) => update.created_at,
+        },
+    ];
 
     return (
         <>
@@ -99,20 +232,6 @@ export default function HeadAdminProjectsShow({ project, files = [], updates = [
                                 {t.charAt(0).toUpperCase() + t.slice(1)}
                             </button>
                         ))}
-                    </div>
-                    <div style={{ display: 'flex', gap: 8 }}>
-                        <Link href={`/projects/${project.id}/design`} style={{ color: 'var(--active-text)', textDecoration: 'none', fontSize: 13 }}>
-                            Design
-                        </Link>
-                        <Link href={`/projects/${project.id}/build`} style={{ color: '#60a5fa', textDecoration: 'none', fontSize: 13 }}>
-                            Build
-                        </Link>
-                        <Link href={`/projects/${project.id}/build?tab=expenses`} style={{ color: '#f59e0b', textDecoration: 'none', fontSize: 13 }}>
-                            Expenses
-                        </Link>
-                        <Link href={`/projects/${project.id}/edit`} style={{ color: '#60a5fa', textDecoration: 'none', fontSize: 13 }}>
-                            Edit Project
-                        </Link>
                     </div>
                 </div>
 
@@ -146,7 +265,7 @@ export default function HeadAdminProjectsShow({ project, files = [], updates = [
                         Open Build Tracker
                     </Link>
                     <Link
-                        href={`/projects/${project.id}/build?tab=expenses`}
+                        href={`/projects/${project.id}/expenses`}
                         style={{
                             border: '1px solid var(--border-color)',
                             background: 'var(--button-bg)',
@@ -158,6 +277,20 @@ export default function HeadAdminProjectsShow({ project, files = [], updates = [
                         }}
                     >
                         Open Expenses
+                    </Link>
+                    <Link
+                        href={`/projects/${project.id}/edit`}
+                        style={{
+                            border: '1px solid var(--border-color)',
+                            background: 'var(--button-bg)',
+                            color: 'var(--text-main)',
+                            borderRadius: 8,
+                            padding: '8px 12px',
+                            textDecoration: 'none',
+                            fontSize: 13,
+                        }}
+                    >
+                        Edit Project
                     </Link>
                 </div>
 
@@ -200,26 +333,25 @@ export default function HeadAdminProjectsShow({ project, files = [], updates = [
                             </div>
                         </form>
 
-                        <div style={{ ...cardStyle, display: 'grid', gap: 10 }}>
-                            {files.length === 0 && <div style={{ color: 'var(--text-muted)', fontSize: 13 }}>No files uploaded yet.</div>}
-                            {files.map((file) => (
-                                <div key={file.id} style={{ display: 'flex', justifyContent: 'space-between', gap: 10, border: '1px solid var(--border-color)', borderRadius: 10, padding: 10 }}>
-                                    <div>
-                                        <div style={{ fontWeight: 600 }}>{file.original_name}</div>
-                                        <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
-                                            Uploaded by: {file.uploaded_by_name || 'Unknown'}
-                                        </div>
-                                    </div>
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                                        <a href={`/storage/${file.file_path}`} target="_blank" rel="noreferrer" style={{ color: '#60a5fa', fontSize: 13 }}>
-                                            Open
-                                        </a>
-                                        <button type="button" onClick={() => deleteFile(file.id)} style={{ background: '#ef4444', color: '#fff', border: 'none', borderRadius: 8, padding: '6px 10px', cursor: 'pointer' }}>
-                                            Delete
-                                        </button>
-                                    </div>
-                                </div>
-                            ))}
+                        <div style={{ ...cardStyle }}>
+                            <DataTable
+                                columns={fileColumns}
+                                rows={files}
+                                rowKey="id"
+                                searchPlaceholder="Search files..."
+                                emptyMessage="No files uploaded yet."
+                                serverSide
+                                serverSearchValue={fileTableState.search}
+                                serverPage={fileTableState.page}
+                                serverPerPage={fileTableState.perPage}
+                                serverTotalItems={fileTableState.total}
+                                serverTotalPages={fileTableState.lastPage}
+                                serverFrom={fileTableState.from}
+                                serverTo={fileTableState.to}
+                                onServerSearchChange={(value) => navigateProjectTable({ tab: 'files', files_search: value, files_page: 1 })}
+                                onServerPerPageChange={(value) => navigateProjectTable({ tab: 'files', files_per_page: value, files_page: 1 })}
+                                onServerPageChange={(value) => navigateProjectTable({ tab: 'files', files_page: value })}
+                            />
                         </div>
                     </div>
                 )}
@@ -237,19 +369,69 @@ export default function HeadAdminProjectsShow({ project, files = [], updates = [
                             </div>
                         </form>
 
-                        <div style={{ ...cardStyle, display: 'grid', gap: 10 }}>
-                            {updates.length === 0 && <div style={{ color: 'var(--text-muted)', fontSize: 13 }}>No updates yet.</div>}
-                            {updates.map((update) => (
-                                <div key={update.id} style={{ border: '1px solid var(--border-color)', borderRadius: 10, padding: 10 }}>
-                                    <div style={{ fontSize: 13 }}>{update.note}</div>
-                                    <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 6 }}>
-                                        {update.created_by_name || 'Unknown'} | {update.created_at}
-                                    </div>
-                                </div>
-                            ))}
+                        <div style={{ ...cardStyle }}>
+                            <DataTable
+                                columns={updateColumns}
+                                rows={updates}
+                                rowKey="id"
+                                searchPlaceholder="Search updates..."
+                                emptyMessage="No updates yet."
+                                serverSide
+                                serverSearchValue={updateTableState.search}
+                                serverPage={updateTableState.page}
+                                serverPerPage={updateTableState.perPage}
+                                serverTotalItems={updateTableState.total}
+                                serverTotalPages={updateTableState.lastPage}
+                                serverFrom={updateTableState.from}
+                                serverTo={updateTableState.to}
+                                onServerSearchChange={(value) => navigateProjectTable({ tab: 'updates', updates_search: value, updates_page: 1 })}
+                                onServerPerPageChange={(value) => navigateProjectTable({ tab: 'updates', updates_per_page: value, updates_page: 1 })}
+                                onServerPageChange={(value) => navigateProjectTable({ tab: 'updates', updates_page: value })}
+                            />
                         </div>
                     </div>
                 )}
+
+                <Modal open={!!previewFile} onClose={() => setPreviewFile(null)} title={previewFile?.original_name || 'File Preview'}>
+                    {previewFile && (
+                        <div style={{ display: 'grid', gap: 12 }}>
+                            {isImagePreview && (
+                                <img
+                                    src={previewUrl}
+                                    alt={previewFile.original_name}
+                                    style={{
+                                        width: '100%',
+                                        maxHeight: '70vh',
+                                        objectFit: 'contain',
+                                        border: '1px solid var(--border-color)',
+                                        borderRadius: 8,
+                                        background: 'var(--surface-2)',
+                                    }}
+                                />
+                            )}
+
+                            {isPdfPreview && (
+                                <iframe
+                                    src={previewUrl}
+                                    title={previewFile.original_name}
+                                    style={{
+                                        width: '100%',
+                                        height: '70vh',
+                                        border: '1px solid var(--border-color)',
+                                        borderRadius: 8,
+                                        background: 'var(--surface-2)',
+                                    }}
+                                />
+                            )}
+
+                            {!isImagePreview && !isPdfPreview && (
+                                <div style={{ color: 'var(--text-muted)', fontSize: 13 }}>
+                                    Preview is not available for this file type.
+                                </div>
+                            )}
+                        </div>
+                    )}
+                </Modal>
             </Layout>
         </>
     );

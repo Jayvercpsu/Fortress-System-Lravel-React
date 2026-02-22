@@ -4,6 +4,7 @@ use App\Http\Controllers\BuildController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\DesignController;
 use App\Http\Controllers\ExpenseController;
+use App\Http\Controllers\MaterialController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\ForemansController;
 use App\Http\Controllers\PayrollController;
@@ -59,6 +60,11 @@ Route::middleware(['auth', 'role:head_admin,admin'])->group(function () {
     Route::post('/projects/{project}/expenses', [ExpenseController::class, 'store'])->name('expenses.store');
     Route::patch('/expenses/{expense}', [ExpenseController::class, 'update'])->name('expenses.update');
     Route::delete('/expenses/{expense}', [ExpenseController::class, 'destroy'])->name('expenses.destroy');
+
+    Route::get('/materials', [MaterialController::class, 'index'])->name('materials.index');
+    Route::post('/materials', [MaterialController::class, 'store'])->name('materials.store');
+    Route::patch('/materials/{material}', [MaterialController::class, 'update'])->name('materials.update');
+    Route::delete('/materials/{material}', [MaterialController::class, 'destroy'])->name('materials.destroy');
 
     Route::get('/projects/{project}/files', [ProjectFileController::class, 'index'])->name('project-files.index');
     Route::post('/projects/{project}/files', [ProjectFileController::class, 'store'])->name('project-files.store');

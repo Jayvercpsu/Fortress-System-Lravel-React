@@ -1,6 +1,6 @@
 import { Link, router, usePage } from '@inertiajs/react';
 import { useEffect, useState } from 'react';
-import { Moon, Sun } from 'lucide-react';
+import { Moon, Settings, Sun } from 'lucide-react';
 
 const navByRole = {
     head_admin: [
@@ -45,6 +45,10 @@ export default function Layout({ children, title }) {
     const { auth } = usePage().props;
     const user = auth?.user;
     const navItems = navByRole[user?.role] || [];
+    const currentPath =
+        typeof window !== 'undefined'
+            ? window.location.pathname.replace(/\/+$/, '') || '/'
+            : '/';
 
     const [showLogoutModal, setShowLogoutModal] = useState(false);
 
@@ -70,7 +74,9 @@ export default function Layout({ children, title }) {
                     background: 'var(--bg-page)',
                     color: 'var(--text-main)',
                     minHeight: '100vh',
+                    height: '100vh',
                     display: 'flex',
+                    overflow: 'hidden',
                 }}
             >
                 <aside
@@ -98,21 +104,23 @@ export default function Layout({ children, title }) {
                                 display: 'flex',
                                 alignItems: 'center',
                                 justifyContent: 'center',
-                                fontSize: 18,
                             }}
                         >
-                            🏗️
+                            <Settings size={18} strokeWidth={2.25} color="#fff" />
                         </div>
 
                         <div>
-                            <div style={{ fontSize: 15, fontWeight: 700 }}>BuildBooks</div>
+                            <div style={{ fontSize: 15, fontWeight: 700 }}>Fortress System</div>
                             <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{roleLabels[user?.role]}</div>
                         </div>
                     </div>
 
                     <nav style={{ flex: 1 }}>
                         {navItems.map((item) => {
-                            const active = window.location.pathname === item.href;
+                            const itemPath = item.href.replace(/\/+$/, '') || '/';
+                            const active =
+                                currentPath === itemPath ||
+                                (itemPath !== '/' && currentPath.startsWith(`${itemPath}/`));
 
                             return (
                                 <Link
@@ -162,13 +170,16 @@ export default function Layout({ children, title }) {
                     </div>
                 </aside>
 
-                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', minWidth: 0 }}>
                     {/* Header (flex + toggle icon) */}
                     <div
                         style={{
                             padding: '14px 24px',
                             borderBottom: '1px solid var(--border-color)',
                             background: 'var(--bg-page)',
+                            position: 'sticky',
+                            top: 0,
+                            zIndex: 20,
                             display: 'flex',
                             alignItems: 'center',
                             justifyContent: 'space-between',
@@ -268,4 +279,3 @@ export default function Layout({ children, title }) {
         </>
     );
 }
-

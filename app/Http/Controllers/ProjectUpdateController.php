@@ -32,12 +32,28 @@ class ProjectUpdateController extends Controller
         ]);
 
         return redirect()
-            ->route('projects.show', ['project' => $project->id])
+            ->route('projects.show', [
+                'project' => $project->id,
+                ...$this->projectShowQueryParams($request),
+            ])
             ->with('success', 'Project update added.');
     }
 
     private function authorizeRole(Request $request): void
     {
         abort_unless(in_array($request->user()->role, ['head_admin', 'admin'], true), 403);
+    }
+
+    private function projectShowQueryParams(Request $request): array
+    {
+        return array_filter([
+            'tab' => $request->query('tab'),
+            'files_search' => $request->query('files_search'),
+            'files_per_page' => $request->query('files_per_page'),
+            'files_page' => $request->query('files_page'),
+            'updates_search' => $request->query('updates_search'),
+            'updates_per_page' => $request->query('updates_per_page'),
+            'updates_page' => $request->query('updates_page'),
+        ], fn ($value) => $value !== null && $value !== '');
     }
 }

@@ -1,44 +1,96 @@
 import Layout from '../../../Components/Layout';
-import { Head, Link } from '@inertiajs/react';
+import DataTable from '../../../Components/DataTable';
+import { Head, Link, router } from '@inertiajs/react';
 
-export default function AdminProjectsIndex({ projects = [] }) {
+export default function AdminProjectsIndex({ projects = [], projectTable = {} }) {
+    const table = {
+        search: projectTable?.search ?? '',
+        perPage: Number(projectTable?.per_page ?? 10),
+        page: Number(projectTable?.current_page ?? 1),
+        lastPage: Number(projectTable?.last_page ?? 1),
+        total: Number(projectTable?.total ?? projects.length ?? 0),
+        from: projectTable?.from ?? null,
+        to: projectTable?.to ?? null,
+    };
+
+    const navigateTable = (overrides = {}) => {
+        const params = {
+            search: overrides.search !== undefined ? overrides.search : table.search,
+            per_page: overrides.per_page !== undefined ? overrides.per_page : table.perPage,
+            page: overrides.page !== undefined ? overrides.page : table.page,
+        };
+
+        if (!params.search) delete params.search;
+
+        router.get('/projects', params, {
+            preserveState: true,
+            preserveScroll: true,
+            replace: true,
+        });
+    };
+
+    const columns = [
+        {
+            key: 'name',
+            label: 'Name',
+            render: (project) => <div style={{ fontWeight: 600 }}>{project.name}</div>,
+            searchAccessor: (project) => project.name,
+        },
+        {
+            key: 'client',
+            label: 'Client',
+            searchAccessor: (project) => project.client,
+        },
+        {
+            key: 'phase',
+            label: 'Phase',
+            searchAccessor: (project) => project.phase,
+        },
+        {
+            key: 'status',
+            label: 'Status',
+            searchAccessor: (project) => project.status,
+        },
+        {
+            key: 'overall_progress',
+            label: 'Progress',
+            render: (project) => `${project.overall_progress}%`,
+            searchAccessor: (project) => project.overall_progress,
+        },
+        {
+            key: 'actions',
+            label: 'Actions',
+            render: (project) => (
+                <Link href={`/projects/${project.id}`} style={{ color: 'var(--active-text)', textDecoration: 'none', fontSize: 13 }}>
+                    View
+                </Link>
+            ),
+        },
+    ];
+
     return (
         <>
             <Head title="Projects" />
             <Layout title="Projects">
-                <div style={{ background: 'var(--surface-1)', border: '1px solid var(--border-color)', borderRadius: 12, overflow: 'hidden' }}>
-                    <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                        <thead>
-                            <tr>
-                                {['Name', 'Client', 'Phase', 'Status', 'Progress', 'Actions'].map((h) => (
-                                    <th key={h} style={{ textAlign: 'left', fontSize: 11, color: 'var(--text-muted-2)', padding: '10px 14px', borderBottom: '1px solid var(--border-color)', textTransform: 'uppercase' }}>
-                                        {h}
-                                    </th>
-                                ))}
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {projects.map((project) => (
-                                <tr key={project.id} style={{ borderBottom: '1px solid var(--row-divider)' }}>
-                                    <td style={{ padding: '12px 14px', fontWeight: 600 }}>{project.name}</td>
-                                    <td style={{ padding: '12px 14px' }}>{project.client}</td>
-                                    <td style={{ padding: '12px 14px' }}>{project.phase}</td>
-                                    <td style={{ padding: '12px 14px' }}>{project.status}</td>
-                                    <td style={{ padding: '12px 14px' }}>{project.overall_progress}%</td>
-                                    <td style={{ padding: '12px 14px' }}>
-                                        <Link href={`/projects/${project.id}`} style={{ color: 'var(--active-text)', textDecoration: 'none', fontSize: 13 }}>View</Link>
-                                    </td>
-                                </tr>
-                            ))}
-                            {projects.length === 0 && (
-                                <tr>
-                                    <td colSpan={6} style={{ padding: 24, textAlign: 'center', color: 'var(--text-muted)' }}>
-                                        No projects yet.
-                                    </td>
-                                </tr>
-                            )}
-                        </tbody>
-                    </table>
+                <div style={{ background: 'var(--surface-1)', border: '1px solid var(--border-color)', borderRadius: 12, padding: 12 }}>
+                    <DataTable
+                        columns={columns}
+                        rows={projects}
+                        rowKey="id"
+                        searchPlaceholder="Search projects..."
+                        emptyMessage="No projects yet."
+                        serverSide
+                        serverSearchValue={table.search}
+                        serverPage={table.page}
+                        serverPerPage={table.perPage}
+                        serverTotalItems={table.total}
+                        serverTotalPages={table.lastPage}
+                        serverFrom={table.from}
+                        serverTo={table.to}
+                        onServerSearchChange={(value) => navigateTable({ search: value, page: 1 })}
+                        onServerPerPageChange={(value) => navigateTable({ per_page: value, page: 1 })}
+                        onServerPageChange={(value) => navigateTable({ page: value })}
+                    />
                 </div>
             </Layout>
         </>

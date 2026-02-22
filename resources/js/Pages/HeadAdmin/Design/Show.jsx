@@ -82,11 +82,11 @@ export default function HeadAdminDesignShow({ projectId, design }) {
                 <form onSubmit={submit} style={{ display: 'grid', gap: 16 }}>
                     <div style={{ ...cardStyle, display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
                         <div>
-                            <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 4 }}>Contract Amount</div>
+                            <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 4 }}>Design Contract Amount</div>
                             <div style={{ fontWeight: 700 }}>{money(data.design_contract_amount)}</div>
                         </div>
                         <div>
-                            <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 4 }}>Remaining</div>
+                            <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 4 }}>Design Remaining</div>
                             <div style={{ fontWeight: 700, color: remaining < 0 ? '#f87171' : '#4ade80' }}>{money(remaining)}</div>
                         </div>
                         <div>
@@ -96,6 +96,9 @@ export default function HeadAdminDesignShow({ projectId, design }) {
                     </div>
 
                     <div style={{ ...cardStyle, display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 14 }}>
+                        <div style={{ gridColumn: '1 / -1', fontSize: 12, color: 'var(--text-muted)' }}>
+                            Saving here automatically updates Project Overview / Edit financial totals and overall progress.
+                        </div>
                         <label>
                             <div style={{ fontSize: 12, marginBottom: 6 }}>Design Contract Amount</div>
                             <input type="number" step="0.01" min="0" value={data.design_contract_amount} onChange={(e) => setData('design_contract_amount', e.target.value)} style={inputStyle} />

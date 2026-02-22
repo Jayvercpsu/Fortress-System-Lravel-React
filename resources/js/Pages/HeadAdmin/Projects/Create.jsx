@@ -22,7 +22,6 @@ export default function HeadAdminProjectsCreate() {
         target: '',
         status: 'PLANNING',
         phase: 'DESIGN',
-        overall_progress: 0,
     });
 
     const submit = (e) => {
@@ -68,12 +67,6 @@ export default function HeadAdminProjectsCreate() {
                         <div style={{ fontSize: 12, marginBottom: 6 }}>Phase</div>
                         <input value={data.phase} onChange={(e) => setData('phase', e.target.value)} style={inputStyle} />
                         {errors.phase && <div style={{ color: '#f87171', fontSize: 12, marginTop: 4 }}>{errors.phase}</div>}
-                    </label>
-
-                    <label>
-                        <div style={{ fontSize: 12, marginBottom: 6 }}>Overall Progress (%)</div>
-                        <input type="number" min="0" max="100" value={data.overall_progress} onChange={(e) => setData('overall_progress', e.target.value)} style={inputStyle} />
-                        {errors.overall_progress && <div style={{ color: '#f87171', fontSize: 12, marginTop: 4 }}>{errors.overall_progress}</div>}
                     </label>
 
                     <div style={{ gridColumn: '1 / -1', display: 'flex', justifyContent: 'flex-end' }}>

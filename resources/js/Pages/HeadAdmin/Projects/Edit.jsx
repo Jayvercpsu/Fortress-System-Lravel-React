@@ -1,5 +1,6 @@
 import Layout from '../../../Components/Layout';
-import { Head, useForm } from '@inertiajs/react';
+import { Head, Link, useForm } from '@inertiajs/react';
+import { ArrowLeft } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 const inputStyle = {
@@ -25,44 +26,55 @@ export default function HeadAdminProjectsEdit({ project }) {
         target: project.target ?? '',
         status: project.status ?? 'PLANNING',
         phase: project.phase ?? 'DESIGN',
-        overall_progress: project.overall_progress ?? 0,
-    });
-
-    const {
-        data: financials,
-        setData: setFinancials,
-        patch: patchFinancials,
-        processing: financialProcessing,
-        errors: financialErrors,
-    } = useForm({
-        contract_amount: project.contract_amount ?? 0,
-        design_fee: project.design_fee ?? 0,
-        construction_cost: project.construction_cost ?? 0,
-        total_client_payment: project.total_client_payment ?? 0,
     });
 
     const submit = (e) => {
         e.preventDefault();
         patch(`/projects/${project.id}`, {
-            onSuccess: () => toast.success('Project updated.'),
             onError: () => toast.error('Please check required fields.'),
         });
     };
 
-    const saveFinancials = (e) => {
-        e.preventDefault();
-        patchFinancials(`/projects/${project.id}/financials`, {
-            onSuccess: () => toast.success('Financial overview updated.'),
-            onError: () => toast.error('Unable to update financials.'),
-        });
+    const handleBackToProject = (e) => {
+        if (typeof window === 'undefined') return;
+
+        const hasHistory = window.history.length > 1;
+        const sameOriginReferrer = document.referrer && document.referrer.startsWith(window.location.origin);
+
+        if (hasHistory && sameOriginReferrer) {
+            e.preventDefault();
+            window.history.back();
+        }
     };
 
-    const remainingBalance = Number(financials.contract_amount || 0) - Number(financials.total_client_payment || 0);
+    const remainingBalance = Number(project.contract_amount || 0) - Number(project.total_client_payment || 0);
 
     return (
         <>
             <Head title={`Edit Project #${project.id}`} />
             <Layout title={`Edit Project - ${project.name}`}>
+                <div style={{ marginBottom: 12 }}>
+                    <Link
+                        href={`/projects/${project.id}`}
+                        onClick={handleBackToProject}
+                        style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: 8,
+                            color: 'var(--text-main)',
+                            textDecoration: 'none',
+                            border: '1px solid var(--border-color)',
+                            background: 'var(--button-bg)',
+                            borderRadius: 8,
+                            padding: '8px 12px',
+                            fontSize: 13,
+                        }}
+                    >
+                        <ArrowLeft size={16} />
+                        Back to Project
+                    </Link>
+                </div>
+
                 <form onSubmit={submit} style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 14, background: 'var(--surface-1)', border: '1px solid var(--border-color)', borderRadius: 12, padding: 16, marginBottom: 16 }}>
                     {[
                         ['name', 'Project Name'],
@@ -93,12 +105,6 @@ export default function HeadAdminProjectsEdit({ project }) {
                         <input value={data.phase} onChange={(e) => setData('phase', e.target.value)} style={inputStyle} />
                         {errors.phase && <div style={{ color: '#f87171', fontSize: 12, marginTop: 4 }}>{errors.phase}</div>}
                     </label>
-                    <label>
-                        <div style={{ fontSize: 12, marginBottom: 6 }}>Overall Progress (%)</div>
-                        <input type="number" min="0" max="100" value={data.overall_progress} onChange={(e) => setData('overall_progress', e.target.value)} style={inputStyle} />
-                        {errors.overall_progress && <div style={{ color: '#f87171', fontSize: 12, marginTop: 4 }}>{errors.overall_progress}</div>}
-                    </label>
-
                     <div style={{ gridColumn: '1 / -1', display: 'flex', justifyContent: 'flex-end' }}>
                         <button type="submit" disabled={processing} style={{ background: 'var(--success)', color: '#fff', border: 'none', borderRadius: 8, padding: '10px 16px' }}>
                             {processing ? 'Saving...' : 'Save Project'}
@@ -106,40 +112,33 @@ export default function HeadAdminProjectsEdit({ project }) {
                     </div>
                 </form>
 
-                <form onSubmit={saveFinancials} style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 14, background: 'var(--surface-1)', border: '1px solid var(--border-color)', borderRadius: 12, padding: 16 }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 14, background: 'var(--surface-1)', border: '1px solid var(--border-color)', borderRadius: 12, padding: 16 }}>
                     <div style={{ gridColumn: '1 / -1', fontSize: 14, fontWeight: 700 }}>Financial Overview</div>
+                    <div style={{ gridColumn: '1 / -1', fontSize: 12, color: 'var(--text-muted)' }}>
+                        Auto-calculated from Design Tracker, Build Tracker, and Expenses.
+                    </div>
 
                     <label>
                         <div style={{ fontSize: 12, marginBottom: 6 }}>Contract Amount</div>
-                        <input type="number" step="0.01" min="0" value={financials.contract_amount} onChange={(e) => setFinancials('contract_amount', e.target.value)} style={inputStyle} />
-                        {financialErrors.contract_amount && <div style={{ color: '#f87171', fontSize: 12 }}>{financialErrors.contract_amount}</div>}
+                        <input type="text" value={money(project.contract_amount)} readOnly style={inputStyle} />
                     </label>
                     <label>
                         <div style={{ fontSize: 12, marginBottom: 6 }}>Design Fee</div>
-                        <input type="number" step="0.01" min="0" value={financials.design_fee} onChange={(e) => setFinancials('design_fee', e.target.value)} style={inputStyle} />
-                        {financialErrors.design_fee && <div style={{ color: '#f87171', fontSize: 12 }}>{financialErrors.design_fee}</div>}
+                        <input type="text" value={money(project.design_fee)} readOnly style={inputStyle} />
                     </label>
                     <label>
                         <div style={{ fontSize: 12, marginBottom: 6 }}>Construction Cost</div>
-                        <input type="number" step="0.01" min="0" value={financials.construction_cost} onChange={(e) => setFinancials('construction_cost', e.target.value)} style={inputStyle} />
-                        {financialErrors.construction_cost && <div style={{ color: '#f87171', fontSize: 12 }}>{financialErrors.construction_cost}</div>}
+                        <input type="text" value={money(project.construction_cost)} readOnly style={inputStyle} />
                     </label>
                     <label>
                         <div style={{ fontSize: 12, marginBottom: 6 }}>Total Client Payment</div>
-                        <input type="number" step="0.01" min="0" value={financials.total_client_payment} onChange={(e) => setFinancials('total_client_payment', e.target.value)} style={inputStyle} />
-                        {financialErrors.total_client_payment && <div style={{ color: '#f87171', fontSize: 12 }}>{financialErrors.total_client_payment}</div>}
+                        <input type="text" value={money(project.total_client_payment)} readOnly style={inputStyle} />
                     </label>
 
                     <div style={{ gridColumn: '1 / -1', fontWeight: 700 }}>
                         Remaining Balance: {money(remainingBalance)}
                     </div>
-
-                    <div style={{ gridColumn: '1 / -1', display: 'flex', justifyContent: 'flex-end' }}>
-                        <button type="submit" disabled={financialProcessing} style={{ background: 'var(--success)', color: '#fff', border: 'none', borderRadius: 8, padding: '10px 16px' }}>
-                            {financialProcessing ? 'Saving...' : 'Save Financials'}
-                        </button>
-                    </div>
-                </form>
+                </div>
             </Layout>
         </>
     );
