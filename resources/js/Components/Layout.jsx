@@ -26,12 +26,17 @@ const navByRole = {
         { label: 'Issues', href: '/issues', icon: 'fi fi-rr-exclamation' },
         { label: 'Progress Photos', href: '/progress-photos', icon: 'fi fi-rr-picture' },
         { label: 'Reports', href: '/reports', icon: 'fi fi-rr-document' },
+        { label: 'Settings', href: '/settings', icon: 'fi fi-rr-settings' },
     ],
     hr: [
         { label: 'Dashboard', href: '/hr', icon: 'fi fi-rr-dashboard' },
         { label: 'Payroll', href: '/payroll', icon: 'fi fi-rr-money-bill-wave' },
+        { label: 'Settings', href: '/settings', icon: 'fi fi-rr-settings' },
     ],
-    foreman: [{ label: 'Dashboard', href: '/foreman', icon: 'fi fi-rr-helmet-safety' }],
+    foreman: [
+        { label: 'Dashboard', href: '/foreman', icon: 'fi fi-rr-helmet-safety' },
+        { label: 'Settings', href: '/settings', icon: 'fi fi-rr-settings' },
+    ],
 };
 
 const roleLabels = {
