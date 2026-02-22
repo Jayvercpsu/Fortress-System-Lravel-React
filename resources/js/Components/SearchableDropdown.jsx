@@ -35,6 +35,7 @@ export default function SearchableDropdown({
     const searchRef = useRef(null);
     const [open, setOpen] = useState(false);
     const [query, setQuery] = useState('');
+    const [hoveredValue, setHoveredValue] = useState(null);
 
     const selectedOption = useMemo(
         () => options.find((option) => String(getOptionValue(option)) === String(value)),
@@ -77,6 +78,7 @@ export default function SearchableDropdown({
             return () => window.clearTimeout(t);
         }
         setQuery('');
+        setHoveredValue(null);
     }, [open]);
 
     const selectOption = (option) => {
@@ -209,18 +211,26 @@ export default function SearchableDropdown({
                             filteredOptions.map((option) => {
                                 const optionValue = String(getOptionValue(option));
                                 const selected = String(value) === optionValue;
+                                const hovered = hoveredValue === optionValue;
 
                                 return (
                                     <button
                                         key={optionValue}
                                         type="button"
                                         onClick={() => selectOption(option)}
+                                        onMouseEnter={() => setHoveredValue(optionValue)}
+                                        onMouseLeave={() => setHoveredValue((prev) => (prev === optionValue ? null : prev))}
                                         style={{
                                             width: '100%',
                                             textAlign: 'left',
                                             border: '1px solid transparent',
-                                            background: selected ? 'color-mix(in srgb, var(--active-bg) 45%, transparent)' : 'transparent',
+                                            background: selected
+                                                ? 'color-mix(in srgb, var(--active-bg) 45%, transparent)'
+                                                : hovered
+                                                  ? 'color-mix(in srgb, var(--surface-2) 80%, var(--active-bg) 20%)'
+                                                  : 'transparent',
                                             color: selected ? 'var(--active-text)' : 'var(--text-main)',
+                                            borderColor: 'transparent',
                                             borderRadius: 8,
                                             padding: '9px 10px',
                                             display: 'flex',
@@ -228,6 +238,7 @@ export default function SearchableDropdown({
                                             justifyContent: 'space-between',
                                             gap: 10,
                                             cursor: 'pointer',
+                                            transition: 'background-color 120ms ease',
                                         }}
                                     >
                                         <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
