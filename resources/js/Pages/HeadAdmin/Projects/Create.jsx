@@ -1,5 +1,6 @@
 import Layout from '../../../Components/Layout';
 import DatePickerInput from '../../../Components/DatePickerInput';
+import SearchableDropdown from '../../../Components/SearchableDropdown';
 import { Head, useForm } from '@inertiajs/react';
 import toast from 'react-hot-toast';
 
@@ -52,19 +53,20 @@ export default function HeadAdminProjectsCreate({ foremen = [] }) {
 
                     <label>
                         <div style={{ fontSize: 12, marginBottom: 6 }}>Assigned To</div>
-                        <select
+                        <SearchableDropdown
+                            options={foremen}
                             value={data.assigned}
-                            onChange={(e) => setData('assigned', e.target.value)}
-                            style={inputStyle}
+                            onChange={(value) => setData('assigned', value)}
+                            getOptionLabel={(option) => option.fullname}
+                            getOptionValue={(option) => option.fullname}
+                            placeholder={foremen.length === 0 ? 'No foreman users available' : 'Select foreman'}
+                            searchPlaceholder="Search foremen..."
+                            emptyMessage="No foremen found"
                             disabled={foremen.length === 0}
-                        >
-                            <option value="">{foremen.length === 0 ? 'No foreman users available' : 'Select foreman'}</option>
-                            {foremen.map((foreman) => (
-                                <option key={foreman.id} value={foreman.fullname}>
-                                    {foreman.fullname}
-                                </option>
-                            ))}
-                        </select>
+                            clearable
+                            style={{ ...inputStyle, minHeight: 40, padding: '8px 10px' }}
+                            dropdownWidth={340}
+                        />
                         {foremen.length === 0 && (
                             <div style={{ color: 'var(--text-muted)', fontSize: 12, marginTop: 4 }}>
                                 Add a user with role `foreman` first to assign this project.

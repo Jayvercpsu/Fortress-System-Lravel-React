@@ -2,6 +2,7 @@ import Layout from '../../../Components/Layout';
 import ActionButton from '../../../Components/ActionButton';
 import DataTable from '../../../Components/DataTable';
 import DatePickerInput from '../../../Components/DatePickerInput';
+import SearchableDropdown from '../../../Components/SearchableDropdown';
 import { Head, Link, router, useForm } from '@inertiajs/react';
 import { useEffect, useState } from 'react';
 import toast from 'react-hot-toast';
@@ -202,13 +203,20 @@ export default function HeadAdminBuildShow({
             label: 'Category',
             render: (expense) =>
                 editingExpenseId === expense.id ? (
-                    <select value={editData.category} onChange={(e) => setEditData('category', e.target.value)} style={inputStyle}>
-                        {Array.from(new Set([...(availableCategories || []), editData.category].filter(Boolean))).map((option) => (
-                            <option key={option} value={option}>
-                                {option}
-                            </option>
-                        ))}
-                    </select>
+                    <div style={{ minWidth: 220 }}>
+                        <SearchableDropdown
+                            options={Array.from(new Set([...(availableCategories || []), editData.category].filter(Boolean)))}
+                            value={editData.category}
+                            onChange={(value) => setEditData('category', value)}
+                            getOptionLabel={(option) => option}
+                            getOptionValue={(option) => option}
+                            placeholder="Select category"
+                            searchPlaceholder="Search categories..."
+                            emptyMessage="No categories found"
+                            style={{ ...inputStyle, minHeight: 40, padding: '8px 10px' }}
+                            dropdownWidth={300}
+                        />
+                    </div>
                 ) : (
                     <div style={{ fontWeight: 600, textTransform: 'capitalize' }}>{expense.category || '-'}</div>
                 ),
@@ -433,17 +441,19 @@ export default function HeadAdminBuildShow({
                         <form onSubmit={submitExpense} style={{ ...cardStyle, display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 12 }}>
                             <label>
                                 <div style={{ fontSize: 12, marginBottom: 6 }}>Category</div>
-                                <select value={expenseData.category} onChange={(e) => setExpenseData('category', e.target.value)} style={inputStyle} disabled={availableCategories.length === 0}>
-                                    {availableCategories.length === 0 ? (
-                                        <option value="">No materials yet</option>
-                                    ) : (
-                                        availableCategories.map((option) => (
-                                            <option key={option} value={option}>
-                                                {option}
-                                            </option>
-                                        ))
-                                    )}
-                                </select>
+                                <SearchableDropdown
+                                    options={availableCategories}
+                                    value={expenseData.category}
+                                    onChange={(value) => setExpenseData('category', value)}
+                                    getOptionLabel={(option) => option}
+                                    getOptionValue={(option) => option}
+                                    placeholder={availableCategories.length === 0 ? 'No materials yet' : 'Select category'}
+                                    searchPlaceholder="Search categories..."
+                                    emptyMessage="No categories found"
+                                    disabled={availableCategories.length === 0}
+                                    style={{ ...inputStyle, minHeight: 40, padding: '8px 10px' }}
+                                    dropdownWidth={320}
+                                />
                                 {expenseErrors.category && <div style={{ color: '#f87171', fontSize: 12, marginTop: 4 }}>{expenseErrors.category}</div>}
                                 {availableCategories.length === 0 && (
                                     <div style={{ color: 'var(--text-muted)', fontSize: 12, marginTop: 4 }}>

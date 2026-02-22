@@ -1,5 +1,6 @@
 import Layout from '../../../Components/Layout';
 import DatePickerInput from '../../../Components/DatePickerInput';
+import SearchableDropdown from '../../../Components/SearchableDropdown';
 import { Head, Link, useForm } from '@inertiajs/react';
 import { ArrowLeft } from 'lucide-react';
 import toast from 'react-hot-toast';
@@ -50,6 +51,10 @@ export default function HeadAdminProjectsEdit({ project, foremen = [] }) {
 
     const remainingBalance = Number(project.contract_amount || 0) - Number(project.total_client_payment || 0);
     const hasAssignedForemanOption = foremen.some((foreman) => foreman.fullname === (data.assigned ?? ''));
+    const assignedForemanOptions = [
+        ...((data.assigned && !hasAssignedForemanOption) ? [{ id: `current-${data.assigned}`, fullname: data.assigned }] : []),
+        ...foremen,
+    ];
 
     return (
         <>
@@ -93,22 +98,24 @@ export default function HeadAdminProjectsEdit({ project, foremen = [] }) {
 
                     <label>
                         <div style={{ fontSize: 12, marginBottom: 6 }}>Assigned To</div>
-                        <select
+                        <SearchableDropdown
+                            options={assignedForemanOptions}
                             value={data.assigned}
-                            onChange={(e) => setData('assigned', e.target.value)}
-                            style={inputStyle}
+                            onChange={(value) => setData('assigned', value)}
+                            getOptionLabel={(option) =>
+                                !hasAssignedForemanOption && data.assigned && option.fullname === data.assigned
+                                    ? `${option.fullname} (Current)`
+                                    : option.fullname
+                            }
+                            getOptionValue={(option) => option.fullname}
+                            placeholder={foremen.length === 0 && !data.assigned ? 'No foreman users available' : 'Select foreman'}
+                            searchPlaceholder="Search foremen..."
+                            emptyMessage="No foremen found"
                             disabled={foremen.length === 0 && !data.assigned}
-                        >
-                            <option value="">{foremen.length === 0 ? 'No foreman users available' : 'Select foreman'}</option>
-                            {!!data.assigned && !hasAssignedForemanOption && (
-                                <option value={data.assigned}>{data.assigned} (Current)</option>
-                            )}
-                            {foremen.map((foreman) => (
-                                <option key={foreman.id} value={foreman.fullname}>
-                                    {foreman.fullname}
-                                </option>
-                            ))}
-                        </select>
+                            clearable
+                            style={{ ...inputStyle, minHeight: 40, padding: '8px 10px' }}
+                            dropdownWidth={340}
+                        />
                         {foremen.length === 0 && !data.assigned && (
                             <div style={{ color: 'var(--text-muted)', fontSize: 12, marginTop: 4 }}>
                                 Add a user with role `foreman` first to assign this project.
