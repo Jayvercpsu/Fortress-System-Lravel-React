@@ -29,6 +29,8 @@ export default function DataTable({
     onServerSearchChange,
     onServerPageChange,
     onServerPerPageChange,
+    topLeftExtra = null,
+    topRightExtra = null,
 }) {
     const [query, setQuery] = useState('');
     const [page, setPage] = useState(1);
@@ -100,15 +102,19 @@ export default function DataTable({
     return (
         <div style={{ display: 'grid', gap: 12 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
-                <input
-                    type="text"
-                    value={serverSide ? serverQueryDraft : query}
-                    onChange={(e) => (serverSide ? setServerQueryDraft(e.target.value) : setQuery(e.target.value))}
-                    placeholder={searchPlaceholder}
-                    style={{ ...controlStyle, minWidth: 220, maxWidth: 420, flex: '0 1 420px', width: '100%' }}
-                />
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', flex: 1, minWidth: 0 }}>
+                    <input
+                        type="text"
+                        value={serverSide ? serverQueryDraft : query}
+                        onChange={(e) => (serverSide ? setServerQueryDraft(e.target.value) : setQuery(e.target.value))}
+                        placeholder={searchPlaceholder}
+                        style={{ ...controlStyle, minWidth: 220, maxWidth: 420, flex: '0 1 420px', width: '100%' }}
+                    />
+                    {topLeftExtra}
+                </div>
 
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                    {topRightExtra}
                     <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>Per page</span>
                     <select
                         value={serverSide ? serverPerPage : perPage}
@@ -143,6 +149,7 @@ export default function DataTable({
                                         borderBottom: '1px solid var(--border-color)',
                                         whiteSpace: 'nowrap',
                                         width: column.width,
+                                        minWidth: column.width,
                                     }}
                                 >
                                     {column.label}
@@ -170,6 +177,8 @@ export default function DataTable({
                                             borderBottom: '1px solid var(--border-color)',
                                             verticalAlign: 'top',
                                             textAlign: column.align === 'right' ? 'right' : 'left',
+                                            width: column.width,
+                                            minWidth: column.width,
                                         }}
                                     >
                                         {column.render ? column.render(row) : row?.[column.key] ?? '-'}

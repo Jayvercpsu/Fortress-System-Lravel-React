@@ -51,7 +51,7 @@ export default function SearchableDropdown({
     useEffect(() => {
         if (!open) return;
 
-        const onPointerDown = (event) => {
+        const onInteractOutside = (event) => {
             if (!rootRef.current?.contains(event.target)) {
                 setOpen(false);
             }
@@ -63,12 +63,18 @@ export default function SearchableDropdown({
             }
         };
 
-        document.addEventListener('mousedown', onPointerDown);
+        document.addEventListener('pointerdown', onInteractOutside, true);
+        document.addEventListener('mousedown', onInteractOutside, true);
+        document.addEventListener('touchstart', onInteractOutside, true);
         document.addEventListener('keydown', onKeyDown);
+        document.addEventListener('focusin', onInteractOutside, true);
 
         return () => {
-            document.removeEventListener('mousedown', onPointerDown);
+            document.removeEventListener('pointerdown', onInteractOutside, true);
+            document.removeEventListener('mousedown', onInteractOutside, true);
+            document.removeEventListener('touchstart', onInteractOutside, true);
             document.removeEventListener('keydown', onKeyDown);
+            document.removeEventListener('focusin', onInteractOutside, true);
         };
     }, [open]);
 
@@ -233,6 +239,7 @@ export default function SearchableDropdown({
                                             borderColor: 'transparent',
                                             borderRadius: 8,
                                             padding: '9px 10px',
+                                            fontSize: 12,
                                             display: 'flex',
                                             alignItems: 'center',
                                             justifyContent: 'space-between',

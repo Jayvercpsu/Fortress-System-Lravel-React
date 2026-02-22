@@ -81,7 +81,7 @@ export default function HRDashboard({ payrolls, totalPayable }) {
                 {/* ACTION BUTTON */}
                 <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 16 }}>
                     <Link
-                        href="/payroll"
+                        href="/payroll/run"
                         style={{
                             background: 'var(--success)',
                             color: '#fff',

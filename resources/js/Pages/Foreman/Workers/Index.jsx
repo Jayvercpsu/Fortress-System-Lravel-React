@@ -45,6 +45,7 @@ export default function ForemanWorkersIndex({ workers = [], workerTable = {} }) 
 
     const createForm = useForm({
         name: '',
+        default_rate_per_hour: '',
         birth_date: '',
         place_of_birth: '',
         sex: '',
@@ -55,6 +56,7 @@ export default function ForemanWorkersIndex({ workers = [], workerTable = {} }) 
 
     const editForm = useForm({
         name: '',
+        default_rate_per_hour: '',
         birth_date: '',
         place_of_birth: '',
         sex: '',
@@ -100,6 +102,10 @@ export default function ForemanWorkersIndex({ workers = [], workerTable = {} }) 
         setEditingId(worker.id);
         editForm.setData({
             name: worker.name ?? '',
+            default_rate_per_hour:
+                worker.default_rate_per_hour === null || worker.default_rate_per_hour === undefined
+                    ? ''
+                    : String(worker.default_rate_per_hour),
             birth_date: worker.birth_date ?? '',
             place_of_birth: worker.place_of_birth ?? '',
             sex: worker.sex ?? '',
@@ -135,6 +141,30 @@ export default function ForemanWorkersIndex({ workers = [], workerTable = {} }) 
                     <div style={{ fontWeight: 700 }}>{row.name}</div>
                 ),
             searchAccessor: (row) => row.name,
+        },
+        {
+            key: 'default_rate_per_hour',
+            label: 'Default Rate/Hour',
+            width: 150,
+            align: 'right',
+            render: (row) =>
+                editingId === row.id ? (
+                    <input
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        value={editForm.data.default_rate_per_hour}
+                        onChange={(e) => editForm.setData('default_rate_per_hour', e.target.value)}
+                        style={inputStyle}
+                    />
+                ) : (
+                    <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 12 }}>
+                        {row.default_rate_per_hour !== null && row.default_rate_per_hour !== undefined
+                            ? `P ${Number(row.default_rate_per_hour).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+                            : '-'}
+                    </span>
+                ),
+            searchAccessor: (row) => row.default_rate_per_hour,
         },
         {
             key: 'birth_date',
@@ -234,6 +264,22 @@ export default function ForemanWorkersIndex({ workers = [], workerTable = {} }) 
                                 <div style={{ fontSize: 12, marginBottom: 6 }}>Birth Date (optional)</div>
                                 <DatePickerInput value={createForm.data.birth_date} onChange={(value) => createForm.setData('birth_date', value)} style={inputStyle} maxDate={new Date()} />
                                 {createForm.errors.birth_date && <div style={{ color: '#f87171', fontSize: 12, marginTop: 4 }}>{createForm.errors.birth_date}</div>}
+                            </label>
+
+                            <label>
+                                <div style={{ fontSize: 12, marginBottom: 6 }}>Default Rate / Hour (optional)</div>
+                                <input
+                                    type="number"
+                                    min="0"
+                                    step="0.01"
+                                    value={createForm.data.default_rate_per_hour}
+                                    onChange={(e) => createForm.setData('default_rate_per_hour', e.target.value)}
+                                    style={inputStyle}
+                                    placeholder="e.g. 550"
+                                />
+                                {createForm.errors.default_rate_per_hour && (
+                                    <div style={{ color: '#f87171', fontSize: 12, marginTop: 4 }}>{createForm.errors.default_rate_per_hour}</div>
+                                )}
                             </label>
 
                             <label>

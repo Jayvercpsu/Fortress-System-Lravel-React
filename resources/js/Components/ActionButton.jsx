@@ -41,6 +41,7 @@ const variantStyle = {
 
 export default function ActionButton({
     href,
+    external = false,
     variant = 'neutral',
     style,
     children,
@@ -61,6 +62,14 @@ export default function ActionButton({
     };
 
     if (href) {
+        if (external) {
+            return (
+                <a href={href} style={resolvedStyle} {...rest}>
+                    {children}
+                </a>
+            );
+        }
+
         return (
             <Link href={href} style={resolvedStyle} {...rest}>
                 {children}

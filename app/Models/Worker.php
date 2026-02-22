@@ -9,6 +9,7 @@ class Worker extends Model
     protected $fillable = [
         'foreman_id',
         'name',
+        'default_rate_per_hour',
         'birth_date',
         'place_of_birth',
         'sex',
@@ -19,6 +20,7 @@ class Worker extends Model
 
     protected $casts = [
         'birth_date' => 'date',
+        'default_rate_per_hour' => 'decimal:2',
     ];
 
     public function foreman()

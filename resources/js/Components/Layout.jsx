@@ -30,7 +30,7 @@ const navByRole = {
     ],
     hr: [
         { label: 'Dashboard', href: '/hr', icon: 'fi fi-rr-dashboard' },
-        { label: 'Payroll', href: '/payroll', icon: 'fi fi-rr-money-bill-wave' },
+        { label: 'Payroll', href: '/payroll/run', icon: 'fi fi-rr-money-bill-wave' },
         { label: 'Settings', href: '/settings', icon: 'fi fi-rr-settings' },
     ],
     foreman: [
@@ -127,8 +127,13 @@ export default function Layout({ children, title }) {
                             const itemPath = item.href.replace(/\/+$/, '') || '/';
                             const exactOnlyPaths = new Set(['/head-admin', '/admin', '/hr', '/foreman']);
                             const exactOnly = exactOnlyPaths.has(itemPath);
+                            const aliasPathsByHref = {
+                                '/payroll/run': ['/payroll'],
+                            };
+                            const aliases = aliasPathsByHref[itemPath] || [];
                             const active =
                                 currentPath === itemPath ||
+                                aliases.includes(currentPath) ||
                                 (!exactOnly && itemPath !== '/' && currentPath.startsWith(`${itemPath}/`));
 
                             return (
