@@ -266,11 +266,11 @@ export default function PayrollRun({
                                 display: 'grid',
                                 gridTemplateColumns: 'repeat(2, minmax(220px, 320px)) auto',
                                 gap: 12,
-                                alignItems: 'end',
+                                alignItems: 'start',
                                 justifyContent: 'start',
                             }}
                         >
-                            <label>
+                            <label style={{ display: 'grid', alignContent: 'start' }}>
                                 <div style={{ fontSize: 12, marginBottom: 6 }}>Cutoff Start</div>
                                 <DatePickerInput
                                     value={generateForm.data.start_date}
@@ -278,12 +278,12 @@ export default function PayrollRun({
                                     style={inputStyle}
                                     maxDate={today || undefined}
                                 />
-                                {generateForm.errors.start_date && (
-                                    <div style={{ color: '#f87171', fontSize: 12, marginTop: 4 }}>{generateForm.errors.start_date}</div>
-                                )}
+                                <div style={{ minHeight: 38, marginTop: 4, fontSize: 12, color: '#f87171' }}>
+                                    {generateForm.errors.start_date || ''}
+                                </div>
                             </label>
 
-                            <label>
+                            <label style={{ display: 'grid', alignContent: 'start' }}>
                                 <div style={{ fontSize: 12, marginBottom: 6 }}>Cutoff End</div>
                                 <DatePickerInput
                                     value={generateForm.data.end_date}
@@ -292,12 +292,12 @@ export default function PayrollRun({
                                     minDate={generateForm.data.start_date || undefined}
                                     maxDate={today || undefined}
                                 />
-                                {generateForm.errors.end_date && (
-                                    <div style={{ color: '#f87171', fontSize: 12, marginTop: 4 }}>{generateForm.errors.end_date}</div>
-                                )}
+                                <div style={{ minHeight: 38, marginTop: 4, fontSize: 12, color: '#f87171' }}>
+                                    {generateForm.errors.end_date || ''}
+                                </div>
                             </label>
 
-                            <div style={{ display: 'flex', justifyContent: 'flex-start' }}>
+                            <div style={{ display: 'flex', justifyContent: 'flex-start', alignItems: 'start', paddingTop: 24 }}>
                                 <ActionButton type="submit" variant="success" disabled={generateForm.processing} style={{ padding: '10px 16px', fontSize: 13 }}>
                                     {generateForm.processing ? 'Generating...' : 'Generate Payroll'}
                                 </ActionButton>
