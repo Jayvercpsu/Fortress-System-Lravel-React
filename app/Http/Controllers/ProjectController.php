@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\BuildProject;
 use App\Models\DesignProject;
 use App\Models\Expense;
+use App\Models\Payment;
 use App\Models\Project;
 use App\Models\User;
 use Illuminate\Http\Request;
@@ -279,6 +280,9 @@ class ProjectController extends Controller
         ]);
 
         $project->update($validated);
+        $project->update([
+            'remaining_balance' => (float) $validated['contract_amount'] - (float) $validated['total_client_payment'],
+        ]);
 
         return redirect()
             ->route('projects.show', ['project' => $project->id])
@@ -324,6 +328,7 @@ class ProjectController extends Controller
             'construction_cost' => $computed['construction_cost'],
             'total_client_payment' => $computed['total_client_payment'],
             'remaining_balance' => $computed['remaining_balance'],
+            'last_paid_date' => $computed['last_paid_date'],
         ];
     }
 
@@ -334,24 +339,15 @@ class ProjectController extends Controller
         $build = BuildProject::where('project_id', $projectId)->first();
 
         $designContractAmount = (float) ($design?->design_contract_amount ?? 0);
-        $designTotalReceived = (float) ($design?->total_received ?? 0);
-        $designProgress = (float) ($design?->design_progress ?? 0);
 
         $constructionContract = (float) ($build?->construction_contract ?? 0);
-        $buildTotalClientPayment = (float) ($build?->total_client_payment ?? 0);
         $expenseConstructionCost = (float) Expense::where('project_id', $projectId)->sum('amount');
         $constructionCost = $expenseConstructionCost;
-
-        $hasBuildData = $constructionContract > 0 || $buildTotalClientPayment > 0 || $constructionCost > 0;
-        $buildProgress = $constructionContract > 0
-            ? ($buildTotalClientPayment / $constructionContract) * 100
-            : 0;
-        $overallProgress = $hasBuildData
-            ? (int) round(max(0, min(100, ($designProgress + $buildProgress) / 2)))
-            : (int) round(max(0, min(100, $designProgress)));
+        $overallProgress = (int) max(0, min(100, (int) $project->overall_progress));
 
         $contractAmount = $designContractAmount + $constructionContract;
-        $totalClientPayment = $designTotalReceived + $buildTotalClientPayment;
+        $totalClientPayment = (float) Payment::where('project_id', $projectId)->sum('amount');
+        $lastPaidDate = Payment::where('project_id', $projectId)->max('date_paid');
         $remainingBalance = $contractAmount - $totalClientPayment;
 
         $computed = [
@@ -360,16 +356,18 @@ class ProjectController extends Controller
             'construction_cost' => $constructionCost,
             'total_client_payment' => $totalClientPayment,
             'remaining_balance' => $remainingBalance,
+            'last_paid_date' => $lastPaidDate,
             'overall_progress' => $overallProgress,
         ];
 
-        // Keep the project snapshot columns aligned with tracker-derived values.
+        // Keep project financial snapshot columns aligned with tracker-derived values.
         Project::whereKey($project->id)->update([
             'contract_amount' => $computed['contract_amount'],
             'design_fee' => $computed['design_fee'],
             'construction_cost' => $computed['construction_cost'],
             'total_client_payment' => $computed['total_client_payment'],
-            'overall_progress' => $computed['overall_progress'],
+            'remaining_balance' => $computed['remaining_balance'],
+            'last_paid_date' => $computed['last_paid_date'],
         ]);
 
         return $computed;

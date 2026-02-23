@@ -276,6 +276,34 @@ export default function HeadAdminProjectsShow({
                         Open Expenses
                     </Link>
                     <Link
+                        href={`/projects/${project.id}/payments`}
+                        style={{
+                            border: '1px solid var(--border-color)',
+                            background: 'var(--button-bg)',
+                            color: 'var(--text-main)',
+                            borderRadius: 8,
+                            padding: '8px 12px',
+                            textDecoration: 'none',
+                            fontSize: 13,
+                        }}
+                    >
+                        Open Payments
+                    </Link>
+                    <Link
+                        href={`/projects/${project.id}/monitoring`}
+                        style={{
+                            border: '1px solid var(--border-color)',
+                            background: 'var(--button-bg)',
+                            color: 'var(--text-main)',
+                            borderRadius: 8,
+                            padding: '8px 12px',
+                            textDecoration: 'none',
+                            fontSize: 13,
+                        }}
+                    >
+                        Open Monitoring Board
+                    </Link>
+                    <Link
                         href={`/projects/${project.id}/edit`}
                         style={{
                             border: '1px solid var(--border-color)',
@@ -307,6 +335,7 @@ export default function HeadAdminProjectsShow({
                             ['Design Fee', money(project.design_fee)],
                             ['Construction Cost', money(project.construction_cost)],
                             ['Total Client Payment', money(project.total_client_payment)],
+                            ['Last Paid Date', project.last_paid_date || '-'],
                             ['Remaining Balance', money(project.remaining_balance)],
                         ].map(([label, value]) => (
                             <div key={label}>

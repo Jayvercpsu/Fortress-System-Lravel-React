@@ -8,6 +8,7 @@ use App\Models\IssueReport;
 use App\Models\MaterialRequest;
 use App\Models\ProgressPhoto;
 use App\Models\Project;
+use App\Models\ProjectScope;
 use App\Models\Worker;
 use App\Models\WeeklyAccomplishment;
 use Illuminate\Http\Request;
@@ -395,16 +396,40 @@ class ForemansController extends Controller
     {
         $request->validate([
             'photo'   => 'required|image|max:5120',
-            'caption' => 'nullable|string',
+            'caption' => 'nullable|string|max:1000',
+            'project_id' => 'nullable|exists:projects,id',
+            'scope_id' => 'nullable|exists:project_scopes,id',
         ]);
+
+        $projectId = $request->project_id ? (int) $request->project_id : null;
+        $scope = null;
+        if ($request->filled('scope_id')) {
+            $scope = ProjectScope::query()->findOrFail((int) $request->scope_id);
+
+            if ($projectId !== null && (int) $scope->project_id !== $projectId) {
+                return back()
+                    ->withErrors(['scope_id' => 'Selected scope does not belong to selected project.'])
+                    ->withInput();
+            }
+
+            $projectId = (int) $scope->project_id;
+        }
 
         $path = $request->file('photo')->store('progress-photos', 'public');
 
         ProgressPhoto::create([
             'foreman_id' => Auth::id(),
+            'project_id' => $projectId,
             'photo_path' => $path,
             'caption'    => $request->caption,
         ]);
+
+        if ($scope) {
+            $scope->photos()->create([
+                'photo_path' => $path,
+                'caption' => $request->caption,
+            ]);
+        }
 
         return back()->with('success', 'Photo uploaded.');
     }

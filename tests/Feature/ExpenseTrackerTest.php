@@ -13,7 +13,7 @@ class ExpenseTrackerTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_admin_can_get_project_expenses_summary(): void
+    public function test_head_admin_can_get_project_expenses_summary(): void
     {
         BuildProject::create([
             'project_id' => 9,
@@ -40,18 +40,18 @@ class ExpenseTrackerTest extends TestCase
             'date' => '2026-02-21',
         ]);
 
-        $this->actingAs($this->makeUser('admin'))
+        $this->actingAs($this->makeUser('head_admin'))
             ->getJson('/projects/9/expenses')
             ->assertOk()
             ->assertJsonPath('total_expenses', 150000)
             ->assertJsonPath('remaining_income', 350000);
     }
 
-    public function test_admin_can_create_update_and_delete_expense(): void
+    public function test_head_admin_can_create_update_and_delete_expense(): void
     {
-        $admin = $this->makeUser('admin');
+        $headAdmin = $this->makeUser('head_admin');
 
-        $this->actingAs($admin)
+        $this->actingAs($headAdmin)
             ->post('/projects/10/expenses', [
                 'category' => 'equipment',
                 'amount' => 20000,
@@ -62,7 +62,7 @@ class ExpenseTrackerTest extends TestCase
 
         $expense = Expense::where('project_id', 10)->firstOrFail();
 
-        $this->actingAs($admin)
+        $this->actingAs($headAdmin)
             ->patch('/expenses/' . $expense->id, [
                 'category' => 'equipment',
                 'amount' => 25000,
@@ -77,14 +77,14 @@ class ExpenseTrackerTest extends TestCase
             'note' => 'Updated rental',
         ]);
 
-        $this->actingAs($admin)
+        $this->actingAs($headAdmin)
             ->delete('/expenses/' . $expense->id)
             ->assertRedirect('/projects/10/build?tab=expenses');
 
         $this->assertDatabaseMissing('expenses', ['id' => $expense->id]);
     }
 
-    public function test_hr_and_foreman_cannot_manage_expenses(): void
+    public function test_admin_hr_and_foreman_cannot_manage_expenses(): void
     {
         $expense = Expense::create([
             'project_id' => 22,
@@ -94,14 +94,36 @@ class ExpenseTrackerTest extends TestCase
             'date' => '2026-02-21',
         ]);
 
+        $this->actingAs($this->makeUser('admin'))
+            ->get('/projects/22/expenses')
+            ->assertForbidden();
+
         $this->actingAs($this->makeUser('hr'))
             ->get('/projects/22/expenses')
+            ->assertForbidden();
+
+        $this->actingAs($this->makeUser('admin'))
+            ->post('/projects/22/expenses', [
+                'category' => 'materials',
+                'amount' => 2000,
+                'note' => null,
+                'date' => '2026-02-21',
+            ])
             ->assertForbidden();
 
         $this->actingAs($this->makeUser('foreman'))
             ->post('/projects/22/expenses', [
                 'category' => 'materials',
                 'amount' => 2000,
+                'note' => null,
+                'date' => '2026-02-21',
+            ])
+            ->assertForbidden();
+
+        $this->actingAs($this->makeUser('admin'))
+            ->patch('/expenses/' . $expense->id, [
+                'category' => 'materials',
+                'amount' => 3000,
                 'note' => null,
                 'date' => '2026-02-21',
             ])
@@ -114,6 +136,10 @@ class ExpenseTrackerTest extends TestCase
                 'note' => null,
                 'date' => '2026-02-21',
             ])
+            ->assertForbidden();
+
+        $this->actingAs($this->makeUser('admin'))
+            ->delete('/expenses/' . $expense->id)
             ->assertForbidden();
 
         $this->actingAs($this->makeUser('foreman'))

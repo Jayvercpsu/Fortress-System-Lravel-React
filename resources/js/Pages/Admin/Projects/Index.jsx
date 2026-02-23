@@ -49,6 +49,31 @@ export default function AdminProjectsIndex({ projects = [], projectTable = {} })
         {
             key: 'status',
             label: 'Status',
+            render: (project) => {
+                const isCompleted = String(project.status || '').toUpperCase() === 'COMPLETED';
+
+                if (!isCompleted) return project.status || '-';
+
+                return (
+                    <span
+                        style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            borderRadius: 999,
+                            padding: '3px 10px',
+                            fontSize: 11,
+                            fontWeight: 700,
+                            letterSpacing: 0.2,
+                            color: '#166534',
+                            background: 'rgba(34,197,94,0.18)',
+                            border: '1px solid rgba(34,197,94,0.35)',
+                            textTransform: 'uppercase',
+                        }}
+                    >
+                        Completed
+                    </span>
+                );
+            },
             searchAccessor: (project) => project.status,
         },
         {

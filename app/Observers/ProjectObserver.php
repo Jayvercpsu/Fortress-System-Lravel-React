@@ -27,7 +27,7 @@ class ProjectObserver
 
     public function updated(Project $project): void
     {
-        if ($project->isDirty('phase') && $project->phase === (string) config('fortress.project_phase_for_build', 'FOR_BUILD')) {
+        if ($project->wasChanged('phase') && $project->phase === (string) config('fortress.project_phase_for_build', 'FOR_BUILD')) {
             BuildProject::firstOrCreate(
                 ['project_id' => $project->id],
                 [
@@ -40,7 +40,11 @@ class ProjectObserver
             );
         }
 
-        if ((int) $project->overall_progress >= 100 && $project->status !== (string) config('fortress.project_status_completed', 'COMPLETED')) {
+        if (
+            $project->wasChanged('overall_progress')
+            && (int) $project->overall_progress >= 100
+            && $project->status !== (string) config('fortress.project_status_completed', 'COMPLETED')
+        ) {
             $project->status = (string) config('fortress.project_status_completed', 'COMPLETED');
             $project->saveQuietly();
 
