@@ -20,6 +20,8 @@ class Project extends Model
         'design_fee',
         'construction_cost',
         'total_client_payment',
+        'remaining_balance',
+        'last_paid_date',
     ];
 
     protected $casts = [
@@ -29,6 +31,8 @@ class Project extends Model
         'design_fee' => 'decimal:2',
         'construction_cost' => 'decimal:2',
         'total_client_payment' => 'decimal:2',
+        'remaining_balance' => 'decimal:2',
+        'last_paid_date' => 'date',
     ];
 
     public function files()
@@ -39,5 +43,15 @@ class Project extends Model
     public function updates()
     {
         return $this->hasMany(ProjectUpdate::class);
+    }
+
+    public function scopes()
+    {
+        return $this->hasMany(ProjectScope::class);
+    }
+
+    public function payments()
+    {
+        return $this->hasMany(Payment::class);
     }
 }

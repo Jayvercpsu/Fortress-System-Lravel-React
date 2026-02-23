@@ -6,7 +6,9 @@ use App\Models\Attendance;
 use App\Models\MaterialRequest;
 use App\Models\IssueReport;
 use App\Models\Payroll;
+use App\Models\ProgressPhoto;
 use App\Models\Project;
+use App\Models\ProjectScope;
 use App\Models\WeeklyAccomplishment;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Auth;
@@ -45,7 +47,20 @@ class DashboardController extends Controller {
     public function hr() {
         $payrolls = Payroll::with('user')->latest()->take(20)->get();
         $totalPayable = Payroll::whereIn('status', ['pending', 'ready', 'approved'])->sum('net');
-        return Inertia::render('HR/Dashboard', compact('payrolls', 'totalPayable'));
+        $projects = Project::query()
+            ->orderBy('name')
+            ->get(['id', 'name', 'client', 'contract_amount', 'total_client_payment', 'remaining_balance'])
+            ->map(fn (Project $project) => [
+                'id' => $project->id,
+                'name' => $project->name,
+                'client' => $project->client,
+                'contract_amount' => (float) $project->contract_amount,
+                'total_client_payment' => (float) $project->total_client_payment,
+                'remaining_balance' => (float) $project->remaining_balance,
+            ])
+            ->values();
+
+        return Inertia::render('HR/Dashboard', compact('payrolls', 'totalPayable', 'projects'));
     }
 
     public function foreman() {
@@ -55,6 +70,29 @@ class DashboardController extends Controller {
         $materialRequests = MaterialRequest::where('foreman_id', $user->id)->latest()->take(10)->get();
         $issueReports   = IssueReport::where('foreman_id', $user->id)->latest()->take(10)->get();
         $deliveries     = \App\Models\DeliveryConfirmation::where('foreman_id', $user->id)->latest()->take(10)->get();
+        $progressPhotos = ProgressPhoto::query()
+            ->with('project:id,name')
+            ->where('foreman_id', $user->id)
+            ->latest()
+            ->take(10)
+            ->get()
+            ->map(fn (ProgressPhoto $photo) => [
+                'id' => $photo->id,
+                'photo_path' => $photo->photo_path,
+                'caption' => $photo->caption,
+                'project_name' => $photo->project?->name ?? 'Unassigned',
+                'created_at' => optional($photo->created_at)?->toDateTimeString(),
+            ])
+            ->values();
+        $projectScopes = ProjectScope::query()
+            ->orderBy('scope_name')
+            ->get(['id', 'project_id', 'scope_name'])
+            ->map(fn (ProjectScope $scope) => [
+                'id' => $scope->id,
+                'project_id' => $scope->project_id,
+                'scope_name' => $scope->scope_name,
+            ])
+            ->values();
         $projects = Project::query()
             ->orderBy('name')
             ->get(['id', 'name'])
@@ -88,7 +126,16 @@ class DashboardController extends Controller {
         }
 
         return Inertia::render('Foreman/Dashboard', compact(
-            'user', 'attendances', 'accomplishments', 'materialRequests', 'issueReports', 'deliveries', 'projects', 'foremanAttendanceToday'
+            'user',
+            'attendances',
+            'accomplishments',
+            'materialRequests',
+            'issueReports',
+            'deliveries',
+            'projects',
+            'foremanAttendanceToday',
+            'progressPhotos',
+            'projectScopes'
         ));
     }
 }

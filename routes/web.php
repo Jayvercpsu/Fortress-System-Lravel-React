@@ -5,13 +5,17 @@ use App\Http\Controllers\BuildController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\DesignController;
 use App\Http\Controllers\ExpenseController;
-use App\Http\Controllers\ForemanWorkerController;
+use App\Http\Controllers\ForemansController;
 use App\Http\Controllers\MaterialController;
 use App\Http\Controllers\UserController;
-use App\Http\Controllers\ForemansController;
 use App\Http\Controllers\PayrollController;
+use App\Http\Controllers\PaymentController;
 use App\Http\Controllers\ProjectController;
 use App\Http\Controllers\ProjectFileController;
+use App\Http\Controllers\ProgressPhotoController;
+use App\Http\Controllers\PublicProgressController;
+use App\Http\Controllers\ScopePhotoController;
+use App\Http\Controllers\MonitoringController;
 use App\Http\Controllers\ProjectUpdateController;
 use App\Http\Controllers\SettingsController;
 use Illuminate\Support\Facades\Route;
@@ -21,8 +25,10 @@ Route::get('/', fn() => redirect()->route('login'));
 Route::get('/login', [AuthController::class, 'showLogin'])->name('login');
 Route::post('/login', [AuthController::class, 'login']);
 Route::post('/logout', [AuthController::class, 'logout'])->name('logout');
+Route::get('/progress-submit/{token}', [PublicProgressController::class, 'show'])->name('public.progress-submit.show');
+Route::post('/progress-submit/{token}', [PublicProgressController::class, 'store'])->name('public.progress-submit.store');
 
-Route::middleware(['auth'])->group(function () {
+Route::middleware(['auth', 'role:head_admin,admin,hr'])->group(function () {
     Route::get('/settings', [SettingsController::class, 'index'])->name('settings.index');
     Route::patch('/settings', [SettingsController::class, 'update'])->name('settings.update');
 });
@@ -58,19 +64,15 @@ Route::middleware(['auth', 'role:head_admin,hr'])->group(function () {
     Route::post('/payroll', [PayrollController::class, 'store'])->name('payroll.store');
     Route::patch('/payroll/{payroll}', [PayrollController::class, 'update'])->name('payroll.update');
     Route::patch('/payroll/{payroll}/status', [PayrollController::class, 'updateStatus'])->name('payroll.status');
+    Route::get('/projects/{project}/payments', [PaymentController::class, 'index'])->name('payments.index');
+    Route::post('/projects/{project}/payments', [PaymentController::class, 'store'])->name('payments.store');
+    Route::delete('/payments/{payment}', [PaymentController::class, 'destroy'])->name('payments.destroy');
 });
 
 Route::middleware(['auth', 'role:foreman'])->group(function () {
     Route::get('/foreman', [DashboardController::class, 'foreman'])->name('foreman.dashboard');
-    Route::get('/foreman/attendance', [ForemansController::class, 'attendanceIndex'])->name('foreman.attendance.index');
-    Route::post('/foreman/attendance', [ForemansController::class, 'storeAttendance'])->name('foreman.attendance.store');
     Route::post('/foreman/attendance/time-in', [ForemansController::class, 'timeInAttendance'])->name('foreman.attendance.time_in');
     Route::post('/foreman/attendance/time-out', [ForemansController::class, 'timeOutAttendance'])->name('foreman.attendance.time_out');
-    Route::patch('/foreman/attendance/{attendance}', [ForemansController::class, 'updateAttendance'])->name('foreman.attendance.update');
-    Route::get('/foreman/workers', [ForemanWorkerController::class, 'index'])->name('foreman.workers.index');
-    Route::post('/foreman/workers', [ForemanWorkerController::class, 'store'])->name('foreman.workers.store');
-    Route::patch('/foreman/workers/{worker}', [ForemanWorkerController::class, 'update'])->name('foreman.workers.update');
-    Route::delete('/foreman/workers/{worker}', [ForemanWorkerController::class, 'destroy'])->name('foreman.workers.destroy');
     Route::post('/foreman/submit-all', [ForemansController::class, 'submitAll'])->name('foreman.submit_all');
     Route::post('/foreman/progress-photo', [ForemansController::class, 'storeProgressPhoto'])->name('foreman.photo');
 });
@@ -90,6 +92,16 @@ Route::middleware(['auth', 'role:head_admin,admin'])->group(function () {
     Route::get('/projects/{project}/build', [BuildController::class, 'show'])->name('build.show');
     Route::patch('/projects/{project}/build', [BuildController::class, 'update'])->name('build.update');
 
+    Route::get('/projects/{project}/monitoring', [MonitoringController::class, 'show'])->name('monitoring.show');
+    Route::post('/projects/{project}/scopes', [MonitoringController::class, 'store'])->name('scopes.store');
+    Route::patch('/scopes/{scope}', [MonitoringController::class, 'update'])->name('scopes.update');
+    Route::delete('/scopes/{scope}', [MonitoringController::class, 'destroy'])->name('scopes.destroy');
+    Route::post('/scopes/{scope}/photos', [ScopePhotoController::class, 'store'])->name('scope-photos.store');
+    Route::get('/progress-photos', [ProgressPhotoController::class, 'index'])->name('progress-photos.index');
+    Route::get('/projects/{project}', [ProjectController::class, 'show'])->name('projects.show');
+});
+
+Route::middleware(['auth', 'role:head_admin'])->group(function () {
     Route::get('/projects/{project}/expenses', [ExpenseController::class, 'index'])->name('expenses.index');
     Route::post('/projects/{project}/expenses', [ExpenseController::class, 'store'])->name('expenses.store');
     Route::patch('/expenses/{expense}', [ExpenseController::class, 'update'])->name('expenses.update');
@@ -106,8 +118,6 @@ Route::middleware(['auth', 'role:head_admin,admin'])->group(function () {
 
     Route::get('/projects/{project}/updates', [ProjectUpdateController::class, 'index'])->name('project-updates.index');
     Route::post('/projects/{project}/updates', [ProjectUpdateController::class, 'store'])->name('project-updates.store');
-
-    Route::get('/projects/{project}', [ProjectController::class, 'show'])->name('projects.show');
 });
 
 Route::middleware(['auth', 'role:head_admin,hr'])->group(function () {

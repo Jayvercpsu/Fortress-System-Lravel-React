@@ -8,12 +8,14 @@ const statusColor = {
     paid: '#60a5fa',
 };
 
-export default function HRDashboard({ payrolls, totalPayable }) {
+const money = (value) =>
+    `P ${Number(value || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
+export default function HRDashboard({ payrolls = [], totalPayable = 0, projects = [] }) {
     return (
         <>
             <Head title="HR Dashboard" />
             <Layout title="HR Dashboard">
-                {/* TOP STATS */}
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 16, marginBottom: 24 }}>
                     <div
                         style={{
@@ -33,7 +35,6 @@ export default function HRDashboard({ payrolls, totalPayable }) {
                         >
                             Total Payroll Payable
                         </div>
-
                         <div
                             style={{
                                 fontSize: 28,
@@ -42,7 +43,7 @@ export default function HRDashboard({ payrolls, totalPayable }) {
                                 fontFamily: "'DM Mono', monospace",
                             }}
                         >
-                            ₱{Number(totalPayable).toLocaleString()}
+                            {money(totalPayable)}
                         </div>
                     </div>
 
@@ -64,7 +65,6 @@ export default function HRDashboard({ payrolls, totalPayable }) {
                         >
                             Total Entries
                         </div>
-
                         <div
                             style={{
                                 fontSize: 28,
@@ -78,7 +78,6 @@ export default function HRDashboard({ payrolls, totalPayable }) {
                     </div>
                 </div>
 
-                {/* ACTION BUTTON */}
                 <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 16 }}>
                     <Link
                         href="/payroll/run"
@@ -92,11 +91,80 @@ export default function HRDashboard({ payrolls, totalPayable }) {
                             textDecoration: 'none',
                         }}
                     >
-                        Manage Payroll →
+                        Manage Payroll
                     </Link>
                 </div>
 
-                {/* TABLE */}
+                <div
+                    style={{
+                        background: 'var(--surface-1)',
+                        border: '1px solid var(--border-color)',
+                        borderRadius: 12,
+                        overflow: 'hidden',
+                        marginBottom: 16,
+                    }}
+                >
+                    <div
+                        style={{
+                            padding: '12px 16px',
+                            borderBottom: '1px solid var(--border-color)',
+                            fontWeight: 700,
+                        }}
+                    >
+                        Project Payments
+                    </div>
+                    <div style={{ padding: 12, display: 'grid', gap: 8 }}>
+                        {projects.length === 0 ? (
+                            <div style={{ fontSize: 13, color: 'var(--text-muted-2)' }}>No projects yet.</div>
+                        ) : (
+                            projects.slice(0, 8).map((project) => (
+                                <div
+                                    key={project.id}
+                                    style={{
+                                        border: '1px solid var(--border-color)',
+                                        borderRadius: 8,
+                                        padding: '10px 12px',
+                                        display: 'grid',
+                                        gridTemplateColumns: '1.6fr 1fr 1fr auto',
+                                        alignItems: 'center',
+                                        gap: 8,
+                                    }}
+                                >
+                                    <div>
+                                        <div style={{ fontWeight: 600 }}>{project.name}</div>
+                                        <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{project.client}</div>
+                                    </div>
+                                    <div style={{ fontSize: 12 }}>
+                                        <div style={{ color: 'var(--text-muted)' }}>Paid</div>
+                                        <div style={{ fontWeight: 700 }}>{money(project.total_client_payment)}</div>
+                                    </div>
+                                    <div style={{ fontSize: 12 }}>
+                                        <div style={{ color: 'var(--text-muted)' }}>Remaining</div>
+                                        <div style={{ fontWeight: 700, color: project.remaining_balance < 0 ? '#f87171' : '#4ade80' }}>
+                                            {money(project.remaining_balance)}
+                                        </div>
+                                    </div>
+                                    <Link
+                                        href={`/projects/${project.id}/payments`}
+                                        style={{
+                                            background: 'var(--button-bg)',
+                                            color: 'var(--text-main)',
+                                            border: '1px solid var(--border-color)',
+                                            borderRadius: 8,
+                                            padding: '7px 10px',
+                                            textDecoration: 'none',
+                                            fontSize: 12,
+                                            fontWeight: 600,
+                                        }}
+                                    >
+                                        Open
+                                    </Link>
+                                </div>
+                            ))
+                        )}
+                    </div>
+                </div>
+
                 <div
                     style={{
                         background: 'var(--surface-1)',
@@ -108,9 +176,9 @@ export default function HRDashboard({ payrolls, totalPayable }) {
                     <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                         <thead>
                             <tr>
-                                {['Worker', 'Role', 'Hours', 'Rate', 'Gross', 'Net', 'Status'].map((h) => (
+                                {['Worker', 'Role', 'Hours', 'Rate', 'Gross', 'Net', 'Status'].map((header) => (
                                     <th
-                                        key={h}
+                                        key={header}
                                         style={{
                                             fontSize: 11,
                                             color: 'var(--text-muted-2)',
@@ -120,35 +188,19 @@ export default function HRDashboard({ payrolls, totalPayable }) {
                                             textTransform: 'uppercase',
                                         }}
                                     >
-                                        {h}
+                                        {header}
                                     </th>
                                 ))}
                             </tr>
                         </thead>
-
                         <tbody>
-                            {payrolls.slice(0, 10).map((p) => (
-                                <tr key={p.id} style={{ borderBottom: '1px solid var(--row-divider)' }}>
-                                    <td style={{ padding: '10px 16px', fontWeight: 600 }}>
-                                        {p.worker_name}
-                                    </td>
-
-                                    <td style={{ padding: '10px 16px', color: 'var(--text-muted)', fontSize: 12 }}>
-                                        {p.role}
-                                    </td>
-
-                                    <td style={{ padding: '10px 16px', fontFamily: "'DM Mono', monospace" }}>
-                                        {p.hours}
-                                    </td>
-
-                                    <td style={{ padding: '10px 16px', fontFamily: "'DM Mono', monospace" }}>
-                                        ₱{Number(p.rate_per_hour).toLocaleString()}
-                                    </td>
-
-                                    <td style={{ padding: '10px 16px', fontFamily: "'DM Mono', monospace" }}>
-                                        ₱{Number(p.gross).toLocaleString()}
-                                    </td>
-
+                            {payrolls.slice(0, 10).map((row) => (
+                                <tr key={row.id} style={{ borderBottom: '1px solid var(--row-divider)' }}>
+                                    <td style={{ padding: '10px 16px', fontWeight: 600 }}>{row.worker_name}</td>
+                                    <td style={{ padding: '10px 16px', color: 'var(--text-muted)', fontSize: 12 }}>{row.role}</td>
+                                    <td style={{ padding: '10px 16px', fontFamily: "'DM Mono', monospace" }}>{row.hours}</td>
+                                    <td style={{ padding: '10px 16px', fontFamily: "'DM Mono', monospace" }}>{money(row.rate_per_hour)}</td>
+                                    <td style={{ padding: '10px 16px', fontFamily: "'DM Mono', monospace" }}>{money(row.gross)}</td>
                                     <td
                                         style={{
                                             padding: '10px 16px',
@@ -157,23 +209,22 @@ export default function HRDashboard({ payrolls, totalPayable }) {
                                             color: '#4ade80',
                                         }}
                                     >
-                                        ₱{Number(p.net).toLocaleString()}
+                                        {money(row.net)}
                                     </td>
-
                                     <td style={{ padding: '10px 16px' }}>
                                         <span
                                             style={{
                                                 fontSize: 11,
                                                 padding: '3px 10px',
                                                 borderRadius: 20,
-                                                color: statusColor[p.status],
-                                                background: `${statusColor[p.status]}22`,
-                                                border: `1px solid ${statusColor[p.status]}44`,
+                                                color: statusColor[row.status],
+                                                background: `${statusColor[row.status]}22`,
+                                                border: `1px solid ${statusColor[row.status]}44`,
                                                 textTransform: 'capitalize',
                                                 fontWeight: 600,
                                             }}
                                         >
-                                            {p.status}
+                                            {row.status}
                                         </span>
                                     </td>
                                 </tr>

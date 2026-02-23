@@ -97,7 +97,7 @@ export default function AdminDesignShow({ projectId, design }) {
 
                     <div style={{ ...cardStyle, display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 14 }}>
                         <div style={{ gridColumn: '1 / -1', fontSize: 12, color: 'var(--text-muted)' }}>
-                            Saving here automatically updates Project Overview / Edit financial totals and overall progress.
+                            Saving here automatically updates Project Overview / Edit financial totals.
                         </div>
                         <label>
                             <div style={{ fontSize: 12, marginBottom: 6 }}>Design Contract Amount</div>

@@ -102,7 +102,9 @@ export default function ForemanDashboard({
     issueReports,
     deliveries,
     projects = [],
+    projectScopes = [],
     foremanAttendanceToday = null,
+    progressPhotos = [],
 }) {
     const { flash } = usePage().props;
     const [open, setOpen] = useState('accomplishment');
@@ -130,11 +132,25 @@ export default function ForemanDashboard({
         supplier: '',
         status: 'received',
     });
+    const [proofProjectId, setProofProjectId] = useState('');
+    const [proofScopeId, setProofScopeId] = useState('');
+    const [proofCaption, setProofCaption] = useState('');
+    const [proofPhoto, setProofPhoto] = useState(null);
+    const [proofPhotoInputKey, setProofPhotoInputKey] = useState(0);
+    const [uploadingProof, setUploadingProof] = useState(false);
 
     const projectOptions = useMemo(
         () => (Array.isArray(projects) ? projects.map((project) => ({ id: project.id, name: project.name })) : []),
         [projects]
     );
+    const scopeOptions = useMemo(() => {
+        if (!Array.isArray(projectScopes)) return [];
+        const selectedProjectId = String(proofProjectId || foremanProjectId || '');
+
+        return projectScopes
+            .filter((scope) => selectedProjectId === '' || String(scope.project_id) === selectedProjectId)
+            .map((scope) => ({ id: scope.id, name: scope.scope_name, project_id: scope.project_id }));
+    }, [projectScopes, proofProjectId, foremanProjectId]);
 
     useEffect(() => {
         if (flash?.success) toast.success(flash.success);
@@ -144,6 +160,12 @@ export default function ForemanDashboard({
     useEffect(() => {
         setForemanProjectId(foremanAttendanceToday?.project_id ? String(foremanAttendanceToday.project_id) : '');
     }, [foremanAttendanceToday?.project_id]);
+
+    useEffect(() => {
+        if (!proofScopeId) return;
+        const exists = scopeOptions.some((scope) => String(scope.id) === String(proofScopeId));
+        if (!exists) setProofScopeId('');
+    }, [proofScopeId, scopeOptions]);
 
     useEffect(() => {
         if (!foremanAttendanceToday?.time_in || foremanAttendanceToday?.time_out) return;
@@ -225,6 +247,36 @@ export default function ForemanDashboard({
 
     const submitForemanTimeOut = () => {
         router.post('/foreman/attendance/time-out', {}, { preserveScroll: true });
+    };
+
+    const uploadProgressProof = () => {
+        if (!proofPhoto) {
+            toast.error('Select an image proof first.');
+            return;
+        }
+
+        setUploadingProof(true);
+        router.post(
+            '/foreman/progress-photo',
+            {
+                project_id: proofProjectId || foremanProjectId || null,
+                scope_id: proofScopeId || null,
+                caption: proofCaption,
+                photo: proofPhoto,
+            },
+            {
+                preserveScroll: true,
+                forceFormData: true,
+                onSuccess: () => {
+                    setProofProjectId('');
+                    setProofScopeId('');
+                    setProofCaption('');
+                    setProofPhoto(null);
+                    setProofPhotoInputKey((value) => value + 1);
+                },
+                onFinish: () => setUploadingProof(false),
+            }
+        );
     };
 
     return (
@@ -803,6 +855,143 @@ export default function ForemanDashboard({
                                         <option value="rejected">Rejected</option>
                                     </select>
                                 </div>
+                            </div>
+                        </div>
+                    )}
+                </div>
+
+                <div style={sectionStyle}>
+                    <div style={headerStyle} onClick={() => toggle('proof')}>
+                        <div style={{ fontWeight: 600, fontSize: 15 }}>
+                            <i className="fi fi-rr-camera" style={{ marginRight: 8 }} />
+                            Progress Proof Photo (Optional)
+                        </div>
+                        <span style={{ color: 'var(--text-muted)', fontSize: 12 }}>
+                            {open === 'proof' ? '▲' : '▼'}
+                        </span>
+                    </div>
+
+                    {open === 'proof' && (
+                        <div style={{ padding: 20, display: 'grid', gap: 16 }}>
+                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16 }}>
+                                <div>
+                                    <label style={{ display: 'block', color: 'var(--text-muted)', fontSize: 12, marginBottom: 6 }}>
+                                        Project (optional)
+                                    </label>
+                                    <SearchableDropdown
+                                        options={projectOptions}
+                                        value={proofProjectId}
+                                        onChange={(value) => setProofProjectId(value || '')}
+                                        getOptionLabel={(option) => option.name}
+                                        getOptionValue={(option) => option.id}
+                                        placeholder="Select project"
+                                        searchPlaceholder="Search projects..."
+                                        emptyMessage="No projects found"
+                                        style={{ ...inputStyle, minHeight: 38, padding: '7px 9px' }}
+                                        dropdownWidth={320}
+                                    />
+                                </div>
+
+                                <div>
+                                    <label style={{ display: 'block', color: 'var(--text-muted)', fontSize: 12, marginBottom: 6 }}>
+                                        Scope (optional)
+                                    </label>
+                                    <SearchableDropdown
+                                        options={scopeOptions}
+                                        value={proofScopeId}
+                                        onChange={(value) => setProofScopeId(value || '')}
+                                        getOptionLabel={(option) => option.name}
+                                        getOptionValue={(option) => option.id}
+                                        placeholder="Select scope"
+                                        searchPlaceholder="Search scope..."
+                                        emptyMessage="No scopes found"
+                                        style={{ ...inputStyle, minHeight: 38, padding: '7px 9px' }}
+                                        dropdownWidth={320}
+                                    />
+                                </div>
+
+                                <div>
+                                    <label style={{ display: 'block', color: 'var(--text-muted)', fontSize: 12, marginBottom: 6 }}>
+                                        Proof Image
+                                    </label>
+                                    <input
+                                        key={proofPhotoInputKey}
+                                        type="file"
+                                        accept="image/*"
+                                        onChange={(event) => setProofPhoto(event.target.files?.[0] ?? null)}
+                                    />
+                                </div>
+                            </div>
+
+                            <div>
+                                <label style={{ display: 'block', color: 'var(--text-muted)', fontSize: 12, marginBottom: 6 }}>
+                                    Caption (optional)
+                                </label>
+                                <textarea
+                                    value={proofCaption}
+                                    onChange={(event) => setProofCaption(event.target.value)}
+                                    rows={3}
+                                    style={{ ...inputStyle, resize: 'vertical' }}
+                                    placeholder="Add context for admins/head admin"
+                                />
+                            </div>
+
+                            <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                                <button
+                                    type="button"
+                                    onClick={uploadProgressProof}
+                                    disabled={uploadingProof}
+                                    style={{
+                                        ...btnStyle,
+                                        opacity: uploadingProof ? 0.7 : 1,
+                                    }}
+                                >
+                                    {uploadingProof ? 'Uploading...' : 'Upload Proof Photo'}
+                                </button>
+                            </div>
+
+                            <div>
+                                <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 8 }}>
+                                    Recent Uploaded Proofs
+                                </div>
+                                {progressPhotos.length === 0 ? (
+                                    <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>No uploaded proof photos yet.</div>
+                                ) : (
+                                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: 10 }}>
+                                        {progressPhotos.map((photo) => (
+                                            <a
+                                                key={photo.id}
+                                                href={`/storage/${photo.photo_path}`}
+                                                target="_blank"
+                                                rel="noreferrer"
+                                                style={{
+                                                    border: '1px solid var(--border-color)',
+                                                    borderRadius: 8,
+                                                    background: 'var(--surface-2)',
+                                                    padding: 8,
+                                                    textDecoration: 'none',
+                                                    color: 'inherit',
+                                                }}
+                                            >
+                                                <img
+                                                    src={`/storage/${photo.photo_path}`}
+                                                    alt={photo.caption || 'Progress proof'}
+                                                    style={{
+                                                        width: '100%',
+                                                        height: 110,
+                                                        objectFit: 'cover',
+                                                        borderRadius: 6,
+                                                        marginBottom: 6,
+                                                    }}
+                                                />
+                                                <div style={{ fontSize: 12, fontWeight: 600 }}>{photo.project_name || 'Unassigned'}</div>
+                                                <div style={{ fontSize: 11, color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                                    {photo.caption || 'No caption'}
+                                                </div>
+                                            </a>
+                                        ))}
+                                    </div>
+                                )}
                             </div>
                         </div>
                     )}

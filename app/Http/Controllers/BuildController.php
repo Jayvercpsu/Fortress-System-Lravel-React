@@ -6,6 +6,7 @@ use App\Models\BuildProject;
 use App\Models\DesignProject;
 use App\Models\Expense;
 use App\Models\Material;
+use App\Models\Payment;
 use App\Models\Project;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Schema;
@@ -165,28 +166,22 @@ class BuildController extends Controller
         $build = BuildProject::where('project_id', $projectId)->first();
 
         $designContractAmount = (float) ($design?->design_contract_amount ?? 0);
-        $designTotalReceived = (float) ($design?->total_received ?? 0);
 
         $constructionContract = (float) ($build?->construction_contract ?? 0);
-        $buildTotalClientPayment = (float) ($build?->total_client_payment ?? 0);
-        $designProgress = (float) ($design?->design_progress ?? 0);
+        $totalClientPayment = (float) Payment::where('project_id', $projectId)->sum('amount');
+        $lastPaidDate = Payment::where('project_id', $projectId)->max('date_paid');
 
         $expenseConstructionCost = (float) Expense::where('project_id', $projectId)->sum('amount');
         $constructionCost = $expenseConstructionCost;
-        $hasBuildData = $constructionContract > 0 || $buildTotalClientPayment > 0 || $constructionCost > 0;
-        $buildProgress = $constructionContract > 0
-            ? ($buildTotalClientPayment / $constructionContract) * 100
-            : 0;
-        $overallProgress = $hasBuildData
-            ? (int) round(max(0, min(100, ($designProgress + $buildProgress) / 2)))
-            : (int) round(max(0, min(100, $designProgress)));
+        $contractAmount = $designContractAmount + $constructionContract;
 
         Project::whereKey($projectId)->update([
-            'contract_amount' => $designContractAmount + $constructionContract,
+            'contract_amount' => $contractAmount,
             'design_fee' => $designContractAmount,
             'construction_cost' => $constructionCost,
-            'total_client_payment' => $designTotalReceived + $buildTotalClientPayment,
-            'overall_progress' => $overallProgress,
+            'total_client_payment' => $totalClientPayment,
+            'remaining_balance' => $contractAmount - $totalClientPayment,
+            'last_paid_date' => $lastPaidDate,
         ]);
     }
 }
