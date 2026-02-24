@@ -105,6 +105,7 @@ Route::middleware(['auth', 'role:head_admin,admin'])->group(function () {
     Route::post('/projects', [ProjectController::class, 'store'])->name('projects.store');
     Route::get('/projects/{project}/edit', [ProjectController::class, 'edit'])->name('projects.edit');
     Route::patch('/projects/{project}/assigned-foremen', [ProjectController::class, 'updateAssignedForemen'])->name('projects.assigned_foremen.update');
+    Route::patch('/projects/{project}/phase', [ProjectController::class, 'updatePhase'])->name('projects.phase.update');
     Route::patch('/projects/{project}', [ProjectController::class, 'update'])->name('projects.update');
 
     Route::get('/projects/{project}/design', [DesignController::class, 'show'])->name('design.show');

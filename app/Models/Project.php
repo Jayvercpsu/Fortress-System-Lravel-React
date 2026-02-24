@@ -11,6 +11,7 @@ class Project extends Model
         'client',
         'type',
         'location',
+        'assigned_role',
         'assigned',
         'target',
         'status',

@@ -347,6 +347,7 @@ export default function AdminProjectsShow({
                                 ['Client', project.client],
                                 ['Type', project.type],
                                 ['Location', project.location],
+                                ['Assigned', project.assigned_role || '-'],
                                 ['Assigned Foremen', project.assigned || '-'],
                                 ['Target', project.target || '-'],
                                 ['Phase', project.phase],

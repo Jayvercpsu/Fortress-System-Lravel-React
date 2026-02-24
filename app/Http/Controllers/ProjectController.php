@@ -19,53 +19,81 @@ use Inertia\Inertia;
 
 class ProjectController extends Controller
 {
+    private const PROJECT_PHASES = [
+        'Design',
+        'ForBuild',
+        'Construction',
+        'Turnover',
+        'Completed',
+    ];
+
+    private const PROJECT_STATUSES = [
+        'PLANNING',
+        'ACTIVE',
+        'ONGOING',
+        'ON_HOLD',
+        'DELAYED',
+        'COMPLETED',
+        'CANCELLED',
+    ];
+
+    private const PROJECT_ASSIGNED_ROLES = [
+        'Architect',
+        'Engineer',
+        'PM',
+    ];
+
     public function index(Request $request)
     {
-        $allowedPerPage = [5, 10, 25, 50];
         $search = trim((string) $request->query('search', ''));
-        $perPage = (int) $request->query('per_page', 10);
-        if (!in_array($perPage, $allowedPerPage, true)) {
-            $perPage = 10;
-        }
+        $batchSize = 5;
 
-        $query = Project::query();
+        $searchQuery = Project::query();
+        $this->applyProjectSearchFilter($searchQuery, $search);
 
-        if ($search !== '') {
-            $query->where(function ($builder) use ($search) {
-                $builder
-                    ->where('name', 'like', "%{$search}%")
-                    ->orWhere('client', 'like', "%{$search}%")
-                    ->orWhere('phase', 'like', "%{$search}%")
-                    ->orWhere('status', 'like', "%{$search}%")
-                    ->orWhere('location', 'like', "%{$search}%")
-                    ->orWhere('assigned', 'like', "%{$search}%");
-            });
-        }
+        $totalMatching = (clone $searchQuery)->count();
 
-        $paginator = $query
-            ->latest()
-            ->paginate($perPage)
-            ->withQueryString();
+        $boardColumns = collect(self::PROJECT_PHASES)->map(function (string $phase) use ($request, $search, $batchSize) {
+            $pageParam = $this->projectPhasePageParam($phase);
+            $loadedPages = max(1, (int) $request->query($pageParam, 1));
+            $visibleLimit = $loadedPages * $batchSize;
 
-        $projects = collect($paginator->items())->map(function (Project $project) {
-            $computed = $this->computedTrackerMetrics($project);
+            $phaseQuery = Project::query();
+            $this->applyProjectSearchFilter($phaseQuery, $search);
+            $this->applyProjectPhaseFilter($phaseQuery, $phase);
+
+            $total = (clone $phaseQuery)->count();
+
+            $items = $phaseQuery
+                ->orderByDesc('created_at')
+                ->orderByDesc('id')
+                ->limit($visibleLimit)
+                ->get()
+                ->map(fn (Project $project) => $this->projectIndexCardPayload($project))
+                ->values();
+
+            $visibleCount = $items->count();
+            $lastPage = max(1, (int) ceil(($total ?: 0) / $batchSize));
 
             return [
-                'id' => $project->id,
-                'name' => $project->name,
-                'client' => $project->client,
-                'type' => $project->type,
-                'location' => $project->location,
-                'assigned' => $project->assigned,
-                'target' => optional($project->target)->toDateString(),
-                'status' => $project->status,
-                'phase' => $project->phase,
-                'overall_progress' => $computed['overall_progress'],
-                'contract_amount' => $computed['contract_amount'],
-                'total_client_payment' => $computed['total_client_payment'],
-                'remaining_balance' => $computed['remaining_balance'],
+                'key' => strtolower((string) preg_replace('/[^a-z0-9]+/i', '', $phase)),
+                'label' => $phase,
+                'value' => $phase,
+                'page_param' => $pageParam,
+                'per_page' => $batchSize,
+                'current_page' => min($loadedPages, $lastPage),
+                'last_page' => $lastPage,
+                'total' => $total,
+                'shown' => $visibleCount,
+                'remaining' => max(0, $total - $visibleCount),
+                'has_more' => $visibleCount < $total,
+                'projects' => $items,
             ];
         })->values();
+
+        $projects = $boardColumns
+            ->flatMap(fn (array $column) => $column['projects'])
+            ->values();
 
         $page = $request->user()->role === 'head_admin'
             ? 'HeadAdmin/Projects/Index'
@@ -73,14 +101,21 @@ class ProjectController extends Controller
 
         return Inertia::render($page, [
             'projects' => $projects,
+            'projectBoard' => [
+                'search' => $search,
+                'phase_order' => self::PROJECT_PHASES,
+                'batch_size' => $batchSize,
+                'total' => $totalMatching,
+                'columns' => $boardColumns,
+            ],
             'projectTable' => [
                 'search' => $search,
-                'per_page' => $paginator->perPage(),
-                'current_page' => $paginator->currentPage(),
-                'last_page' => max(1, $paginator->lastPage()),
-                'total' => $paginator->total(),
-                'from' => $paginator->firstItem(),
-                'to' => $paginator->lastItem(),
+                'per_page' => $batchSize,
+                'current_page' => 1,
+                'last_page' => 1,
+                'total' => $totalMatching,
+                'from' => $totalMatching > 0 ? 1 : null,
+                'to' => $projects->count() > 0 ? $projects->count() : null,
             ],
         ]);
     }
@@ -99,6 +134,9 @@ class ProjectController extends Controller
         abort_unless($request->user()->role === 'head_admin', 403);
 
         $validated = $request->validate($this->projectRules());
+        $validated['assigned_role'] = $this->normalizeProjectAssignedRoleList($validated['assigned_role'] ?? null);
+        $validated['status'] = $this->normalizeProjectStatus($validated['status'] ?? null);
+        $validated['phase'] = $this->normalizeProjectPhase($validated['phase'] ?? null);
         $validated['overall_progress'] = 0;
         $project = Project::create($validated);
         $this->syncLegacyForemanAssignments($project);
@@ -220,12 +258,36 @@ class ProjectController extends Controller
         abort_unless(in_array($request->user()->role, ['head_admin', 'admin'], true), 403);
 
         $validated = $request->validate($this->projectRules());
+        $validated['assigned_role'] = $this->normalizeProjectAssignedRoleList($validated['assigned_role'] ?? null);
+        $validated['status'] = $this->normalizeProjectStatus($validated['status'] ?? null);
+        $validated['phase'] = $this->normalizeProjectPhase($validated['phase'] ?? null);
         $project->update($validated);
         $this->syncLegacyForemanAssignments($project->fresh());
 
         return redirect()
             ->route('projects.show', ['project' => $project->id])
             ->with('success', 'Project updated.');
+    }
+
+    public function updatePhase(Request $request, Project $project)
+    {
+        abort_unless(in_array($request->user()->role, ['head_admin', 'admin'], true), 403);
+
+        $validated = $request->validate([
+            'phase' => ['required', 'string', 'max:50', Rule::in($this->projectPhaseValidationValues())],
+        ]);
+
+        $phase = $this->normalizeProjectPhase($validated['phase']);
+
+        if ($this->normalizeProjectPhase($project->phase) !== $phase) {
+            $project->update([
+                'phase' => $phase,
+            ]);
+        }
+
+        return redirect()
+            ->route('projects.index', $this->projectIndexQueryParams($request))
+            ->with('success', 'Project phase updated.');
     }
 
     public function updateAssignedForemen(Request $request, Project $project)
@@ -288,14 +350,8 @@ class ProjectController extends Controller
         }
         Storage::disk('public')->deleteDirectory('project-files/' . $projectId);
 
-        $query = array_filter([
-            'search' => $request->query('search'),
-            'per_page' => $request->query('per_page'),
-            'page' => $request->query('page'),
-        ], fn ($value) => $value !== null && $value !== '');
-
         return redirect()
-            ->route('projects.index', $query)
+            ->route('projects.index', $this->projectIndexQueryParams($request))
             ->with('success', 'Project deleted.');
     }
 
@@ -423,10 +479,21 @@ class ProjectController extends Controller
             'client' => 'required|string|max:255',
             'type' => 'required|string|max:100',
             'location' => 'required|string|max:255',
+            'assigned_role' => [
+                'nullable',
+                'string',
+                'max:255',
+                function (string $attribute, $value, $fail) {
+                    $invalid = $this->invalidProjectAssignedRoles($value);
+                    if (!empty($invalid)) {
+                        $fail('Assigned must use Architect, Engineer, or PM entries (optionally with names, e.g. Engineer: Juan).');
+                    }
+                },
+            ],
             'assigned' => 'nullable|string|max:255',
             'target' => 'nullable|date',
-            'status' => 'required|string|max:50',
-            'phase' => 'required|string|max:50',
+            'status' => ['required', 'string', 'max:50', Rule::in(self::PROJECT_STATUSES)],
+            'phase' => ['required', 'string', 'max:50', Rule::in(self::PROJECT_PHASES)],
             'overall_progress' => 'prohibited',
             'contract_amount' => 'prohibited',
             'design_fee' => 'prohibited',
@@ -448,6 +515,22 @@ class ProjectController extends Controller
         ], fn ($value) => $value !== null && $value !== '');
     }
 
+    private function projectIndexQueryParams(Request $request): array
+    {
+        $params = [
+            'search' => $request->query('search'),
+            'per_page' => $request->query('per_page'),
+            'page' => $request->query('page'),
+        ];
+
+        foreach (self::PROJECT_PHASES as $phase) {
+            $pageParam = $this->projectPhasePageParam($phase);
+            $params[$pageParam] = $request->query($pageParam);
+        }
+
+        return array_filter($params, fn ($value) => $value !== null && $value !== '');
+    }
+
     private function projectPayload(Project $project): array
     {
         $computed = $this->computedTrackerMetrics($project);
@@ -458,10 +541,11 @@ class ProjectController extends Controller
             'client' => $project->client,
             'type' => $project->type,
             'location' => $project->location,
+            'assigned_role' => $this->normalizeProjectAssignedRoleList($project->assigned_role ?? null),
             'assigned' => $project->assigned,
             'target' => optional($project->target)->toDateString(),
-            'status' => $project->status,
-            'phase' => $project->phase,
+            'status' => $this->normalizeProjectStatus($project->status),
+            'phase' => $this->normalizeProjectPhase($project->phase),
             'overall_progress' => $computed['overall_progress'],
             'contract_amount' => $computed['contract_amount'],
             'design_fee' => $computed['design_fee'],
@@ -480,10 +564,11 @@ class ProjectController extends Controller
             'client' => $project->client,
             'type' => $project->type,
             'location' => $project->location,
+            'assigned_role' => $this->normalizeProjectAssignedRoleList($project->assigned_role ?? null),
             'assigned' => $project->assigned,
             'target' => optional($project->target)->toDateString(),
-            'status' => $project->status,
-            'phase' => $project->phase,
+            'status' => $this->normalizeProjectStatus($project->status),
+            'phase' => $this->normalizeProjectPhase($project->phase),
             'overall_progress' => (int) ($project->overall_progress ?? 0),
             'contract_amount' => (float) ($project->contract_amount ?? 0),
             'design_fee' => (float) ($project->design_fee ?? 0),
@@ -514,6 +599,186 @@ class ProjectController extends Controller
             ])
             ->values()
             ->all();
+    }
+
+    private function projectIndexCardPayload(Project $project): array
+    {
+        return [
+            'id' => $project->id,
+            'name' => $project->name,
+            'client' => $project->client,
+            'type' => $project->type,
+            'location' => $project->location,
+            'assigned_role' => $this->normalizeProjectAssignedRoleList($project->assigned_role ?? null),
+            'assigned' => $project->assigned,
+            'target' => optional($project->target)->toDateString(),
+            'status' => $this->normalizeProjectStatus($project->status),
+            'phase' => $this->normalizeProjectPhase($project->phase),
+            'overall_progress' => (int) ($project->overall_progress ?? 0),
+            'contract_amount' => (float) ($project->contract_amount ?? 0),
+            'total_client_payment' => (float) ($project->total_client_payment ?? 0),
+            'remaining_balance' => (float) ($project->remaining_balance ?? 0),
+            'is_new_today' => (bool) optional($project->created_at)->isToday(),
+        ];
+    }
+
+    private function applyProjectSearchFilter($query, string $search): void
+    {
+        if ($search === '') {
+            return;
+        }
+
+        $query->where(function ($builder) use ($search) {
+            $builder
+                ->where('name', 'like', "%{$search}%")
+                ->orWhere('client', 'like', "%{$search}%")
+                ->orWhere('phase', 'like', "%{$search}%")
+                ->orWhere('status', 'like', "%{$search}%")
+                ->orWhere('location', 'like', "%{$search}%")
+                ->orWhere('assigned_role', 'like', "%{$search}%")
+                ->orWhere('assigned', 'like', "%{$search}%");
+        });
+    }
+
+    private function applyProjectPhaseFilter($query, string $phase): void
+    {
+        $query->whereRaw(
+            "LOWER(REPLACE(REPLACE(COALESCE(phase, ''), '-', ''), ' ', '')) = ?",
+            [$this->projectPhaseMatchKey($phase)]
+        );
+    }
+
+    private function projectPhasePageParam(string $phase): string
+    {
+        return strtolower((string) preg_replace('/[^a-z0-9]+/i', '', $phase)) . '_page';
+    }
+
+    private function projectPhaseValidationValues(): array
+    {
+        return collect(self::PROJECT_PHASES)
+            ->flatMap(fn (string $phase) => [
+                $phase,
+                strtoupper($phase),
+                strtoupper((string) preg_replace('/[^a-z0-9]+/i', '', $phase)),
+            ])
+            ->unique()
+            ->values()
+            ->all();
+    }
+
+    private function projectPhaseMatchKey(string $phase): string
+    {
+        return strtolower((string) preg_replace('/[^a-z0-9]+/i', '', $this->normalizeProjectPhase($phase)));
+    }
+
+    private function normalizeProjectPhase(?string $phase): string
+    {
+        $key = strtolower((string) preg_replace('/[^a-z0-9]+/i', '', trim((string) $phase)));
+
+        return match ($key) {
+            'design' => 'Design',
+            'forbuild' => 'ForBuild',
+            'construction' => 'Construction',
+            'turnover' => 'Turnover',
+            'completed' => 'Completed',
+            default => 'Design',
+        };
+    }
+
+    private function normalizeProjectStatus(?string $status): string
+    {
+        $key = strtoupper((string) preg_replace('/[^a-z0-9]+/i', '_', trim((string) $status)));
+        $key = preg_replace('/_+/', '_', $key ?? '');
+        $key = trim((string) $key, '_');
+
+        return match ($key) {
+            'PLANNING' => 'PLANNING',
+            'ACTIVE' => 'ACTIVE',
+            'ONGOING', 'IN_PROGRESS', 'INPROGRESS' => 'ONGOING',
+            'ON_HOLD', 'ONHOLD', 'HOLD' => 'ON_HOLD',
+            'DELAYED' => 'DELAYED',
+            'COMPLETED' => 'COMPLETED',
+            'CANCELLED', 'CANCELED' => 'CANCELLED',
+            default => 'PLANNING',
+        };
+    }
+
+    private function invalidProjectAssignedRoles($roles): array
+    {
+        return collect($this->splitProjectAssignedRoleEntries($roles))
+            ->filter()
+            ->reject(fn ($entry) => $this->parseProjectAssignedRoleEntry($entry) !== null)
+            ->values()
+            ->all();
+    }
+
+    private function normalizeProjectAssignedRoleList($roles): ?string
+    {
+        $normalized = collect($this->splitProjectAssignedRoleEntries($roles))
+            ->map(fn ($entry) => $this->parseProjectAssignedRoleEntry($entry))
+            ->filter()
+            ->map(fn (array $entry) => $entry['name'] !== null && $entry['name'] !== ''
+                ? "{$entry['role']}: {$entry['name']}"
+                : $entry['role'])
+            ->unique(fn ($entry) => mb_strtolower((string) $entry))
+            ->values();
+
+        return $normalized->isEmpty() ? null : $normalized->implode('; ');
+    }
+
+    private function splitProjectAssignedRoleEntries($roles): array
+    {
+        $raw = trim((string) ($roles ?? ''));
+        if ($raw === '') {
+            return [];
+        }
+
+        $pattern = str_contains($raw, ';') ? '/[;]+/' : '/[,]+/';
+
+        return collect(preg_split($pattern, $raw))
+            ->map(fn ($entry) => trim((string) $entry))
+            ->filter()
+            ->values()
+            ->all();
+    }
+
+    private function parseProjectAssignedRoleEntry(?string $entry): ?array
+    {
+        $entry = trim((string) $entry);
+        if ($entry === '') {
+            return null;
+        }
+
+        $rolePart = $entry;
+        $namePart = null;
+
+        if (preg_match('/^(.+?)\s*(?:[:\-–—])\s*(.+)$/u', $entry, $matches)) {
+            $rolePart = trim((string) ($matches[1] ?? ''));
+            $namePart = trim((string) ($matches[2] ?? ''));
+        }
+
+        $role = $this->normalizeSingleProjectAssignedRole($rolePart);
+        if ($role === null) {
+            return null;
+        }
+
+        return [
+            'role' => $role,
+            'name' => $namePart !== null && $namePart !== '' ? $namePart : null,
+        ];
+    }
+
+    private function normalizeSingleProjectAssignedRole(?string $role): ?string
+    {
+        $key = strtolower((string) preg_replace('/[^a-z0-9]+/i', '', trim((string) $role)));
+
+        return match ($key) {
+            '' => null,
+            'architect' => 'Architect',
+            'engineer' => 'Engineer',
+            'pm' => 'PM',
+            default => null,
+        };
     }
 
     private function foremanOptionsPayload()
