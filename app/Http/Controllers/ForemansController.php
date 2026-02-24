@@ -31,14 +31,16 @@ class ForemansController extends Controller
         $phWeekEnd = $manilaNow->copy()->endOfWeek()->toDateString();
         $allowedPerPage = [5, 10, 25, 50];
         $search = trim((string) $request->query('search', ''));
-        $perPage = (int) $request->query('per_page', 10);
+        $dateFilter = $this->normalizeAttendanceFilterDate($request->query('date'), $phToday);
+        $perPage = (int) $request->query('per_page', 50);
 
         if (!in_array($perPage, $allowedPerPage, true)) {
-            $perPage = 10;
+            $perPage = 50;
         }
 
         $query = Attendance::query()
             ->where('foreman_id', $foremanId)
+            ->whereDate('date', $dateFilter)
             ->with('project:id,name');
 
         if ($search !== '') {
@@ -128,6 +130,7 @@ class ForemansController extends Controller
             'attendances' => $attendances,
             'attendanceTable' => [
                 'search' => $search,
+                'date' => $dateFilter,
                 'per_page' => $paginator->perPage(),
                 'current_page' => $paginator->currentPage(),
                 'last_page' => max(1, $paginator->lastPage()),
@@ -475,9 +478,24 @@ class ForemansController extends Controller
     {
         return array_filter([
             'search' => $request->query('search'),
+            'date' => $request->query('date'),
             'per_page' => $request->query('per_page'),
             'page' => $request->query('page'),
         ], fn ($value) => $value !== null && $value !== '');
+    }
+
+    private function normalizeAttendanceFilterDate(mixed $rawDate, string $fallbackDate): string
+    {
+        $value = trim((string) $rawDate);
+        if ($value === '') {
+            return $fallbackDate;
+        }
+
+        try {
+            return Carbon::createFromFormat('Y-m-d', $value, self::PH_TIMEZONE)->toDateString();
+        } catch (\Throwable $e) {
+            return $fallbackDate;
+        }
     }
 
     private function foremanActionRedirect(Request $request)

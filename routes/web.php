@@ -5,6 +5,7 @@ use App\Http\Controllers\BuildController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\DesignController;
 use App\Http\Controllers\ExpenseController;
+use App\Http\Controllers\ForemanWorkerController;
 use App\Http\Controllers\ForemansController;
 use App\Http\Controllers\MaterialController;
 use App\Http\Controllers\UserController;
@@ -29,7 +30,7 @@ Route::post('/logout', [AuthController::class, 'logout'])->name('logout');
 Route::get('/progress-submit/{token}', [PublicProgressController::class, 'show'])->name('public.progress-submit.show');
 Route::post('/progress-submit/{token}', [PublicProgressController::class, 'store'])->name('public.progress-submit.store');
 
-Route::middleware(['auth', 'role:head_admin,admin,hr'])->group(function () {
+Route::middleware(['auth', 'role:head_admin,admin,hr,foreman'])->group(function () {
     Route::get('/settings', [SettingsController::class, 'index'])->name('settings.index');
     Route::patch('/settings', [SettingsController::class, 'update'])->name('settings.update');
 });
@@ -73,6 +74,15 @@ Route::middleware(['auth', 'role:head_admin,hr'])->group(function () {
 
 Route::middleware(['auth', 'role:foreman'])->group(function () {
     Route::get('/foreman', [DashboardController::class, 'foreman'])->name('foreman.dashboard');
+    Route::get('/foreman/submissions', [DashboardController::class, 'foremanSubmissions'])->name('foreman.submissions');
+    Route::get('/foreman/workers', [ForemanWorkerController::class, 'index'])->name('foreman.workers.index');
+    Route::post('/foreman/workers', [ForemanWorkerController::class, 'store'])->name('foreman.workers.store');
+    Route::patch('/foreman/workers/{worker}', [ForemanWorkerController::class, 'update'])->name('foreman.workers.update');
+    Route::delete('/foreman/workers/{worker}', [ForemanWorkerController::class, 'destroy'])->name('foreman.workers.destroy');
+
+    Route::get('/foreman/attendance', [ForemansController::class, 'attendanceIndex'])->name('foreman.attendance.index');
+    Route::post('/foreman/attendance', [ForemansController::class, 'storeAttendance'])->name('foreman.attendance.store');
+    Route::patch('/foreman/attendance/{attendance}', [ForemansController::class, 'updateAttendance'])->name('foreman.attendance.update');
     Route::post('/foreman/attendance/time-in', [ForemansController::class, 'timeInAttendance'])->name('foreman.attendance.time_in');
     Route::post('/foreman/attendance/time-out', [ForemansController::class, 'timeOutAttendance'])->name('foreman.attendance.time_out');
     Route::post('/foreman/submit-all', [ForemansController::class, 'submitAll'])->name('foreman.submit_all');

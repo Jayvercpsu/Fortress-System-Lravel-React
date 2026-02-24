@@ -32,7 +32,11 @@ const navByRole = {
         { label: 'Settings', href: '/settings', icon: 'fi fi-rr-settings' },
     ],
     foreman: [
-        { label: 'Dashboard', href: '/foreman', icon: 'fi fi-rr-helmet-safety' },
+        { label: 'Dashboard', href: '/foreman', icon: 'fi fi-rr-dashboard' },
+        { label: 'Submissions', href: '/foreman/submissions', icon: 'fi fi-rr-apps' },
+        { label: 'Workers', href: '/foreman/workers', icon: 'fi fi-rr-users' },
+        { label: 'Attendance', href: '/foreman/attendance', icon: 'fi fi-rr-calendar-check' },
+        { label: 'Settings', href: '/settings', icon: 'fi fi-rr-settings' },
     ],
 };
 

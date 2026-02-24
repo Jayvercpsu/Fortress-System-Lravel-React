@@ -12,7 +12,7 @@ class RouteVisibilityRulesTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_foreman_visibility_is_limited_to_dashboard_and_dashboard_actions(): void
+    public function test_foreman_visibility_matches_current_foreman_routes(): void
     {
         $foreman = $this->makeUser('foreman');
 
@@ -22,15 +22,15 @@ class RouteVisibilityRulesTest extends TestCase
 
         $this->actingAs($foreman)
             ->get('/settings')
-            ->assertForbidden();
+            ->assertOk();
 
         $this->actingAs($foreman)
             ->get('/foreman/attendance')
-            ->assertNotFound();
+            ->assertOk();
 
         $this->actingAs($foreman)
             ->get('/foreman/workers')
-            ->assertNotFound();
+            ->assertOk();
 
         $this->actingAs($foreman)
             ->get('/attendance')

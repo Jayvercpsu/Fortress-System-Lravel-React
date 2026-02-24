@@ -3,6 +3,7 @@ import DataTable from '../../Components/DataTable';
 import ActionButton from '../../Components/ActionButton';
 import SearchableDropdown from '../../Components/SearchableDropdown';
 import Modal from '../../Components/Modal';
+import DatePickerInput from '../../Components/DatePickerInput';
 import { Head, router, usePage } from '@inertiajs/react';
 import { useEffect, useMemo, useState } from 'react';
 import toast from 'react-hot-toast';
@@ -97,7 +98,8 @@ export default function ForemanAttendance({
     const table = useMemo(
         () => ({
             search: attendanceTable?.search ?? '',
-            perPage: Number(attendanceTable?.per_page ?? 10),
+            date: attendanceTable?.date ?? '',
+            perPage: Number(attendanceTable?.per_page ?? 50),
             page: Number(attendanceTable?.current_page ?? 1),
             lastPage: Number(attendanceTable?.last_page ?? 1),
             total: Number(attendanceTable?.total ?? attendances.length ?? 0),
@@ -160,6 +162,7 @@ export default function ForemanAttendance({
     const buildListParams = (overrides = {}) => {
         const params = {
             search: overrides.search !== undefined ? overrides.search : table.search,
+            date: overrides.date !== undefined ? overrides.date : (table.date || phTodayIso),
             per_page: overrides.per_page !== undefined ? overrides.per_page : table.perPage,
             page: overrides.page !== undefined ? overrides.page : table.page,
         };
@@ -455,7 +458,28 @@ export default function ForemanAttendance({
                     </form>
 
                     <div style={cardStyle}>
-                        <div style={{ fontWeight: 700, marginBottom: 12 }}>My Attendance Logs</div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap', marginBottom: 12 }}>
+                            <div style={{ fontWeight: 700 }}>My Attendance Logs</div>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                                <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+                                    Date
+                                </span>
+                                <DatePickerInput
+                                    name="attendance-log-date"
+                                    value={table.date || phTodayIso}
+                                    onChange={(value) => navigateTable({ date: value || phTodayIso, page: 1 })}
+                                    style={{ ...inputStyle, width: 170, minWidth: 170 }}
+                                />
+                                <ActionButton
+                                    type="button"
+                                    variant="neutral"
+                                    onClick={() => navigateTable({ date: phTodayIso, page: 1 })}
+                                    style={{ padding: '8px 12px', fontSize: 13 }}
+                                >
+                                    Today
+                                </ActionButton>
+                            </div>
+                        </div>
                         <DataTable
                             columns={columns}
                             rows={attendances}

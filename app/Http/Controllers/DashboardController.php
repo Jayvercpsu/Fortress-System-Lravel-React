@@ -217,6 +217,68 @@ class DashboardController extends Controller
         ));
     }
 
+    public function foremanSubmissions()
+    {
+        $user = Auth::user();
+        $assignedProjectIds = $this->resolveForemanAssignedProjectIds($user);
+        $assignedProjects = $this->foremanAssignedProjectsPayload($user, $assignedProjectIds);
+
+        $projectScopes = ProjectScope::query()
+            ->when(
+                $assignedProjectIds->isNotEmpty(),
+                fn ($query) => $query->whereIn('project_id', $assignedProjectIds->all()),
+                fn ($query) => $query->whereRaw('1 = 0')
+            )
+            ->orderBy('scope_name')
+            ->get(['id', 'project_id', 'scope_name'])
+            ->map(fn (ProjectScope $scope) => [
+                'id' => $scope->id,
+                'project_id' => $scope->project_id,
+                'scope_name' => $scope->scope_name,
+            ])
+            ->values();
+
+        $projects = Project::query()
+            ->when(
+                $assignedProjectIds->isNotEmpty(),
+                fn ($query) => $query->whereIn('id', $assignedProjectIds->all()),
+                fn ($query) => $query->whereRaw('1 = 0')
+            )
+            ->orderBy('name')
+            ->get(['id', 'name'])
+            ->map(fn (Project $project) => ['id' => $project->id, 'name' => $project->name])
+            ->values();
+
+        $progressPhotos = ProgressPhoto::query()
+            ->with('project:id,name')
+            ->where('foreman_id', $user->id)
+            ->when(
+                $assignedProjectIds->isNotEmpty(),
+                fn ($query) => $query->where(function ($inner) use ($assignedProjectIds) {
+                    $inner->whereNull('project_id')->orWhereIn('project_id', $assignedProjectIds->all());
+                })
+            )
+            ->latest()
+            ->take(12)
+            ->get()
+            ->map(fn (ProgressPhoto $photo) => [
+                'id' => $photo->id,
+                'photo_path' => $photo->photo_path,
+                'caption' => $photo->caption,
+                'project_name' => $photo->project?->name ?? 'Unassigned',
+                'created_at' => optional($photo->created_at)?->toDateTimeString(),
+            ])
+            ->values();
+
+        return Inertia::render('Foreman/Submissions', compact(
+            'user',
+            'projects',
+            'assignedProjects',
+            'projectScopes',
+            'progressPhotos'
+        ));
+    }
+
     private function projectKpis(): array
     {
         $projects = Project::query()
