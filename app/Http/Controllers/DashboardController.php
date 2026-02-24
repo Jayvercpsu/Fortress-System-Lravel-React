@@ -1,52 +1,104 @@
 <?php
+
 namespace App\Http\Controllers;
 
-use App\Models\User;
 use App\Models\Attendance;
-use App\Models\MaterialRequest;
+use App\Models\DeliveryConfirmation;
 use App\Models\IssueReport;
+use App\Models\MaterialRequest;
 use App\Models\Payroll;
 use App\Models\ProgressPhoto;
+use App\Models\ProgressSubmitToken;
 use App\Models\Project;
+use App\Models\ProjectAssignment;
 use App\Models\ProjectScope;
+use App\Models\User;
 use App\Models\WeeklyAccomplishment;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Str;
 use Inertia\Inertia;
 
-class DashboardController extends Controller {
+class DashboardController extends Controller
+{
     private const PH_TIMEZONE = 'Asia/Manila';
-    public function headAdmin() {
+
+    public function headAdmin()
+    {
+        $projectKpis = $this->projectKpis();
+        $payrollPaymentKpis = $this->payrollAndPaymentKpis();
+
         $stats = [
-            'total_users'     => User::where('role', '!=', 'head_admin')->count(),
-            'total_foremen'   => User::where('role', 'foreman')->count(),
-            'total_hr'        => User::where('role', 'hr')->count(),
-            'total_admins'    => User::where('role', 'admin')->count(),
+            'total_users' => User::where('role', '!=', 'head_admin')->count(),
+            'total_foremen' => User::where('role', 'foreman')->count(),
+            'total_hr' => User::where('role', 'hr')->count(),
+            'total_admins' => User::where('role', 'admin')->count(),
             'pending_materials' => MaterialRequest::where('status', 'pending')->count(),
-            'open_issues'     => IssueReport::where('status', 'open')->count(),
-            'payroll_pending' => Payroll::where('status', 'pending')->sum('net'),
+            'open_issues' => IssueReport::where('status', 'open')->count(),
+            'payroll_pending' => $payrollPaymentKpis['payroll_payable'],
         ];
+
+        $kpis = array_merge($projectKpis, $payrollPaymentKpis, [
+            'users' => [
+                'total_users' => $stats['total_users'],
+                'total_foremen' => $stats['total_foremen'],
+                'total_hr' => $stats['total_hr'],
+                'total_admins' => $stats['total_admins'],
+            ],
+            'operations' => [
+                'pending_materials' => $stats['pending_materials'],
+                'open_issues' => $stats['open_issues'],
+            ],
+        ]);
 
         $recentSubmissions = [
             'materials' => MaterialRequest::with('foreman')->latest()->take(5)->get(),
-            'issues'    => IssueReport::with('foreman')->latest()->take(5)->get(),
+            'issues' => IssueReport::with('foreman')->latest()->take(5)->get(),
         ];
 
-        return Inertia::render('HeadAdmin/Dashboard', compact('stats', 'recentSubmissions'));
+        $recentPayrolls = Payroll::query()
+            ->latest()
+            ->take(8)
+            ->get(['id', 'worker_name', 'role', 'net', 'status', 'week_start'])
+            ->map(fn (Payroll $payroll) => [
+                'id' => $payroll->id,
+                'worker_name' => $payroll->worker_name,
+                'role' => $payroll->role,
+                'net' => (float) $payroll->net,
+                'status' => $payroll->status,
+                'week_start' => optional($payroll->week_start)?->toDateString(),
+            ])
+            ->values();
+
+        return Inertia::render('HeadAdmin/Dashboard', [
+            'stats' => $stats,
+            'kpis' => $kpis,
+            'recentSubmissions' => $recentSubmissions,
+            'recentPayrolls' => $recentPayrolls,
+            'recentProjects' => collect($projectKpis['projects'])->take(8)->values(),
+        ]);
     }
 
-    public function admin() {
-        $stats = [
-            'pending_materials' => MaterialRequest::where('status', 'pending')->count(),
-            'open_issues'       => IssueReport::where('status', 'open')->count(),
-            'submissions_today' => Attendance::whereDate('created_at', today())->count(),
+    public function admin()
+    {
+        $projectKpis = $this->projectKpis();
+
+        // Intentionally exclude payroll-related figures from admin payload.
+        $kpis = [
+            'project_counts' => $projectKpis['project_counts'],
+            'financial_totals' => $projectKpis['financial_totals'],
+            'company_progress_percent' => $projectKpis['company_progress_percent'],
+            'projects' => $projectKpis['projects'],
         ];
-        return Inertia::render('Admin/Dashboard', compact('stats'));
+
+        return Inertia::render('Admin/Dashboard', compact('kpis'));
     }
 
-    public function hr() {
+    public function hr()
+    {
         $payrolls = Payroll::with('user')->latest()->take(20)->get();
-        $totalPayable = Payroll::whereIn('status', ['pending', 'ready', 'approved'])->sum('net');
+        $totalPayable = (float) Payroll::whereIn('status', ['pending', 'ready', 'approved'])->sum('net');
         $projects = Project::query()
             ->orderBy('name')
             ->get(['id', 'name', 'client', 'contract_amount', 'total_client_payment', 'remaining_balance'])
@@ -60,19 +112,32 @@ class DashboardController extends Controller {
             ])
             ->values();
 
-        return Inertia::render('HR/Dashboard', compact('payrolls', 'totalPayable', 'projects'));
+        $kpis = $this->payrollAndPaymentKpis();
+
+        return Inertia::render('HR/Dashboard', compact('payrolls', 'totalPayable', 'projects', 'kpis'));
     }
 
-    public function foreman() {
+    public function foreman()
+    {
         $user = Auth::user();
-        $attendances    = Attendance::where('foreman_id', $user->id)->latest()->take(20)->get();
+        $assignedProjectIds = $this->resolveForemanAssignedProjectIds($user);
+        $assignedProjects = $this->foremanAssignedProjectsPayload($user, $assignedProjectIds);
+
+        $attendances = Attendance::where('foreman_id', $user->id)->latest()->take(20)->get();
         $accomplishments = WeeklyAccomplishment::where('foreman_id', $user->id)->latest()->take(20)->get();
         $materialRequests = MaterialRequest::where('foreman_id', $user->id)->latest()->take(10)->get();
-        $issueReports   = IssueReport::where('foreman_id', $user->id)->latest()->take(10)->get();
-        $deliveries     = \App\Models\DeliveryConfirmation::where('foreman_id', $user->id)->latest()->take(10)->get();
+        $issueReports = IssueReport::where('foreman_id', $user->id)->latest()->take(10)->get();
+        $deliveries = DeliveryConfirmation::where('foreman_id', $user->id)->latest()->take(10)->get();
+
         $progressPhotos = ProgressPhoto::query()
             ->with('project:id,name')
             ->where('foreman_id', $user->id)
+            ->when(
+                $assignedProjectIds->isNotEmpty(),
+                fn ($query) => $query->where(function ($inner) use ($assignedProjectIds) {
+                    $inner->whereNull('project_id')->orWhereIn('project_id', $assignedProjectIds->all());
+                })
+            )
             ->latest()
             ->take(10)
             ->get()
@@ -84,7 +149,13 @@ class DashboardController extends Controller {
                 'created_at' => optional($photo->created_at)?->toDateTimeString(),
             ])
             ->values();
+
         $projectScopes = ProjectScope::query()
+            ->when(
+                $assignedProjectIds->isNotEmpty(),
+                fn ($query) => $query->whereIn('project_id', $assignedProjectIds->all()),
+                fn ($query) => $query->whereRaw('1 = 0')
+            )
             ->orderBy('scope_name')
             ->get(['id', 'project_id', 'scope_name'])
             ->map(fn (ProjectScope $scope) => [
@@ -93,7 +164,13 @@ class DashboardController extends Controller {
                 'scope_name' => $scope->scope_name,
             ])
             ->values();
+
         $projects = Project::query()
+            ->when(
+                $assignedProjectIds->isNotEmpty(),
+                fn ($query) => $query->whereIn('id', $assignedProjectIds->all()),
+                fn ($query) => $query->whereRaw('1 = 0')
+            )
             ->orderBy('name')
             ->get(['id', 'name'])
             ->map(fn (Project $project) => ['id' => $project->id, 'name' => $project->name])
@@ -133,9 +210,214 @@ class DashboardController extends Controller {
             'issueReports',
             'deliveries',
             'projects',
+            'assignedProjects',
             'foremanAttendanceToday',
             'progressPhotos',
             'projectScopes'
         ));
+    }
+
+    private function projectKpis(): array
+    {
+        $projects = Project::query()
+            ->orderBy('name')
+            ->get([
+                'id',
+                'name',
+                'client',
+                'status',
+                'phase',
+                'overall_progress',
+                'contract_amount',
+                'total_client_payment',
+                'remaining_balance',
+                'updated_at',
+            ]);
+
+        $totalProjects = $projects->count();
+        $contractSum = round((float) $projects->sum(fn (Project $project) => (float) $project->contract_amount), 2);
+        $collectedSum = round((float) $projects->sum(fn (Project $project) => (float) $project->total_client_payment), 2);
+        $remainingSum = round((float) $projects->sum(fn (Project $project) => (float) $project->remaining_balance), 2);
+        $companyProgressPercent = $totalProjects > 0
+            ? round((float) $projects->avg(fn (Project $project) => (int) $project->overall_progress), 1)
+            : 0.0;
+
+        return [
+            'project_counts' => [
+                'total' => $totalProjects,
+                'by_status' => $this->aggregateLabelCounts($projects, 'status'),
+                'by_phase' => $this->aggregateLabelCounts($projects, 'phase'),
+            ],
+            'financial_totals' => [
+                'contract_sum' => $contractSum,
+                'collected_sum' => $collectedSum,
+                'remaining_sum' => $remainingSum,
+            ],
+            'company_progress_percent' => $companyProgressPercent,
+            'projects' => $projects
+                ->sortByDesc(fn (Project $project) => optional($project->updated_at)?->timestamp ?? 0)
+                ->values()
+                ->map(fn (Project $project) => $this->projectSummaryRow($project))
+                ->all(),
+        ];
+    }
+
+    private function payrollAndPaymentKpis(): array
+    {
+        $payrollPayable = round((float) Payroll::query()->whereIn('status', ['pending', 'ready', 'approved'])->sum('net'), 2);
+        $payrollDeductionsTotal = round((float) Payroll::query()->sum('deductions'), 2);
+        $payrollPaidTotal = round((float) Payroll::query()->where('status', 'paid')->sum('net'), 2);
+        $payrollGrossTotal = round((float) Payroll::query()->sum('gross'), 2);
+
+        $payrollCountsByStatus = Payroll::query()
+            ->selectRaw('status, COUNT(*) as aggregate')
+            ->groupBy('status')
+            ->get()
+            ->map(fn ($row) => [
+                'label' => $this->normalizeLabel($row->status),
+                'count' => (int) ($row->aggregate ?? 0),
+            ])
+            ->sortBy('label', SORT_NATURAL | SORT_FLAG_CASE)
+            ->values()
+            ->all();
+
+        $projects = Project::query()->get(['contract_amount', 'total_client_payment', 'remaining_balance']);
+        $contractSum = round((float) $projects->sum(fn (Project $project) => (float) $project->contract_amount), 2);
+        $collectedSum = round((float) $projects->sum(fn (Project $project) => (float) $project->total_client_payment), 2);
+        $remainingSum = round((float) $projects->sum(fn (Project $project) => (float) $project->remaining_balance), 2);
+
+        return [
+            'payroll_payable' => $payrollPayable,
+            'payroll_deductions_total' => $payrollDeductionsTotal,
+            'payroll_paid_total' => $payrollPaidTotal,
+            'payroll_gross_total' => $payrollGrossTotal,
+            'payroll_counts_by_status' => $payrollCountsByStatus,
+            'payment_totals' => [
+                'contract_sum' => $contractSum,
+                'collected_sum' => $collectedSum,
+                'remaining_sum' => $remainingSum,
+            ],
+        ];
+    }
+
+    private function aggregateLabelCounts(Collection $models, string $column): array
+    {
+        return $models
+            ->groupBy(fn ($model) => $this->normalizeLabel((string) data_get($model, $column)))
+            ->map(fn (Collection $group, string $label) => [
+                'label' => $label,
+                'count' => $group->count(),
+            ])
+            ->sortBy('label', SORT_NATURAL | SORT_FLAG_CASE)
+            ->values()
+            ->all();
+    }
+
+    private function normalizeLabel(?string $value, string $fallback = 'Unknown'): string
+    {
+        $clean = trim((string) $value);
+
+        return $clean !== '' ? $clean : $fallback;
+    }
+
+    private function projectSummaryRow(Project $project): array
+    {
+        return [
+            'id' => $project->id,
+            'name' => $project->name,
+            'client' => $project->client,
+            'status' => $project->status,
+            'phase' => $project->phase,
+            'overall_progress' => (int) ($project->overall_progress ?? 0),
+            'contract_amount' => (float) $project->contract_amount,
+            'total_client_payment' => (float) $project->total_client_payment,
+            'remaining_balance' => (float) $project->remaining_balance,
+            'updated_at' => optional($project->updated_at)?->toDateTimeString(),
+        ];
+    }
+
+    private function resolveForemanAssignedProjectIds(User $user): Collection
+    {
+        $assigned = ProjectAssignment::query()
+            ->where('user_id', $user->id)
+            ->pluck('project_id')
+            ->map(fn ($projectId) => (int) $projectId)
+            ->unique()
+            ->values();
+
+        if ($assigned->isNotEmpty()) {
+            return $assigned;
+        }
+
+        $fullname = trim((string) ($user->fullname ?? ''));
+        if ($fullname === '') {
+            return collect();
+        }
+
+        return Project::query()
+            ->whereNotNull('assigned')
+            ->where('assigned', '!=', '')
+            ->get(['id', 'assigned'])
+            ->filter(function (Project $project) use ($fullname) {
+                $assignedNames = collect(preg_split('/[,;]+/', (string) $project->assigned))
+                    ->map(fn ($part) => trim((string) $part))
+                    ->filter();
+
+                return $assignedNames->contains($fullname);
+            })
+            ->pluck('id')
+            ->map(fn ($projectId) => (int) $projectId)
+            ->unique()
+            ->values();
+    }
+
+    private function foremanAssignedProjectsPayload(User $user, Collection $assignedProjectIds): array
+    {
+        if ($assignedProjectIds->isEmpty()) {
+            return [];
+        }
+
+        return Project::query()
+            ->whereIn('id', $assignedProjectIds->all())
+            ->orderBy('name')
+            ->get(['id', 'name', 'client', 'phase', 'status', 'overall_progress'])
+            ->map(function (Project $project) use ($user) {
+                $token = $this->ensureForemanSubmitToken($project, $user);
+
+                return [
+                    'id' => $project->id,
+                    'name' => $project->name,
+                    'client' => $project->client,
+                    'phase' => $project->phase,
+                    'status' => $project->status,
+                    'overall_progress' => (int) ($project->overall_progress ?? 0),
+                    'submit_token' => $token->token,
+                    'public_submit_url' => route('public.progress-submit.show', ['token' => $token->token]),
+                ];
+            })
+            ->values()
+            ->all();
+    }
+
+    private function ensureForemanSubmitToken(Project $project, User $user): ProgressSubmitToken
+    {
+        $existing = ProgressSubmitToken::query()
+            ->where('project_id', $project->id)
+            ->where('foreman_id', $user->id)
+            ->orderByDesc('id')
+            ->get()
+            ->first(fn (ProgressSubmitToken $token) => $token->isActive());
+
+        if ($existing) {
+            return $existing;
+        }
+
+        return ProgressSubmitToken::create([
+            'project_id' => $project->id,
+            'foreman_id' => $user->id,
+            'token' => Str::lower(Str::random(64)),
+            'expires_at' => now()->addYears(5),
+            'submission_count' => 0,
+        ]);
     }
 }

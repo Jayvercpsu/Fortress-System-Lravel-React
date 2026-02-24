@@ -7,7 +7,10 @@ use App\Models\DesignProject;
 use App\Models\Expense;
 use App\Models\Payment;
 use App\Models\Project;
+use App\Models\ProjectAssignment;
+use App\Models\ProjectWorker;
 use App\Models\User;
+use App\Models\Worker;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
@@ -105,6 +108,7 @@ class ProjectController extends Controller
         $validated = $request->validate($this->projectRules());
         $validated['overall_progress'] = 0;
         $project = Project::create($validated);
+        $this->syncLegacyForemanAssignments($project);
 
         return redirect()
             ->route('projects.show', ['project' => $project->id])
@@ -183,6 +187,8 @@ class ProjectController extends Controller
 
         return Inertia::render($page, [
             'project' => $payload,
+            'assignedTeam' => $this->projectTeamPayload($project),
+            'teamOptions' => $this->projectTeamOptions(),
             'files' => $files,
             'fileTable' => [
                 'search' => $filesSearch,
@@ -230,6 +236,7 @@ class ProjectController extends Controller
 
         $validated = $request->validate($this->projectRules());
         $project->update($validated);
+        $this->syncLegacyForemanAssignments($project->fresh());
 
         return redirect()
             ->route('projects.show', ['project' => $project->id])
@@ -289,6 +296,83 @@ class ProjectController extends Controller
             ->with('success', 'Project financials updated.');
     }
 
+    public function storeTeamMember(Request $request, Project $project)
+    {
+        abort_unless(in_array($request->user()->role, ['head_admin', 'admin'], true), 403);
+
+        $validated = $request->validate([
+            'user_id' => ['nullable', 'exists:users,id'],
+            'worker_name' => ['nullable', 'string', 'max:255'],
+            'rate' => ['nullable', 'numeric', 'min:0'],
+        ]);
+
+        $userId = $validated['user_id'] ?? null;
+        $workerName = trim((string) ($validated['worker_name'] ?? ''));
+
+        if (!$userId && $workerName === '') {
+            return back()->withErrors([
+                'team_member' => 'Select a user or enter a worker name.',
+            ]);
+        }
+
+        if ($userId) {
+            $workerName = '';
+        }
+
+        $resolvedRate = $validated['rate'] ?? null;
+
+        if ($resolvedRate === null) {
+            if ($userId) {
+                $resolvedRate = User::query()->whereKey($userId)->value('default_rate_per_hour') ?? 0;
+            } else {
+                $resolvedRate = Worker::query()
+                    ->where('name', $workerName)
+                    ->whereNotNull('default_rate_per_hour')
+                    ->orderByDesc('id')
+                    ->value('default_rate_per_hour') ?? 0;
+            }
+        }
+
+        $teamMember = ProjectWorker::query()
+            ->where('project_id', $project->id)
+            ->when(
+                $userId,
+                fn ($query) => $query->where('user_id', $userId),
+                fn ($query) => $query->whereNull('user_id')->where('worker_name', $workerName)
+            )
+            ->first();
+
+        if ($teamMember) {
+            $teamMember->update([
+                'rate' => round((float) $resolvedRate, 2),
+                'worker_name' => $userId ? null : $workerName,
+            ]);
+        } else {
+            ProjectWorker::create([
+                'project_id' => $project->id,
+                'user_id' => $userId ?: null,
+                'worker_name' => $userId ? null : $workerName,
+                'rate' => round((float) $resolvedRate, 2),
+            ]);
+        }
+
+        return redirect()
+            ->route('projects.show', ['project' => $project->id] + $this->projectShowQueryParams($request))
+            ->with('success', 'Assigned team updated.');
+    }
+
+    public function destroyTeamMember(Request $request, ProjectWorker $projectWorker)
+    {
+        abort_unless(in_array($request->user()->role, ['head_admin', 'admin'], true), 403);
+
+        $projectId = $projectWorker->project_id;
+        $projectWorker->delete();
+
+        return redirect()
+            ->route('projects.show', ['project' => $projectId] + $this->projectShowQueryParams($request))
+            ->with('success', 'Team member removed.');
+    }
+
     private function projectRules(): array
     {
         return [
@@ -306,6 +390,19 @@ class ProjectController extends Controller
             'construction_cost' => 'prohibited',
             'total_client_payment' => 'prohibited',
         ];
+    }
+
+    private function projectShowQueryParams(Request $request): array
+    {
+        return array_filter([
+            'tab' => $request->query('tab'),
+            'files_search' => $request->query('files_search'),
+            'files_per_page' => $request->query('files_per_page'),
+            'files_page' => $request->query('files_page'),
+            'updates_search' => $request->query('updates_search'),
+            'updates_per_page' => $request->query('updates_per_page'),
+            'updates_page' => $request->query('updates_page'),
+        ], fn ($value) => $value !== null && $value !== '');
     }
 
     private function projectPayload(Project $project): array
@@ -329,6 +426,56 @@ class ProjectController extends Controller
             'total_client_payment' => $computed['total_client_payment'],
             'remaining_balance' => $computed['remaining_balance'],
             'last_paid_date' => $computed['last_paid_date'],
+        ];
+    }
+
+    private function projectTeamPayload(Project $project): array
+    {
+        return $project->teamMembers()
+            ->with('user:id,fullname,role')
+            ->orderByRaw('CASE WHEN user_id IS NULL THEN 1 ELSE 0 END')
+            ->orderBy('worker_name')
+            ->orderBy('id')
+            ->get()
+            ->map(fn (ProjectWorker $teamMember) => [
+                'id' => $teamMember->id,
+                'project_id' => $teamMember->project_id,
+                'user_id' => $teamMember->user_id,
+                'worker_name' => $teamMember->worker_name,
+                'display_name' => $teamMember->user?->fullname ?: $teamMember->worker_name,
+                'source' => $teamMember->user_id ? 'user' : 'manual',
+                'user_role' => $teamMember->user?->role,
+                'rate' => (float) $teamMember->rate,
+            ])
+            ->values()
+            ->all();
+    }
+
+    private function projectTeamOptions(): array
+    {
+        return [
+            'users' => User::query()
+                ->whereIn('role', ['foreman', 'admin', 'hr'])
+                ->orderBy('fullname')
+                ->get(['id', 'fullname', 'role', 'default_rate_per_hour'])
+                ->map(fn (User $user) => [
+                    'id' => $user->id,
+                    'fullname' => $user->fullname,
+                    'role' => $user->role,
+                    'default_rate_per_hour' => $user->default_rate_per_hour !== null ? (float) $user->default_rate_per_hour : null,
+                ])
+                ->values()
+                ->all(),
+            'workers' => Worker::query()
+                ->orderBy('name')
+                ->get(['id', 'name', 'default_rate_per_hour'])
+                ->map(fn (Worker $worker) => [
+                    'id' => $worker->id,
+                    'name' => $worker->name,
+                    'default_rate_per_hour' => $worker->default_rate_per_hour !== null ? (float) $worker->default_rate_per_hour : null,
+                ])
+                ->values()
+                ->all(),
         ];
     }
 
@@ -371,5 +518,49 @@ class ProjectController extends Controller
         ]);
 
         return $computed;
+    }
+
+    private function syncLegacyForemanAssignments(Project $project): void
+    {
+        $assignedNames = collect(preg_split('/[,;]+/', (string) ($project->assigned ?? '')))
+            ->map(fn ($name) => trim((string) $name))
+            ->filter()
+            ->values();
+
+        $foremanIds = User::query()
+            ->where('role', 'foreman')
+            ->whereIn('fullname', $assignedNames->all())
+            ->pluck('id')
+            ->map(fn ($id) => (int) $id)
+            ->values();
+
+        if ($assignedNames->isEmpty()) {
+            ProjectAssignment::query()
+                ->where('project_id', $project->id)
+                ->whereIn('user_id', User::query()->where('role', 'foreman')->pluck('id'))
+                ->delete();
+
+            return;
+        }
+
+        $existingForemanIds = User::query()->where('role', 'foreman')->pluck('id');
+
+        ProjectAssignment::query()
+            ->where('project_id', $project->id)
+            ->whereIn('user_id', $existingForemanIds)
+            ->whereNotIn('user_id', $foremanIds->all())
+            ->delete();
+
+        foreach ($foremanIds as $foremanId) {
+            ProjectAssignment::query()->updateOrCreate(
+                [
+                    'project_id' => $project->id,
+                    'user_id' => $foremanId,
+                ],
+                [
+                    'role_in_project' => 'foreman',
+                ]
+            );
+        }
     }
 }

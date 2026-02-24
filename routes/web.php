@@ -14,6 +14,7 @@ use App\Http\Controllers\ProjectController;
 use App\Http\Controllers\ProjectFileController;
 use App\Http\Controllers\ProgressPhotoController;
 use App\Http\Controllers\PublicProgressController;
+use App\Http\Controllers\ReportsController;
 use App\Http\Controllers\ScopePhotoController;
 use App\Http\Controllers\MonitoringController;
 use App\Http\Controllers\ProjectUpdateController;
@@ -36,6 +37,7 @@ Route::middleware(['auth', 'role:head_admin,admin,hr'])->group(function () {
 Route::middleware(['auth', 'role:head_admin'])->group(function () {
     Route::get('/head-admin', [DashboardController::class, 'headAdmin'])->name('head_admin.dashboard');
     Route::delete('/projects/{project}', [ProjectController::class, 'destroy'])->name('projects.destroy');
+    Route::get('/reports', [ReportsController::class, 'index'])->name('reports.index');
     Route::get('/users', [UserController::class, 'index'])->name('users.index');
     Route::get('/users/create', [UserController::class, 'create'])->name('users.create');
     Route::get('/users/{user}/edit', [UserController::class, 'edit'])->name('users.edit');
@@ -89,6 +91,8 @@ Route::middleware(['auth', 'role:head_admin,admin'])->group(function () {
 
     Route::get('/projects/{project}/design', [DesignController::class, 'show'])->name('design.show');
     Route::patch('/projects/{project}/design', [DesignController::class, 'update'])->name('design.update');
+    Route::post('/projects/{project}/team', [ProjectController::class, 'storeTeamMember'])->name('projects.team.store');
+    Route::delete('/project-team/{projectWorker}', [ProjectController::class, 'destroyTeamMember'])->name('projects.team.destroy');
     Route::get('/projects/{project}/build', [BuildController::class, 'show'])->name('build.show');
     Route::patch('/projects/{project}/build', [BuildController::class, 'update'])->name('build.update');
 

@@ -102,6 +102,7 @@ export default function ForemanDashboard({
     issueReports,
     deliveries,
     projects = [],
+    assignedProjects = [],
     projectScopes = [],
     foremanAttendanceToday = null,
     progressPhotos = [],
@@ -283,6 +284,82 @@ export default function ForemanDashboard({
         <>
             <Head title="Foreman Dashboard" />
             <Layout title={`Foreman — ${user.fullname}`}>
+                <div style={sectionStyle}>
+                    <div style={{ ...headerStyle, cursor: 'default' }}>
+                        <div style={{ fontWeight: 600, fontSize: 15 }}>Assigned Projects</div>
+                        <span style={{ color: 'var(--text-muted)', fontSize: 12 }}>
+                            {assignedProjects.length} project{assignedProjects.length === 1 ? '' : 's'}
+                        </span>
+                    </div>
+
+                    <div style={{ padding: 20 }}>
+                        {assignedProjects.length === 0 ? (
+                            <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>
+                                No project assignments found yet. Contact admin/head admin to assign you to a project.
+                            </div>
+                        ) : (
+                            <div style={{ display: 'grid', gap: 10 }}>
+                                {assignedProjects.map((project) => (
+                                    <div
+                                        key={project.id}
+                                        style={{
+                                            border: '1px solid var(--border-color)',
+                                            borderRadius: 10,
+                                            padding: 12,
+                                            background: 'var(--surface-2)',
+                                            display: 'grid',
+                                            gridTemplateColumns: 'minmax(180px, 1.3fr) repeat(3, minmax(90px, auto)) auto',
+                                            gap: 8,
+                                            alignItems: 'center',
+                                        }}
+                                    >
+                                        <div>
+                                            <div style={{ fontWeight: 700 }}>{project.name}</div>
+                                            <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+                                                {project.client || 'No client'} • {project.phase || '-'} • {project.status || '-'}
+                                            </div>
+                                        </div>
+
+                                        <div>
+                                            <div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Progress</div>
+                                            <div style={{ ...mono, fontWeight: 700 }}>{Number(project.overall_progress || 0)}%</div>
+                                        </div>
+
+                                        <div>
+                                            <div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Phase</div>
+                                            <div style={{ fontSize: 12, fontWeight: 600 }}>{project.phase || '-'}</div>
+                                        </div>
+
+                                        <div>
+                                            <div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Status</div>
+                                            <div style={{ fontSize: 12, fontWeight: 600 }}>{project.status || '-'}</div>
+                                        </div>
+
+                                        <a
+                                            href={project.public_submit_url}
+                                            target="_blank"
+                                            rel="noreferrer"
+                                            style={{
+                                                textDecoration: 'none',
+                                                background: 'var(--success)',
+                                                color: '#fff',
+                                                borderRadius: 8,
+                                                padding: '8px 12px',
+                                                fontSize: 12,
+                                                fontWeight: 700,
+                                                textAlign: 'center',
+                                                whiteSpace: 'nowrap',
+                                            }}
+                                        >
+                                            Submit Progress
+                                        </a>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+                </div>
+
                 <div style={{ ...sectionStyle, overflow: 'visible', position: 'relative', zIndex: 2 }}>
                     <div style={{ ...headerStyle, cursor: 'default' }}>
                         <div style={{ fontWeight: 600, fontSize: 15 }}>Foreman Attendance</div>

@@ -24,4 +24,6 @@ class User extends Authenticatable {
     public function deliveries()        { return $this->hasMany(DeliveryConfirmation::class, 'foreman_id'); }
     public function workers()           { return $this->hasMany(Worker::class, 'foreman_id'); }
     public function detail()            { return $this->hasOne(UserDetail::class); }
+    public function projectAssignments(){ return $this->hasMany(ProjectAssignment::class); }
+    public function projectTeams()      { return $this->hasMany(ProjectWorker::class); }
 }

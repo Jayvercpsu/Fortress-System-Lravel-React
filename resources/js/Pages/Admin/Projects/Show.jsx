@@ -28,12 +28,14 @@ const money = (value) =>
 
 export default function AdminProjectsShow({
     project,
+    assignedTeam = [],
+    teamOptions = {},
     files = [],
     fileTable = {},
     updates = [],
     updateTable = {},
 }) {
-    const { flash } = usePage().props;
+    const { flash, errors: pageErrors } = usePage().props;
     const [tab, setTab] = useState(() => {
         const active = new URLSearchParams(window.location.search).get('tab');
         return ['overview', 'files', 'updates'].includes(active) ? active : 'overview';
@@ -56,6 +58,19 @@ export default function AdminProjectsShow({
         errors: updateErrors,
         reset: resetUpdate,
     } = useForm({ note: '' });
+
+    const {
+        data: teamData,
+        setData: setTeamData,
+        post: postTeam,
+        processing: savingTeam,
+        errors: teamErrors,
+        reset: resetTeam,
+    } = useForm({
+        user_id: '',
+        worker_name: '',
+        rate: '',
+    });
 
     useEffect(() => {
         if (flash?.success) toast.success(flash.success);
@@ -141,6 +156,27 @@ export default function AdminProjectsShow({
     const deleteFile = (id) => {
         router.delete(`/project-files/${id}${projectShowQueryString({ tab: 'files' })}`, {
             onError: () => toast.error('Unable to delete file.'),
+        });
+    };
+
+    const userTeamOptions = Array.isArray(teamOptions?.users) ? teamOptions.users : [];
+    const workerTeamOptions = Array.isArray(teamOptions?.workers) ? teamOptions.workers : [];
+
+    const addTeamMember = (e) => {
+        e.preventDefault();
+        postTeam(`/projects/${project.id}/team${projectShowQueryString({ tab: 'overview' })}`, {
+            preserveScroll: true,
+            onSuccess: () => {
+                resetTeam('user_id', 'worker_name', 'rate');
+            },
+            onError: () => toast.error('Unable to add team member.'),
+        });
+    };
+
+    const removeTeamMember = (teamMemberId) => {
+        router.delete(`/project-team/${teamMemberId}${projectShowQueryString({ tab: 'overview' })}`, {
+            preserveScroll: true,
+            onError: () => toast.error('Unable to remove team member.'),
         });
     };
 
@@ -276,29 +312,198 @@ export default function AdminProjectsShow({
                 </div>
 
                 {tab === 'overview' && (
-                    <div style={{ ...cardStyle, display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 12 }}>
-                        {[
-                            ['Name', project.name],
-                            ['Client', project.client],
-                            ['Type', project.type],
-                            ['Location', project.location],
-                            ['Assigned', project.assigned || '-'],
-                            ['Target', project.target || '-'],
-                            ['Phase', project.phase],
-                            ['Status', project.status],
-                            ['Overall Progress', `${project.overall_progress}%`],
-                            ['Contract Amount', money(project.contract_amount)],
-                            ['Design Fee', money(project.design_fee)],
-                            ['Construction Cost', money(project.construction_cost)],
-                            ['Total Client Payment', money(project.total_client_payment)],
-                            ['Last Paid Date', project.last_paid_date || '-'],
-                            ['Remaining Balance', money(project.remaining_balance)],
-                        ].map(([label, value]) => (
-                            <div key={label}>
-                                <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{label}</div>
-                                <div style={{ fontWeight: 600 }}>{value}</div>
+                    <div style={{ display: 'grid', gap: 14 }}>
+                        <div style={{ ...cardStyle, display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 12 }}>
+                            {[
+                                ['Name', project.name],
+                                ['Client', project.client],
+                                ['Type', project.type],
+                                ['Location', project.location],
+                                ['Assigned', project.assigned || '-'],
+                                ['Target', project.target || '-'],
+                                ['Phase', project.phase],
+                                ['Status', project.status],
+                                ['Overall Progress', `${project.overall_progress}%`],
+                                ['Contract Amount', money(project.contract_amount)],
+                                ['Design Fee', money(project.design_fee)],
+                                ['Construction Cost', money(project.construction_cost)],
+                                ['Total Client Payment', money(project.total_client_payment)],
+                                ['Last Paid Date', project.last_paid_date || '-'],
+                                ['Remaining Balance', money(project.remaining_balance)],
+                            ].map(([label, value]) => (
+                                <div key={label}>
+                                    <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{label}</div>
+                                    <div style={{ fontWeight: 600 }}>{value}</div>
+                                </div>
+                            ))}
+                        </div>
+
+                        <div style={{ ...cardStyle, display: 'grid', gap: 12 }}>
+                            <div style={{ fontWeight: 700 }}>Assigned Team</div>
+
+                            <form onSubmit={addTeamMember} style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr 1fr auto', gap: 8, alignItems: 'end' }}>
+                                <div style={{ display: 'grid', gap: 6 }}>
+                                    <label style={{ fontSize: 12, color: 'var(--text-muted)' }}>Registered User (optional)</label>
+                                    <select
+                                        value={teamData.user_id}
+                                        onChange={(e) => {
+                                            const nextUserId = e.target.value;
+                                            const selected = userTeamOptions.find((user) => String(user.id) === String(nextUserId));
+                                            setTeamData((data) => ({
+                                                ...data,
+                                                user_id: nextUserId,
+                                                worker_name: nextUserId ? '' : data.worker_name,
+                                                rate: nextUserId && selected?.default_rate_per_hour != null
+                                                    ? String(selected.default_rate_per_hour)
+                                                    : data.rate,
+                                            }));
+                                        }}
+                                        style={inputStyle}
+                                    >
+                                        <option value="">Select user</option>
+                                        {userTeamOptions.map((user) => (
+                                            <option key={user.id} value={user.id}>
+                                                {user.fullname} ({user.role})
+                                            </option>
+                                        ))}
+                                    </select>
+                                </div>
+
+                                <div style={{ display: 'grid', gap: 6 }}>
+                                    <label style={{ fontSize: 12, color: 'var(--text-muted)' }}>Worker Template (optional)</label>
+                                    <select
+                                        value=""
+                                        onChange={(e) => {
+                                            const selected = workerTeamOptions.find((worker) => String(worker.id) === String(e.target.value));
+                                            if (!selected) return;
+                                            setTeamData((data) => ({
+                                                ...data,
+                                                user_id: '',
+                                                worker_name: selected.name || '',
+                                                rate: selected.default_rate_per_hour != null ? String(selected.default_rate_per_hour) : data.rate,
+                                            }));
+                                            e.target.value = '';
+                                        }}
+                                        style={inputStyle}
+                                    >
+                                        <option value="">Pick saved worker</option>
+                                        {workerTeamOptions.map((worker) => (
+                                            <option key={worker.id} value={worker.id}>
+                                                {worker.name}
+                                            </option>
+                                        ))}
+                                    </select>
+                                </div>
+
+                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 120px', gap: 8 }}>
+                                    <div style={{ display: 'grid', gap: 6 }}>
+                                        <label style={{ fontSize: 12, color: 'var(--text-muted)' }}>Worker Name (manual)</label>
+                                        <input
+                                            value={teamData.worker_name}
+                                            onChange={(e) =>
+                                                setTeamData((data) => ({ ...data, user_id: '', worker_name: e.target.value }))
+                                            }
+                                            placeholder="Manual worker name"
+                                            style={inputStyle}
+                                        />
+                                    </div>
+
+                                    <div style={{ display: 'grid', gap: 6 }}>
+                                        <label style={{ fontSize: 12, color: 'var(--text-muted)' }}>Rate</label>
+                                        <input
+                                            type="number"
+                                            min="0"
+                                            step="0.01"
+                                            value={teamData.rate}
+                                            onChange={(e) => setTeamData('rate', e.target.value)}
+                                            placeholder="0.00"
+                                            style={inputStyle}
+                                        />
+                                    </div>
+                                </div>
+
+                                <button
+                                    type="submit"
+                                    disabled={savingTeam}
+                                    style={{
+                                        background: 'var(--success)',
+                                        color: '#fff',
+                                        border: 'none',
+                                        borderRadius: 8,
+                                        padding: '10px 12px',
+                                        cursor: 'pointer',
+                                        fontWeight: 700,
+                                        fontSize: 12,
+                                        whiteSpace: 'nowrap',
+                                    }}
+                                >
+                                    {savingTeam ? 'Saving...' : 'Add / Update'}
+                                </button>
+                            </form>
+
+                            {(teamErrors.team_member || pageErrors?.team_member) && (
+                                <div style={{ color: '#f87171', fontSize: 12 }}>
+                                    {teamErrors.team_member || pageErrors?.team_member}
+                                </div>
+                            )}
+
+                            {teamErrors.user_id && <div style={{ color: '#f87171', fontSize: 12 }}>{teamErrors.user_id}</div>}
+                            {teamErrors.worker_name && <div style={{ color: '#f87171', fontSize: 12 }}>{teamErrors.worker_name}</div>}
+                            {teamErrors.rate && <div style={{ color: '#f87171', fontSize: 12 }}>{teamErrors.rate}</div>}
+
+                            <div style={{ display: 'grid', gap: 8 }}>
+                                {assignedTeam.length === 0 ? (
+                                    <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>No team members assigned yet.</div>
+                                ) : (
+                                    assignedTeam.map((member) => (
+                                        <div
+                                            key={member.id}
+                                            style={{
+                                                border: '1px solid var(--border-color)',
+                                                borderRadius: 8,
+                                                background: 'var(--surface-2)',
+                                                padding: 10,
+                                                display: 'grid',
+                                                gridTemplateColumns: '1fr auto auto auto',
+                                                gap: 8,
+                                                alignItems: 'center',
+                                            }}
+                                        >
+                                            <div>
+                                                <div style={{ fontWeight: 600 }}>{member.display_name || '-'}</div>
+                                                <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+                                                    {member.source === 'user'
+                                                        ? `Registered user${member.user_role ? ` (${member.user_role})` : ''}`
+                                                        : 'Manual worker'}
+                                                </div>
+                                            </div>
+                                            <div style={{ fontSize: 12, fontFamily: "'DM Mono', monospace" }}>
+                                                {money(member.rate)}
+                                            </div>
+                                            <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+                                                {member.user_id ? `User #${member.user_id}` : 'Manual'}
+                                            </div>
+                                            <button
+                                                type="button"
+                                                onClick={() => removeTeamMember(member.id)}
+                                                style={{
+                                                    background: 'rgba(248,81,73,0.12)',
+                                                    color: '#f87171',
+                                                    border: '1px solid rgba(248,81,73,0.25)',
+                                                    borderRadius: 8,
+                                                    padding: '6px 10px',
+                                                    cursor: 'pointer',
+                                                    fontSize: 12,
+                                                    fontWeight: 600,
+                                                }}
+                                            >
+                                                Remove
+                                            </button>
+                                        </div>
+                                    ))
+                                )}
                             </div>
-                        ))}
+                        </div>
                     </div>
                 )}
 

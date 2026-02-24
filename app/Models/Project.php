@@ -54,4 +54,14 @@ class Project extends Model
     {
         return $this->hasMany(Payment::class);
     }
+
+    public function assignments()
+    {
+        return $this->hasMany(ProjectAssignment::class);
+    }
+
+    public function teamMembers()
+    {
+        return $this->hasMany(ProjectWorker::class);
+    }
 }
