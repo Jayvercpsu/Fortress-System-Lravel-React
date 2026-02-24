@@ -14,6 +14,8 @@ use App\Models\ProjectAssignment;
 use App\Models\ProjectScope;
 use App\Models\User;
 use App\Models\WeeklyAccomplishment;
+use Illuminate\Http\Request;
+use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
@@ -24,7 +26,7 @@ class DashboardController extends Controller
 {
     private const PH_TIMEZONE = 'Asia/Manila';
 
-    public function headAdmin()
+    public function headAdmin(Request $request)
     {
         $projectKpis = $this->projectKpis();
         $payrollPaymentKpis = $this->payrollAndPaymentKpis();
@@ -52,35 +54,76 @@ class DashboardController extends Controller
             ],
         ]);
 
+        $materialsPager = MaterialRequest::query()
+            ->with('foreman:id,fullname')
+            ->latest()
+            ->paginate(5, ['*'], 'ha_materials_page')
+            ->withQueryString();
+        $materialsPager->setCollection(
+            $materialsPager->getCollection()->map(fn (MaterialRequest $row) => [
+                'id' => $row->id,
+                'material_name' => $row->material_name,
+                'quantity' => $row->quantity,
+                'unit' => $row->unit,
+                'status' => $row->status,
+                'foreman' => ['fullname' => $row->foreman?->fullname],
+            ])
+        );
+
+        $issuesPager = IssueReport::query()
+            ->with('foreman:id,fullname')
+            ->latest()
+            ->paginate(5, ['*'], 'ha_issues_page')
+            ->withQueryString();
+        $issuesPager->setCollection(
+            $issuesPager->getCollection()->map(fn (IssueReport $row) => [
+                'id' => $row->id,
+                'issue_title' => $row->issue_title,
+                'severity' => $row->severity,
+                'status' => $row->status,
+                'foreman' => ['fullname' => $row->foreman?->fullname],
+            ])
+        );
+
         $recentSubmissions = [
-            'materials' => MaterialRequest::with('foreman')->latest()->take(5)->get(),
-            'issues' => IssueReport::with('foreman')->latest()->take(5)->get(),
+            'materials' => $materialsPager,
+            'issues' => $issuesPager,
         ];
 
-        $recentPayrolls = Payroll::query()
+        $recentPayrollsPager = Payroll::query()
             ->latest()
-            ->take(8)
-            ->get(['id', 'worker_name', 'role', 'net', 'status', 'week_start'])
-            ->map(fn (Payroll $payroll) => [
-                'id' => $payroll->id,
-                'worker_name' => $payroll->worker_name,
-                'role' => $payroll->role,
-                'net' => (float) $payroll->net,
-                'status' => $payroll->status,
-                'week_start' => optional($payroll->week_start)?->toDateString(),
-            ])
-            ->values();
+            ->paginate(8, ['*'], 'ha_payrolls_page')
+            ->withQueryString();
+        $recentPayrollsPager->setCollection(
+            $recentPayrollsPager->getCollection()
+                ->map(fn (Payroll $payroll) => [
+                    'id' => $payroll->id,
+                    'worker_name' => $payroll->worker_name,
+                    'role' => $payroll->role,
+                    'net' => (float) $payroll->net,
+                    'status' => $payroll->status,
+                    'week_start' => optional($payroll->week_start)?->toDateString(),
+                ])
+                ->values()
+        );
+
+        $recentProjectsPager = $this->paginateCollection(
+            collect($projectKpis['projects'] ?? []),
+            8,
+            'ha_projects_page',
+            $request
+        );
 
         return Inertia::render('HeadAdmin/Dashboard', [
             'stats' => $stats,
             'kpis' => $kpis,
             'recentSubmissions' => $recentSubmissions,
-            'recentPayrolls' => $recentPayrolls,
-            'recentProjects' => collect($projectKpis['projects'])->take(8)->values(),
+            'recentPayrollsPager' => $recentPayrollsPager,
+            'recentProjectsPager' => $recentProjectsPager,
         ]);
     }
 
-    public function admin()
+    public function admin(Request $request)
     {
         $projectKpis = $this->projectKpis();
 
@@ -92,10 +135,17 @@ class DashboardController extends Controller
             'projects' => $projectKpis['projects'],
         ];
 
-        return Inertia::render('Admin/Dashboard', compact('kpis'));
+        $projectSnapshotPager = $this->paginateCollection(
+            collect($projectKpis['projects'] ?? []),
+            10,
+            'admin_projects_page',
+            $request
+        );
+
+        return Inertia::render('Admin/Dashboard', compact('kpis', 'projectSnapshotPager'));
     }
 
-    public function hr()
+    public function hr(Request $request)
     {
         $payrolls = Payroll::with('user')->latest()->take(20)->get();
         $totalPayable = (float) Payroll::whereIn('status', ['pending', 'ready', 'approved'])->sum('net');
@@ -112,16 +162,54 @@ class DashboardController extends Controller
             ])
             ->values();
 
+        $projectPaymentsPager = Project::query()
+            ->orderBy('name')
+            ->paginate(10, ['id', 'name', 'client', 'contract_amount', 'total_client_payment', 'remaining_balance'], 'hr_projects_page')
+            ->withQueryString();
+        $projectPaymentsPager->setCollection(
+            $projectPaymentsPager->getCollection()->map(fn (Project $project) => [
+                'id' => $project->id,
+                'name' => $project->name,
+                'client' => $project->client,
+                'contract_amount' => (float) $project->contract_amount,
+                'total_client_payment' => (float) $project->total_client_payment,
+                'remaining_balance' => (float) $project->remaining_balance,
+            ])->values()
+        );
+
+        $recentPayrollsPager = Payroll::query()
+            ->latest()
+            ->paginate(10, ['*'], 'hr_payrolls_page')
+            ->withQueryString();
+        $recentPayrollsPager->setCollection(
+            $recentPayrollsPager->getCollection()->map(fn (Payroll $row) => [
+                'id' => $row->id,
+                'worker_name' => $row->worker_name,
+                'role' => $row->role,
+                'hours' => (float) ($row->hours ?? 0),
+                'rate_per_hour' => (float) ($row->rate_per_hour ?? 0),
+                'gross' => (float) ($row->gross ?? 0),
+                'net' => (float) ($row->net ?? 0),
+                'status' => $row->status,
+            ])->values()
+        );
+
         $kpis = $this->payrollAndPaymentKpis();
 
-        return Inertia::render('HR/Dashboard', compact('payrolls', 'totalPayable', 'projects', 'kpis'));
+        return Inertia::render('HR/Dashboard', compact('payrolls', 'totalPayable', 'projects', 'kpis', 'projectPaymentsPager', 'recentPayrollsPager'));
     }
 
-    public function foreman()
+    public function foreman(Request $request)
     {
         $user = Auth::user();
         $assignedProjectIds = $this->resolveForemanAssignedProjectIds($user);
         $assignedProjects = $this->foremanAssignedProjectsPayload($user, $assignedProjectIds);
+        $assignedProjectsPager = $this->paginateCollection(
+            collect($assignedProjects),
+            5,
+            'foreman_assigned_projects_page',
+            $request
+        );
 
         $attendances = Attendance::where('foreman_id', $user->id)->latest()->take(20)->get();
         $accomplishments = WeeklyAccomplishment::where('foreman_id', $user->id)->latest()->take(20)->get();
@@ -145,6 +233,55 @@ class DashboardController extends Controller
                 'created_at' => optional($delivery->created_at)?->toDateTimeString(),
             ])
             ->values();
+
+        $materialRequestsPager = MaterialRequest::query()
+            ->where('foreman_id', $user->id)
+            ->latest()
+            ->paginate(5, ['*'], 'foreman_dashboard_materials_page')
+            ->withQueryString();
+        $materialRequestsPager->setCollection(
+            $materialRequestsPager->getCollection()->map(fn (MaterialRequest $row) => [
+                'id' => $row->id,
+                'material_name' => $row->material_name,
+                'quantity' => $row->quantity,
+                'unit' => $row->unit,
+                'status' => $row->status,
+            ])->values()
+        );
+
+        $issueReportsPager = IssueReport::query()
+            ->where('foreman_id', $user->id)
+            ->latest()
+            ->paginate(5, ['*'], 'foreman_dashboard_issues_page')
+            ->withQueryString();
+        $issueReportsPager->setCollection(
+            $issueReportsPager->getCollection()->map(fn (IssueReport $row) => [
+                'id' => $row->id,
+                'issue_title' => $row->issue_title,
+                'severity' => $row->severity,
+                'status' => $row->status,
+            ])->values()
+        );
+
+        $deliveriesPager = DeliveryConfirmation::query()
+            ->with('project:id,name')
+            ->where('foreman_id', $user->id)
+            ->latest()
+            ->paginate(5, ['*'], 'foreman_dashboard_deliveries_page')
+            ->withQueryString();
+        $deliveriesPager->setCollection(
+            $deliveriesPager->getCollection()->map(fn (DeliveryConfirmation $delivery) => [
+                'id' => $delivery->id,
+                'project_id' => $delivery->project_id,
+                'project_name' => $delivery->project?->name,
+                'item_delivered' => $delivery->item_delivered,
+                'quantity' => $delivery->quantity,
+                'delivery_date' => $delivery->delivery_date ? (string) $delivery->delivery_date : null,
+                'supplier' => $delivery->supplier,
+                'status' => $delivery->status,
+                'created_at' => optional($delivery->created_at)?->toDateTimeString(),
+            ])->values()
+        );
 
         $progressPhotos = ProgressPhoto::query()
             ->with('project:id,name')
@@ -226,6 +363,10 @@ class DashboardController extends Controller
             'materialRequests',
             'issueReports',
             'deliveries',
+            'assignedProjectsPager',
+            'materialRequestsPager',
+            'issueReportsPager',
+            'deliveriesPager',
             'projects',
             'assignedProjects',
             'foremanAttendanceToday',
@@ -572,6 +713,24 @@ class DashboardController extends Controller
             })
             ->values()
             ->all();
+    }
+
+    private function paginateCollection(Collection $rows, int $perPage, string $pageName, Request $request): LengthAwarePaginator
+    {
+        $page = max(1, (int) $request->query($pageName, 1));
+        $total = $rows->count();
+        $items = $rows->forPage($page, $perPage)->values();
+
+        return (new LengthAwarePaginator(
+            $items,
+            $total,
+            $perPage,
+            $page,
+            [
+                'path' => $request->url(),
+                'pageName' => $pageName,
+            ]
+        ))->appends($request->query());
     }
 
     private function ensureForemanSubmitToken(Project $project, User $user): ProgressSubmitToken

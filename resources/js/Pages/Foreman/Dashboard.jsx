@@ -1,4 +1,5 @@
 import Layout from '../../Components/Layout';
+import InlinePagination from '../../Components/InlinePagination';
 import SearchableDropdown from '../../Components/SearchableDropdown';
 import ActionButton from '../../Components/ActionButton';
 import { Head, Link, router, usePage } from '@inertiajs/react';
@@ -73,6 +74,10 @@ export default function ForemanDashboard({
     materialRequests = [],
     issueReports = [],
     deliveries = [],
+    assignedProjectsPager = null,
+    materialRequestsPager = null,
+    issueReportsPager = null,
+    deliveriesPager = null,
     projects = [],
     assignedProjects = [],
     foremanAttendanceToday = null,
@@ -88,6 +93,10 @@ export default function ForemanDashboard({
         () => (Array.isArray(projects) ? projects.map((project) => ({ id: project.id, name: project.name })) : []),
         [projects]
     );
+    const assignedProjectRows = assignedProjectsPager?.data || assignedProjects;
+    const materialRequestRows = materialRequestsPager?.data || materialRequests.slice(0, 5);
+    const issueReportRows = issueReportsPager?.data || issueReports.slice(0, 5);
+    const deliveryRows = deliveriesPager?.data || deliveries.slice(0, 5);
 
     useEffect(() => {
         if (flash?.success) toast.success(flash.success);
@@ -320,7 +329,7 @@ export default function ForemanDashboard({
                                 </div>
                             ) : (
                                 <div style={{ display: 'grid', gap: 8 }}>
-                                    {assignedProjects.map((project) => (
+                                    {assignedProjectRows.map((project) => (
                                         <div
                                             key={project.id}
                                             style={{
@@ -378,6 +387,7 @@ export default function ForemanDashboard({
                                     ))}
                                 </div>
                             )}
+                            <InlinePagination pager={assignedProjectsPager} />
                         </div>
 
                         <div style={{ ...cardStyle, overflow: 'hidden' }}>
@@ -414,11 +424,11 @@ export default function ForemanDashboard({
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12 }}>
                         <div style={cardStyle}>
                             <div style={{ fontWeight: 700, marginBottom: 10 }}>Recent Materials</div>
-                            {materialRequests.length === 0 ? (
+                            {materialRequestRows.length === 0 ? (
                                 <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>No material requests yet.</div>
                             ) : (
                                 <div style={{ display: 'grid', gap: 8 }}>
-                                    {materialRequests.slice(0, 5).map((item) => (
+                                    {materialRequestRows.map((item) => (
                                         <div key={item.id} style={{ border: '1px solid var(--border-color)', borderRadius: 8, padding: 10, background: 'var(--surface-2)' }}>
                                             <div style={{ fontWeight: 700 }}>{item.material_name}</div>
                                             <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
@@ -429,15 +439,16 @@ export default function ForemanDashboard({
                                     ))}
                                 </div>
                             )}
+                            <InlinePagination pager={materialRequestsPager} />
                         </div>
 
                         <div style={cardStyle}>
                             <div style={{ fontWeight: 700, marginBottom: 10 }}>Recent Issues</div>
-                            {issueReports.length === 0 ? (
+                            {issueReportRows.length === 0 ? (
                                 <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>No issue reports yet.</div>
                             ) : (
                                 <div style={{ display: 'grid', gap: 8 }}>
-                                    {issueReports.slice(0, 5).map((item) => (
+                                    {issueReportRows.map((item) => (
                                         <div key={item.id} style={{ border: '1px solid var(--border-color)', borderRadius: 8, padding: 10, background: 'var(--surface-2)' }}>
                                             <div style={{ fontWeight: 700 }}>{item.issue_title}</div>
                                             <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
@@ -447,15 +458,16 @@ export default function ForemanDashboard({
                                     ))}
                                 </div>
                             )}
+                            <InlinePagination pager={issueReportsPager} />
                         </div>
 
                         <div style={cardStyle}>
                             <div style={{ fontWeight: 700, marginBottom: 10 }}>Recent Deliveries</div>
-                            {deliveries.length === 0 ? (
+                            {deliveryRows.length === 0 ? (
                                 <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>No delivery confirmations yet.</div>
                             ) : (
                                 <div style={{ display: 'grid', gap: 8 }}>
-                                    {deliveries.slice(0, 5).map((item) => (
+                                    {deliveryRows.map((item) => (
                                         <div key={item.id} style={{ border: '1px solid var(--border-color)', borderRadius: 8, padding: 10, background: 'var(--surface-2)' }}>
                                             <div style={{ fontWeight: 700 }}>{item.item_delivered}</div>
                                             <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>
@@ -469,6 +481,7 @@ export default function ForemanDashboard({
                                     ))}
                                 </div>
                             )}
+                            <InlinePagination pager={deliveriesPager} />
                         </div>
                     </div>
                 </div>

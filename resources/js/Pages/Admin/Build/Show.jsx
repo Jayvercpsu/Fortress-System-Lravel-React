@@ -320,37 +320,6 @@ export default function AdminBuildShow({
                     </Link>
                 </div>
 
-                <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
-                    <button
-                        type="button"
-                        onClick={() => setActiveTab('tracker')}
-                        style={{
-                            border: '1px solid var(--border-color)',
-                            background: activeTab === 'tracker' ? 'var(--active-bg)' : 'var(--button-bg)',
-                            color: activeTab === 'tracker' ? 'var(--active-text)' : 'var(--text-main)',
-                            borderRadius: 8,
-                            padding: '8px 12px',
-                            cursor: 'pointer',
-                        }}
-                    >
-                        Tracker
-                    </button>
-                    <button
-                        type="button"
-                        onClick={() => setActiveTab('expenses')}
-                        style={{
-                            border: '1px solid var(--border-color)',
-                            background: activeTab === 'expenses' ? 'var(--active-bg)' : 'var(--button-bg)',
-                            color: activeTab === 'expenses' ? 'var(--active-text)' : 'var(--text-main)',
-                            borderRadius: 8,
-                            padding: '8px 12px',
-                            cursor: 'pointer',
-                        }}
-                    >
-                        Expenses
-                    </button>
-                </div>
-
                 {activeTab === 'tracker' && (
                     <form onSubmit={submit} style={{ display: 'grid', gap: 16 }}>
                         <div style={{ ...cardStyle, display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12 }}>

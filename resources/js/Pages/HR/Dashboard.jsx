@@ -1,4 +1,5 @@
 import Layout from '../../Components/Layout';
+import InlinePagination from '../../Components/InlinePagination';
 import { Head, Link } from '@inertiajs/react';
 
 const cardStyle = {
@@ -29,12 +30,21 @@ function StatCard({ label, value, color = 'var(--text-main)' }) {
     );
 }
 
-export default function HRDashboard({ payrolls = [], totalPayable = 0, projects = [], kpis = {} }) {
+export default function HRDashboard({
+    payrolls = [],
+    totalPayable = 0,
+    projects = [],
+    kpis = {},
+    projectPaymentsPager = null,
+    recentPayrollsPager = null,
+}) {
     const paymentTotals = kpis.payment_totals || {};
     const payrollStatusCounts = (kpis.payroll_counts_by_status || []).reduce((acc, row) => {
         acc[String(row.label || '').toLowerCase()] = Number(row.count || 0);
         return acc;
     }, {});
+    const projectPaymentRows = projectPaymentsPager?.data || projects.slice(0, 10);
+    const payrollRows = recentPayrollsPager?.data || payrolls.slice(0, 10);
 
     return (
         <>
@@ -125,10 +135,10 @@ export default function HRDashboard({ payrolls = [], totalPayable = 0, projects 
                 >
                     <div style={{ fontWeight: 700, marginBottom: 10 }}>Project Payments</div>
                     <div style={{ display: 'grid', gap: 8 }}>
-                        {projects.length === 0 ? (
+                        {projectPaymentRows.length === 0 ? (
                             <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>No projects yet.</div>
                         ) : (
-                            projects.slice(0, 10).map((project) => (
+                            projectPaymentRows.map((project) => (
                                 <div
                                     key={project.id}
                                     style={{
@@ -200,6 +210,7 @@ export default function HRDashboard({ payrolls = [], totalPayable = 0, projects 
                             ))
                         )}
                     </div>
+                    <InlinePagination pager={projectPaymentsPager} />
                 </div>
 
                 <div style={{ ...cardStyle, overflow: 'hidden' }}>
@@ -225,7 +236,7 @@ export default function HRDashboard({ payrolls = [], totalPayable = 0, projects 
                             </tr>
                         </thead>
                         <tbody>
-                            {payrolls.slice(0, 10).map((row) => (
+                            {payrollRows.map((row) => (
                                 <tr key={row.id} style={{ borderBottom: '1px solid var(--row-divider)' }}>
                                     <td style={{ padding: '10px 12px', fontWeight: 700 }}>{row.worker_name}</td>
                                     <td style={{ padding: '10px 12px', color: 'var(--text-muted)', fontSize: 12 }}>{row.role}</td>
@@ -252,7 +263,7 @@ export default function HRDashboard({ payrolls = [], totalPayable = 0, projects 
                                 </tr>
                             ))}
 
-                            {payrolls.length === 0 && (
+                            {payrollRows.length === 0 && (
                                 <tr>
                                     <td colSpan={7} style={{ padding: 28, textAlign: 'center', color: 'var(--text-muted-2)' }}>
                                         No payroll records available.
@@ -261,6 +272,7 @@ export default function HRDashboard({ payrolls = [], totalPayable = 0, projects 
                             )}
                         </tbody>
                     </table>
+                    <InlinePagination pager={recentPayrollsPager} />
                 </div>
             </Layout>
         </>

@@ -2,7 +2,11 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Project;
+use App\Models\ProjectAssignment;
 use App\Models\Worker;
+use App\Models\User;
+use Illuminate\Support\Collection;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
 use Inertia\Inertia;
@@ -21,7 +25,11 @@ class ForemanWorkerController extends Controller
             $perPage = 10;
         }
 
-        $query = Worker::query()->where('foreman_id', $foreman->id);
+        $assignedProjects = $this->foremanAssignedProjects($foreman);
+
+        $query = Worker::query()
+            ->where('foreman_id', $foreman->id)
+            ->with('project:id,name');
 
         if ($search !== '') {
             $query->where(function ($builder) use ($search) {
@@ -43,6 +51,8 @@ class ForemanWorkerController extends Controller
         $workers = collect($paginator->items())->map(fn (Worker $worker) => [
             'id' => $worker->id,
             'name' => $worker->name,
+            'project_id' => $worker->project_id,
+            'project_name' => $worker->project?->name,
             'birth_date' => optional($worker->birth_date)?->toDateString(),
             'place_of_birth' => $worker->place_of_birth,
             'sex' => $worker->sex,
@@ -54,6 +64,7 @@ class ForemanWorkerController extends Controller
 
         return Inertia::render('Foreman/Workers/Index', [
             'workers' => $workers,
+            'assignedProjects' => $assignedProjects->values()->all(),
             'workerTable' => [
                 'search' => $search,
                 'per_page' => $paginator->perPage(),
@@ -71,7 +82,13 @@ class ForemanWorkerController extends Controller
         $foreman = $request->user();
         abort_unless($foreman->role === 'foreman', 403);
 
-        $validated = $request->validate($this->rules($foreman->id));
+        $assignedProjectIds = $this->foremanAssignedProjects($foreman)
+            ->pluck('id')
+            ->map(fn ($id) => (int) $id)
+            ->values()
+            ->all();
+
+        $validated = $request->validate($this->rules($foreman->id, $assignedProjectIds));
 
         Worker::create([
             'foreman_id' => $foreman->id,
@@ -88,7 +105,13 @@ class ForemanWorkerController extends Controller
         $foreman = $request->user();
         abort_unless($foreman->role === 'foreman' && (int) $worker->foreman_id === (int) $foreman->id, 403);
 
-        $validated = $request->validate($this->rules($foreman->id, $worker->id));
+        $assignedProjectIds = $this->foremanAssignedProjects($foreman)
+            ->pluck('id')
+            ->map(fn ($id) => (int) $id)
+            ->values()
+            ->all();
+
+        $validated = $request->validate($this->rules($foreman->id, $assignedProjectIds, $worker->id));
 
         $worker->update($validated);
 
@@ -109,9 +132,10 @@ class ForemanWorkerController extends Controller
             ->with('success', 'Worker deleted.');
     }
 
-    private function rules(int $foremanId, ?int $workerId = null): array
+    private function rules(int $foremanId, array $allowedProjectIds, ?int $workerId = null): array
     {
         return [
+            'project_id' => ['required', Rule::in($allowedProjectIds)],
             'name' => [
                 'required',
                 'string',
@@ -127,6 +151,55 @@ class ForemanWorkerController extends Controller
             'phone' => 'nullable|string|max:50',
             'address' => 'nullable|string|max:500',
         ];
+    }
+
+    private function foremanAssignedProjectIds(User $foreman): Collection
+    {
+        $assigned = ProjectAssignment::query()
+            ->where('user_id', $foreman->id)
+            ->where('role_in_project', 'foreman')
+            ->pluck('project_id')
+            ->map(fn ($projectId) => (int) $projectId)
+            ->unique()
+            ->values();
+
+        if ($assigned->isNotEmpty()) {
+            return $assigned;
+        }
+
+        $fullname = trim((string) ($foreman->fullname ?? ''));
+        if ($fullname === '') {
+            return collect();
+        }
+
+        return Project::query()
+            ->whereNotNull('assigned')
+            ->where('assigned', '!=', '')
+            ->get(['id', 'assigned'])
+            ->filter(function (Project $project) use ($fullname) {
+                $assignedNames = collect(preg_split('/[,;]+/', (string) $project->assigned))
+                    ->map(fn ($part) => trim((string) $part))
+                    ->filter();
+
+                return $assignedNames->contains($fullname);
+            })
+            ->pluck('id')
+            ->map(fn ($projectId) => (int) $projectId)
+            ->unique()
+            ->values();
+    }
+
+    private function foremanAssignedProjects(User $foreman): Collection
+    {
+        $assignedProjectIds = $this->foremanAssignedProjectIds($foreman);
+        if ($assignedProjectIds->isEmpty()) {
+            return collect();
+        }
+
+        return Project::query()
+            ->whereIn('id', $assignedProjectIds->all())
+            ->orderBy('name')
+            ->get(['id', 'name']);
     }
 
     private function tableQueryParams(Request $request): array

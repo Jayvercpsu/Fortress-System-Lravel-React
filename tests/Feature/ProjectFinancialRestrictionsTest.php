@@ -116,6 +116,33 @@ class ProjectFinancialRestrictionsTest extends TestCase
         $this->assertSame(60000.0, (float) $project->remaining_balance);
     }
 
+    public function test_projects_kanban_shows_for_build_projects_stored_with_underscore_phase(): void
+    {
+        $admin = $this->makeUser('head_admin');
+
+        Project::create([
+            'name' => 'FOR BUILD Visibility Project',
+            'client' => 'Client',
+            'type' => 'Residential',
+            'location' => 'QC',
+            'assigned' => null,
+            'target' => null,
+            'status' => 'PLANNING',
+            'phase' => 'FOR_BUILD',
+            'overall_progress' => 0,
+            'contract_amount' => 100000,
+            'design_fee' => 10000,
+            'construction_cost' => 80000,
+            'total_client_payment' => 0,
+            'remaining_balance' => 100000,
+        ]);
+
+        $this->actingAs($admin)
+            ->get('/projects')
+            ->assertOk()
+            ->assertSee('FOR BUILD Visibility Project');
+    }
+
     private function makeUser(string $role): User
     {
         return User::create([

@@ -24,6 +24,17 @@ const inputStyle = {
     fontSize: 13,
 };
 
+const computeAutomaticDesignProgress = ({ designContractAmount, totalReceived, clientApprovalStatus }) => {
+    if (String(clientApprovalStatus || '').toLowerCase() === 'approved') return 100;
+
+    const contractAmount = Number(designContractAmount || 0);
+    const received = Number(totalReceived || 0);
+
+    if (contractAmount <= 0 || received <= 0) return 0;
+
+    return Math.max(0, Math.min(100, Math.round((received / contractAmount) * 100)));
+};
+
 export default function HeadAdminDesignShow({ projectId, design }) {
     const { flash } = usePage().props;
 
@@ -32,12 +43,16 @@ export default function HeadAdminDesignShow({ projectId, design }) {
         downpayment: design.downpayment ?? 0,
         total_received: design.total_received ?? 0,
         office_payroll_deduction: design.office_payroll_deduction ?? 0,
-        design_progress: design.design_progress ?? 0,
         client_approval_status: design.client_approval_status ?? 'pending',
     });
 
     const remaining = Number(data.design_contract_amount || 0) - Number(data.total_received || 0);
     const netIncome = Number(data.total_received || 0) - Number(data.office_payroll_deduction || 0);
+    const designProgress = computeAutomaticDesignProgress({
+        designContractAmount: data.design_contract_amount,
+        totalReceived: data.total_received,
+        clientApprovalStatus: data.client_approval_status,
+    });
 
     useEffect(() => {
         if (flash?.error) {
@@ -124,9 +139,11 @@ export default function HeadAdminDesignShow({ projectId, design }) {
                         </label>
 
                         <label>
-                            <div style={{ fontSize: 12, marginBottom: 6 }}>Design Progress (%)</div>
-                            <input type="number" min="0" max="100" value={data.design_progress} onChange={(e) => setData('design_progress', e.target.value)} style={inputStyle} />
-                            {errors.design_progress && <div style={{ color: '#f87171', fontSize: 12, marginTop: 4 }}>{errors.design_progress}</div>}
+                            <div style={{ fontSize: 12, marginBottom: 6 }}>Design Progress (%) (Automatic)</div>
+                            <input type="number" min="0" max="100" value={designProgress} readOnly style={{ ...inputStyle, opacity: 0.9, cursor: 'not-allowed' }} />
+                            <div style={{ color: 'var(--text-muted)', fontSize: 12, marginTop: 4 }}>
+                                Auto-computed from Total Received vs Design Contract Amount. Client approval = Approved sets this to 100%.
+                            </div>
                         </label>
 
                         <label>

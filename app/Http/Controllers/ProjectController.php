@@ -11,7 +11,9 @@ use App\Models\ProjectAssignment;
 use App\Models\ProjectWorker;
 use App\Models\User;
 use App\Models\Worker;
+use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Http\Request;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
@@ -150,6 +152,36 @@ class ProjectController extends Controller
     {
         $payload = $this->projectPayload($project);
         $allowedPerPage = [5, 10, 25, 50];
+        $teamRows = collect($this->projectTeamPayload($project));
+
+        $teamSearch = trim((string) $request->query('team_search', ''));
+        $teamPerPage = (int) $request->query('team_per_page', 5);
+        if (!in_array($teamPerPage, $allowedPerPage, true)) {
+            $teamPerPage = 5;
+        }
+
+        if ($teamSearch !== '') {
+            $needle = mb_strtolower($teamSearch);
+            $teamRows = $teamRows->filter(function (array $row) use ($needle) {
+                return collect([
+                    $row['display_name'] ?? null,
+                    $row['worker_name'] ?? null,
+                    $row['user_role'] ?? null,
+                    $row['source'] ?? null,
+                    isset($row['user_id']) ? (string) $row['user_id'] : null,
+                    isset($row['rate']) ? (string) $row['rate'] : null,
+                ])->filter()->contains(function ($value) use ($needle) {
+                    return str_contains(mb_strtolower((string) $value), $needle);
+                });
+            })->values();
+        }
+
+        $teamPaginator = $this->paginateCollection(
+            $teamRows,
+            $teamPerPage,
+            'team_page',
+            $request
+        );
 
         $filesSearch = trim((string) $request->query('files_search', ''));
         $filesPerPage = (int) $request->query('files_per_page', 5);
@@ -219,7 +251,16 @@ class ProjectController extends Controller
         return Inertia::render($page, [
             'project' => $payload,
             'foremen' => $this->foremanOptionsPayload(),
-            'assignedTeam' => $this->projectTeamPayload($project),
+            'assignedTeam' => $teamPaginator->items(),
+            'assignedTeamTable' => [
+                'search' => $teamSearch,
+                'per_page' => $teamPaginator->perPage(),
+                'current_page' => $teamPaginator->currentPage(),
+                'last_page' => max(1, $teamPaginator->lastPage()),
+                'total' => $teamPaginator->total(),
+                'from' => $teamPaginator->firstItem(),
+                'to' => $teamPaginator->lastItem(),
+            ],
             'files' => $files,
             'fileTable' => [
                 'search' => $filesSearch,
@@ -509,6 +550,9 @@ class ProjectController extends Controller
             'files_search' => $request->query('files_search'),
             'files_per_page' => $request->query('files_per_page'),
             'files_page' => $request->query('files_page'),
+            'team_search' => $request->query('team_search'),
+            'team_per_page' => $request->query('team_per_page'),
+            'team_page' => $request->query('team_page'),
             'updates_search' => $request->query('updates_search'),
             'updates_per_page' => $request->query('updates_per_page'),
             'updates_page' => $request->query('updates_page'),
@@ -548,11 +592,12 @@ class ProjectController extends Controller
             'phase' => $this->normalizeProjectPhase($project->phase),
             'overall_progress' => $computed['overall_progress'],
             'contract_amount' => $computed['contract_amount'],
-            'design_fee' => $computed['design_fee'],
+            'design_fee' => (float) ($project->design_fee ?? 0),
             'construction_cost' => $computed['construction_cost'],
             'total_client_payment' => $computed['total_client_payment'],
             'remaining_balance' => $computed['remaining_balance'],
             'last_paid_date' => $computed['last_paid_date'],
+            'computation_sources' => $computed['computation_sources'] ?? [],
         ];
     }
 
@@ -581,24 +626,102 @@ class ProjectController extends Controller
 
     private function projectTeamPayload(Project $project): array
     {
-        return $project->teamMembers()
+        $projectWorkers = Worker::query()
+            ->where('project_id', $project->id)
+            ->with('foreman:id,fullname')
+            ->orderBy('name')
+            ->orderBy('id')
+            ->get();
+
+        $projectWorkersByName = $projectWorkers
+            ->filter(fn (Worker $worker) => trim((string) ($worker->name ?? '')) !== '')
+            ->keyBy(fn (Worker $worker) => strtolower(trim((string) $worker->name)));
+
+        $teamMembers = $project->teamMembers()
             ->with('user:id,fullname,role')
             ->orderByRaw('CASE WHEN user_id IS NULL THEN 1 ELSE 0 END')
             ->orderBy('worker_name')
             ->orderBy('id')
             ->get()
-            ->map(fn (ProjectWorker $teamMember) => [
-                'id' => $teamMember->id,
-                'project_id' => $teamMember->project_id,
-                'user_id' => $teamMember->user_id,
-                'worker_name' => $teamMember->worker_name,
-                'display_name' => $teamMember->user?->fullname ?: $teamMember->worker_name,
-                'source' => $teamMember->user_id ? 'user' : 'manual',
-                'user_role' => $teamMember->user?->role,
-                'rate' => (float) $teamMember->rate,
-            ])
+            ->map(function (ProjectWorker $teamMember) use ($projectWorkersByName) {
+                $matchedWorker = null;
+
+                if (!$teamMember->user_id && trim((string) ($teamMember->worker_name ?? '')) !== '') {
+                    $matchedWorker = $projectWorkersByName->get(strtolower(trim((string) $teamMember->worker_name)));
+                }
+
+                return [
+                    'id' => $teamMember->id,
+                    'project_id' => $teamMember->project_id,
+                    'user_id' => $teamMember->user_id,
+                    'worker_name' => $teamMember->worker_name,
+                    'display_name' => $teamMember->user?->fullname ?: $teamMember->worker_name,
+                    'source' => $teamMember->user_id ? 'user' : 'manual',
+                    'user_role' => $teamMember->user?->role,
+                    'rate' => (float) $teamMember->rate,
+                    'birth_date' => optional($matchedWorker?->birth_date)?->toDateString(),
+                    'place_of_birth' => $matchedWorker?->place_of_birth,
+                    'sex' => $matchedWorker?->sex,
+                    'civil_status' => $matchedWorker?->civil_status,
+                    'phone' => $matchedWorker?->phone,
+                    'address' => $matchedWorker?->address,
+                    'managed_by_foreman_name' => $matchedWorker?->foreman?->fullname,
+                ];
+            })
+            ->values();
+
+        $existingManualNames = $teamMembers
+            ->filter(fn ($row) => empty($row['user_id']) && !empty($row['worker_name']))
+            ->map(fn ($row) => strtolower(trim((string) $row['worker_name'])))
+            ->filter()
+            ->unique()
+            ->values();
+
+        $foremanWorkers = $projectWorkers
+            ->reject(function (Worker $worker) use ($existingManualNames) {
+                $nameKey = strtolower(trim((string) ($worker->name ?? '')));
+                return $nameKey !== '' && $existingManualNames->contains($nameKey);
+            })
+            ->map(fn (Worker $worker) => [
+                'id' => 'fw-' . $worker->id,
+                'project_id' => $project->id,
+                'user_id' => null,
+                'worker_name' => $worker->name,
+                'display_name' => $worker->name,
+                'source' => 'manual',
+                'user_role' => null,
+                'rate' => (float) ($worker->default_rate_per_hour ?? 0),
+                'birth_date' => optional($worker->birth_date)?->toDateString(),
+                'place_of_birth' => $worker->place_of_birth,
+                'sex' => $worker->sex,
+                'civil_status' => $worker->civil_status,
+                'phone' => $worker->phone,
+                'address' => $worker->address,
+                'managed_by_foreman_name' => $worker->foreman?->fullname,
+            ]);
+
+        return $teamMembers
+            ->concat($foremanWorkers)
             ->values()
             ->all();
+    }
+
+    private function paginateCollection(Collection $rows, int $perPage, string $pageName, Request $request): LengthAwarePaginator
+    {
+        $page = max(1, (int) $request->query($pageName, 1));
+        $total = $rows->count();
+        $items = $rows->forPage($page, $perPage)->values();
+
+        return (new LengthAwarePaginator(
+            $items,
+            $total,
+            $perPage,
+            $page,
+            [
+                'path' => $request->url(),
+                'pageName' => $pageName,
+            ]
+        ))->appends($request->query());
     }
 
     private function projectIndexCardPayload(Project $project): array
@@ -643,7 +766,7 @@ class ProjectController extends Controller
     private function applyProjectPhaseFilter($query, string $phase): void
     {
         $query->whereRaw(
-            "LOWER(REPLACE(REPLACE(COALESCE(phase, ''), '-', ''), ' ', '')) = ?",
+            "LOWER(REPLACE(REPLACE(REPLACE(COALESCE(phase, ''), '-', ''), ' ', ''), '_', '')) = ?",
             [$this->projectPhaseMatchKey($phase)]
         );
     }
@@ -839,6 +962,22 @@ class ProjectController extends Controller
         $totalClientPayment = (float) Payment::where('project_id', $projectId)->sum('amount');
         $lastPaidDate = Payment::where('project_id', $projectId)->max('date_paid');
         $remainingBalance = $contractAmount - $totalClientPayment;
+        $manualDesignFee = (float) ($project->design_fee ?? 0);
+        $designTotalReceived = (float) ($design?->total_received ?? 0);
+        $designDownpayment = (float) ($design?->downpayment ?? 0);
+        $designOfficePayrollDeduction = (float) ($design?->office_payroll_deduction ?? 0);
+        $designProgress = (int) max(0, min(100, (int) ($design?->design_progress ?? 0)));
+        $designRemaining = $designContractAmount - $designTotalReceived;
+        $designNetAfterOfficeDeduction = $designTotalReceived - $designOfficePayrollDeduction;
+        $designTrackerSharePct = $contractAmount > 0 ? ($designContractAmount / $contractAmount) * 100 : 0;
+        $manualDesignFeeSharePct = $contractAmount > 0 ? ($manualDesignFee / $contractAmount) * 100 : 0;
+        $buildTrackerClientPayment = (float) ($build?->total_client_payment ?? 0);
+        $buildMaterialsCost = (float) ($build?->materials_cost ?? 0);
+        $buildLaborCost = (float) ($build?->labor_cost ?? 0);
+        $buildEquipmentCost = (float) ($build?->equipment_cost ?? 0);
+        $buildTrackerSubtotalCosts = $buildMaterialsCost + $buildLaborCost + $buildEquipmentCost;
+        $buildVarianceFromTrackerBudget = $constructionContract - $constructionCost;
+        $collectionProgressPct = $contractAmount > 0 ? ($totalClientPayment / $contractAmount) * 100 : 0;
 
         $computed = [
             'contract_amount' => $contractAmount,
@@ -848,12 +987,62 @@ class ProjectController extends Controller
             'remaining_balance' => $remainingBalance,
             'last_paid_date' => $lastPaidDate,
             'overall_progress' => $overallProgress,
+            'computation_sources' => [
+                'design_tracker' => [
+                    'design_contract_amount' => $designContractAmount,
+                    'downpayment' => $designDownpayment,
+                    'total_received' => $designTotalReceived,
+                    'office_payroll_deduction' => $designOfficePayrollDeduction,
+                    'net_after_office_payroll_deduction' => $designNetAfterOfficeDeduction,
+                    'remaining_design_balance' => $designRemaining,
+                    'design_progress' => $designProgress,
+                    'client_approval_status' => $design?->client_approval_status ?: 'pending',
+                    'share_of_total_budget_pct' => $designTrackerSharePct,
+                ],
+                'build_tracker' => [
+                    'construction_contract' => $constructionContract,
+                    'recorded_total_client_payment' => $buildTrackerClientPayment,
+                    'materials_cost' => $buildMaterialsCost,
+                    'labor_cost' => $buildLaborCost,
+                    'equipment_cost' => $buildEquipmentCost,
+                    'tracker_cost_subtotal' => $buildTrackerSubtotalCosts,
+                    'actual_expenses_total' => $constructionCost,
+                    'variance_vs_actual_expenses' => $buildVarianceFromTrackerBudget,
+                ],
+                'finance_actuals' => [
+                    'payments_total' => $totalClientPayment,
+                    'collection_progress_pct' => $collectionProgressPct,
+                    'remaining_balance' => $remainingBalance,
+                    'last_paid_date' => $lastPaidDate,
+                ],
+                'project_financials_snapshot' => [
+                    'total_budget_contract_amount' => $contractAmount,
+                    'design_fee_manual' => $manualDesignFee,
+                    'design_fee_share_of_total_budget_pct' => $manualDesignFeeSharePct,
+                    'construction_cost' => $constructionCost,
+                    'total_client_payment' => $totalClientPayment,
+                    'remaining_balance' => $remainingBalance,
+                    'last_paid_date' => $lastPaidDate,
+                ],
+                'sync_checks' => [
+                    'design_fee_manual_minus_design_tracker_contract' => $manualDesignFee - $designContractAmount,
+                    'manual_derived_build_budget' => $contractAmount - $manualDesignFee,
+                    'tracker_build_budget' => $constructionContract,
+                    'tracker_build_budget_minus_manual_derived_build_budget' => $constructionContract - ($contractAmount - $manualDesignFee),
+                ],
+                'deductions' => [
+                    'design_office_payroll_deduction' => $designOfficePayrollDeduction,
+                    'includes_design_office_payroll_deduction_in_project_total' => false,
+                    'includes_payroll_deductions_in_project_total' => false,
+                    'payroll_deductions_note' => 'Payroll deductions are not included in Project Computations because payroll rows are not linked to project_id.',
+                ],
+            ],
         ];
 
-        // Keep project financial snapshot columns aligned with tracker-derived values.
+        // Keep project financial snapshot columns aligned with tracker-derived values,
+        // except design_fee which is manually controlled in Project Financials.
         Project::whereKey($project->id)->update([
             'contract_amount' => $computed['contract_amount'],
-            'design_fee' => $computed['design_fee'],
             'construction_cost' => $computed['construction_cost'],
             'total_client_payment' => $computed['total_client_payment'],
             'remaining_balance' => $computed['remaining_balance'],

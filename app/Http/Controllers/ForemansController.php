@@ -8,12 +8,16 @@ use App\Models\IssueReport;
 use App\Models\MaterialRequest;
 use App\Models\ProgressPhoto;
 use App\Models\Project;
+use App\Models\ProjectAssignment;
 use App\Models\ProjectScope;
+use App\Models\User;
 use App\Models\Worker;
 use App\Models\WeeklyAccomplishment;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 
 class ForemansController extends Controller
@@ -25,6 +29,7 @@ class ForemansController extends Controller
         $foreman = Auth::user();
         $foremanId = $foreman?->id;
         $foremanName = trim((string) ($foreman?->fullname ?? ''));
+        $assignedProjectIds = $foreman ? $this->foremanAssignedProjectIds($foreman) : collect();
         $manilaNow = Carbon::now(self::PH_TIMEZONE);
         $phToday = $manilaNow->toDateString();
         $phWeekStart = $manilaNow->copy()->startOfWeek()->toDateString();
@@ -80,6 +85,11 @@ class ForemansController extends Controller
         })->values();
 
         $projects = Project::query()
+            ->when(
+                $assignedProjectIds->isNotEmpty(),
+                fn ($query) => $query->whereIn('id', $assignedProjectIds->all()),
+                fn ($query) => $query->whereRaw('1 = 0')
+            )
             ->orderBy('name')
             ->get(['id', 'name'])
             ->map(fn (Project $project) => ['id' => $project->id, 'name' => $project->name])
@@ -87,9 +97,20 @@ class ForemansController extends Controller
 
         $workers = Worker::query()
             ->where('foreman_id', $foremanId)
+            ->with('project:id,name')
+            ->when(
+                $assignedProjectIds->isNotEmpty(),
+                fn ($query) => $query->whereIn('project_id', $assignedProjectIds->all())
+            )
             ->orderBy('name')
-            ->get(['id', 'name'])
-            ->map(fn (Worker $worker) => ['id' => $worker->id, 'name' => $worker->name, 'role' => null])
+            ->get(['id', 'project_id', 'name'])
+            ->map(fn (Worker $worker) => [
+                'id' => $worker->id,
+                'name' => $worker->name,
+                'role' => null,
+                'project_id' => $worker->project_id,
+                'project_name' => $worker->project?->name,
+            ])
             ->values();
 
         $foremanAttendanceToday = null;
@@ -147,8 +168,10 @@ class ForemansController extends Controller
         $foreman = $request->user();
         abort_unless($foreman && $foreman->role === 'foreman', 403);
 
+        $assignedProjectIds = $this->foremanAssignedProjectIds($foreman)->all();
+
         $validated = $request->validate([
-            'project_id' => 'required|exists:projects,id',
+            'project_id' => ['required', Rule::in($assignedProjectIds)],
         ]);
 
         $foremanName = trim((string) ($foreman->fullname ?? ''));
@@ -237,6 +260,8 @@ class ForemansController extends Controller
     public function updateAttendance(Request $request, Attendance $attendance)
     {
         $foremanId = Auth::id();
+        $foreman = $request->user();
+        $assignedProjectIds = $foreman ? $this->foremanAssignedProjectIds($foreman)->all() : [];
         abort_unless((int) $attendance->foreman_id === (int) $foremanId, 403);
 
         if ((string) optional($attendance->date)?->toDateString() !== Carbon::now(self::PH_TIMEZONE)->toDateString()) {
@@ -248,7 +273,7 @@ class ForemansController extends Controller
         $validated = $request->validate([
             'worker_name' => 'required|string',
             'worker_role' => 'required|string',
-            'project_id' => 'nullable|exists:projects,id',
+            'project_id' => ['nullable', Rule::in($assignedProjectIds)],
             'time_in' => 'nullable|date_format:H:i',
             'time_out' => 'nullable|date_format:H:i',
             'hours' => 'nullable|numeric|min:0',
@@ -270,11 +295,15 @@ class ForemansController extends Controller
 
     public function storeAttendance(Request $request)
     {
+        $foreman = $request->user();
+        abort_unless($foreman && $foreman->role === 'foreman', 403);
+        $assignedProjectIds = $this->foremanAssignedProjectIds($foreman)->all();
+
         $validated = $request->validate([
             'attendance' => 'required|array|min:1',
             'attendance.*.worker_name' => 'required|string',
             'attendance.*.worker_role' => 'required|string',
-            'attendance.*.project_id' => 'nullable|exists:projects,id',
+            'attendance.*.project_id' => ['nullable', Rule::in($assignedProjectIds)],
             'attendance.*.date' => 'nullable|date',
             'attendance.*.time_in' => 'nullable|date_format:H:i',
             'attendance.*.time_out' => 'nullable|date_format:H:i',
@@ -291,7 +320,7 @@ class ForemansController extends Controller
             ->values()
             ->all();
 
-        $this->createAttendanceEntries($entries, Auth::id());
+        $this->createAttendanceEntries($entries, (int) $foreman->id);
 
         $query = array_filter([
             'search' => $request->query('search'),
@@ -306,11 +335,15 @@ class ForemansController extends Controller
 
     public function submitAll(Request $request)
     {
+        $foreman = $request->user();
+        abort_unless($foreman && $foreman->role === 'foreman', 403);
+        $assignedProjectIds = $this->foremanAssignedProjectIds($foreman)->all();
+
         $request->validate([
             'attendance'                         => 'nullable|array',
             'attendance.*.worker_name'           => 'required_with:attendance|string',
             'attendance.*.worker_role'           => 'required_with:attendance|string',
-            'attendance.*.project_id'            => 'nullable|exists:projects,id',
+            'attendance.*.project_id'            => ['nullable', Rule::in($assignedProjectIds)],
             'attendance.*.date'                  => 'required_with:attendance|date',
             'attendance.*.time_in'               => 'nullable|date_format:H:i',
             'attendance.*.time_out'              => 'nullable|date_format:H:i',
@@ -318,7 +351,7 @@ class ForemansController extends Controller
             'attendance.*.selfie_path'           => 'nullable|string|max:2048',
 
             'week_start'                         => 'nullable|date',
-            'accomplishment_project_id'          => 'nullable|required_with:scopes|exists:projects,id',
+            'accomplishment_project_id'          => ['nullable', 'required_with:scopes', Rule::in($assignedProjectIds)],
             'scopes'                             => 'nullable|array',
             'scopes.*.scope_of_work'             => 'required_with:scopes|string',
             'scopes.*.percent_completed'         => 'required_with:scopes|numeric|min:0|max:100',
@@ -336,12 +369,12 @@ class ForemansController extends Controller
             'item_delivered'                     => 'nullable|string',
             'quantity'                           => 'nullable|string',
             'delivery_date'                      => 'nullable|date',
-            'delivery_project_id'                => 'nullable|required_with:item_delivered,delivery_date|exists:projects,id',
+            'delivery_project_id'                => ['nullable', 'required_with:item_delivered,delivery_date', Rule::in($assignedProjectIds)],
             'supplier'                           => 'nullable|string',
             'status'                             => 'nullable|in:received,incomplete,rejected',
         ]);
 
-        $foremanId = Auth::id();
+        $foremanId = (int) $foreman->id;
  
         if (!empty($request->attendance)) {
             $this->createAttendanceEntries($request->attendance, $foremanId);
@@ -511,6 +544,42 @@ class ForemansController extends Controller
         } catch (\Throwable $e) {
             return $fallbackDate;
         }
+    }
+
+    private function foremanAssignedProjectIds(User $foreman): Collection
+    {
+        $assigned = ProjectAssignment::query()
+            ->where('user_id', $foreman->id)
+            ->where('role_in_project', 'foreman')
+            ->pluck('project_id')
+            ->map(fn ($projectId) => (int) $projectId)
+            ->unique()
+            ->values();
+
+        if ($assigned->isNotEmpty()) {
+            return $assigned;
+        }
+
+        $fullname = trim((string) ($foreman->fullname ?? ''));
+        if ($fullname === '') {
+            return collect();
+        }
+
+        return Project::query()
+            ->whereNotNull('assigned')
+            ->where('assigned', '!=', '')
+            ->get(['id', 'assigned'])
+            ->filter(function (Project $project) use ($fullname) {
+                $assignedNames = collect(preg_split('/[,;]+/', (string) $project->assigned))
+                    ->map(fn ($part) => trim((string) $part))
+                    ->filter();
+
+                return $assignedNames->contains($fullname);
+            })
+            ->pluck('id')
+            ->map(fn ($projectId) => (int) $projectId)
+            ->unique()
+            ->values();
     }
 
     private function foremanActionRedirect(Request $request)

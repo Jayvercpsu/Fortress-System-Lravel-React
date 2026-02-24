@@ -137,7 +137,6 @@ class ExpenseController extends Controller
 
         Project::whereKey($projectId)->update([
             'contract_amount' => $contractAmount,
-            'design_fee' => $designContractAmount,
             'construction_cost' => $constructionCost,
             'total_client_payment' => $totalClientPayment,
             'remaining_balance' => $contractAmount - $totalClientPayment,

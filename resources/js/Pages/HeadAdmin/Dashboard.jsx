@@ -1,4 +1,5 @@
 import Layout from '../../Components/Layout';
+import InlinePagination from '../../Components/InlinePagination';
 import { Head, Link } from '@inertiajs/react';
 
 const cardStyle = {
@@ -59,8 +60,8 @@ function CountBreakdown({ title, items = [] }) {
 export default function HeadAdminDashboard({
     kpis = {},
     recentSubmissions = { materials: [], issues: [] },
-    recentProjects = [],
-    recentPayrolls = [],
+    recentProjectsPager = null,
+    recentPayrollsPager = null,
 }) {
     const projectCounts = kpis.project_counts || {};
     const financialTotals = kpis.financial_totals || {};
@@ -68,6 +69,10 @@ export default function HeadAdminDashboard({
     const users = kpis.users || {};
     const operations = kpis.operations || {};
     const payrollCounts = countMap(kpis.payroll_counts_by_status || []);
+    const recentProjectsRows = recentProjectsPager?.data || [];
+    const recentPayrollRows = recentPayrollsPager?.data || [];
+    const recentMaterialRows = recentSubmissions?.materials?.data || [];
+    const recentIssueRows = recentSubmissions?.issues?.data || [];
 
     return (
         <>
@@ -133,10 +138,10 @@ export default function HeadAdminDashboard({
                     <div style={{ ...cardStyle, overflow: 'hidden' }}>
                         <div style={{ fontWeight: 700, marginBottom: 10 }}>Recent Projects</div>
                         <div style={{ display: 'grid', gap: 8 }}>
-                            {(recentProjects || []).length === 0 ? (
+                            {recentProjectsRows.length === 0 ? (
                                 <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>No projects yet.</div>
                             ) : (
-                                recentProjects.map((project) => (
+                                recentProjectsRows.map((project) => (
                                     <div
                                         key={project.id}
                                         style={{
@@ -181,15 +186,16 @@ export default function HeadAdminDashboard({
                                 ))
                             )}
                         </div>
+                        <InlinePagination pager={recentProjectsPager} />
                     </div>
 
                     <div style={{ ...cardStyle, overflow: 'hidden' }}>
                         <div style={{ fontWeight: 700, marginBottom: 10 }}>Recent Payroll</div>
                         <div style={{ display: 'grid', gap: 8 }}>
-                            {recentPayrolls.length === 0 ? (
+                            {recentPayrollRows.length === 0 ? (
                                 <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>No payroll records.</div>
                             ) : (
-                                recentPayrolls.map((payroll) => (
+                                recentPayrollRows.map((payroll) => (
                                     <div
                                         key={payroll.id}
                                         style={{
@@ -211,6 +217,7 @@ export default function HeadAdminDashboard({
                                 ))
                             )}
                         </div>
+                        <InlinePagination pager={recentPayrollsPager} />
                     </div>
                 </div>
 
@@ -218,10 +225,10 @@ export default function HeadAdminDashboard({
                     <div style={{ ...cardStyle, overflow: 'hidden' }}>
                         <div style={{ fontWeight: 700, marginBottom: 10 }}>Recent Material Requests</div>
                         <div style={{ display: 'grid', gap: 8 }}>
-                            {(recentSubmissions.materials || []).length === 0 ? (
+                            {recentMaterialRows.length === 0 ? (
                                 <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>No submissions.</div>
                             ) : (
-                                recentSubmissions.materials.map((item) => (
+                                recentMaterialRows.map((item) => (
                                     <div key={item.id} style={{ border: '1px solid var(--border-color)', borderRadius: 8, padding: 10, background: 'var(--surface-2)' }}>
                                         <div style={{ fontWeight: 700 }}>{item.material_name}</div>
                                         <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
@@ -232,15 +239,16 @@ export default function HeadAdminDashboard({
                                 ))
                             )}
                         </div>
+                        <InlinePagination pager={recentSubmissions?.materials} />
                     </div>
 
                     <div style={{ ...cardStyle, overflow: 'hidden' }}>
                         <div style={{ fontWeight: 700, marginBottom: 10 }}>Recent Issues</div>
                         <div style={{ display: 'grid', gap: 8 }}>
-                            {(recentSubmissions.issues || []).length === 0 ? (
+                            {recentIssueRows.length === 0 ? (
                                 <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>No issues.</div>
                             ) : (
-                                recentSubmissions.issues.map((item) => (
+                                recentIssueRows.map((item) => (
                                     <div key={item.id} style={{ border: '1px solid var(--border-color)', borderRadius: 8, padding: 10, background: 'var(--surface-2)' }}>
                                         <div style={{ fontWeight: 700 }}>{item.issue_title}</div>
                                         <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
@@ -251,6 +259,7 @@ export default function HeadAdminDashboard({
                                 ))
                             )}
                         </div>
+                        <InlinePagination pager={recentSubmissions?.issues} />
                     </div>
                 </div>
             </Layout>

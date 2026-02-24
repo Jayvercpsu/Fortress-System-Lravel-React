@@ -2,6 +2,7 @@ import Layout from '../../../Components/Layout';
 import ActionButton from '../../../Components/ActionButton';
 import DataTable from '../../../Components/DataTable';
 import Modal from '../../../Components/Modal';
+import ProjectComputationsPanel from '../../../Components/ProjectComputationsPanel';
 import SearchableDropdown from '../../../Components/SearchableDropdown';
 import { Head, Link, router, useForm, usePage } from '@inertiajs/react';
 import { useEffect, useState } from 'react';
@@ -24,8 +25,40 @@ const inputStyle = {
     fontSize: 13,
 };
 
+const shortcutPanelStyle = {
+    background: 'var(--surface-1)',
+    border: '1px solid var(--border-color)',
+    borderRadius: 12,
+    padding: 12,
+};
+
+const shortcutSectionStyle = {
+    border: '1px solid var(--border-color)',
+    borderRadius: 10,
+    padding: 10,
+    display: 'grid',
+    gap: 8,
+    alignContent: 'start',
+    background: 'var(--surface-2)',
+};
+
+const shortcutLinkStyle = {
+    border: '1px solid var(--border-color)',
+    background: 'var(--button-bg)',
+    color: 'var(--text-main)',
+    borderRadius: 8,
+    padding: '8px 12px',
+    textDecoration: 'none',
+    fontSize: 13,
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+};
+
 const money = (value) =>
     `P ${Number(value || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
+const mono = { fontFamily: "'DM Mono', monospace" };
 
 const parseAssignedForemen = (value) =>
     String(value || '')
@@ -47,10 +80,17 @@ const normalizeAssignedForemen = (names) => {
         });
 };
 
+const parseProjectDisplayList = (value) =>
+    String(value || '')
+        .split(/[,;]+/)
+        .map((item) => item.trim())
+        .filter(Boolean);
+
 export default function HeadAdminProjectsShow({
     project,
     foremen = [],
     assignedTeam = [],
+    assignedTeamTable = {},
     files = [],
     fileTable = {},
     updates = [],
@@ -62,6 +102,7 @@ export default function HeadAdminProjectsShow({
         return ['overview', 'files', 'updates'].includes(active) ? active : 'overview';
     });
     const [previewFile, setPreviewFile] = useState(null);
+    const [teamInfoMember, setTeamInfoMember] = useState(null);
     const [pendingAssignedForeman, setPendingAssignedForeman] = useState('');
     const [assignedForemenDraft, setAssignedForemenDraft] = useState(() => parseAssignedForemen(project?.assigned ?? ''));
     const [savingAssignedForemen, setSavingAssignedForemen] = useState(false);
@@ -118,9 +159,22 @@ export default function HeadAdminProjectsShow({
         to: updateTable?.to ?? null,
     };
 
+    const teamTableState = {
+        search: assignedTeamTable?.search ?? '',
+        perPage: Number(assignedTeamTable?.per_page ?? 5),
+        page: Number(assignedTeamTable?.current_page ?? 1),
+        lastPage: Number(assignedTeamTable?.last_page ?? 1),
+        total: Number(assignedTeamTable?.total ?? assignedTeam.length ?? 0),
+        from: assignedTeamTable?.from ?? null,
+        to: assignedTeamTable?.to ?? null,
+    };
+
     const projectShowQueryParams = (overrides = {}) => {
         const params = {
             tab: overrides.tab !== undefined ? overrides.tab : tab,
+            team_search: overrides.team_search !== undefined ? overrides.team_search : teamTableState.search,
+            team_per_page: overrides.team_per_page !== undefined ? overrides.team_per_page : teamTableState.perPage,
+            team_page: overrides.team_page !== undefined ? overrides.team_page : teamTableState.page,
             files_search: overrides.files_search !== undefined ? overrides.files_search : fileTableState.search,
             files_per_page: overrides.files_per_page !== undefined ? overrides.files_per_page : fileTableState.perPage,
             files_page: overrides.files_page !== undefined ? overrides.files_page : fileTableState.page,
@@ -270,6 +324,57 @@ export default function HeadAdminProjectsShow({
         },
     ];
 
+    const teamColumns = [
+        {
+            key: 'display_name',
+            label: 'Name',
+            render: (member) => <div style={{ fontWeight: 600 }}>{member.display_name || '-'}</div>,
+            searchAccessor: (member) => member.display_name,
+        },
+        {
+            key: 'source',
+            label: 'Type',
+            width: 220,
+            render: (member) => (
+                <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+                    {member.source === 'user'
+                        ? `Registered user${member.user_role ? ` (${member.user_role})` : ''}`
+                        : 'Labor record (Foreman-managed)'}
+                </div>
+            ),
+            searchAccessor: (member) => [member.source, member.user_role].filter(Boolean).join(' '),
+        },
+        {
+            key: 'rate',
+            label: 'Rate',
+            width: 150,
+            render: (member) => <div style={{ fontSize: 12, ...mono }}>{money(member.rate)}</div>,
+            searchAccessor: (member) => member.rate,
+        },
+        {
+            key: 'reference',
+            label: 'Reference',
+            width: 160,
+            render: (member) => (
+                <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+                    {member.user_id ? `User #${member.user_id}` : 'Recorded labor'}
+                </div>
+            ),
+            searchAccessor: (member) => (member.user_id ? `User #${member.user_id}` : 'Recorded labor'),
+        },
+        {
+            key: 'actions',
+            label: 'Actions',
+            align: 'right',
+            width: 120,
+            render: (member) => (
+                <ActionButton type="button" variant="view" onClick={() => setTeamInfoMember(member)}>
+                    View Info
+                </ActionButton>
+            ),
+        },
+    ];
+
     return (
         <>
             <Head title={`Project #${project.id}`} />
@@ -296,134 +401,102 @@ export default function HeadAdminProjectsShow({
                     </div>
                 </div>
 
-                <div style={{ display: 'flex', gap: 8, marginBottom: 14 }}>
-                    <Link
-                        href={`/projects/${project.id}/design`}
-                        style={{
-                            border: '1px solid var(--border-color)',
-                            background: 'var(--button-bg)',
-                            color: 'var(--text-main)',
-                            borderRadius: 8,
-                            padding: '8px 12px',
-                            textDecoration: 'none',
-                            fontSize: 13,
-                        }}
-                    >
-                        Open Design Tracker
-                    </Link>
-                    <Link
-                        href={`/projects/${project.id}/build`}
-                        style={{
-                            border: '1px solid var(--border-color)',
-                            background: 'var(--button-bg)',
-                            color: 'var(--text-main)',
-                            borderRadius: 8,
-                            padding: '8px 12px',
-                            textDecoration: 'none',
-                            fontSize: 13,
-                        }}
-                    >
-                        Open Build Tracker
-                    </Link>
-                    <Link
-                        href={`/projects/${project.id}/expenses`}
-                        style={{
-                            border: '1px solid var(--border-color)',
-                            background: 'var(--button-bg)',
-                            color: 'var(--text-main)',
-                            borderRadius: 8,
-                            padding: '8px 12px',
-                            textDecoration: 'none',
-                            fontSize: 13,
-                        }}
-                    >
-                        Open Expenses
-                    </Link>
-                    <Link
-                        href={`/projects/${project.id}/payments`}
-                        style={{
-                            border: '1px solid var(--border-color)',
-                            background: 'var(--button-bg)',
-                            color: 'var(--text-main)',
-                            borderRadius: 8,
-                            padding: '8px 12px',
-                            textDecoration: 'none',
-                            fontSize: 13,
-                        }}
-                    >
-                        Open Payments
-                    </Link>
-                    <Link
-                        href={`/projects/${project.id}/financials`}
-                        style={{
-                            border: '1px solid var(--border-color)',
-                            background: 'var(--button-bg)',
-                            color: 'var(--text-main)',
-                            borderRadius: 8,
-                            padding: '8px 12px',
-                            textDecoration: 'none',
-                            fontSize: 13,
-                        }}
-                    >
-                        Open Financials
-                    </Link>
-                    <Link
-                        href={`/projects/${project.id}/monitoring`}
-                        style={{
-                            border: '1px solid var(--border-color)',
-                            background: 'var(--button-bg)',
-                            color: 'var(--text-main)',
-                            borderRadius: 8,
-                            padding: '8px 12px',
-                            textDecoration: 'none',
-                            fontSize: 13,
-                        }}
-                    >
-                        Open Monitoring Board
-                    </Link>
-                    <Link
-                        href={`/projects/${project.id}/edit`}
-                        style={{
-                            border: '1px solid var(--border-color)',
-                            background: 'var(--button-bg)',
-                            color: 'var(--text-main)',
-                            borderRadius: 8,
-                            padding: '8px 12px',
-                            textDecoration: 'none',
-                            fontSize: 13,
-                        }}
-                    >
-                        Edit Project
-                    </Link>
+                <div style={{ ...shortcutPanelStyle, marginBottom: 14, display: 'grid', gap: 10 }}>
+                    <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+                        Project shortcuts grouped by department
+                    </div>
+                    <div style={{ display: 'grid', gap: 10, gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))' }}>
+                        <div style={shortcutSectionStyle}>
+                            <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: 0.3 }}>
+                                Design
+                            </div>
+                            <Link href={`/projects/${project.id}/design`} style={shortcutLinkStyle}>
+                                Open Design Tracker
+                            </Link>
+                        </div>
+
+                        <div style={shortcutSectionStyle}>
+                            <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: 0.3 }}>
+                                Build
+                            </div>
+                            <div style={{ display: 'grid', gap: 8 }}>
+                                <Link href={`/projects/${project.id}/build`} style={shortcutLinkStyle}>
+                                    Open Build Tracker
+                                </Link>
+                                <Link href={`/projects/${project.id}/monitoring`} style={shortcutLinkStyle}>
+                                    Open Monitoring Board
+                                </Link>
+                                <Link href={`/projects/${project.id}/expenses`} style={shortcutLinkStyle}>
+                                    Open Expenses
+                                </Link>
+                            </div>
+                        </div>
+
+                        <div style={shortcutSectionStyle}>
+                            <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: 0.3 }}>
+                                Finance
+                            </div>
+                            <div style={{ display: 'grid', gap: 8 }}>
+                                <Link href={`/projects/${project.id}/payments`} style={shortcutLinkStyle}>
+                                    Open Payments
+                                </Link>
+                                <Link href={`/projects/${project.id}/financials`} style={shortcutLinkStyle}>
+                                    Open Financials
+                                </Link>
+                            </div>
+                        </div>
+
+                        <div style={shortcutSectionStyle}>
+                            <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: 0.3 }}>
+                                Project Admin
+                            </div>
+                            <Link href={`/projects/${project.id}/edit`} style={shortcutLinkStyle}>
+                                Edit Project
+                            </Link>
+                        </div>
+                    </div>
                 </div>
 
                 {tab === 'overview' && (
                     <div style={{ display: 'grid', gap: 14 }}>
                         <div style={{ ...cardStyle, display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 12 }}>
                             {[
-                                ['Name', project.name],
-                                ['Client', project.client],
-                                ['Type', project.type],
-                                ['Location', project.location],
-                                ['Assigned', project.assigned_role || '-'],
-                                ['Assigned Foremen', project.assigned || '-'],
-                                ['Target', project.target || '-'],
-                                ['Phase', project.phase],
-                                ['Status', project.status],
-                                ['Overall Progress', `${project.overall_progress}%`],
-                                ['Contract Amount', money(project.contract_amount)],
-                                ['Design Fee', money(project.design_fee)],
-                                ['Construction Cost', money(project.construction_cost)],
-                                ['Total Client Payment', money(project.total_client_payment)],
-                                ['Last Paid Date', project.last_paid_date || '-'],
-                                ['Remaining Balance', money(project.remaining_balance)],
-                            ].map(([label, value]) => (
+                                { label: 'Name', value: project.name },
+                                { label: 'Client', value: project.client },
+                                { label: 'Type', value: project.type },
+                                { label: 'Location', value: project.location },
+                                { label: 'Assigned', value: project.assigned_role, asList: true },
+                                { label: 'Assigned Foremen', value: project.assigned, asList: true },
+                                { label: 'Target', value: project.target || '-' },
+                                { label: 'Phase', value: project.phase },
+                                { label: 'Status', value: project.status },
+                                { label: 'Overall Progress', value: `${project.overall_progress}%` },
+                            ].map(({ label, value, asList = false }) => (
                                 <div key={label}>
                                     <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{label}</div>
-                                    <div style={{ fontWeight: 600 }}>{value}</div>
+                                    {asList ? (
+                                        (() => {
+                                            const items = parseProjectDisplayList(value);
+                                            if (items.length === 0) {
+                                                return <div style={{ fontWeight: 400 }}>-</div>;
+                                            }
+
+                                            return (
+                                                <ul style={{ margin: '4px 0 0', paddingLeft: 18, fontWeight: 400, display: 'grid', gap: 2 }}>
+                                                    {items.map((item, index) => (
+                                                        <li key={`${label}-${index}`}>{item}</li>
+                                                    ))}
+                                                </ul>
+                                            );
+                                        })()
+                                    ) : (
+                                        <div style={{ fontWeight: 600 }}>{value}</div>
+                                    )}
                                 </div>
                             ))}
                         </div>
+
+                        <ProjectComputationsPanel project={project} />
 
                         <div style={{ ...cardStyle, display: 'grid', gap: 12 }}>
                             <div style={{ fontWeight: 700 }}>Assigned Foremen (Quick Update)</div>
@@ -551,47 +624,28 @@ export default function HeadAdminProjectsShow({
                         </div>
 
                         <div style={{ ...cardStyle, display: 'grid', gap: 12 }}>
-                            <div style={{ fontWeight: 700 }}>Project Team Records (Read-only)</div>
+                            <div style={{ fontWeight: 700 }}>Project Workers (Read-only)</div>
                             <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
                                 Laborers are managed by the foreman in `Foreman &gt; Workers`. This section is record-view only. Use `Edit Project` to assign one or more foremen.
                             </div>
-
-                            <div style={{ display: 'grid', gap: 8 }}>
-                                {assignedTeam.length === 0 ? (
-                                    <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>No team members assigned yet.</div>
-                                ) : (
-                                    assignedTeam.map((member) => (
-                                        <div
-                                            key={member.id}
-                                            style={{
-                                                border: '1px solid var(--border-color)',
-                                                borderRadius: 8,
-                                                background: 'var(--surface-2)',
-                                                padding: 10,
-                                                display: 'grid',
-                                                gridTemplateColumns: '1fr auto auto',
-                                                gap: 8,
-                                                alignItems: 'center',
-                                            }}
-                                        >
-                                            <div>
-                                                <div style={{ fontWeight: 600 }}>{member.display_name || '-'}</div>
-                                                <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
-                                                    {member.source === 'user'
-                                                        ? `Registered user${member.user_role ? ` (${member.user_role})` : ''}`
-                                                        : 'Labor record (Foreman-managed)'}
-                                                </div>
-                                            </div>
-                                            <div style={{ fontSize: 12, fontFamily: "'DM Mono', monospace" }}>
-                                                {money(member.rate)}
-                                            </div>
-                                            <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>
-                                                {member.user_id ? `User #${member.user_id}` : 'Recorded labor'}
-                                            </div>
-                                        </div>
-                                    ))
-                                )}
-                            </div>
+                            <DataTable
+                                columns={teamColumns}
+                                rows={assignedTeam}
+                                rowKey={(row) => String(row.id)}
+                                searchPlaceholder="Search project workers..."
+                                emptyMessage="No project workers yet."
+                                serverSide
+                                serverSearchValue={teamTableState.search}
+                                serverPage={teamTableState.page}
+                                serverPerPage={teamTableState.perPage}
+                                serverTotalItems={teamTableState.total}
+                                serverTotalPages={teamTableState.lastPage}
+                                serverFrom={teamTableState.from}
+                                serverTo={teamTableState.to}
+                                onServerSearchChange={(value) => navigateProjectTable({ tab: 'overview', team_search: value, team_page: 1 })}
+                                onServerPerPageChange={(value) => navigateProjectTable({ tab: 'overview', team_per_page: value, team_page: 1 })}
+                                onServerPageChange={(value) => navigateProjectTable({ tab: 'overview', team_page: value })}
+                            />
                         </div>
                     </div>
                 )}
@@ -705,6 +759,51 @@ export default function HeadAdminProjectsShow({
                                     Preview is not available for this file type.
                                 </div>
                             )}
+                        </div>
+                    )}
+                </Modal>
+
+                <Modal open={!!teamInfoMember} onClose={() => setTeamInfoMember(null)} title="Project Worker Info">
+                    {teamInfoMember && (
+                        <div style={{ display: 'grid', gap: 10 }}>
+                            {[
+                                ['Project', project?.name || '-'],
+                                ['Display Name', teamInfoMember.display_name || '-'],
+                                [
+                                    'Type',
+                                    teamInfoMember.source === 'user'
+                                        ? `Registered user${teamInfoMember.user_role ? ` (${teamInfoMember.user_role})` : ''}`
+                                        : 'Labor record (Foreman-managed)',
+                                ],
+                                ['Rate', money(teamInfoMember.rate)],
+                                ['Reference', teamInfoMember.user_id ? `User #${teamInfoMember.user_id}` : 'Recorded labor'],
+                                ['Worker Name (raw)', teamInfoMember.worker_name || '-'],
+                                ['Birth Date', teamInfoMember.birth_date || '-'],
+                                ['Place of Birth', teamInfoMember.place_of_birth || '-'],
+                                ['Sex', teamInfoMember.sex || '-'],
+                                ['Civil Status', teamInfoMember.civil_status || '-'],
+                                ['Phone', teamInfoMember.phone || '-'],
+                                ['Address', teamInfoMember.address || '-'],
+                                ['Managed By Foreman', teamInfoMember.managed_by_foreman_name || '-'],
+                                ['Project ID', String(teamInfoMember.project_id ?? project?.id ?? '-')],
+                            ].map(([label, value]) => (
+                                <div
+                                    key={label}
+                                    style={{
+                                        display: 'grid',
+                                        gridTemplateColumns: '160px 1fr',
+                                        gap: 8,
+                                        alignItems: 'start',
+                                        border: '1px solid var(--border-color)',
+                                        borderRadius: 8,
+                                        background: 'var(--surface-2)',
+                                        padding: '8px 10px',
+                                    }}
+                                >
+                                    <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{label}</div>
+                                    <div style={{ fontSize: 13 }}>{value}</div>
+                                </div>
+                            ))}
                         </div>
                     )}
                 </Modal>

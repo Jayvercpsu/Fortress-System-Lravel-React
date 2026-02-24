@@ -5,9 +5,7 @@ namespace Tests\Feature;
 use App\Models\DesignProject;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Hash;
-use Illuminate\Support\Facades\Schema;
 use Tests\TestCase;
 
 class DesignTrackerAccessTest extends TestCase
@@ -44,7 +42,6 @@ class DesignTrackerAccessTest extends TestCase
                 'downpayment' => 25000,
                 'total_received' => 80000,
                 'office_payroll_deduction' => 10000,
-                'design_progress' => 75,
                 'client_approval_status' => 'approved',
             ])
             ->assertRedirect('/projects/11/design');
@@ -52,7 +49,7 @@ class DesignTrackerAccessTest extends TestCase
         $this->assertDatabaseHas('design_projects', [
             'project_id' => 11,
             'client_approval_status' => 'approved',
-            'design_progress' => 75,
+            'design_progress' => 100,
         ]);
 
         $design = DesignProject::where('project_id', 11)->firstOrFail();
@@ -67,7 +64,6 @@ class DesignTrackerAccessTest extends TestCase
             'downpayment' => 20000,
             'total_received' => 30000,
             'office_payroll_deduction' => 5000,
-            'design_progress' => 30,
             'client_approval_status' => 'pending',
         ];
 
@@ -82,17 +78,15 @@ class DesignTrackerAccessTest extends TestCase
         $this->assertDatabaseMissing('design_projects', ['project_id' => 5]);
     }
 
-    public function test_downpayment_transition_from_zero_sets_progress_baseline(): void
+    public function test_pending_design_progress_is_computed_automatically_from_received_ratio(): void
     {
-        config(['fortress.design_dp_progress' => 20]);
-
         DesignProject::create([
             'project_id' => 17,
             'design_contract_amount' => 100000,
             'downpayment' => 0,
             'total_received' => 10000,
             'office_payroll_deduction' => 1000,
-            'design_progress' => 0,
+            'design_progress' => 99,
             'client_approval_status' => 'pending',
         ]);
 
@@ -102,7 +96,6 @@ class DesignTrackerAccessTest extends TestCase
                 'downpayment' => 15000,
                 'total_received' => 20000,
                 'office_payroll_deduction' => 1000,
-                'design_progress' => 0,
                 'client_approval_status' => 'pending',
             ])
             ->assertRedirect('/projects/17/design');
@@ -113,10 +106,8 @@ class DesignTrackerAccessTest extends TestCase
         ]);
     }
 
-    public function test_downpayment_transition_does_not_reduce_higher_progress_value(): void
+    public function test_approved_design_progress_is_forced_to_100(): void
     {
-        config(['fortress.design_dp_progress' => 20]);
-
         DesignProject::create([
             'project_id' => 18,
             'design_contract_amount' => 100000,
@@ -133,24 +124,21 @@ class DesignTrackerAccessTest extends TestCase
                 'downpayment' => 25000,
                 'total_received' => 30000,
                 'office_payroll_deduction' => 2000,
-                'design_progress' => 45,
                 'client_approval_status' => 'approved',
             ])
             ->assertRedirect('/projects/18/design');
 
         $this->assertDatabaseHas('design_projects', [
             'project_id' => 18,
-            'design_progress' => 45,
+            'design_progress' => 100,
         ]);
     }
 
-    public function test_existing_non_zero_downpayment_does_not_force_baseline(): void
+    public function test_zero_contract_amount_results_in_zero_pending_progress(): void
     {
-        config(['fortress.design_dp_progress' => 20]);
-
         DesignProject::create([
             'project_id' => 19,
-            'design_contract_amount' => 100000,
+            'design_contract_amount' => 0,
             'downpayment' => 5000,
             'total_received' => 12000,
             'office_payroll_deduction' => 2000,
@@ -160,18 +148,17 @@ class DesignTrackerAccessTest extends TestCase
 
         $this->actingAs($this->makeUser('admin'))
             ->patch('/projects/19/design', [
-                'design_contract_amount' => 100000,
+                'design_contract_amount' => 0,
                 'downpayment' => 7000,
                 'total_received' => 15000,
                 'office_payroll_deduction' => 3000,
-                'design_progress' => 8,
                 'client_approval_status' => 'pending',
             ])
             ->assertRedirect('/projects/19/design');
 
         $this->assertDatabaseHas('design_projects', [
             'project_id' => 19,
-            'design_progress' => 8,
+            'design_progress' => 0,
         ]);
     }
 
@@ -179,15 +166,21 @@ class DesignTrackerAccessTest extends TestCase
     {
         config(['fortress.project_phase_for_build' => 'FOR_BUILD']);
 
-        Schema::create('projects', function (Blueprint $table) {
-            $table->id();
-            $table->string('phase')->nullable();
-            $table->timestamps();
-        });
-
         \DB::table('projects')->insert([
             'id' => 30,
+            'name' => 'Project 30',
+            'client' => 'Client 30',
+            'type' => '2Storey',
+            'location' => 'Sample',
+            'assigned' => null,
+            'target' => null,
+            'status' => 'PLANNING',
             'phase' => 'DESIGN',
+            'overall_progress' => 0,
+            'contract_amount' => 0,
+            'design_fee' => 0,
+            'construction_cost' => 0,
+            'total_client_payment' => 0,
             'created_at' => now(),
             'updated_at' => now(),
         ]);
@@ -198,7 +191,6 @@ class DesignTrackerAccessTest extends TestCase
                 'downpayment' => 10000,
                 'total_received' => 10000,
                 'office_payroll_deduction' => 500,
-                'design_progress' => 20,
                 'client_approval_status' => 'approved',
             ])
             ->assertRedirect('/projects/30/design');
@@ -211,15 +203,21 @@ class DesignTrackerAccessTest extends TestCase
 
     public function test_non_approved_design_does_not_change_project_phase(): void
     {
-        Schema::create('projects', function (Blueprint $table) {
-            $table->id();
-            $table->string('phase')->nullable();
-            $table->timestamps();
-        });
-
         \DB::table('projects')->insert([
             'id' => 31,
+            'name' => 'Project 31',
+            'client' => 'Client 31',
+            'type' => '2Storey',
+            'location' => 'Sample',
+            'assigned' => null,
+            'target' => null,
+            'status' => 'PLANNING',
             'phase' => 'DESIGN',
+            'overall_progress' => 0,
+            'contract_amount' => 0,
+            'design_fee' => 0,
+            'construction_cost' => 0,
+            'total_client_payment' => 0,
             'created_at' => now(),
             'updated_at' => now(),
         ]);
@@ -230,7 +228,6 @@ class DesignTrackerAccessTest extends TestCase
                 'downpayment' => 10000,
                 'total_received' => 10000,
                 'office_payroll_deduction' => 500,
-                'design_progress' => 20,
                 'client_approval_status' => 'pending',
             ])
             ->assertRedirect('/projects/31/design');

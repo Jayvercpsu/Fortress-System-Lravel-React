@@ -1,6 +1,6 @@
 import Modal from './Modal';
 import { Link, router } from '@inertiajs/react';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import toast from 'react-hot-toast';
 
 const PHASES = ['Design', 'ForBuild', 'Construction', 'Turnover', 'Completed'];
@@ -42,6 +42,18 @@ const actionPillStyle = {
     lineHeight: 1.2,
 };
 
+const DRAG_AUTO_SCROLL_EDGE = 72;
+const DRAG_AUTO_SCROLL_STEP = 22;
+const KANBAN_CARD_HEIGHT = 365;
+const KANBAN_BOARD_HEIGHT = 'clamp(860px, calc(100vh - 190px), 1040px)';
+
+const singleLineClampStyle = {
+    minWidth: 0,
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    whiteSpace: 'nowrap',
+};
+
 const money = (value) => `P ${Number(value || 0).toLocaleString(undefined, { maximumFractionDigits: 0 })}`;
 const pct = (value) => `${Math.max(0, Math.min(100, Number(value || 0)))}%`;
 
@@ -78,6 +90,7 @@ export default function ProjectsKanbanPage({
     const [draggingProject, setDraggingProject] = useState(null);
     const [dropKey, setDropKey] = useState('');
     const [updatingId, setUpdatingId] = useState(null);
+    const boardScrollRef = useRef(null);
 
     useEffect(() => {
         setSearch(projectBoard.search ?? '');
@@ -149,6 +162,41 @@ export default function ProjectsKanbanPage({
         });
     };
 
+    const autoScrollBoardWhileDragging = (event) => {
+        if (!draggingProject) return;
+        event.preventDefault();
+
+        const container = boardScrollRef.current;
+        if (!container) return;
+
+        const rect = container.getBoundingClientRect();
+        let scrollTopDelta = 0;
+        let scrollLeftDelta = 0;
+
+        if (event.clientY < rect.top + DRAG_AUTO_SCROLL_EDGE) {
+            const ratio = (rect.top + DRAG_AUTO_SCROLL_EDGE - event.clientY) / DRAG_AUTO_SCROLL_EDGE;
+            scrollTopDelta = -Math.ceil(DRAG_AUTO_SCROLL_STEP * Math.max(0, Math.min(1, ratio)));
+        } else if (event.clientY > rect.bottom - DRAG_AUTO_SCROLL_EDGE) {
+            const ratio = (event.clientY - (rect.bottom - DRAG_AUTO_SCROLL_EDGE)) / DRAG_AUTO_SCROLL_EDGE;
+            scrollTopDelta = Math.ceil(DRAG_AUTO_SCROLL_STEP * Math.max(0, Math.min(1, ratio)));
+        }
+
+        if (event.clientX < rect.left + DRAG_AUTO_SCROLL_EDGE) {
+            const ratio = (rect.left + DRAG_AUTO_SCROLL_EDGE - event.clientX) / DRAG_AUTO_SCROLL_EDGE;
+            scrollLeftDelta = -Math.ceil(DRAG_AUTO_SCROLL_STEP * Math.max(0, Math.min(1, ratio)));
+        } else if (event.clientX > rect.right - DRAG_AUTO_SCROLL_EDGE) {
+            const ratio = (event.clientX - (rect.right - DRAG_AUTO_SCROLL_EDGE)) / DRAG_AUTO_SCROLL_EDGE;
+            scrollLeftDelta = Math.ceil(DRAG_AUTO_SCROLL_STEP * Math.max(0, Math.min(1, ratio)));
+        }
+
+        if (scrollTopDelta !== 0) {
+            container.scrollTop += scrollTopDelta;
+        }
+        if (scrollLeftDelta !== 0) {
+            container.scrollLeft += scrollLeftDelta;
+        }
+    };
+
     const totalMatching = Number(projectBoard.total ?? columns.reduce((sum, c) => sum + Number(c.total || 0), 0));
     const loadedCount = columns.reduce((sum, c) => sum + Number(c.shown || 0), 0);
 
@@ -174,19 +222,31 @@ export default function ProjectsKanbanPage({
             </div>
 
             <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
-                Drag a card to move phases, or change the phase from the dropdown in each project card.
+                Drag a card to move phases, or change the phase from the dropdown in each project card. While dragging, move near the board edge to auto-scroll.
             </div>
 
             <div
+                ref={boardScrollRef}
+                onDragOver={autoScrollBoardWhileDragging}
                 style={{
                     ...panel,
                     padding: 12,
-                    height: '100%',
+                    height: KANBAN_BOARD_HEIGHT,
                     minHeight: 0,
                     overflow: 'auto',
                 }}
             >
-                <div style={{ display: 'grid', gap: 12, gridTemplateColumns: `repeat(${Math.max(columns.length, 1)}, minmax(300px, 1fr))`, minWidth: Math.max(columns.length, 1) * 300, alignItems: 'start' }}>
+                <div
+                    style={{
+                        display: 'grid',
+                        gap: 12,
+                        gridTemplateColumns: `repeat(${Math.max(columns.length, 1)}, minmax(300px, 1fr))`,
+                        minWidth: Math.max(columns.length, 1) * 300,
+                        height: '100%',
+                        minHeight: 0,
+                        alignItems: 'stretch',
+                    }}
+                >
                     {columns.map((column) => {
                         const accent = phaseAccent[column.value] || '#94a3b8';
                         const isDropTarget = dropKey === column.key && !!draggingProject;
@@ -209,7 +269,8 @@ export default function ProjectsKanbanPage({
                                     ...panel,
                                     display: 'grid',
                                     gridTemplateRows: 'auto 1fr auto',
-                                    minHeight: 240,
+                                    height: '100%',
+                                    minHeight: 0,
                                     borderColor: isDropTarget ? `${accent}88` : 'var(--border-color)',
                                     boxShadow: isDropTarget ? `0 0 0 2px ${accent}33 inset` : 'none',
                                 }}
@@ -227,9 +288,22 @@ export default function ProjectsKanbanPage({
                                     <div style={{ marginTop: 5, fontSize: 11, color: 'var(--text-muted)' }}>Showing {column.shown} of {column.total}</div>
                                 </div>
 
-                                <div style={{ padding: 12, display: 'grid', gap: 10, alignContent: 'start' }}>
+                                <div style={{ padding: 12, display: 'grid', gap: 10, alignContent: 'start', minHeight: 0, overflowY: 'auto' }}>
                                     {Array.isArray(column.projects) && column.projects.length > 0 ? column.projects.map((project) => (
-                                        <div key={project.id} style={{ background: 'var(--surface-2)', border: '1px solid var(--border-color)', borderRadius: 12, padding: 12, display: 'grid', gap: 10 }}>
+                                        <div
+                                            key={project.id}
+                                            style={{
+                                                background: 'var(--surface-2)',
+                                                border: '1px solid var(--border-color)',
+                                                borderRadius: 12,
+                                                padding: 12,
+                                                display: 'grid',
+                                                gap: 10,
+                                                height: KANBAN_CARD_HEIGHT,
+                                                gridTemplateRows: 'auto auto auto auto minmax(0, 1fr) auto',
+                                                overflow: 'hidden',
+                                            }}
+                                        >
                                             <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, alignItems: 'start', minWidth: 0 }}>
                                                 <div style={{ minWidth: 0, flex: 1 }}>
                                                     <div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0, width: '100%' }}>
@@ -268,7 +342,16 @@ export default function ProjectsKanbanPage({
                                                             </span>
                                                         ) : null}
                                                     </div>
-                                                    <div style={{ fontSize: 12, color: 'var(--text-muted)', wordBreak: 'break-word' }}>{project.client || 'No client'}</div>
+                                                    <div
+                                                        title={project.client || 'No client'}
+                                                        style={{
+                                                            fontSize: 12,
+                                                            color: 'var(--text-muted)',
+                                                            ...singleLineClampStyle,
+                                                        }}
+                                                    >
+                                                        {project.client || 'No client'}
+                                                    </div>
                                                 </div>
                                                 <button
                                                     type="button"
@@ -315,17 +398,31 @@ export default function ProjectsKanbanPage({
                                                 {project.target && <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>Target: {project.target}</span>}
                                             </div>
 
-                                            <div style={{ display: 'grid', gap: 4, fontSize: 11 }}>
-                                                <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}><span style={{ color: 'var(--text-muted)' }}>Location</span><span style={{ textAlign: 'right' }}>{project.location || '-'}</span></div>
-                                                <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}><span style={{ color: 'var(--text-muted)' }}>Assigned</span><span style={{ textAlign: 'right' }}>{project.assigned_role || '-'}</span></div>
-                                                <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}><span style={{ color: 'var(--text-muted)' }}>Foremen</span><span style={{ textAlign: 'right' }}>{project.assigned || '-'}</span></div>
-                                                <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}><span style={{ color: 'var(--text-muted)' }}>Contract</span><span>{money(project.contract_amount)}</span></div>
-                                                <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}><span style={{ color: 'var(--text-muted)' }}>Paid</span><span style={{ color: '#4ade80' }}>{money(project.total_client_payment)}</span></div>
+                                            <div style={{ display: 'grid', gap: 4, fontSize: 11, minHeight: 0, alignContent: 'start' }}>
+                                                <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, minWidth: 0 }}>
+                                                    <span style={{ color: 'var(--text-muted)' }}>Location</span>
+                                                    <span title={project.location || '-'} style={{ textAlign: 'right', ...singleLineClampStyle }}>{project.location || '-'}</span>
+                                                </div>
+                                                <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, minWidth: 0 }}>
+                                                    <span style={{ color: 'var(--text-muted)' }}>Assigned</span>
+                                                    <span title={project.assigned_role || '-'} style={{ textAlign: 'right', ...singleLineClampStyle }}>{project.assigned_role || '-'}</span>
+                                                </div>
+                                                <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, minWidth: 0 }}>
+                                                    <span style={{ color: 'var(--text-muted)' }}>Foremen</span>
+                                                    <span title={project.assigned || '-'} style={{ textAlign: 'right', ...singleLineClampStyle }}>{project.assigned || '-'}</span>
+                                                </div>
+                                                <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, minWidth: 0 }}>
+                                                    <span style={{ color: 'var(--text-muted)' }}>Contract</span>
+                                                    <span title={money(project.contract_amount)} style={{ textAlign: 'right', ...singleLineClampStyle }}>{money(project.contract_amount)}</span>
+                                                </div>
+                                                <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, minWidth: 0 }}>
+                                                    <span style={{ color: 'var(--text-muted)' }}>Paid</span>
+                                                    <span title={money(project.total_client_payment)} style={{ color: '#4ade80', textAlign: 'right', ...singleLineClampStyle }}>{money(project.total_client_payment)}</span>
+                                                </div>
                                             </div>
 
                                             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                                                <Link href={`/projects/${project.id}`} style={{ ...actionPillStyle, color: 'var(--active-text)', border: '1px solid color-mix(in srgb, var(--active-text) 25%, var(--border-color))', background: 'color-mix(in srgb, var(--active-bg) 55%, transparent)' }}>View</Link>
-                                                {canEdit && <Link href={`/projects/${project.id}/edit`} style={{ ...actionPillStyle, color: '#60a5fa', border: '1px solid rgba(96,165,250,0.25)', background: 'rgba(96,165,250,0.08)' }}>Edit</Link>}
+                                                <Link href={`/projects/${project.id}`} style={{ ...actionPillStyle, color: 'var(--active-text)', border: '1px solid color-mix(in srgb, var(--active-text) 25%, var(--border-color))', background: 'color-mix(in srgb, var(--active-bg) 55%, transparent)' }}>Manage</Link>
                                                 {canDelete && (
                                                     <button type="button" onClick={() => setProjectToDelete({ id: project.id, name: project.name })} style={{ ...actionPillStyle, border: '1px solid rgba(248,81,73,0.25)', background: 'rgba(248,81,73,0.12)', color: '#f87171', cursor: 'pointer' }}>
                                                         Delete
@@ -340,7 +437,18 @@ export default function ProjectsKanbanPage({
                                     )}
                                 </div>
 
-                                <div style={{ padding: 12, borderTop: '1px solid var(--border-color)', display: 'flex', justifyContent: 'center' }}>
+                                <div
+                                    style={{
+                                        padding: 12,
+                                        borderTop: '1px solid var(--border-color)',
+                                        display: 'flex',
+                                        justifyContent: 'center',
+                                        background: 'var(--surface-1)',
+                                        position: 'sticky',
+                                        bottom: 0,
+                                        zIndex: 1,
+                                    }}
+                                >
                                     {column.has_more ? (
                                         <button
                                             type="button"

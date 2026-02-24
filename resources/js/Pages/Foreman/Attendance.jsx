@@ -117,9 +117,38 @@ export default function ForemanAttendance({
     const todayLabel = useMemo(() => getPhTodayLabel(clockTick), [clockTick]);
 
     const projectOptions = useMemo(
-        () => (Array.isArray(projects) ? projects.map((project) => ({ id: project.id, name: project.name })) : []),
+        () => (Array.isArray(projects) ? projects.map((project) => ({ id: String(project.id), name: project.name })) : []),
         [projects]
     );
+    const workerOptions = useMemo(
+        () =>
+            (Array.isArray(workers)
+                ? workers.map((worker) => ({
+                    ...worker,
+                    id: String(worker.id),
+                    project_id: worker.project_id ? String(worker.project_id) : '',
+                }))
+                : []),
+        [workers]
+    );
+    const workersByProjectId = useMemo(() => {
+        const grouped = {};
+        workerOptions.forEach((worker) => {
+            const key = String(worker.project_id || '');
+            if (!key) return;
+            if (!grouped[key]) grouped[key] = [];
+            grouped[key].push(worker);
+        });
+        return grouped;
+    }, [workerOptions]);
+    const workerByName = useMemo(() => {
+        const map = new Map();
+        workerOptions.forEach((worker) => {
+            if (!worker?.name) return;
+            map.set(String(worker.name), worker);
+        });
+        return map;
+    }, [workerOptions]);
     const roleOptions = useMemo(
         () => ['Skilled', 'Labor'].map((role) => ({ id: role, name: role })),
         []
@@ -145,8 +174,18 @@ export default function ForemanAttendance({
         setRows((prev) => {
             const next = [...prev];
             next[idx] = { ...next[idx], [field]: value };
+            if (field === 'project_id') {
+                const selectedProjectId = String(value || '');
+                const selectedWorker = next[idx].worker_name ? workerByName.get(String(next[idx].worker_name)) : null;
+                if (selectedWorker && String(selectedWorker.project_id || '') !== selectedProjectId) {
+                    next[idx].worker_name = '';
+                }
+            }
             if (field === 'worker_name' && option?.role) {
                 next[idx].worker_role = option.role;
+            }
+            if (field === 'worker_name' && option?.project_id && !next[idx].project_id) {
+                next[idx].project_id = String(option.project_id);
             }
             const computed = computeHours(next[idx]);
             if (computed !== null) next[idx].hours = computed;
@@ -356,7 +395,7 @@ export default function ForemanAttendance({
                         <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: 12 }}>
                             <thead>
                                 <tr>
-                                    {['Worker Name', 'Role', 'Project', 'Time In', 'Time Out', ''].map((h, i) => (
+                                    {['Company / Project', 'Worker Name', 'Role', 'Time In', 'Time Out', ''].map((h, i) => (
                                         <th
                                             key={i}
                                             style={{
@@ -378,15 +417,31 @@ export default function ForemanAttendance({
                                     <tr key={idx} style={{ borderBottom: '1px solid var(--row-divider)' }}>
                                         <td style={{ padding: '6px 8px', minWidth: 220 }}>
                                             <SearchableDropdown
-                                                options={workers}
+                                                options={projectOptions}
+                                                value={entry.project_id ?? ''}
+                                                onChange={(value) => updateRow(idx, 'project_id', value || '')}
+                                                getOptionLabel={(option) => option.name}
+                                                getOptionValue={(option) => option.id}
+                                                placeholder="Select company / project"
+                                                searchPlaceholder="Search projects..."
+                                                emptyMessage="No projects found"
+                                                disabled={projectOptions.length === 0}
+                                                clearable={false}
+                                                style={{ ...inputStyle, minHeight: 38, padding: '7px 9px' }}
+                                                dropdownWidth={320}
+                                            />
+                                        </td>
+                                        <td style={{ padding: '6px 8px', minWidth: 220 }}>
+                                            <SearchableDropdown
+                                                options={workersByProjectId[String(entry.project_id || '')] || []}
                                                 value={entry.worker_name}
                                                 onChange={(selectedName, option) => updateRow(idx, 'worker_name', selectedName, option)}
                                                 getOptionLabel={(option) => option.name}
                                                 getOptionValue={(option) => option.name}
-                                                placeholder={workers.length ? 'Select worker' : 'No workers yet'}
+                                                placeholder={entry.project_id ? 'Select worker' : 'Select project first'}
                                                 searchPlaceholder="Search workers..."
                                                 emptyMessage="No workers found"
-                                                disabled={workers.length === 0}
+                                                disabled={!entry.project_id || workerOptions.length === 0}
                                                 clearable
                                                 style={{ ...inputStyle, minHeight: 38, padding: '7px 9px' }}
                                                 dropdownWidth={320}
@@ -407,21 +462,6 @@ export default function ForemanAttendance({
                                                     dropdownWidth={240}
                                                 />
                                             </div>
-                                        </td>
-                                        <td style={{ padding: '6px 8px', minWidth: 220 }}>
-                                            <SearchableDropdown
-                                                options={projectOptions}
-                                                value={entry.project_id ?? ''}
-                                                onChange={(value) => updateRow(idx, 'project_id', value)}
-                                                getOptionLabel={(option) => option.name}
-                                                getOptionValue={(option) => option.id}
-                                                placeholder="Select project (optional)"
-                                                searchPlaceholder="Search projects..."
-                                                emptyMessage="No projects found"
-                                                clearable
-                                                style={{ ...inputStyle, minHeight: 38, padding: '7px 9px' }}
-                                                dropdownWidth={320}
-                                            />
                                         </td>
                                         <td style={{ padding: '6px 8px' }}>
                                             <input type="time" value={entry.time_in ?? ''} onChange={(e) => updateRow(idx, 'time_in', e.target.value)} style={{ ...inputStyle, minWidth: 110 }} />
@@ -444,7 +484,7 @@ export default function ForemanAttendance({
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
                             <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
                                 Hours are auto-calculated when both Time In and Time Out are provided.
-                                {workers.length === 0 ? ' Add workers first in the Workers page to use the worker dropdown.' : ''}
+                                {workerOptions.length === 0 ? ' Add workers first in the Workers page to use the worker dropdown.' : ''}
                             </div>
                             <div style={{ display: 'flex', gap: 8 }}>
                                 <ActionButton type="button" variant="neutral" onClick={addRow} style={{ padding: '8px 12px', fontSize: 13 }}>
@@ -514,58 +554,67 @@ export default function ForemanAttendance({
                     maxWidth={720}
                 >
                     <div style={{ display: 'grid', gap: 12 }}>
-                        <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 0.8fr', gap: 12 }}>
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                            <div>
+                                <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 6 }}>Company / Project</div>
+                                <SearchableDropdown
+                                    options={projectOptions}
+                                    value={editRow.project_id ?? ''}
+                                    onChange={(value) => {
+                                        const nextProjectId = value || '';
+                                        updateEditRow('project_id', nextProjectId);
+                                        const selectedWorker = editRow.worker_name ? workerByName.get(String(editRow.worker_name)) : null;
+                                        if (selectedWorker && String(selectedWorker.project_id || '') !== String(nextProjectId)) {
+                                            updateEditRow('worker_name', '');
+                                        }
+                                    }}
+                                    getOptionLabel={(option) => option.name}
+                                    getOptionValue={(option) => option.id}
+                                    placeholder="Select project"
+                                    searchPlaceholder="Search projects..."
+                                    emptyMessage="No projects found"
+                                    disabled={projectOptions.length === 0}
+                                    clearable
+                                    style={{ ...inputStyle, minHeight: 38, padding: '7px 9px' }}
+                                    dropdownWidth={360}
+                                />
+                            </div>
                             <div>
                                 <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 6 }}>Worker</div>
                                 <SearchableDropdown
-                                    options={workers}
+                                    options={workersByProjectId[String(editRow.project_id || '')] || []}
                                     value={editRow.worker_name}
                                     onChange={(selectedName, option) => {
                                         updateEditRow('worker_name', selectedName);
                                         if (option?.role) updateEditRow('worker_role', option.role);
+                                        if (option?.project_id && !editRow.project_id) updateEditRow('project_id', String(option.project_id));
                                     }}
                                     getOptionLabel={(option) => option.name}
                                     getOptionValue={(option) => option.name}
-                                    placeholder={workers.length ? 'Select worker' : 'No workers yet'}
+                                    placeholder={editRow.project_id ? 'Select worker' : 'Select project first'}
                                     searchPlaceholder="Search workers..."
                                     emptyMessage="No workers found"
-                                    disabled={workers.length === 0}
+                                    disabled={!editRow.project_id || workerOptions.length === 0}
                                     clearable
                                     style={{ ...inputStyle, minHeight: 38, padding: '7px 9px' }}
                                     dropdownWidth={320}
                                 />
                             </div>
-                            <div>
-                                <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 6 }}>Role</div>
-                                <SearchableDropdown
-                                    options={roleOptions}
-                                    value={editRow.worker_role}
-                                    onChange={(value) => updateEditRow('worker_role', value || 'Labor')}
-                                    getOptionLabel={(option) => option.name}
-                                    getOptionValue={(option) => option.id}
-                                    placeholder="Select role"
-                                    searchPlaceholder="Search roles..."
-                                    emptyMessage="No roles found"
-                                    style={{ ...inputStyle, minHeight: 38, padding: '7px 9px' }}
-                                    dropdownWidth={240}
-                                />
-                            </div>
                         </div>
 
-                        <div>
-                            <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 6 }}>Project</div>
+                        <div style={{ maxWidth: 320 }}>
+                            <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 6 }}>Role</div>
                             <SearchableDropdown
-                                options={projectOptions}
-                                value={editRow.project_id ?? ''}
-                                onChange={(value) => updateEditRow('project_id', value)}
+                                options={roleOptions}
+                                value={editRow.worker_role}
+                                onChange={(value) => updateEditRow('worker_role', value || 'Labor')}
                                 getOptionLabel={(option) => option.name}
                                 getOptionValue={(option) => option.id}
-                                placeholder="Select project (optional)"
-                                searchPlaceholder="Search projects..."
-                                emptyMessage="No projects found"
-                                clearable
+                                placeholder="Select role"
+                                searchPlaceholder="Search roles..."
+                                emptyMessage="No roles found"
                                 style={{ ...inputStyle, minHeight: 38, padding: '7px 9px' }}
-                                dropdownWidth={360}
+                                dropdownWidth={240}
                             />
                         </div>
 

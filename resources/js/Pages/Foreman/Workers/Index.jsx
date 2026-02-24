@@ -2,8 +2,9 @@ import Layout from '../../../Components/Layout';
 import DataTable from '../../../Components/DataTable';
 import DatePickerInput from '../../../Components/DatePickerInput';
 import ActionButton from '../../../Components/ActionButton';
+import SearchableDropdown from '../../../Components/SearchableDropdown';
 import { Head, router, useForm, usePage } from '@inertiajs/react';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import toast from 'react-hot-toast';
 
 const cardStyle = {
@@ -24,9 +25,14 @@ const inputStyle = {
     boxSizing: 'border-box',
 };
 
-export default function ForemanWorkersIndex({ workers = [], workerTable = {} }) {
+export default function ForemanWorkersIndex({ workers = [], workerTable = {}, assignedProjects = [] }) {
     const { flash } = usePage().props;
     const [editingId, setEditingId] = useState(null);
+    const projectOptions = useMemo(
+        () => (Array.isArray(assignedProjects) ? assignedProjects.map((project) => ({ id: String(project.id), name: project.name })) : []),
+        [assignedProjects]
+    );
+    const defaultProjectId = projectOptions[0]?.id ?? '';
 
     useEffect(() => {
         if (flash?.success) toast.success(flash.success);
@@ -44,6 +50,7 @@ export default function ForemanWorkersIndex({ workers = [], workerTable = {} }) 
     };
 
     const createForm = useForm({
+        project_id: defaultProjectId,
         name: '',
         birth_date: '',
         place_of_birth: '',
@@ -54,6 +61,7 @@ export default function ForemanWorkersIndex({ workers = [], workerTable = {} }) 
     });
 
     const editForm = useForm({
+        project_id: '',
         name: '',
         birth_date: '',
         place_of_birth: '',
@@ -62,6 +70,12 @@ export default function ForemanWorkersIndex({ workers = [], workerTable = {} }) 
         phone: '',
         address: '',
     });
+
+    useEffect(() => {
+        if (!projectOptions.some((option) => option.id === String(createForm.data.project_id || ''))) {
+            createForm.setData('project_id', defaultProjectId);
+        }
+    }, [projectOptions, defaultProjectId, createForm.data.project_id]);
 
     const queryParams = (overrides = {}) => {
         const params = {
@@ -91,7 +105,17 @@ export default function ForemanWorkersIndex({ workers = [], workerTable = {} }) 
         e.preventDefault();
         createForm.post(`/foreman/workers${queryString({ page: 1 })}`, {
             preserveScroll: true,
-            onSuccess: () => createForm.reset(),
+            onSuccess: () =>
+                createForm.setData({
+                    project_id: createForm.data.project_id || defaultProjectId,
+                    name: '',
+                    birth_date: '',
+                    place_of_birth: '',
+                    sex: '',
+                    civil_status: '',
+                    phone: '',
+                    address: '',
+                }),
             onError: () => toast.error('Unable to add worker. Check the form fields.'),
         });
     };
@@ -99,6 +123,7 @@ export default function ForemanWorkersIndex({ workers = [], workerTable = {} }) 
     const startEdit = (worker) => {
         setEditingId(worker.id);
         editForm.setData({
+            project_id: worker.project_id ? String(worker.project_id) : '',
             name: worker.name ?? '',
             birth_date: worker.birth_date ?? '',
             place_of_birth: worker.place_of_birth ?? '',
@@ -125,6 +150,31 @@ export default function ForemanWorkersIndex({ workers = [], workerTable = {} }) 
     };
 
     const columns = [
+        {
+            key: 'project_name',
+            label: 'Project',
+            width: 220,
+            render: (row) =>
+                editingId === row.id ? (
+                    <SearchableDropdown
+                        options={projectOptions}
+                        value={editForm.data.project_id}
+                        onChange={(value) => editForm.setData('project_id', value || '')}
+                        getOptionLabel={(option) => option.name}
+                        getOptionValue={(option) => option.id}
+                        placeholder={projectOptions.length ? 'Select project' : 'No assigned projects'}
+                        searchPlaceholder="Search projects..."
+                        emptyMessage="No projects found"
+                        disabled={projectOptions.length === 0}
+                        clearable={false}
+                        style={{ ...inputStyle, minHeight: 38, padding: '7px 9px' }}
+                        dropdownWidth={300}
+                    />
+                ) : (
+                    row.project_name || '-'
+                ),
+            searchAccessor: (row) => row.project_name,
+        },
         {
             key: 'name',
             label: 'Worker Name',
@@ -223,7 +273,34 @@ export default function ForemanWorkersIndex({ workers = [], workerTable = {} }) 
                 <div style={{ display: 'grid', gap: 16 }}>
                     <form onSubmit={submitCreate} style={{ ...cardStyle, display: 'grid', gap: 14 }}>
                         <div style={{ fontWeight: 700 }}>Add Worker</div>
+                        <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+                            Assign each worker to one of your projects so they appear in project records and attendance for that project.
+                        </div>
+                        {projectOptions.length === 0 && (
+                            <div style={{ fontSize: 12, color: '#f87171' }}>
+                                No assigned projects found. Ask Head Admin to assign you to a project first.
+                            </div>
+                        )}
                         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 14 }}>
+                            <label>
+                                <div style={{ fontSize: 12, marginBottom: 6 }}>Project (Assigned)</div>
+                                <SearchableDropdown
+                                    options={projectOptions}
+                                    value={createForm.data.project_id}
+                                    onChange={(value) => createForm.setData('project_id', value || '')}
+                                    getOptionLabel={(option) => option.name}
+                                    getOptionValue={(option) => option.id}
+                                    placeholder={projectOptions.length ? 'Select project' : 'No assigned projects'}
+                                    searchPlaceholder="Search projects..."
+                                    emptyMessage="No projects found"
+                                    disabled={projectOptions.length === 0}
+                                    clearable={false}
+                                    style={{ ...inputStyle, minHeight: 40, padding: '8px 10px' }}
+                                    dropdownWidth={360}
+                                />
+                                {createForm.errors.project_id && <div style={{ color: '#f87171', fontSize: 12, marginTop: 4 }}>{createForm.errors.project_id}</div>}
+                            </label>
+
                             <label>
                                 <div style={{ fontSize: 12, marginBottom: 6 }}>Worker Name</div>
                                 <input value={createForm.data.name} onChange={(e) => createForm.setData('name', e.target.value)} style={inputStyle} />
@@ -275,7 +352,7 @@ export default function ForemanWorkersIndex({ workers = [], workerTable = {} }) 
                         </div>
 
                         <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-                            <ActionButton type="submit" variant="success" disabled={createForm.processing} style={{ padding: '10px 14px', fontSize: 13 }}>
+                            <ActionButton type="submit" variant="success" disabled={createForm.processing || projectOptions.length === 0} style={{ padding: '10px 14px', fontSize: 13 }}>
                                 {createForm.processing ? 'Saving...' : 'Add Worker'}
                             </ActionButton>
                         </div>

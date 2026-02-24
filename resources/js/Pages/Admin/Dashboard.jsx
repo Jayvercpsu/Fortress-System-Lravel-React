@@ -1,4 +1,5 @@
 import Layout from '../../Components/Layout';
+import InlinePagination from '../../Components/InlinePagination';
 import { Head, Link } from '@inertiajs/react';
 
 const cardStyle = {
@@ -53,10 +54,11 @@ function BreakdownPanel({ title, items = [] }) {
     );
 }
 
-export default function AdminDashboard({ kpis = {} }) {
+export default function AdminDashboard({ kpis = {}, projectSnapshotPager = null }) {
     const projectCounts = kpis.project_counts || {};
     const financialTotals = kpis.financial_totals || {};
     const projects = kpis.projects || [];
+    const projectSnapshotRows = projectSnapshotPager?.data || projects.slice(0, 10);
 
     return (
         <>
@@ -77,11 +79,11 @@ export default function AdminDashboard({ kpis = {} }) {
 
                 <div style={{ ...cardStyle, overflow: 'hidden' }}>
                     <div style={{ fontWeight: 700, marginBottom: 10 }}>Project Progress Snapshot</div>
-                    {projects.length === 0 ? (
+                    {projectSnapshotRows.length === 0 ? (
                         <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>No projects yet.</div>
                     ) : (
                         <div style={{ display: 'grid', gap: 8 }}>
-                            {projects.slice(0, 10).map((project) => (
+                            {projectSnapshotRows.map((project) => (
                                 <div
                                     key={project.id}
                                     style={{
@@ -130,6 +132,7 @@ export default function AdminDashboard({ kpis = {} }) {
                             ))}
                         </div>
                     )}
+                    <InlinePagination pager={projectSnapshotPager} />
                 </div>
             </Layout>
         </>
