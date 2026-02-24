@@ -74,6 +74,10 @@ class RouteVisibilityRulesTest extends TestCase
             ->assertOk();
 
         $this->actingAs($this->makeUser('admin'))
+            ->get('/weekly-accomplishments')
+            ->assertOk();
+
+        $this->actingAs($this->makeUser('admin'))
             ->get("/projects/{$project->id}/monitoring")
             ->assertOk();
 

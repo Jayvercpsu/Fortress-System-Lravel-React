@@ -3,8 +3,9 @@ import DataTable from '../../Components/DataTable';
 import SearchableDropdown from '../../Components/SearchableDropdown';
 import ActionButton from '../../Components/ActionButton';
 import Modal from '../../Components/Modal';
-import { Head, router, useForm } from '@inertiajs/react';
+import { Head, Link, router, useForm } from '@inertiajs/react';
 import { useMemo, useState } from 'react';
+import { ArrowLeft } from 'lucide-react';
 
 const statusColor = {
     pending: '#8b949e',
@@ -290,6 +291,27 @@ export default function Payroll({ payrolls = [], totalPayable = 0, workerOptions
         <>
             <Head title="Payroll" />
             <Layout title="Payroll Management">
+                <div style={{ marginBottom: 12 }}>
+                    <Link
+                        href="/payroll/run"
+                        style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: 8,
+                            color: 'var(--text-main)',
+                            textDecoration: 'none',
+                            border: '1px solid var(--border-color)',
+                            background: 'var(--button-bg)',
+                            borderRadius: 8,
+                            padding: '8px 12px',
+                            fontSize: 13,
+                        }}
+                    >
+                        <ArrowLeft size={16} />
+                        Back to Payroll Run
+                    </Link>
+                </div>
+
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 16, marginBottom: 24 }}>
                     <div style={{ ...cardStyle, padding: '20px 24px' }}>
                         <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 8, textTransform: 'uppercase' }}>
@@ -311,9 +333,6 @@ export default function Payroll({ payrolls = [], totalPayable = 0, workerOptions
                             flexWrap: 'wrap',
                         }}
                     >
-                        <ActionButton href="/payroll/worker-rates" variant="neutral">
-                            Worker Rates
-                        </ActionButton>
                         <button
                             onClick={() => setShowForm((v) => !v)}
                             style={{

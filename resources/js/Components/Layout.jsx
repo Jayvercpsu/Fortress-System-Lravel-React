@@ -9,12 +9,12 @@ const navByRole = {
         { label: 'Builders', href: '/builders', icon: 'fi fi-rr-users' },
         { label: 'Attendance', href: '/attendance', icon: 'fi fi-rr-calendar-check' },
         { label: 'Payroll', href: '/payroll/run', icon: 'fi fi-rr-money-bill-wave' },
-        { label: 'Worker Rates', href: '/payroll/worker-rates', icon: 'fi fi-rr-users' },
         { label: 'Materials', href: '/materials', icon: 'fi fi-rr-shopping-cart' },
         { label: 'Delivery', href: '/delivery', icon: 'fi fi-rr-truck-side' },
         { label: 'Issues', href: '/issues', icon: 'fi fi-rr-exclamation' },
         { label: 'Progress Photos', href: '/progress-photos', icon: 'fi fi-rr-picture' },
         { label: 'Reports', href: '/reports', icon: 'fi fi-rr-document' },
+        { label: 'Accomplishments', href: '/weekly-accomplishments', icon: 'fi fi-rr-document' },
         { label: 'Users', href: '/users', icon: 'fi fi-rr-user-add' },
         { label: 'Settings', href: '/settings', icon: 'fi fi-rr-settings' },
     ],
@@ -27,12 +27,12 @@ const navByRole = {
         { label: 'Issues', href: '/issues', icon: 'fi fi-rr-exclamation' },
         { label: 'Progress Photos', href: '/progress-photos', icon: 'fi fi-rr-picture' },
         { label: 'Reports', href: '/reports', icon: 'fi fi-rr-document' },
+        { label: 'Accomplishments', href: '/weekly-accomplishments', icon: 'fi fi-rr-document' },
         { label: 'Settings', href: '/settings', icon: 'fi fi-rr-settings' },
     ],
     hr: [
         { label: 'Dashboard', href: '/hr', icon: 'fi fi-rr-dashboard' },
         { label: 'Payroll', href: '/payroll/run', icon: 'fi fi-rr-money-bill-wave' },
-        { label: 'Worker Rates', href: '/payroll/worker-rates', icon: 'fi fi-rr-users' },
         { label: 'Settings', href: '/settings', icon: 'fi fi-rr-settings' },
     ],
     foreman: [
@@ -131,8 +131,7 @@ export default function Layout({ children, title }) {
                             const exactOnlyPaths = new Set(['/head-admin', '/admin', '/hr', '/foreman']);
                             const exactOnly = exactOnlyPaths.has(itemPath);
                             const aliasPathsByHref = {
-                                '/payroll/run': ['/payroll'],
-                                '/payroll/worker-rates': ['/payroll/worker-rates'],
+                                '/payroll/run': ['/payroll', '/payroll/worker-rates'],
                             };
                             const aliases = aliasPathsByHref[itemPath] || [];
                             const active =

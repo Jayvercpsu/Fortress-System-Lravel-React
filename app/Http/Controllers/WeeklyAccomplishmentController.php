@@ -2,11 +2,11 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\DeliveryConfirmation;
+use App\Models\WeeklyAccomplishment;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 
-class DeliveryConfirmationController extends Controller
+class WeeklyAccomplishmentController extends Controller
 {
     public function index(Request $request)
     {
@@ -20,26 +20,16 @@ class DeliveryConfirmationController extends Controller
             $perPage = 10;
         }
 
-        $query = DeliveryConfirmation::query()
-            ->with([
-                'foreman:id,fullname',
-                'project:id,name',
-            ]);
+        $query = WeeklyAccomplishment::query()
+            ->with('foreman:id,fullname', 'project:id,name');
 
         if ($search !== '') {
             $query->where(function ($builder) use ($search) {
-                $builder->where('item_delivered', 'like', "%{$search}%")
-                    ->orWhere('quantity', 'like', "%{$search}%")
-                    ->orWhere('supplier', 'like', "%{$search}%")
-                    ->orWhere('status', 'like', "%{$search}%")
-                    ->orWhere('delivery_date', 'like', "%{$search}%")
+                $builder->where('scope_of_work', 'like', "%{$search}%")
+                    ->orWhere('week_start', 'like', "%{$search}%")
+                    ->orWhere('percent_completed', 'like', "%{$search}%")
                     ->orWhereHas('foreman', fn ($q) => $q->where('fullname', 'like', "%{$search}%"))
                     ->orWhereHas('project', fn ($q) => $q->where('name', 'like', "%{$search}%"));
-
-                if (ctype_digit($search)) {
-                    $builder->orWhere('id', (int) $search)
-                        ->orWhere('project_id', (int) $search);
-                }
             });
         }
 
@@ -48,28 +38,25 @@ class DeliveryConfirmationController extends Controller
             ->paginate($perPage)
             ->withQueryString();
 
-        $deliveries = collect($paginator->items())
-            ->map(fn (DeliveryConfirmation $row) => [
+        $accomplishments = collect($paginator->items())
+            ->map(fn (WeeklyAccomplishment $row) => [
                 'id' => $row->id,
-                'project_id' => $row->project_id,
-                'project_name' => $row->project?->name,
                 'foreman_name' => $row->foreman?->fullname ?? 'Unknown',
-                'item_delivered' => $row->item_delivered,
-                'quantity' => $row->quantity,
-                'delivery_date' => $row->delivery_date,
-                'supplier' => $row->supplier,
-                'status' => $row->status,
+                'project_name' => $row->project?->name ?? 'Unassigned',
+                'week_start' => $row->week_start ? (string) $row->week_start : null,
+                'scope_of_work' => $row->scope_of_work,
+                'percent_completed' => $row->percent_completed,
                 'created_at' => optional($row->created_at)?->toDateTimeString(),
             ])
             ->values();
 
         $page = $request->user()->role === 'head_admin'
-            ? 'HeadAdmin/Delivery/Index'
-            : 'Admin/Delivery/Index';
+            ? 'HeadAdmin/WeeklyAccomplishments/Index'
+            : 'Admin/WeeklyAccomplishments/Index';
 
         return Inertia::render($page, [
-            'deliveries' => $deliveries,
-            'deliveryTable' => $this->tableMeta($paginator, $search),
+            'weeklyAccomplishments' => $accomplishments,
+            'weeklyAccomplishmentTable' => $this->tableMeta($paginator, $search),
         ]);
     }
 

@@ -9,6 +9,7 @@ use App\Http\Controllers\ForemanWorkerController;
 use App\Http\Controllers\ForemansController;
 use App\Http\Controllers\MaterialRequestController;
 use App\Http\Controllers\UserController;
+use App\Http\Controllers\WeeklyAccomplishmentController;
 use App\Http\Controllers\PayrollController;
 use App\Http\Controllers\PaymentController;
 use App\Http\Controllers\ProjectController;
@@ -94,6 +95,7 @@ Route::middleware(['auth', 'role:head_admin,admin'])->group(function () {
     Route::get('/attendance/summary', [AttendanceController::class, 'summary'])->name('attendance.summary');
     Route::get('/attendance', [AttendanceController::class, 'index'])->name('attendance.index');
     Route::get('/reports', [ReportsController::class, 'index'])->name('reports.index');
+    Route::get('/weekly-accomplishments', [WeeklyAccomplishmentController::class, 'index'])->name('weekly-accomplishments.index');
     Route::get('/materials', [MaterialRequestController::class, 'index'])->name('materials.index');
     Route::get('/delivery', [DeliveryConfirmationController::class, 'index'])->name('delivery.index');
     Route::get('/issues', [IssueReportController::class, 'index'])->name('issues.index');
@@ -102,6 +104,7 @@ Route::middleware(['auth', 'role:head_admin,admin'])->group(function () {
     Route::get('/projects/create', [ProjectController::class, 'create'])->name('projects.create');
     Route::post('/projects', [ProjectController::class, 'store'])->name('projects.store');
     Route::get('/projects/{project}/edit', [ProjectController::class, 'edit'])->name('projects.edit');
+    Route::patch('/projects/{project}/assigned-foremen', [ProjectController::class, 'updateAssignedForemen'])->name('projects.assigned_foremen.update');
     Route::patch('/projects/{project}', [ProjectController::class, 'update'])->name('projects.update');
 
     Route::get('/projects/{project}/design', [DesignController::class, 'show'])->name('design.show');

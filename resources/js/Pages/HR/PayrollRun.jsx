@@ -247,60 +247,70 @@ export default function PayrollRun({
             <Head title="Payroll Run" />
             <Layout title="Payroll Run">
                 <div style={{ display: 'grid', gap: 16 }}>
-                    <div style={{ ...cardStyle, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
-                        <div>
-                            <div style={{ fontWeight: 700, marginBottom: 4 }}>Generate Payroll From Attendance</div>
-                            <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
-                                Create or regenerate a cutoff payroll from attendance logs. Existing draft/generated cutoff rows for the same range will be replaced.
-                            </div>
-                        </div>
-                        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                            <ActionButton href="/payroll/worker-rates" variant="neutral">Worker Rates</ActionButton>
-                            <ActionButton href="/payroll" variant="neutral">Open Manual Payroll (Fallback)</ActionButton>
-                        </div>
-                    </div>
-
                     <form onSubmit={submitGenerate} style={{ ...cardStyle, display: 'grid', gap: 12 }}>
                         <div
                             style={{
-                                display: 'grid',
-                                gridTemplateColumns: 'repeat(2, minmax(220px, 320px)) auto',
-                                gap: 12,
-                                alignItems: 'start',
-                                justifyContent: 'start',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                gap: 28,
+                                flexWrap: 'wrap',
                             }}
                         >
-                            <label style={{ display: 'grid', alignContent: 'start' }}>
-                                <div style={{ fontSize: 12, marginBottom: 6 }}>Cutoff Start</div>
-                                <DatePickerInput
-                                    value={generateForm.data.start_date}
-                                    onChange={(value) => generateForm.setData('start_date', value)}
-                                    style={inputStyle}
-                                    maxDate={today || undefined}
-                                />
-                                <div style={{ minHeight: 38, marginTop: 4, fontSize: 12, color: '#f87171' }}>
-                                    {generateForm.errors.start_date || ''}
-                                </div>
-                            </label>
-
-                            <label style={{ display: 'grid', alignContent: 'start' }}>
-                                <div style={{ fontSize: 12, marginBottom: 6 }}>Cutoff End</div>
-                                <DatePickerInput
-                                    value={generateForm.data.end_date}
-                                    onChange={(value) => generateForm.setData('end_date', value)}
-                                    style={inputStyle}
-                                    minDate={generateForm.data.start_date || undefined}
-                                    maxDate={today || undefined}
-                                />
-                                <div style={{ minHeight: 38, marginTop: 4, fontSize: 12, color: '#f87171' }}>
-                                    {generateForm.errors.end_date || ''}
-                                </div>
-                            </label>
-
-                            <div style={{ display: 'flex', justifyContent: 'flex-start', alignItems: 'start', paddingTop: 24 }}>
-                                <ActionButton type="submit" variant="success" disabled={generateForm.processing} style={{ padding: '10px 16px', fontSize: 13 }}>
-                                    {generateForm.processing ? 'Generating...' : 'Generate Payroll'}
+                            <div style={{ display: 'flex', alignItems: 'center', alignSelf: 'flex-start', paddingTop: 24, gap: 8, flexWrap: 'wrap' }}>
+                                <ActionButton href="/payroll/worker-rates" variant="success" style={{ padding: '10px 16px', fontSize: 13 }}>
+                                    Worker Rates
                                 </ActionButton>
+                                <ActionButton href="/payroll" variant="success" style={{ padding: '10px 16px', fontSize: 13 }}>
+                                    Manual Payroll
+                                </ActionButton>
+                            </div>
+
+                            <div
+                                style={{
+                                    display: 'grid',
+                                    gridTemplateColumns: 'repeat(2, minmax(220px, 320px)) auto',
+                                    gap: 12,
+                                    alignItems: 'start',
+                                    justifyContent: 'start',
+                                }}
+                            >
+                                <label style={{ display: 'grid', alignContent: 'start' }}>
+                                    <div style={{ fontSize: 12, marginBottom: 6 }}>Cutoff Start</div>
+                                    <DatePickerInput
+                                        value={generateForm.data.start_date}
+                                        onChange={(value) => generateForm.setData('start_date', value)}
+                                        style={inputStyle}
+                                        maxDate={today || undefined}
+                                    />
+                                    {generateForm.errors.start_date ? (
+                                        <div style={{ marginTop: 4, fontSize: 12, color: '#f87171' }}>
+                                            {generateForm.errors.start_date}
+                                        </div>
+                                    ) : null}
+                                </label>
+
+                                <label style={{ display: 'grid', alignContent: 'start' }}>
+                                    <div style={{ fontSize: 12, marginBottom: 6 }}>Cutoff End</div>
+                                    <DatePickerInput
+                                        value={generateForm.data.end_date}
+                                        onChange={(value) => generateForm.setData('end_date', value)}
+                                        style={inputStyle}
+                                        minDate={generateForm.data.start_date || undefined}
+                                        maxDate={today || undefined}
+                                    />
+                                    {generateForm.errors.end_date ? (
+                                        <div style={{ marginTop: 4, fontSize: 12, color: '#f87171' }}>
+                                            {generateForm.errors.end_date}
+                                        </div>
+                                    ) : null}
+                                </label>
+
+                                <div style={{ display: 'flex', justifyContent: 'flex-start', alignItems: 'start', paddingTop: 24 }}>
+                                    <ActionButton type="submit" variant="success" disabled={generateForm.processing} style={{ padding: '10px 16px', fontSize: 13 }}>
+                                        {generateForm.processing ? 'Generating...' : 'Generate Payroll'}
+                                    </ActionButton>
+                                </div>
                             </div>
                         </div>
                     </form>

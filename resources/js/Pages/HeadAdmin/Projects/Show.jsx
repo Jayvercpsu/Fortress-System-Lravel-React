@@ -2,6 +2,7 @@ import Layout from '../../../Components/Layout';
 import ActionButton from '../../../Components/ActionButton';
 import DataTable from '../../../Components/DataTable';
 import Modal from '../../../Components/Modal';
+import SearchableDropdown from '../../../Components/SearchableDropdown';
 import { Head, Link, router, useForm, usePage } from '@inertiajs/react';
 import { useEffect, useState } from 'react';
 import toast from 'react-hot-toast';
@@ -26,10 +27,30 @@ const inputStyle = {
 const money = (value) =>
     `P ${Number(value || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
+const parseAssignedForemen = (value) =>
+    String(value || '')
+        .split(/[,;]+/)
+        .map((name) => name.trim())
+        .filter(Boolean);
+
+const normalizeAssignedForemen = (names) => {
+    const seen = new Set();
+
+    return names
+        .map((name) => String(name || '').trim())
+        .filter((name) => {
+            if (!name) return false;
+            const key = name.toLowerCase();
+            if (seen.has(key)) return false;
+            seen.add(key);
+            return true;
+        });
+};
+
 export default function HeadAdminProjectsShow({
     project,
+    foremen = [],
     assignedTeam = [],
-    teamOptions = {},
     files = [],
     fileTable = {},
     updates = [],
@@ -41,6 +62,9 @@ export default function HeadAdminProjectsShow({
         return ['overview', 'files', 'updates'].includes(active) ? active : 'overview';
     });
     const [previewFile, setPreviewFile] = useState(null);
+    const [pendingAssignedForeman, setPendingAssignedForeman] = useState('');
+    const [assignedForemenDraft, setAssignedForemenDraft] = useState(() => parseAssignedForemen(project?.assigned ?? ''));
+    const [savingAssignedForemen, setSavingAssignedForemen] = useState(false);
 
     const {
         data: fileData,
@@ -59,19 +83,6 @@ export default function HeadAdminProjectsShow({
         reset: resetUpdate,
     } = useForm({ note: '' });
 
-    const {
-        data: teamData,
-        setData: setTeamData,
-        post: postTeam,
-        processing: savingTeam,
-        errors: teamErrors,
-        reset: resetTeam,
-    } = useForm({
-        user_id: '',
-        worker_name: '',
-        rate: '',
-    });
-
     useEffect(() => {
         if (flash?.success) toast.success(flash.success);
         if (flash?.error) toast.error(flash.error);
@@ -82,6 +93,10 @@ export default function HeadAdminProjectsShow({
         url.searchParams.set('tab', tab);
         window.history.replaceState({}, '', url.toString());
     }, [tab]);
+
+    useEffect(() => {
+        setAssignedForemenDraft(parseAssignedForemen(project?.assigned ?? ''));
+    }, [project?.assigned]);
 
     const fileTableState = {
         search: fileTable?.search ?? '',
@@ -159,25 +174,38 @@ export default function HeadAdminProjectsShow({
         });
     };
 
-    const userTeamOptions = Array.isArray(teamOptions?.users) ? teamOptions.users : [];
-    const workerTeamOptions = Array.isArray(teamOptions?.workers) ? teamOptions.workers : [];
+    const foremanOptions = Array.isArray(foremen) ? foremen : [];
 
-    const addTeamMember = (e) => {
-        e.preventDefault();
-        postTeam(`/projects/${project.id}/team${projectShowQueryString({ tab: 'overview' })}`, {
-            preserveScroll: true,
-            onSuccess: () => {
-                resetTeam('user_id', 'worker_name', 'rate');
-            },
-            onError: () => toast.error('Unable to add team member.'),
-        });
+    const syncAssignedForemenDraft = (nextNames) => {
+        setAssignedForemenDraft(normalizeAssignedForemen(nextNames));
     };
 
-    const removeTeamMember = (teamMemberId) => {
-        router.delete(`/project-team/${teamMemberId}${projectShowQueryString({ tab: 'overview' })}`, {
-            preserveScroll: true,
-            onError: () => toast.error('Unable to remove team member.'),
-        });
+    const addAssignedForeman = () => {
+        if (!pendingAssignedForeman) return;
+        syncAssignedForemenDraft([...assignedForemenDraft, pendingAssignedForeman]);
+        setPendingAssignedForeman('');
+    };
+
+    const removeAssignedForeman = (nameToRemove) => {
+        syncAssignedForemenDraft(assignedForemenDraft.filter((name) => name !== nameToRemove));
+    };
+
+    const resetAssignedForemenDraft = () => {
+        setPendingAssignedForeman('');
+        setAssignedForemenDraft(parseAssignedForemen(project?.assigned ?? ''));
+    };
+
+    const saveAssignedForemen = () => {
+        setSavingAssignedForemen(true);
+        router.patch(
+            `/projects/${project.id}/assigned-foremen${projectShowQueryString({ tab: 'overview' })}`,
+            { foreman_names: assignedForemenDraft },
+            {
+                preserveScroll: true,
+                onError: () => toast.error('Unable to update assigned foremen.'),
+                onFinish: () => setSavingAssignedForemen(false),
+            }
+        );
     };
 
     const previewUrl = previewFile ? `/storage/${previewFile.file_path}` : '';
@@ -377,7 +405,7 @@ export default function HeadAdminProjectsShow({
                                 ['Client', project.client],
                                 ['Type', project.type],
                                 ['Location', project.location],
-                                ['Assigned', project.assigned || '-'],
+                                ['Assigned Foremen', project.assigned || '-'],
                                 ['Target', project.target || '-'],
                                 ['Phase', project.phase],
                                 ['Status', project.status],
@@ -397,117 +425,135 @@ export default function HeadAdminProjectsShow({
                         </div>
 
                         <div style={{ ...cardStyle, display: 'grid', gap: 12 }}>
-                            <div style={{ fontWeight: 700 }}>Assigned Team</div>
+                            <div style={{ fontWeight: 700 }}>Assigned Foremen (Quick Update)</div>
+                            <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+                                One project can have multiple foremen. This updates the project assignment list and linked foreman records.
+                            </div>
 
-                            <form onSubmit={addTeamMember} style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr 1fr auto', gap: 8, alignItems: 'end' }}>
-                                <div style={{ display: 'grid', gap: 6 }}>
-                                    <label style={{ fontSize: 12, color: 'var(--text-muted)' }}>Registered User (optional)</label>
-                                    <select
-                                        value={teamData.user_id}
-                                        onChange={(e) => {
-                                            const nextUserId = e.target.value;
-                                            const selected = userTeamOptions.find((user) => String(user.id) === String(nextUserId));
-                                            setTeamData((data) => ({
-                                                ...data,
-                                                user_id: nextUserId,
-                                                worker_name: nextUserId ? '' : data.worker_name,
-                                                rate: nextUserId && selected?.default_rate_per_hour != null
-                                                    ? String(selected.default_rate_per_hour)
-                                                    : data.rate,
-                                            }));
-                                        }}
-                                        style={inputStyle}
-                                    >
-                                        <option value="">Select user</option>
-                                        {userTeamOptions.map((user) => (
-                                            <option key={user.id} value={user.id}>
-                                                {user.fullname} ({user.role})
-                                            </option>
-                                        ))}
-                                    </select>
-                                </div>
-
-                                <div style={{ display: 'grid', gap: 6 }}>
-                                    <label style={{ fontSize: 12, color: 'var(--text-muted)' }}>Worker Template (optional)</label>
-                                    <select
-                                        value=""
-                                        onChange={(e) => {
-                                            const selected = workerTeamOptions.find((worker) => String(worker.id) === String(e.target.value));
-                                            if (!selected) return;
-                                            setTeamData((data) => ({
-                                                ...data,
-                                                user_id: '',
-                                                worker_name: selected.name || '',
-                                                rate: selected.default_rate_per_hour != null ? String(selected.default_rate_per_hour) : data.rate,
-                                            }));
-                                            e.target.value = '';
-                                        }}
-                                        style={inputStyle}
-                                    >
-                                        <option value="">Pick saved worker</option>
-                                        {workerTeamOptions.map((worker) => (
-                                            <option key={worker.id} value={worker.id}>
-                                                {worker.name}
-                                            </option>
-                                        ))}
-                                    </select>
-                                </div>
-
-                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 120px', gap: 8 }}>
-                                    <div style={{ display: 'grid', gap: 6 }}>
-                                        <label style={{ fontSize: 12, color: 'var(--text-muted)' }}>Worker Name (manual)</label>
-                                        <input
-                                            value={teamData.worker_name}
-                                            onChange={(e) =>
-                                                setTeamData((data) => ({ ...data, user_id: '', worker_name: e.target.value }))
-                                            }
-                                            placeholder="Manual worker name"
-                                            style={inputStyle}
-                                        />
-                                    </div>
-
-                                    <div style={{ display: 'grid', gap: 6 }}>
-                                        <label style={{ fontSize: 12, color: 'var(--text-muted)' }}>Rate</label>
-                                        <input
-                                            type="number"
-                                            min="0"
-                                            step="0.01"
-                                            value={teamData.rate}
-                                            onChange={(e) => setTeamData('rate', e.target.value)}
-                                            placeholder="0.00"
-                                            style={inputStyle}
-                                        />
-                                    </div>
-                                </div>
-
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 8, alignItems: 'end' }}>
+                                <SearchableDropdown
+                                    options={foremanOptions}
+                                    value={pendingAssignedForeman}
+                                    onChange={(value) => setPendingAssignedForeman(value || '')}
+                                    getOptionLabel={(option) => option.fullname}
+                                    getOptionValue={(option) => option.fullname}
+                                    placeholder={foremanOptions.length === 0 ? 'No foreman users available' : 'Select foreman'}
+                                    searchPlaceholder="Search foremen..."
+                                    emptyMessage="No foremen found"
+                                    disabled={foremanOptions.length === 0}
+                                    clearable
+                                    style={{ ...inputStyle, minHeight: 40, padding: '8px 10px' }}
+                                    dropdownWidth={340}
+                                />
                                 <button
-                                    type="submit"
-                                    disabled={savingTeam}
+                                    type="button"
+                                    onClick={addAssignedForeman}
+                                    disabled={!pendingAssignedForeman}
+                                    style={{
+                                        background: 'var(--button-bg)',
+                                        color: 'var(--text-main)',
+                                        border: '1px solid var(--border-color)',
+                                        borderRadius: 8,
+                                        padding: '10px 12px',
+                                        cursor: !pendingAssignedForeman ? 'not-allowed' : 'pointer',
+                                        opacity: !pendingAssignedForeman ? 0.65 : 1,
+                                        fontSize: 12,
+                                        fontWeight: 700,
+                                        whiteSpace: 'nowrap',
+                                    }}
+                                >
+                                    Add Foreman
+                                </button>
+                            </div>
+
+                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                                {assignedForemenDraft.length === 0 ? (
+                                    <div style={{ color: 'var(--text-muted)', fontSize: 12 }}>No foremen assigned yet.</div>
+                                ) : (
+                                    assignedForemenDraft.map((name) => (
+                                        <div
+                                            key={name}
+                                            style={{
+                                                display: 'inline-flex',
+                                                alignItems: 'center',
+                                                gap: 8,
+                                                padding: '6px 10px',
+                                                borderRadius: 999,
+                                                border: '1px solid var(--border-color)',
+                                                background: 'var(--surface-2)',
+                                                fontSize: 12,
+                                            }}
+                                        >
+                                            <span>{name}</span>
+                                            <button
+                                                type="button"
+                                                onClick={() => removeAssignedForeman(name)}
+                                                style={{
+                                                    border: 'none',
+                                                    background: 'transparent',
+                                                    color: 'var(--text-muted)',
+                                                    cursor: 'pointer',
+                                                    fontSize: 12,
+                                                    padding: 0,
+                                                }}
+                                                aria-label={`Remove ${name}`}
+                                            >
+                                                x
+                                            </button>
+                                        </div>
+                                    ))
+                                )}
+                            </div>
+
+                            {(pageErrors?.foreman_names || pageErrors?.['foreman_names.0']) && (
+                                <div style={{ color: '#f87171', fontSize: 12 }}>
+                                    {pageErrors?.foreman_names || pageErrors?.['foreman_names.0']}
+                                </div>
+                            )}
+
+                            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+                                <button
+                                    type="button"
+                                    onClick={resetAssignedForemenDraft}
+                                    style={{
+                                        background: 'var(--button-bg)',
+                                        color: 'var(--text-main)',
+                                        border: '1px solid var(--border-color)',
+                                        borderRadius: 8,
+                                        padding: '8px 12px',
+                                        cursor: 'pointer',
+                                        fontSize: 12,
+                                        fontWeight: 700,
+                                    }}
+                                >
+                                    Reset
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={saveAssignedForemen}
+                                    disabled={savingAssignedForemen}
                                     style={{
                                         background: 'var(--success)',
                                         color: '#fff',
                                         border: 'none',
                                         borderRadius: 8,
-                                        padding: '10px 12px',
-                                        cursor: 'pointer',
-                                        fontWeight: 700,
+                                        padding: '8px 12px',
+                                        cursor: savingAssignedForemen ? 'not-allowed' : 'pointer',
+                                        opacity: savingAssignedForemen ? 0.8 : 1,
                                         fontSize: 12,
-                                        whiteSpace: 'nowrap',
+                                        fontWeight: 700,
                                     }}
                                 >
-                                    {savingTeam ? 'Saving...' : 'Add / Update'}
+                                    {savingAssignedForemen ? 'Saving...' : 'Save Assigned Foremen'}
                                 </button>
-                            </form>
+                            </div>
+                        </div>
 
-                            {(teamErrors.team_member || pageErrors?.team_member) && (
-                                <div style={{ color: '#f87171', fontSize: 12 }}>
-                                    {teamErrors.team_member || pageErrors?.team_member}
-                                </div>
-                            )}
-
-                            {teamErrors.user_id && <div style={{ color: '#f87171', fontSize: 12 }}>{teamErrors.user_id}</div>}
-                            {teamErrors.worker_name && <div style={{ color: '#f87171', fontSize: 12 }}>{teamErrors.worker_name}</div>}
-                            {teamErrors.rate && <div style={{ color: '#f87171', fontSize: 12 }}>{teamErrors.rate}</div>}
+                        <div style={{ ...cardStyle, display: 'grid', gap: 12 }}>
+                            <div style={{ fontWeight: 700 }}>Project Team Records (Read-only)</div>
+                            <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+                                Laborers are managed by the foreman in `Foreman &gt; Workers`. This section is record-view only. Use `Edit Project` to assign one or more foremen.
+                            </div>
 
                             <div style={{ display: 'grid', gap: 8 }}>
                                 {assignedTeam.length === 0 ? (
@@ -522,7 +568,7 @@ export default function HeadAdminProjectsShow({
                                                 background: 'var(--surface-2)',
                                                 padding: 10,
                                                 display: 'grid',
-                                                gridTemplateColumns: '1fr auto auto auto',
+                                                gridTemplateColumns: '1fr auto auto',
                                                 gap: 8,
                                                 alignItems: 'center',
                                             }}
@@ -532,31 +578,15 @@ export default function HeadAdminProjectsShow({
                                                 <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
                                                     {member.source === 'user'
                                                         ? `Registered user${member.user_role ? ` (${member.user_role})` : ''}`
-                                                        : 'Manual worker'}
+                                                        : 'Labor record (Foreman-managed)'}
                                                 </div>
                                             </div>
                                             <div style={{ fontSize: 12, fontFamily: "'DM Mono', monospace" }}>
                                                 {money(member.rate)}
                                             </div>
                                             <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>
-                                                {member.user_id ? `User #${member.user_id}` : 'Manual'}
+                                                {member.user_id ? `User #${member.user_id}` : 'Recorded labor'}
                                             </div>
-                                            <button
-                                                type="button"
-                                                onClick={() => removeTeamMember(member.id)}
-                                                style={{
-                                                    background: 'rgba(248,81,73,0.12)',
-                                                    color: '#f87171',
-                                                    border: '1px solid rgba(248,81,73,0.25)',
-                                                    borderRadius: 8,
-                                                    padding: '6px 10px',
-                                                    cursor: 'pointer',
-                                                    fontSize: 12,
-                                                    fontWeight: 600,
-                                                }}
-                                            >
-                                                Remove
-                                            </button>
                                         </div>
                                     ))
                                 )}

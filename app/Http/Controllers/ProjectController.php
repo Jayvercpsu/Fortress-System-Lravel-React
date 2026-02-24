@@ -14,6 +14,7 @@ use App\Models\Worker;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 
 class ProjectController extends Controller
@@ -89,15 +90,7 @@ class ProjectController extends Controller
         abort_unless($request->user()->role === 'head_admin', 403);
 
         return Inertia::render('HeadAdmin/Projects/Create', [
-            'foremen' => User::query()
-                ->where('role', 'foreman')
-                ->orderBy('fullname')
-                ->get(['id', 'fullname'])
-                ->map(fn (User $user) => [
-                    'id' => $user->id,
-                    'fullname' => $user->fullname,
-                ])
-                ->values(),
+            'foremen' => $this->foremanOptionsPayload(),
         ]);
     }
 
@@ -187,8 +180,8 @@ class ProjectController extends Controller
 
         return Inertia::render($page, [
             'project' => $payload,
+            'foremen' => $this->foremanOptionsPayload(),
             'assignedTeam' => $this->projectTeamPayload($project),
-            'teamOptions' => $this->projectTeamOptions(),
             'files' => $files,
             'fileTable' => [
                 'search' => $filesSearch,
@@ -218,15 +211,7 @@ class ProjectController extends Controller
 
         return Inertia::render('HeadAdmin/Projects/Edit', [
             'project' => $this->projectPayload($project),
-            'foremen' => User::query()
-                ->where('role', 'foreman')
-                ->orderBy('fullname')
-                ->get(['id', 'fullname'])
-                ->map(fn (User $user) => [
-                    'id' => $user->id,
-                    'fullname' => $user->fullname,
-                ])
-                ->values(),
+            'foremen' => $this->foremanOptionsPayload(),
         ]);
     }
 
@@ -241,6 +226,45 @@ class ProjectController extends Controller
         return redirect()
             ->route('projects.show', ['project' => $project->id])
             ->with('success', 'Project updated.');
+    }
+
+    public function updateAssignedForemen(Request $request, Project $project)
+    {
+        abort_unless(in_array($request->user()->role, ['head_admin', 'admin'], true), 403);
+
+        $validated = $request->validate([
+            'foreman_names' => ['nullable', 'array'],
+            'foreman_names.*' => [
+                'required',
+                'string',
+                'max:255',
+                Rule::exists('users', 'fullname')->where(fn ($query) => $query->where('role', 'foreman')),
+            ],
+        ]);
+
+        $foremanNames = collect($validated['foreman_names'] ?? [])
+            ->map(fn ($name) => trim((string) $name))
+            ->filter()
+            ->unique(fn ($name) => strtolower($name))
+            ->values();
+
+        $assigned = $foremanNames->implode(', ');
+
+        if (strlen($assigned) > 255) {
+            return back()->withErrors([
+                'foreman_names' => 'Assigned foremen list is too long for one project. Reduce the number of names.',
+            ]);
+        }
+
+        $project->update([
+            'assigned' => $assigned !== '' ? $assigned : null,
+        ]);
+
+        $this->syncLegacyForemanAssignments($project->fresh());
+
+        return redirect()
+            ->route('projects.show', ['project' => $project->id] + $this->projectShowQueryParams($request))
+            ->with('success', 'Assigned foremen updated.');
     }
 
     public function destroy(Request $request, Project $project)
@@ -317,7 +341,7 @@ class ProjectController extends Controller
 
     public function storeTeamMember(Request $request, Project $project)
     {
-        abort_unless(in_array($request->user()->role, ['head_admin', 'admin'], true), 403);
+        abort(403, 'Project team editing is read-only. Foremen manage labor records in the Foreman Workers page.');
 
         $validated = $request->validate([
             'user_id' => ['nullable', 'exists:users,id'],
@@ -382,7 +406,7 @@ class ProjectController extends Controller
 
     public function destroyTeamMember(Request $request, ProjectWorker $projectWorker)
     {
-        abort_unless(in_array($request->user()->role, ['head_admin', 'admin'], true), 403);
+        abort(403, 'Project team editing is read-only. Foremen manage labor records in the Foreman Workers page.');
 
         $projectId = $projectWorker->project_id;
         $projectWorker->delete();
@@ -490,6 +514,19 @@ class ProjectController extends Controller
             ])
             ->values()
             ->all();
+    }
+
+    private function foremanOptionsPayload()
+    {
+        return User::query()
+            ->where('role', 'foreman')
+            ->orderBy('fullname')
+            ->get(['id', 'fullname'])
+            ->map(fn (User $user) => [
+                'id' => $user->id,
+                'fullname' => $user->fullname,
+            ])
+            ->values();
     }
 
     private function projectTeamOptions(): array

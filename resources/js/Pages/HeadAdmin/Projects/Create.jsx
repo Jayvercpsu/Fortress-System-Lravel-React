@@ -2,6 +2,7 @@ import Layout from '../../../Components/Layout';
 import DatePickerInput from '../../../Components/DatePickerInput';
 import SearchableDropdown from '../../../Components/SearchableDropdown';
 import { Head, useForm } from '@inertiajs/react';
+import { useState } from 'react';
 import toast from 'react-hot-toast';
 
 const inputStyle = {
@@ -12,6 +13,26 @@ const inputStyle = {
     borderRadius: 8,
     padding: '10px 12px',
     fontSize: 13,
+};
+
+const parseAssignedForemen = (value) =>
+    String(value || '')
+        .split(/[,;]+/)
+        .map((name) => name.trim())
+        .filter(Boolean);
+
+const normalizeAssignedForemen = (names) => {
+    const seen = new Set();
+
+    return names
+        .map((name) => String(name || '').trim())
+        .filter((name) => {
+            if (!name) return false;
+            const key = name.toLowerCase();
+            if (seen.has(key)) return false;
+            seen.add(key);
+            return true;
+        });
 };
 
 export default function HeadAdminProjectsCreate({ foremen = [] }) {
@@ -25,6 +46,24 @@ export default function HeadAdminProjectsCreate({ foremen = [] }) {
         status: 'PLANNING',
         phase: 'DESIGN',
     });
+    const [pendingAssignedForeman, setPendingAssignedForeman] = useState('');
+    const [assignedForemen, setAssignedForemen] = useState(() => parseAssignedForemen(''));
+
+    const syncAssignedForemen = (nextNames) => {
+        const normalized = normalizeAssignedForemen(nextNames);
+        setAssignedForemen(normalized);
+        setData('assigned', normalized.join(', '));
+    };
+
+    const addAssignedForeman = () => {
+        if (!pendingAssignedForeman) return;
+        syncAssignedForemen([...assignedForemen, pendingAssignedForeman]);
+        setPendingAssignedForeman('');
+    };
+
+    const removeAssignedForeman = (nameToRemove) => {
+        syncAssignedForemen(assignedForemen.filter((name) => name !== nameToRemove));
+    };
 
     const submit = (e) => {
         e.preventDefault();
@@ -51,29 +90,91 @@ export default function HeadAdminProjectsCreate({ foremen = [] }) {
                         </label>
                     ))}
 
-                    <label>
-                        <div style={{ fontSize: 12, marginBottom: 6 }}>Assigned To</div>
-                        <SearchableDropdown
-                            options={foremen}
-                            value={data.assigned}
-                            onChange={(value) => setData('assigned', value)}
-                            getOptionLabel={(option) => option.fullname}
-                            getOptionValue={(option) => option.fullname}
-                            placeholder={foremen.length === 0 ? 'No foreman users available' : 'Select foreman'}
-                            searchPlaceholder="Search foremen..."
-                            emptyMessage="No foremen found"
-                            disabled={foremen.length === 0}
-                            clearable
-                            style={{ ...inputStyle, minHeight: 40, padding: '8px 10px' }}
-                            dropdownWidth={340}
-                        />
+                    <div style={{ display: 'grid', gap: 6 }}>
+                        <div style={{ fontSize: 12, marginBottom: 0 }}>Assigned Foremen</div>
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 8, alignItems: 'end' }}>
+                            <SearchableDropdown
+                                options={foremen}
+                                value={pendingAssignedForeman}
+                                onChange={(value) => setPendingAssignedForeman(value || '')}
+                                getOptionLabel={(option) => option.fullname}
+                                getOptionValue={(option) => option.fullname}
+                                placeholder={foremen.length === 0 ? 'No foreman users available' : 'Select foreman'}
+                                searchPlaceholder="Search foremen..."
+                                emptyMessage="No foremen found"
+                                disabled={foremen.length === 0}
+                                clearable
+                                style={{ ...inputStyle, minHeight: 40, padding: '8px 10px' }}
+                                dropdownWidth={340}
+                            />
+                            <button
+                                type="button"
+                                onClick={addAssignedForeman}
+                                disabled={!pendingAssignedForeman}
+                                style={{
+                                    background: 'var(--button-bg)',
+                                    color: 'var(--text-main)',
+                                    border: '1px solid var(--border-color)',
+                                    borderRadius: 8,
+                                    padding: '10px 12px',
+                                    cursor: !pendingAssignedForeman ? 'not-allowed' : 'pointer',
+                                    opacity: !pendingAssignedForeman ? 0.65 : 1,
+                                    fontSize: 12,
+                                    fontWeight: 700,
+                                    whiteSpace: 'nowrap',
+                                }}
+                            >
+                                Add Foreman
+                            </button>
+                        </div>
+                        <div style={{ color: 'var(--text-muted)', fontSize: 12 }}>
+                            One project can have multiple foremen.
+                        </div>
                         {foremen.length === 0 && (
-                            <div style={{ color: 'var(--text-muted)', fontSize: 12, marginTop: 4 }}>
+                            <div style={{ color: 'var(--text-muted)', fontSize: 12 }}>
                                 Add a user with role `foreman` first to assign this project.
                             </div>
                         )}
-                        {errors.assigned && <div style={{ color: '#f87171', fontSize: 12, marginTop: 4 }}>{errors.assigned}</div>}
-                    </label>
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                            {assignedForemen.length === 0 ? (
+                                <div style={{ color: 'var(--text-muted)', fontSize: 12 }}>No foremen selected yet.</div>
+                            ) : (
+                                assignedForemen.map((name) => (
+                                    <div
+                                        key={name}
+                                        style={{
+                                            display: 'inline-flex',
+                                            alignItems: 'center',
+                                            gap: 8,
+                                            padding: '6px 10px',
+                                            borderRadius: 999,
+                                            border: '1px solid var(--border-color)',
+                                            background: 'var(--surface-2)',
+                                            fontSize: 12,
+                                        }}
+                                    >
+                                        <span>{name}</span>
+                                        <button
+                                            type="button"
+                                            onClick={() => removeAssignedForeman(name)}
+                                            style={{
+                                                border: 'none',
+                                                background: 'transparent',
+                                                color: 'var(--text-muted)',
+                                                cursor: 'pointer',
+                                                fontSize: 12,
+                                                padding: 0,
+                                            }}
+                                            aria-label={`Remove ${name}`}
+                                        >
+                                            x
+                                        </button>
+                                    </div>
+                                ))
+                            )}
+                        </div>
+                        {errors.assigned && <div style={{ color: '#f87171', fontSize: 12 }}>{errors.assigned}</div>}
+                    </div>
 
                     <label>
                         <div style={{ fontSize: 12, marginBottom: 6 }}>Target Date</div>

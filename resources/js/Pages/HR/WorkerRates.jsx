@@ -2,9 +2,10 @@ import Layout from '../../Components/Layout';
 import DataTable from '../../Components/DataTable';
 import ActionButton from '../../Components/ActionButton';
 import Modal from '../../Components/Modal';
-import { Head, router, useForm, usePage } from '@inertiajs/react';
+import { Head, Link, router, useForm, usePage } from '@inertiajs/react';
 import { useEffect, useMemo, useState } from 'react';
 import toast from 'react-hot-toast';
+import { ArrowLeft } from 'lucide-react';
 
 const cardStyle = {
     background: 'var(--surface-1)',
@@ -169,6 +170,27 @@ export default function WorkerRates({ workerRates = [], workerRateTable = {} }) 
         <>
             <Head title="Worker Rates" />
             <Layout title="Worker Rates">
+                <div style={{ marginBottom: 12 }}>
+                    <Link
+                        href="/payroll/run"
+                        style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: 8,
+                            color: 'var(--text-main)',
+                            textDecoration: 'none',
+                            border: '1px solid var(--border-color)',
+                            background: 'var(--button-bg)',
+                            borderRadius: 8,
+                            padding: '8px 12px',
+                            fontSize: 13,
+                        }}
+                    >
+                        <ArrowLeft size={16} />
+                        Back to Payroll Run
+                    </Link>
+                </div>
+
                 <div style={{ display: 'grid', gap: 16 }}>
                     <div style={{ ...cardStyle, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
                         <div>
@@ -176,14 +198,6 @@ export default function WorkerRates({ workerRates = [], workerRateTable = {} }) 
                             <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
                                 Foreman records attendance only. HR sets default hourly rates for both workers and foremen used by payroll generation.
                             </div>
-                        </div>
-                        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                            <ActionButton href="/payroll/run" variant="neutral">
-                                Payroll Run
-                            </ActionButton>
-                            <ActionButton href="/payroll" variant="neutral">
-                                Manual Payroll
-                            </ActionButton>
                         </div>
                     </div>
 

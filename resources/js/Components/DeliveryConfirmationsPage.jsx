@@ -58,11 +58,32 @@ export default function DeliveryConfirmationsPage({ deliveries = [], deliveryTab
 
     const columns = [
         {
+            key: 'id',
+            label: 'ID',
+            width: 80,
+            render: (row) => <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 12 }}>#{row.id}</span>,
+            searchAccessor: (row) => String(row.id ?? ''),
+        },
+        {
             key: 'delivery_date',
             label: 'Delivery Date',
             width: 130,
             render: (row) => <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 12 }}>{row.delivery_date || '-'}</span>,
             searchAccessor: (row) => row.delivery_date,
+        },
+        {
+            key: 'project',
+            label: 'Project',
+            width: 180,
+            render: (row) => (
+                <div>
+                    <div style={{ fontWeight: 600 }}>{row.project_name || 'Unassigned'}</div>
+                    <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+                        Project ID: {row.project_id ?? '-'}
+                    </div>
+                </div>
+            ),
+            searchAccessor: (row) => `${row.project_name || ''} ${row.project_id ?? ''}`,
         },
         {
             key: 'foreman_name',

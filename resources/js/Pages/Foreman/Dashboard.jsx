@@ -458,6 +458,9 @@ export default function ForemanDashboard({
                                     {deliveries.slice(0, 5).map((item) => (
                                         <div key={item.id} style={{ border: '1px solid var(--border-color)', borderRadius: 8, padding: 10, background: 'var(--surface-2)' }}>
                                             <div style={{ fontWeight: 700 }}>{item.item_delivered}</div>
+                                            <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>
+                                                Project: {item.project_name || 'Unassigned'} (ID: {item.project_id ?? '-'})
+                                            </div>
                                             <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
                                                 {item.quantity || '-'} • {item.delivery_date || '-'}
                                             </div>

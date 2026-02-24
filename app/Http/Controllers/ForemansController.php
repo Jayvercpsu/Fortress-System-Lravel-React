@@ -318,6 +318,7 @@ class ForemansController extends Controller
             'attendance.*.selfie_path'           => 'nullable|string|max:2048',
 
             'week_start'                         => 'nullable|date',
+            'accomplishment_project_id'          => 'nullable|required_with:scopes|exists:projects,id',
             'scopes'                             => 'nullable|array',
             'scopes.*.scope_of_work'             => 'required_with:scopes|string',
             'scopes.*.percent_completed'         => 'required_with:scopes|numeric|min:0|max:100',
@@ -335,6 +336,7 @@ class ForemansController extends Controller
             'item_delivered'                     => 'nullable|string',
             'quantity'                           => 'nullable|string',
             'delivery_date'                      => 'nullable|date',
+            'delivery_project_id'                => 'nullable|required_with:item_delivered,delivery_date|exists:projects,id',
             'supplier'                           => 'nullable|string',
             'status'                             => 'nullable|in:received,incomplete,rejected',
         ]);
@@ -345,15 +347,27 @@ class ForemansController extends Controller
             $this->createAttendanceEntries($request->attendance, $foremanId);
         } 
 
+        $accomplishmentProjectId = $request->filled('accomplishment_project_id')
+            ? (int) $request->accomplishment_project_id
+            : null;
+
         if (!empty($request->scopes) && $request->week_start) {
             foreach ($request->scopes as $scope) {
-                if ($scope['percent_completed'] !== '' && $scope['percent_completed'] !== null) {
-                    WeeklyAccomplishment::create([
-                        'foreman_id'        => $foremanId,
-                        'week_start'        => $request->week_start,
-                        'scope_of_work'     => $scope['scope_of_work'],
-                        'percent_completed' => $scope['percent_completed'],
-                    ]);
+                $scopeName = trim((string) ($scope['scope_of_work'] ?? ''));
+                $percentCompleted = $scope['percent_completed'] ?? null;
+
+                if ($scopeName !== '' && $percentCompleted !== '' && $percentCompleted !== null) {
+                    WeeklyAccomplishment::updateOrCreate(
+                        [
+                            'foreman_id' => $foremanId,
+                            'project_id' => $accomplishmentProjectId,
+                            'week_start' => $request->week_start,
+                            'scope_of_work' => $scopeName,
+                        ],
+                        [
+                            'percent_completed' => $percentCompleted,
+                        ]
+                    );
                 }
             }
         }
@@ -383,6 +397,7 @@ class ForemansController extends Controller
  
         if (!empty($request->item_delivered) && !empty($request->delivery_date)) {
             DeliveryConfirmation::create([
+                'project_id'      => $request->filled('delivery_project_id') ? (int) $request->delivery_project_id : null,
                 'foreman_id'     => $foremanId,
                 'item_delivered' => $request->item_delivered,
                 'quantity'       => $request->quantity,

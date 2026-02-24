@@ -127,7 +127,24 @@ class DashboardController extends Controller
         $accomplishments = WeeklyAccomplishment::where('foreman_id', $user->id)->latest()->take(20)->get();
         $materialRequests = MaterialRequest::where('foreman_id', $user->id)->latest()->take(10)->get();
         $issueReports = IssueReport::where('foreman_id', $user->id)->latest()->take(10)->get();
-        $deliveries = DeliveryConfirmation::where('foreman_id', $user->id)->latest()->take(10)->get();
+        $deliveries = DeliveryConfirmation::query()
+            ->with('project:id,name')
+            ->where('foreman_id', $user->id)
+            ->latest()
+            ->take(10)
+            ->get()
+            ->map(fn (DeliveryConfirmation $delivery) => [
+                'id' => $delivery->id,
+                'project_id' => $delivery->project_id,
+                'project_name' => $delivery->project?->name,
+                'item_delivered' => $delivery->item_delivered,
+                'quantity' => $delivery->quantity,
+                'delivery_date' => $delivery->delivery_date ? (string) $delivery->delivery_date : null,
+                'supplier' => $delivery->supplier,
+                'status' => $delivery->status,
+                'created_at' => optional($delivery->created_at)?->toDateTimeString(),
+            ])
+            ->values();
 
         $progressPhotos = ProgressPhoto::query()
             ->with('project:id,name')
@@ -249,6 +266,96 @@ class DashboardController extends Controller
             ->map(fn (Project $project) => ['id' => $project->id, 'name' => $project->name])
             ->values();
 
+        $latestWeeklyAccomplishmentDraft = null;
+        $latestWeeklyAccomplishment = WeeklyAccomplishment::query()
+            ->where('foreman_id', $user->id)
+            ->latest()
+            ->first(['week_start', 'project_id']);
+
+        if ($latestWeeklyAccomplishment) {
+            $latestWeekStart = $latestWeeklyAccomplishment->week_start;
+            $latestProjectId = $latestWeeklyAccomplishment->project_id;
+            $latestWeekEntries = WeeklyAccomplishment::query()
+                ->where('foreman_id', $user->id)
+                ->where('week_start', $latestWeekStart)
+                ->when(
+                    $latestProjectId === null,
+                    fn ($query) => $query->whereNull('project_id'),
+                    fn ($query) => $query->where('project_id', $latestProjectId)
+                )
+                ->latest()
+                ->get(['project_id', 'scope_of_work', 'percent_completed', 'week_start']);
+
+            $latestWeeklyAccomplishmentDraft = [
+                'week_start' => (string) $latestWeekStart,
+                'project_id' => $latestProjectId,
+                'entries' => $latestWeekEntries
+                    ->unique(fn (WeeklyAccomplishment $row) => strtolower(trim((string) $row->scope_of_work)))
+                    ->values()
+                    ->map(fn (WeeklyAccomplishment $row) => [
+                        'scope_of_work' => $row->scope_of_work,
+                        'percent_completed' => $row->percent_completed,
+                    ])
+                    ->all(),
+            ];
+        }
+
+        $recentMaterialRequests = MaterialRequest::query()
+            ->where('foreman_id', $user->id)
+            ->latest()
+            ->paginate(5, ['*'], 'materials_page')
+            ->withQueryString();
+
+        $recentMaterialRequests->setCollection(
+            $recentMaterialRequests->getCollection()->map(fn (MaterialRequest $requestRow) => [
+                'id' => $requestRow->id,
+                'material_name' => $requestRow->material_name,
+                'quantity' => $requestRow->quantity,
+                'unit' => $requestRow->unit,
+                'remarks' => $requestRow->remarks,
+                'status' => $requestRow->status,
+                'created_at' => optional($requestRow->created_at)?->toDateTimeString(),
+            ])
+        );
+
+        $recentIssueReports = IssueReport::query()
+            ->where('foreman_id', $user->id)
+            ->latest()
+            ->paginate(5, ['*'], 'issues_page')
+            ->withQueryString();
+
+        $recentIssueReports->setCollection(
+            $recentIssueReports->getCollection()->map(fn (IssueReport $issueRow) => [
+                'id' => $issueRow->id,
+                'issue_title' => $issueRow->issue_title,
+                'description' => $issueRow->description,
+                'severity' => $issueRow->severity,
+                'status' => $issueRow->status,
+                'created_at' => optional($issueRow->created_at)?->toDateTimeString(),
+            ])
+        );
+
+        $recentDeliveries = DeliveryConfirmation::query()
+            ->with('project:id,name')
+            ->where('foreman_id', $user->id)
+            ->latest()
+            ->paginate(5, ['*'], 'deliveries_page')
+            ->withQueryString();
+
+        $recentDeliveries->setCollection(
+            $recentDeliveries->getCollection()->map(fn (DeliveryConfirmation $deliveryRow) => [
+                'id' => $deliveryRow->id,
+                'project_id' => $deliveryRow->project_id,
+                'project_name' => $deliveryRow->project?->name,
+                'item_delivered' => $deliveryRow->item_delivered,
+                'quantity' => $deliveryRow->quantity,
+                'delivery_date' => $deliveryRow->delivery_date ? (string) $deliveryRow->delivery_date : null,
+                'supplier' => $deliveryRow->supplier,
+                'status' => $deliveryRow->status,
+                'created_at' => optional($deliveryRow->created_at)?->toDateTimeString(),
+            ])
+        );
+
         $progressPhotos = ProgressPhoto::query()
             ->with('project:id,name')
             ->where('foreman_id', $user->id)
@@ -259,23 +366,29 @@ class DashboardController extends Controller
                 })
             )
             ->latest()
-            ->take(12)
-            ->get()
-            ->map(fn (ProgressPhoto $photo) => [
+            ->paginate(8, ['*'], 'photos_page')
+            ->withQueryString();
+
+        $progressPhotos->setCollection(
+            $progressPhotos->getCollection()->map(fn (ProgressPhoto $photo) => [
                 'id' => $photo->id,
                 'photo_path' => $photo->photo_path,
                 'caption' => $photo->caption,
                 'project_name' => $photo->project?->name ?? 'Unassigned',
                 'created_at' => optional($photo->created_at)?->toDateTimeString(),
             ])
-            ->values();
+        );
 
         return Inertia::render('Foreman/Submissions', compact(
             'user',
             'projects',
             'assignedProjects',
             'projectScopes',
-            'progressPhotos'
+            'latestWeeklyAccomplishmentDraft',
+            'progressPhotos',
+            'recentMaterialRequests',
+            'recentIssueReports',
+            'recentDeliveries'
         ));
     }
 
