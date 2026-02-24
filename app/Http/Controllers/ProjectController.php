@@ -275,6 +275,19 @@ class ProjectController extends Controller
             ->with('success', 'Project deleted.');
     }
 
+    public function editFinancials(Request $request, Project $project)
+    {
+        abort_unless(in_array($request->user()->role, ['head_admin', 'hr'], true), 403);
+
+        $page = $request->user()->role === 'head_admin'
+            ? 'HeadAdmin/Projects/Financials'
+            : 'HR/ProjectFinancials';
+
+        return Inertia::render($page, [
+            'project' => $this->projectFinancialPayload($project),
+        ]);
+    }
+
     public function updateFinancials(Request $request, Project $project)
     {
         abort_unless(in_array($request->user()->role, ['head_admin', 'hr'], true), 403);
@@ -290,6 +303,12 @@ class ProjectController extends Controller
         $project->update([
             'remaining_balance' => (float) $validated['contract_amount'] - (float) $validated['total_client_payment'],
         ]);
+
+        if ((string) $request->query('return') === 'financials') {
+            return redirect()
+                ->route('projects.financials.edit', ['project' => $project->id])
+                ->with('success', 'Project financials updated.');
+        }
 
         return redirect()
             ->route('projects.show', ['project' => $project->id])
@@ -426,6 +445,28 @@ class ProjectController extends Controller
             'total_client_payment' => $computed['total_client_payment'],
             'remaining_balance' => $computed['remaining_balance'],
             'last_paid_date' => $computed['last_paid_date'],
+        ];
+    }
+
+    private function projectFinancialPayload(Project $project): array
+    {
+        return [
+            'id' => $project->id,
+            'name' => $project->name,
+            'client' => $project->client,
+            'type' => $project->type,
+            'location' => $project->location,
+            'assigned' => $project->assigned,
+            'target' => optional($project->target)->toDateString(),
+            'status' => $project->status,
+            'phase' => $project->phase,
+            'overall_progress' => (int) ($project->overall_progress ?? 0),
+            'contract_amount' => (float) ($project->contract_amount ?? 0),
+            'design_fee' => (float) ($project->design_fee ?? 0),
+            'construction_cost' => (float) ($project->construction_cost ?? 0),
+            'total_client_payment' => (float) ($project->total_client_payment ?? 0),
+            'remaining_balance' => (float) ($project->remaining_balance ?? 0),
+            'last_paid_date' => optional($project->last_paid_date)->toDateString(),
         ];
     }
 

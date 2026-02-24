@@ -1,5 +1,5 @@
-import MaterialsManagerPage from '../../../Components/MaterialsManagerPage';
+import MaterialRequestsPage from '../../../Components/MaterialRequestsPage';
 
 export default function AdminMaterialsIndex(props) {
-    return <MaterialsManagerPage {...props} />;
+    return <MaterialRequestsPage {...props} />;
 }

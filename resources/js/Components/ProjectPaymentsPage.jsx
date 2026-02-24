@@ -167,24 +167,42 @@ export default function ProjectPaymentsPage({ project, payments = [], paymentTab
             <Head title={`Payments - Project #${project.id}`} />
             <Layout title={`Payments - ${project.name}`}>
                 <div style={{ marginBottom: 12 }}>
-                    <Link
-                        href={backHref}
-                        style={{
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            gap: 8,
-                            color: 'var(--text-main)',
-                            textDecoration: 'none',
-                            border: '1px solid var(--border-color)',
-                            background: 'var(--button-bg)',
-                            borderRadius: 8,
-                            padding: '8px 12px',
-                            fontSize: 13,
-                        }}
-                    >
-                        <ArrowLeft size={16} />
-                        Back
-                    </Link>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap' }}>
+                        <Link
+                            href={backHref}
+                            style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: 8,
+                                color: 'var(--text-main)',
+                                textDecoration: 'none',
+                                border: '1px solid var(--border-color)',
+                                background: 'var(--button-bg)',
+                                borderRadius: 8,
+                                padding: '8px 12px',
+                                fontSize: 13,
+                            }}
+                        >
+                            <ArrowLeft size={16} />
+                            Back
+                        </Link>
+
+                        <Link
+                            href={`/projects/${project.id}/financials`}
+                            style={{
+                                background: 'var(--button-bg)',
+                                color: 'var(--text-main)',
+                                border: '1px solid var(--border-color)',
+                                borderRadius: 8,
+                                padding: '8px 12px',
+                                fontSize: 13,
+                                fontWeight: 700,
+                                textDecoration: 'none',
+                            }}
+                        >
+                            Open Financials
+                        </Link>
+                    </div>
                 </div>
 
                 <div style={{ ...cardStyle, display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, marginBottom: 16 }}>

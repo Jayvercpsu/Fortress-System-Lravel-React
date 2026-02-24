@@ -15,7 +15,7 @@ class ReportsController extends Controller
 {
     public function index(Request $request)
     {
-        abort_unless($request->user()->role === 'head_admin', 403);
+        abort_unless(in_array($request->user()->role, ['head_admin', 'admin'], true), 403);
 
         $projects = Project::query()
             ->orderBy('name')
@@ -155,7 +155,11 @@ class ReportsController extends Controller
             'unallocated_payroll_total' => round($unallocatedPayrollTotal, 2),
         ];
 
-        return Inertia::render('HeadAdmin/Reports/Index', [
+        $page = $request->user()->role === 'head_admin'
+            ? 'HeadAdmin/Reports/Index'
+            : 'Admin/Reports/Index';
+
+        return Inertia::render($page, [
             'summary' => $summary,
             'projectProfitability' => $rows,
         ]);

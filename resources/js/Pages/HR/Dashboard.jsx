@@ -164,21 +164,38 @@ export default function HRDashboard({ payrolls = [], totalPayable = 0, projects 
                                             {money(project.remaining_balance)}
                                         </div>
                                     </div>
-                                    <Link
-                                        href={`/projects/${project.id}/payments`}
-                                        style={{
-                                            background: 'var(--button-bg)',
-                                            color: 'var(--text-main)',
-                                            border: '1px solid var(--border-color)',
-                                            borderRadius: 8,
-                                            padding: '7px 10px',
-                                            textDecoration: 'none',
-                                            fontSize: 12,
-                                            fontWeight: 700,
-                                        }}
-                                    >
-                                        Open
-                                    </Link>
+                                    <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', justifySelf: 'end' }}>
+                                        <Link
+                                            href={`/projects/${project.id}/payments`}
+                                            style={{
+                                                background: 'var(--button-bg)',
+                                                color: 'var(--text-main)',
+                                                border: '1px solid var(--border-color)',
+                                                borderRadius: 8,
+                                                padding: '7px 10px',
+                                                textDecoration: 'none',
+                                                fontSize: 12,
+                                                fontWeight: 700,
+                                            }}
+                                        >
+                                            Payments
+                                        </Link>
+                                        <Link
+                                            href={`/projects/${project.id}/financials`}
+                                            style={{
+                                                background: 'var(--button-bg)',
+                                                color: 'var(--text-main)',
+                                                border: '1px solid var(--border-color)',
+                                                borderRadius: 8,
+                                                padding: '7px 10px',
+                                                textDecoration: 'none',
+                                                fontSize: 12,
+                                                fontWeight: 700,
+                                            }}
+                                        >
+                                            Financials
+                                        </Link>
+                                    </div>
                                 </div>
                             ))
                         )}

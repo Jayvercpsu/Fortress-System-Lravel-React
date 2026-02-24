@@ -22,7 +22,11 @@ const navByRole = {
         { label: 'Dashboard', href: '/admin', icon: 'fi fi-rr-dashboard' },
         { label: 'Projects', href: '/projects', icon: 'fi fi-rr-diagram-project' },
         { label: 'Attendance', href: '/attendance', icon: 'fi fi-rr-calendar-check' },
+        { label: 'Materials', href: '/materials', icon: 'fi fi-rr-shopping-cart' },
+        { label: 'Delivery', href: '/delivery', icon: 'fi fi-rr-truck-side' },
+        { label: 'Issues', href: '/issues', icon: 'fi fi-rr-exclamation' },
         { label: 'Progress Photos', href: '/progress-photos', icon: 'fi fi-rr-picture' },
+        { label: 'Reports', href: '/reports', icon: 'fi fi-rr-document' },
         { label: 'Settings', href: '/settings', icon: 'fi fi-rr-settings' },
     ],
     hr: [

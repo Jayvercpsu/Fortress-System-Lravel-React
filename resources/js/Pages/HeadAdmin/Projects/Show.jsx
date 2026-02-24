@@ -326,6 +326,20 @@ export default function HeadAdminProjectsShow({
                         Open Payments
                     </Link>
                     <Link
+                        href={`/projects/${project.id}/financials`}
+                        style={{
+                            border: '1px solid var(--border-color)',
+                            background: 'var(--button-bg)',
+                            color: 'var(--text-main)',
+                            borderRadius: 8,
+                            padding: '8px 12px',
+                            textDecoration: 'none',
+                            fontSize: 13,
+                        }}
+                    >
+                        Open Financials
+                    </Link>
+                    <Link
                         href={`/projects/${project.id}/monitoring`}
                         style={{
                             border: '1px solid var(--border-color)',

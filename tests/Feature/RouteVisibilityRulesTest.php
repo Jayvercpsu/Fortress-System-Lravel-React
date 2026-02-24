@@ -58,6 +58,22 @@ class RouteVisibilityRulesTest extends TestCase
             ->assertOk();
 
         $this->actingAs($this->makeUser('admin'))
+            ->get('/materials')
+            ->assertOk();
+
+        $this->actingAs($this->makeUser('admin'))
+            ->get('/delivery')
+            ->assertOk();
+
+        $this->actingAs($this->makeUser('admin'))
+            ->get('/issues')
+            ->assertOk();
+
+        $this->actingAs($this->makeUser('admin'))
+            ->get('/reports')
+            ->assertOk();
+
+        $this->actingAs($this->makeUser('admin'))
             ->get("/projects/{$project->id}/monitoring")
             ->assertOk();
 
@@ -70,6 +86,10 @@ class RouteVisibilityRulesTest extends TestCase
             ->assertForbidden();
 
         $this->actingAs($this->makeUser('admin'))
+            ->get("/projects/{$project->id}/financials")
+            ->assertForbidden();
+
+        $this->actingAs($this->makeUser('admin'))
             ->get("/projects/{$project->id}/payments")
             ->assertForbidden();
 
@@ -79,6 +99,10 @@ class RouteVisibilityRulesTest extends TestCase
 
         $this->actingAs($this->makeUser('hr'))
             ->get("/projects/{$project->id}/payments")
+            ->assertOk();
+
+        $this->actingAs($this->makeUser('hr'))
+            ->get("/projects/{$project->id}/financials")
             ->assertOk();
 
         $this->actingAs($this->makeUser('hr'))

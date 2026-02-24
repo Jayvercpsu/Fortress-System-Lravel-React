@@ -7,13 +7,15 @@ use App\Http\Controllers\DesignController;
 use App\Http\Controllers\ExpenseController;
 use App\Http\Controllers\ForemanWorkerController;
 use App\Http\Controllers\ForemansController;
-use App\Http\Controllers\MaterialController;
+use App\Http\Controllers\MaterialRequestController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\PayrollController;
 use App\Http\Controllers\PaymentController;
 use App\Http\Controllers\ProjectController;
 use App\Http\Controllers\ProjectFileController;
 use App\Http\Controllers\ProgressPhotoController;
+use App\Http\Controllers\DeliveryConfirmationController;
+use App\Http\Controllers\IssueReportController;
 use App\Http\Controllers\PublicProgressController;
 use App\Http\Controllers\ReportsController;
 use App\Http\Controllers\ScopePhotoController;
@@ -38,7 +40,6 @@ Route::middleware(['auth', 'role:head_admin,admin,hr,foreman'])->group(function 
 Route::middleware(['auth', 'role:head_admin'])->group(function () {
     Route::get('/head-admin', [DashboardController::class, 'headAdmin'])->name('head_admin.dashboard');
     Route::delete('/projects/{project}', [ProjectController::class, 'destroy'])->name('projects.destroy');
-    Route::get('/reports', [ReportsController::class, 'index'])->name('reports.index');
     Route::get('/users', [UserController::class, 'index'])->name('users.index');
     Route::get('/users/create', [UserController::class, 'create'])->name('users.create');
     Route::get('/users/{user}/edit', [UserController::class, 'edit'])->name('users.edit');
@@ -92,6 +93,10 @@ Route::middleware(['auth', 'role:foreman'])->group(function () {
 Route::middleware(['auth', 'role:head_admin,admin'])->group(function () {
     Route::get('/attendance/summary', [AttendanceController::class, 'summary'])->name('attendance.summary');
     Route::get('/attendance', [AttendanceController::class, 'index'])->name('attendance.index');
+    Route::get('/reports', [ReportsController::class, 'index'])->name('reports.index');
+    Route::get('/materials', [MaterialRequestController::class, 'index'])->name('materials.index');
+    Route::get('/delivery', [DeliveryConfirmationController::class, 'index'])->name('delivery.index');
+    Route::get('/issues', [IssueReportController::class, 'index'])->name('issues.index');
 
     Route::get('/projects', [ProjectController::class, 'index'])->name('projects.index');
     Route::get('/projects/create', [ProjectController::class, 'create'])->name('projects.create');
@@ -121,11 +126,6 @@ Route::middleware(['auth', 'role:head_admin'])->group(function () {
     Route::patch('/expenses/{expense}', [ExpenseController::class, 'update'])->name('expenses.update');
     Route::delete('/expenses/{expense}', [ExpenseController::class, 'destroy'])->name('expenses.destroy');
 
-    Route::get('/materials', [MaterialController::class, 'index'])->name('materials.index');
-    Route::post('/materials', [MaterialController::class, 'store'])->name('materials.store');
-    Route::patch('/materials/{material}', [MaterialController::class, 'update'])->name('materials.update');
-    Route::delete('/materials/{material}', [MaterialController::class, 'destroy'])->name('materials.destroy');
-
     Route::get('/projects/{project}/files', [ProjectFileController::class, 'index'])->name('project-files.index');
     Route::post('/projects/{project}/files', [ProjectFileController::class, 'store'])->name('project-files.store');
     Route::delete('/project-files/{projectFile}', [ProjectFileController::class, 'destroy'])->name('project-files.destroy');
@@ -135,5 +135,6 @@ Route::middleware(['auth', 'role:head_admin'])->group(function () {
 });
 
 Route::middleware(['auth', 'role:head_admin,hr'])->group(function () {
+    Route::get('/projects/{project}/financials', [ProjectController::class, 'editFinancials'])->name('projects.financials.edit');
     Route::patch('/projects/{project}/financials', [ProjectController::class, 'updateFinancials'])->name('projects.financials.update');
 });
