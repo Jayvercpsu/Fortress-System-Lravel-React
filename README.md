@@ -31,6 +31,10 @@ Email - headadmin@buildbooks.com
 Pass - password
 Role - Head Admin 
 
+foreman account 
+email jayjay@gmail.com
+pass jayjay@gmail.com123
+
 > Head Admin creates all other users from the dashboard.
  
 

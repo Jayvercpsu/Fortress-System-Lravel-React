@@ -3,6 +3,7 @@ import DataTable from '../../Components/DataTable';
 import SearchableDropdown from '../../Components/SearchableDropdown';
 import ActionButton from '../../Components/ActionButton';
 import Modal from '../../Components/Modal';
+import DatePickerInput from '../../Components/DatePickerInput';
 import { Head, Link, router, useForm } from '@inertiajs/react';
 import { useMemo, useState } from 'react';
 import { ArrowLeft } from 'lucide-react';
@@ -380,6 +381,12 @@ export default function Payroll({ payrolls = [], totalPayable = 0, workerOptions
                                                 clearable
                                                 style={{ ...inputStyle, padding: '8px 10px' }}
                                             />
+                                        ) : key === 'week_start' ? (
+                                            <DatePickerInput
+                                                value={data.week_start}
+                                                onChange={(value) => setData('week_start', value || '')}
+                                                style={inputStyle}
+                                            />
                                         ) : (
                                             <input
                                                 type={type}
@@ -468,10 +475,9 @@ export default function Payroll({ payrolls = [], totalPayable = 0, workerOptions
 
                                 <label>
                                     <div style={{ fontSize: 12, marginBottom: 6 }}>Week Start</div>
-                                    <input
-                                        type="date"
+                                    <DatePickerInput
                                         value={editForm.data.week_start}
-                                        onChange={(e) => editForm.setData('week_start', e.target.value)}
+                                        onChange={(value) => editForm.setData('week_start', value || '')}
                                         style={inputStyle}
                                     />
                                     {editForm.errors.week_start && (

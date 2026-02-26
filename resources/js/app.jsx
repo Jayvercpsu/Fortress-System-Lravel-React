@@ -6,6 +6,11 @@ import { resolvePageComponent } from 'laravel-vite-plugin/inertia-helpers';
 import { createRoot } from 'react-dom/client';
 import { Toaster } from 'react-hot-toast';
 
+if (typeof window !== 'undefined') {
+    const savedTheme = window.localStorage.getItem('bb_theme') || 'dark';
+    document.documentElement.setAttribute('data-theme', savedTheme);
+}
+
 createInertiaApp({
     title: (title) => `${title} - BuildBooks`,
     resolve: (name) => resolvePageComponent(`./Pages/${name}.jsx`, import.meta.glob('./Pages/**/*.jsx')),

@@ -424,7 +424,7 @@ export default function ForemanSubmissions({
                                             <div style={{ fontWeight: 700 }}>{p.name}</div>
                                             <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{p.client || '-'} • {p.phase || '-'} • {p.status || '-'}</div>
                                         </div>
-                                        <a href={p.public_submit_url} target="_blank" rel="noreferrer" style={{ ...btn(true), textDecoration: 'none' }}>Public Submit</a>
+                                        <a href={p.public_submit_url} target="_blank" rel="noreferrer" style={{ ...btn(true), textDecoration: 'none' }}>Open Jotform</a>
                                     </div>
                                 ))}
                             </div>
@@ -603,7 +603,11 @@ export default function ForemanSubmissions({
                                 </div>
                                 <input value={delivery.item_delivered} onChange={(e) => setDelivery((prev) => ({ ...prev, item_delivered: e.target.value }))} style={input} placeholder="Item delivered" />
                                 <input value={delivery.quantity} onChange={(e) => setDelivery((prev) => ({ ...prev, quantity: e.target.value }))} style={input} placeholder="Quantity" />
-                                <input type="date" value={delivery.delivery_date} onChange={(e) => setDelivery((prev) => ({ ...prev, delivery_date: e.target.value }))} style={input} />
+                                <DatePickerInput
+                                    value={delivery.delivery_date}
+                                    onChange={(value) => setDelivery((prev) => ({ ...prev, delivery_date: value || '' }))}
+                                    style={input}
+                                />
                                 <input value={delivery.supplier} onChange={(e) => setDelivery((prev) => ({ ...prev, supplier: e.target.value }))} style={input} placeholder="Supplier" />
                                 <select value={delivery.status} onChange={(e) => setDelivery((prev) => ({ ...prev, status: e.target.value }))} style={{ ...input, gridColumn: '1 / -1' }}>
                                     <option value="received">Received</option>

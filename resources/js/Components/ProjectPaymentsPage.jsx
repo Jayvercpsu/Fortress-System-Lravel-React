@@ -1,6 +1,7 @@
 import Layout from './Layout';
 import DataTable from './DataTable';
 import Modal from './Modal';
+import DatePickerInput from './DatePickerInput';
 import { Head, Link, router, useForm, usePage } from '@inertiajs/react';
 import { useEffect, useState } from 'react';
 import toast from 'react-hot-toast';
@@ -235,7 +236,11 @@ export default function ProjectPaymentsPage({ project, payments = [], paymentTab
 
                     <label>
                         <div style={{ fontSize: 12, marginBottom: 6 }}>Date Paid</div>
-                        <input type="date" value={data.date_paid} onChange={(event) => setData('date_paid', event.target.value)} style={inputStyle} />
+                        <DatePickerInput
+                            value={data.date_paid}
+                            onChange={(value) => setData('date_paid', value || '')}
+                            style={inputStyle}
+                        />
                         {errors.date_paid && <div style={{ color: '#f87171', fontSize: 12, marginTop: 4 }}>{errors.date_paid}</div>}
                     </label>
 

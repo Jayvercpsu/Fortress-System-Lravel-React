@@ -2,7 +2,9 @@
 
 namespace Tests\Feature;
 
+use App\Models\Attendance;
 use App\Models\ProgressSubmitToken;
+use App\Models\ProgressPhoto;
 use App\Models\Project;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -68,6 +70,186 @@ class PublicProgressSubmitTest extends TestCase
             'progress_note' => 'Should fail',
             'photo' => UploadedFile::fake()->image('blocked.jpg'),
         ])->assertNotFound();
+    }
+
+    public function test_public_attendance_submit_stores_week_rows(): void
+    {
+        $token = $this->makeToken();
+
+        $this->post("/progress-submit/{$token->token}/attendance", [
+            'week_start' => '2026-02-23',
+            'entries' => [
+                [
+                    'worker_name' => 'Worker A',
+                    'worker_role' => 'Skilled Worker',
+                    'days' => [
+                        'mon' => 'P',
+                        'tue' => 'P',
+                        'wed' => 'H',
+                        'thu' => '',
+                        'fri' => '',
+                        'sat' => '',
+                        'sun' => '',
+                    ],
+                ],
+            ],
+        ])->assertRedirect("/progress-submit/{$token->token}");
+
+        $this->assertTrue(
+            Attendance::query()
+                ->where('foreman_id', $token->foreman_id)
+                ->where('project_id', $token->project_id)
+                ->where('worker_name', 'Worker A')
+                ->where('worker_role', 'Skilled Worker')
+                ->whereDate('date', '2026-02-23')
+                ->where('hours', 8.0)
+                ->exists()
+        );
+
+        $this->assertTrue(
+            Attendance::query()
+                ->where('foreman_id', $token->foreman_id)
+                ->where('project_id', $token->project_id)
+                ->where('worker_name', 'Worker A')
+                ->where('worker_role', 'Skilled Worker')
+                ->whereDate('date', '2026-02-25')
+                ->where('hours', 4.0)
+                ->exists()
+        );
+
+        $token->refresh();
+        $this->assertSame(1, (int) $token->submission_count);
+    }
+
+    public function test_public_weekly_progress_submit_stores_weekly_accomplishment_rows(): void
+    {
+        $token = $this->makeToken();
+
+        $this->post("/progress-submit/{$token->token}/weekly-progress", [
+            'week_start' => '2026-02-23',
+            'scopes' => [
+                ['scope_of_work' => 'Mobilization and Hauling', 'percent_completed' => 40],
+                ['scope_of_work' => 'Foundation Preparation', 'percent_completed' => 25.5],
+            ],
+        ])->assertRedirect("/progress-submit/{$token->token}");
+
+        $this->assertDatabaseHas('weekly_accomplishments', [
+            'foreman_id' => $token->foreman_id,
+            'project_id' => $token->project_id,
+            'week_start' => '2026-02-23',
+            'scope_of_work' => 'Mobilization and Hauling',
+            'percent_completed' => 40.0,
+        ]);
+
+        $this->assertDatabaseHas('weekly_accomplishments', [
+            'foreman_id' => $token->foreman_id,
+            'project_id' => $token->project_id,
+            'week_start' => '2026-02-23',
+            'scope_of_work' => 'Foundation Preparation',
+            'percent_completed' => 25.5,
+        ]);
+    }
+
+    public function test_public_issue_report_submit_stores_issue_and_photo(): void
+    {
+        Storage::fake('public');
+        $token = $this->makeToken();
+        $photo = UploadedFile::fake()->image('issue.jpg');
+
+        $this->post("/progress-submit/{$token->token}/issue-report", [
+            'issue_title' => 'Safety rail missing',
+            'description' => 'Temporary edge has no rail on second floor.',
+            'urgency' => 'high',
+            'photo' => $photo,
+        ])->assertRedirect("/progress-submit/{$token->token}");
+
+        $this->assertDatabaseHas('issue_reports', [
+            'foreman_id' => $token->foreman_id,
+            'issue_title' => 'Safety rail missing',
+            'severity' => 'high',
+            'status' => 'open',
+        ]);
+
+        $this->assertDatabaseHas('progress_photos', [
+            'foreman_id' => $token->foreman_id,
+            'project_id' => $token->project_id,
+        ]);
+
+        $storedPath = (string) ProgressPhoto::query()
+            ->where('foreman_id', $token->foreman_id)
+            ->where('project_id', $token->project_id)
+            ->value('photo_path');
+
+        Storage::disk('public')->assertExists($storedPath);
+    }
+
+    public function test_public_submit_all_stores_multiple_sections_with_single_submission_count_increment(): void
+    {
+        Storage::fake('public');
+        $token = $this->makeToken();
+
+        $this->post("/progress-submit/{$token->token}/submit-all", [
+            'attendance_week_start' => '2026-02-23',
+            'attendance_entries' => [
+                [
+                    'worker_name' => 'Worker B',
+                    'worker_role' => 'Laborer',
+                    'days' => [
+                        'mon' => 'P',
+                        'tue' => 'A',
+                        'wed' => '',
+                        'thu' => '',
+                        'fri' => '',
+                        'sat' => '',
+                        'sun' => '',
+                    ],
+                ],
+            ],
+            'material_name' => 'Cement',
+            'material_quantity' => '30',
+            'material_unit' => 'bags',
+            'material_remarks' => 'For slab work',
+            'weekly_week_start' => '2026-02-23',
+            'weekly_scopes' => [
+                ['scope_of_work' => 'Slab on Fill', 'percent_completed' => 50],
+            ],
+            'issue_title' => 'Leaking pipe',
+            'issue_description' => 'Temporary water line is leaking near footing.',
+            'issue_urgency' => 'normal',
+            'issue_photo' => UploadedFile::fake()->image('issue2.jpg'),
+        ])->assertRedirect("/progress-submit/{$token->token}");
+
+        $this->assertTrue(
+            Attendance::query()
+                ->where('foreman_id', $token->foreman_id)
+                ->where('project_id', $token->project_id)
+                ->where('worker_name', 'Worker B')
+                ->whereDate('date', '2026-02-23')
+                ->exists()
+        );
+
+        $this->assertDatabaseHas('material_requests', [
+            'foreman_id' => $token->foreman_id,
+            'material_name' => 'Cement',
+            'quantity' => '30',
+            'unit' => 'bags',
+        ]);
+
+        $this->assertDatabaseHas('weekly_accomplishments', [
+            'foreman_id' => $token->foreman_id,
+            'project_id' => $token->project_id,
+            'scope_of_work' => 'Slab on Fill',
+            'percent_completed' => 50.0,
+        ]);
+
+        $this->assertDatabaseHas('issue_reports', [
+            'foreman_id' => $token->foreman_id,
+            'issue_title' => 'Leaking pipe',
+            'severity' => 'medium',
+        ]);
+
+        $token->refresh();
+        $this->assertSame(1, (int) $token->submission_count);
     }
 
     private function makeToken($expiresAt = null): ProgressSubmitToken

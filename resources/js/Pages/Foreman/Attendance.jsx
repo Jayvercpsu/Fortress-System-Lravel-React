@@ -4,6 +4,7 @@ import ActionButton from '../../Components/ActionButton';
 import SearchableDropdown from '../../Components/SearchableDropdown';
 import Modal from '../../Components/Modal';
 import DatePickerInput from '../../Components/DatePickerInput';
+import TimePickerInput from '../../Components/TimePickerInput';
 import { Head, router, usePage } from '@inertiajs/react';
 import { useEffect, useMemo, useState } from 'react';
 import toast from 'react-hot-toast';
@@ -464,10 +465,18 @@ export default function ForemanAttendance({
                                             </div>
                                         </td>
                                         <td style={{ padding: '6px 8px' }}>
-                                            <input type="time" value={entry.time_in ?? ''} onChange={(e) => updateRow(idx, 'time_in', e.target.value)} style={{ ...inputStyle, minWidth: 110 }} />
+                                            <TimePickerInput
+                                                value={entry.time_in ?? ''}
+                                                onChange={(value) => updateRow(idx, 'time_in', value || '')}
+                                                style={{ ...inputStyle, minWidth: 110 }}
+                                            />
                                         </td>
                                         <td style={{ padding: '6px 8px' }}>
-                                            <input type="time" value={entry.time_out ?? ''} onChange={(e) => updateRow(idx, 'time_out', e.target.value)} style={{ ...inputStyle, minWidth: 110 }} />
+                                            <TimePickerInput
+                                                value={entry.time_out ?? ''}
+                                                onChange={(value) => updateRow(idx, 'time_out', value || '')}
+                                                style={{ ...inputStyle, minWidth: 110 }}
+                                            />
                                         </td>
                                         <td style={{ padding: '6px 8px' }}>
                                             {rows.length > 1 && (
@@ -621,19 +630,17 @@ export default function ForemanAttendance({
                         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                             <div>
                                 <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 6 }}>Time In</div>
-                                <input
-                                    type="time"
+                                <TimePickerInput
                                     value={editRow.time_in ?? ''}
-                                    onChange={(e) => updateEditRow('time_in', e.target.value)}
+                                    onChange={(value) => updateEditRow('time_in', value || '')}
                                     style={inputStyle}
                                 />
                             </div>
                             <div>
                                 <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 6 }}>Time Out</div>
-                                <input
-                                    type="time"
+                                <TimePickerInput
                                     value={editRow.time_out ?? ''}
-                                    onChange={(e) => updateEditRow('time_out', e.target.value)}
+                                    onChange={(value) => updateEditRow('time_out', value || '')}
                                     style={inputStyle}
                                 />
                             </div>

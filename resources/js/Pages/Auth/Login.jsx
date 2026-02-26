@@ -1,8 +1,14 @@
 import { useForm, Head } from '@inertiajs/react';
-import { Settings } from 'lucide-react';
+import { useEffect } from 'react';
 import toast from 'react-hot-toast';
+import BrandIcon from '../../Components/BrandIcon';
 
 export default function Login() {
+    useEffect(() => {
+        const savedTheme = localStorage.getItem('bb_theme') || 'dark';
+        document.documentElement.setAttribute('data-theme', savedTheme);
+    }, []);
+
     const { data, setData, post, errors, processing } = useForm({
         email: '',
         password: '',
@@ -38,17 +44,11 @@ export default function Login() {
                     <div style={{ textAlign: 'center', marginBottom: 32 }}>
                         <div
                             style={{
-                                width: 56,
-                                height: 56,
-                                background: '#1b8a7a', // brand accent, OK to keep
-                                borderRadius: 12,
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
+                                display: 'inline-flex',
                                 margin: '0 auto 12px',
                             }}
                         >
-                            <Settings size={28} strokeWidth={2.25} color="#fff" />
+                            <BrandIcon size={56} borderRadius={12} />
                         </div>
 
                         <h1 style={{ color: 'var(--text-main)', fontSize: 24, fontWeight: 700, margin: 0 }}>

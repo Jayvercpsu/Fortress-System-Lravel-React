@@ -381,7 +381,7 @@ export default function ForemanDashboard({
                                                     whiteSpace: 'nowrap',
                                                 }}
                                             >
-                                                Submit Progress
+                                                Open Jotform
                                             </a>
                                         </div>
                                     ))}

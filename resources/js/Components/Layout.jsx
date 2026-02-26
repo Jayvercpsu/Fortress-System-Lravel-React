@@ -1,6 +1,7 @@
 import { Link, router, usePage } from '@inertiajs/react';
 import { useEffect, useState } from 'react';
-import { Moon, Settings, Sun } from 'lucide-react';
+import { Moon, Sun } from 'lucide-react';
+import BrandIcon from './BrandIcon';
 
 const navByRole = {
     head_admin: [
@@ -105,19 +106,7 @@ export default function Layout({ children, title }) {
                     }}
                 >
                     <div style={{ padding: '12px 16px 20px', display: 'flex', alignItems: 'center', gap: 10 }}>
-                        <div
-                            style={{
-                                width: 36,
-                                height: 36,
-                                background: '#1b8a7a',
-                                borderRadius: 8,
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                            }}
-                        >
-                            <Settings size={18} strokeWidth={2.25} color="#fff" />
-                        </div>
+                        <BrandIcon size={36} borderRadius={8} />
 
                         <div>
                             <div style={{ fontSize: 15, fontWeight: 700 }}>Fortress System</div>
