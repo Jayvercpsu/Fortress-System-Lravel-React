@@ -17,6 +17,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 
@@ -204,6 +205,7 @@ class ForemansController extends Controller
             'time_in' => $manilaNow->format('H:i'),
             'time_out' => null,
             'hours' => 0,
+            'attendance_code' => null,
             'selfie_path' => null,
         ]);
 
@@ -251,6 +253,7 @@ class ForemansController extends Controller
                 'time_out' => $timeOut,
                 'hours' => $selfLog->hours,
             ]),
+            'attendance_code' => null,
         ]);
 
         return $this->foremanActionRedirect($request)
@@ -286,6 +289,7 @@ class ForemansController extends Controller
             'time_in' => $validated['time_in'] ?? null,
             'time_out' => $validated['time_out'] ?? null,
             'hours' => $this->resolveAttendanceHours($validated),
+            'attendance_code' => null,
         ]);
 
         return redirect()
@@ -361,10 +365,12 @@ class ForemansController extends Controller
             'material_items.*.quantity'          => 'required_with:material_items|string',
             'material_items.*.unit'              => 'required_with:material_items|string',
             'material_items.*.remarks'           => 'nullable|string',
+            'material_items.*.project_id'        => ['nullable', Rule::in($assignedProjectIds)],
 
             'issue_title'                        => 'nullable|string',
             'description'                        => 'nullable|string',
             'severity'                           => 'nullable|in:low,medium,high',
+            'issue_project_id'                   => ['nullable', Rule::in($assignedProjectIds)],
 
             'item_delivered'                     => 'nullable|string',
             'quantity'                           => 'nullable|string',
@@ -385,6 +391,10 @@ class ForemansController extends Controller
             : null;
 
         if (!empty($request->scopes) && $request->week_start) {
+            $resolvedWeekStart = Carbon::parse((string) $request->week_start)
+                ->startOfWeek(Carbon::MONDAY)
+                ->toDateString();
+
             foreach ($request->scopes as $scope) {
                 $scopeName = trim((string) ($scope['scope_of_work'] ?? ''));
                 $percentCompleted = $scope['percent_completed'] ?? null;
@@ -394,7 +404,7 @@ class ForemansController extends Controller
                         [
                             'foreman_id' => $foremanId,
                             'project_id' => $accomplishmentProjectId,
-                            'week_start' => $request->week_start,
+                            'week_start' => $resolvedWeekStart,
                             'scope_of_work' => $scopeName,
                         ],
                         [
@@ -403,12 +413,31 @@ class ForemansController extends Controller
                     );
                 }
             }
+
+            if ($accomplishmentProjectId !== null) {
+                $this->syncProjectScopesFromWeeklyEntries(
+                    $accomplishmentProjectId,
+                    trim((string) ($foreman->fullname ?? '')),
+                    $request->scopes
+                );
+                $this->syncProjectOverallProgressFromWeekly($accomplishmentProjectId);
+            }
         }
  
         if (!empty($request->material_items)) {
             foreach ($request->material_items as $item) {
                 if (!empty($item['material_name'])) {
+                    $materialProjectId = null;
+                    if (isset($item['project_id']) && $item['project_id'] !== null && $item['project_id'] !== '') {
+                        $materialProjectId = (int) $item['project_id'];
+                    } elseif ($accomplishmentProjectId !== null) {
+                        $materialProjectId = $accomplishmentProjectId;
+                    } elseif ($request->filled('delivery_project_id')) {
+                        $materialProjectId = (int) $request->delivery_project_id;
+                    }
+
                     MaterialRequest::create([
+                        'project_id'    => $materialProjectId,
                         'foreman_id'    => $foremanId,
                         'material_name' => $item['material_name'],
                         'quantity'      => $item['quantity'],
@@ -420,7 +449,17 @@ class ForemansController extends Controller
         }
  
         if (!empty($request->issue_title) && !empty($request->description)) {
+            $issueProjectId = null;
+            if ($request->filled('issue_project_id')) {
+                $issueProjectId = (int) $request->issue_project_id;
+            } elseif ($accomplishmentProjectId !== null) {
+                $issueProjectId = $accomplishmentProjectId;
+            } elseif ($request->filled('delivery_project_id')) {
+                $issueProjectId = (int) $request->delivery_project_id;
+            }
+
             IssueReport::create([
+                'project_id'  => $issueProjectId,
                 'foreman_id'  => $foremanId,
                 'issue_title' => $request->issue_title,
                 'description' => $request->description,
@@ -497,6 +536,7 @@ class ForemansController extends Controller
                 'time_in' => $entry['time_in'] ?? null,
                 'time_out' => $entry['time_out'] ?? null,
                 'hours' => $this->resolveAttendanceHours($entry),
+                'attendance_code' => null,
                 'selfie_path' => $entry['selfie_path'] ?? null,
             ]);
         }
@@ -580,6 +620,100 @@ class ForemansController extends Controller
             ->map(fn ($projectId) => (int) $projectId)
             ->unique()
             ->values();
+    }
+
+    private function syncProjectOverallProgressFromWeekly(int $projectId): void
+    {
+        if ($projectId <= 0) {
+            return;
+        }
+
+        $project = Project::query()->find($projectId);
+        if (!$project) {
+            return;
+        }
+
+        $latestWeekStart = WeeklyAccomplishment::query()
+            ->where('project_id', $projectId)
+            ->max('week_start');
+
+        $progressPercent = null;
+
+        if ($latestWeekStart) {
+            $progressPercent = (float) (WeeklyAccomplishment::query()
+                ->where('project_id', $projectId)
+                ->whereDate('week_start', $latestWeekStart)
+                ->avg('percent_completed') ?? 0);
+        }
+
+        if ($progressPercent === null) {
+            $progressPercent = (float) ($project->scopes()->avg('progress_percent') ?? 0);
+        }
+
+        $overallProgress = (int) round(max(0, min(100, $progressPercent)));
+
+        if ((int) ($project->overall_progress ?? 0) !== $overallProgress) {
+            $project->update([
+                'overall_progress' => $overallProgress,
+            ]);
+        }
+    }
+
+    private function syncProjectScopesFromWeeklyEntries(int $projectId, string $fallbackAssignee, iterable $weeklyScopes): void
+    {
+        if ($projectId <= 0) {
+            return;
+        }
+
+        $assignee = trim($fallbackAssignee);
+
+        foreach ($weeklyScopes as $scope) {
+            $scopeName = trim((string) ($scope['scope_of_work'] ?? ''));
+            if ($scopeName === '') {
+                continue;
+            }
+
+            $progress = (int) round(max(0, min(100, (float) ($scope['percent_completed'] ?? 0))));
+            $existingScope = ProjectScope::query()
+                ->where('project_id', $projectId)
+                ->whereRaw('LOWER(scope_name) = ?', [Str::lower($scopeName)])
+                ->first();
+
+            if ($existingScope) {
+                $updates = [
+                    'progress_percent' => $progress,
+                ];
+
+                if (trim((string) ($existingScope->assigned_personnel ?? '')) === '' && $assignee !== '') {
+                    $updates['assigned_personnel'] = $assignee;
+                }
+
+                $existingScope->update($updates);
+                continue;
+            }
+
+            ProjectScope::query()->create([
+                'project_id' => $projectId,
+                'scope_name' => $scopeName,
+                'assigned_personnel' => $assignee !== '' ? $assignee : null,
+                'progress_percent' => $progress,
+                'status' => $this->scopeStatusFromProgress($progress),
+                'remarks' => null,
+            ]);
+        }
+    }
+
+    private function scopeStatusFromProgress(int $progress): string
+    {
+        if ($progress >= 100) {
+            return 'COMPLETED';
+        }
+
+        if ($progress <= 0) {
+            return 'NOT_STARTED';
+        }
+
+        return 'IN_PROGRESS';
     }
 
     private function foremanActionRedirect(Request $request)

@@ -3,8 +3,12 @@
 namespace App\Http\Controllers;
 
 use App\Models\Project;
+use App\Models\ProjectAssignment;
 use App\Models\ProjectScope;
+use App\Models\User;
+use App\Models\WeeklyAccomplishment;
 use Illuminate\Http\Request;
+use Illuminate\Support\Str;
 use Inertia\Inertia;
 
 class MonitoringController extends Controller
@@ -47,6 +51,7 @@ class MonitoringController extends Controller
                 'status' => $project->status,
             ],
             'scopes' => $scopes,
+            'foreman_options' => $this->projectForemanOptions($project),
         ]);
     }
 
@@ -105,10 +110,89 @@ class MonitoringController extends Controller
 
     private function recomputeOverallProgress(Project $project): void
     {
-        $averageProgress = (float) ($project->scopes()->avg('progress_percent') ?? 0);
+        $latestWeekStart = WeeklyAccomplishment::query()
+            ->where('project_id', $project->id)
+            ->max('week_start');
+
+        if ($latestWeekStart) {
+            $averageProgress = (float) (WeeklyAccomplishment::query()
+                ->where('project_id', $project->id)
+                ->whereDate('week_start', $latestWeekStart)
+                ->avg('percent_completed') ?? 0);
+        } else {
+            $averageProgress = (float) ($project->scopes()->avg('progress_percent') ?? 0);
+        }
+
         $overallProgress = (int) round(max(0, min(100, $averageProgress)));
 
         $project->overall_progress = $overallProgress;
         $project->save();
+    }
+
+    private function projectForemanOptions(Project $project): array
+    {
+        $assignedForemanIds = ProjectAssignment::query()
+            ->where('project_id', $project->id)
+            ->where('role_in_project', 'foreman')
+            ->pluck('user_id')
+            ->map(fn ($id) => (int) $id)
+            ->unique()
+            ->values();
+
+        $assignedForemen = User::query()
+            ->where('role', 'foreman')
+            ->when(
+                $assignedForemanIds->isNotEmpty(),
+                fn ($query) => $query->whereIn('id', $assignedForemanIds->all()),
+                fn ($query) => $query->whereRaw('1 = 0')
+            )
+            ->orderBy('fullname')
+            ->get(['id', 'fullname'])
+            ->map(fn (User $user) => [
+                'id' => (int) $user->id,
+                'fullname' => trim((string) ($user->fullname ?? '')),
+            ])
+            ->filter(fn (array $row) => $row['fullname'] !== '')
+            ->values();
+
+        if ($assignedForemen->isNotEmpty()) {
+            return $assignedForemen->all();
+        }
+
+        $legacyAssignedNames = collect(preg_split('/[,;]+/', (string) ($project->assigned ?? '')))
+            ->map(fn ($name) => trim((string) $name))
+            ->filter()
+            ->unique(fn (string $name) => Str::lower($name))
+            ->values();
+
+        if ($legacyAssignedNames->isNotEmpty()) {
+            $legacyForemen = User::query()
+                ->where('role', 'foreman')
+                ->whereIn('fullname', $legacyAssignedNames->all())
+                ->orderBy('fullname')
+                ->get(['id', 'fullname'])
+                ->map(fn (User $user) => [
+                    'id' => (int) $user->id,
+                    'fullname' => trim((string) ($user->fullname ?? '')),
+                ])
+                ->filter(fn (array $row) => $row['fullname'] !== '')
+                ->values();
+
+            if ($legacyForemen->isNotEmpty()) {
+                return $legacyForemen->all();
+            }
+        }
+
+        return User::query()
+            ->where('role', 'foreman')
+            ->orderBy('fullname')
+            ->get(['id', 'fullname'])
+            ->map(fn (User $user) => [
+                'id' => (int) $user->id,
+                'fullname' => trim((string) ($user->fullname ?? '')),
+            ])
+            ->filter(fn (array $row) => $row['fullname'] !== '')
+            ->values()
+            ->all();
     }
 }

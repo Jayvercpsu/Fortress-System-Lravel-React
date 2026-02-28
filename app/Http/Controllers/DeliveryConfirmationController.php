@@ -59,6 +59,7 @@ class DeliveryConfirmationController extends Controller
                 'delivery_date' => $row->delivery_date,
                 'supplier' => $row->supplier,
                 'status' => $row->status,
+                'photo_path' => $row->photo_path,
                 'created_at' => optional($row->created_at)?->toDateTimeString(),
             ])
             ->values();

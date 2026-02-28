@@ -57,6 +57,15 @@ function CountBreakdown({ title, items = [] }) {
     );
 }
 
+function SummaryRow({ label, value, strong = false }) {
+    return (
+        <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, fontSize: 13 }}>
+            <span>{label}</span>
+            <span style={{ fontFamily: "'DM Mono', monospace", fontWeight: strong ? 700 : 600 }}>{value}</span>
+        </div>
+    );
+}
+
 export default function HeadAdminDashboard({
     kpis = {},
     recentSubmissions = { materials: [], issues: [] },
@@ -68,11 +77,21 @@ export default function HeadAdminDashboard({
     const paymentTotals = kpis.payment_totals || {};
     const users = kpis.users || {};
     const operations = kpis.operations || {};
+    const companyFinancialSummary = kpis.company_financial_summary || {};
     const payrollCounts = countMap(kpis.payroll_counts_by_status || []);
     const recentProjectsRows = recentProjectsPager?.data || [];
     const recentPayrollRows = recentPayrollsPager?.data || [];
     const recentMaterialRows = recentSubmissions?.materials?.data || [];
     const recentIssueRows = recentSubmissions?.issues?.data || [];
+    const totalContractValue = Number(companyFinancialSummary.total_contract_value ?? financialTotals.contract_sum ?? 0);
+    const materialsTotal = Number(companyFinancialSummary.materials ?? 0);
+    const laborPayrollTotal = Number(companyFinancialSummary.labor_payroll ?? 0);
+    const subcontractorsTotal = Number(companyFinancialSummary.subcontractors ?? 0);
+    const miscellaneousTotal = Number(companyFinancialSummary.miscellaneous ?? 0);
+    const equipmentTotal = Number(companyFinancialSummary.equipment ?? 0);
+    const totalExpenses = Number(companyFinancialSummary.total_expenses ?? 0);
+    const netProfit = Number(companyFinancialSummary.net_profit ?? 0);
+    const netMarginPercent = Number(companyFinancialSummary.net_margin_percent ?? 0);
 
     return (
         <>
@@ -81,9 +100,9 @@ export default function HeadAdminDashboard({
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: 12, marginBottom: 16 }}>
                     <StatCard label="Total Projects" value={projectCounts.total ?? 0} />
                     <StatCard label="Company Progress" value={`${Number(kpis.company_progress_percent || 0).toFixed(1)}%`} color="#60a5fa" />
-                    <StatCard label="Contract Sum" value={money(financialTotals.contract_sum)} color="#4ade80" />
-                    <StatCard label="Collected Sum" value={money(financialTotals.collected_sum)} color="#22c55e" />
-                    <StatCard label="Remaining Sum" value={money(financialTotals.remaining_sum)} color="#fbbf24" />
+                    <StatCard label="Total Contract Value" value={money(financialTotals.contract_sum)} color="#4ade80" />
+                    <StatCard label="Collected Contract Value" value={money(financialTotals.collected_sum)} color="#22c55e" />
+                    <StatCard label="Uncollected Contract Value" value={money(financialTotals.remaining_sum)} color="#fbbf24" />
                     <StatCard label="Payroll Payable" value={money(kpis.payroll_payable)} color="#f87171" />
                     <StatCard label="Payroll Deductions" value={money(kpis.payroll_deductions_total)} color="#fb7185" />
                     <StatCard label="Payroll Paid" value={money(kpis.payroll_paid_total)} color="#38bdf8" />
@@ -91,6 +110,43 @@ export default function HeadAdminDashboard({
                     <StatCard label="Foremen" value={users.total_foremen ?? 0} color="#60a5fa" />
                     <StatCard label="Pending Materials" value={operations.pending_materials ?? 0} color="#fbbf24" />
                     <StatCard label="Open Issues" value={operations.open_issues ?? 0} color="#f87171" />
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 16 }}>
+                    <div style={cardStyle}>
+                        <div style={{ fontWeight: 700, marginBottom: 10 }}>Net Profit Formula</div>
+                        <div style={{ display: 'grid', gap: 4, fontSize: 13 }}>
+                            <div><strong>Total Contract Value</strong></div>
+                            <div>- Total Materials</div>
+                            <div>- Total Labor (Payroll)</div>
+                            <div>- Total Subcontractors</div>
+                            <div>- Total Miscellaneous</div>
+                            <div>- Total Equipment (if applicable)</div>
+                            <div style={{ marginTop: 4, fontWeight: 700 }}>= Net Profit</div>
+                        </div>
+                        <div style={{ marginTop: 10, fontSize: 12, color: 'var(--text-muted)' }}>
+                            Net profit uses contract value (not collected amount).
+                        </div>
+                    </div>
+
+                    <div style={cardStyle}>
+                        <div style={{ fontWeight: 700, marginBottom: 10, textTransform: 'uppercase' }}>Company Financial Summary</div>
+                        <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 6 }}>Revenue</div>
+                        <div style={{ display: 'grid', gap: 8 }}>
+                            <SummaryRow label="Total Contract Value" value={money(totalContractValue)} strong />
+                        </div>
+                        <div style={{ fontSize: 12, color: 'var(--text-muted)', margin: '10px 0 6px' }}>Expenses</div>
+                        <div style={{ display: 'grid', gap: 8 }}>
+                            <SummaryRow label="Materials" value={money(materialsTotal)} />
+                            <SummaryRow label="Labor (Payroll)" value={money(laborPayrollTotal)} />
+                            <SummaryRow label="Subcontractors" value={money(subcontractorsTotal)} />
+                            <SummaryRow label="Miscellaneous" value={money(miscellaneousTotal)} />
+                            <SummaryRow label="Equipment (if applicable)" value={money(equipmentTotal)} />
+                            <SummaryRow label="Total Expenses" value={money(totalExpenses)} strong />
+                            <SummaryRow label="Net Profit" value={money(netProfit)} strong />
+                            <SummaryRow label="Net Margin %" value={`${netMarginPercent.toFixed(2)}%`} strong />
+                        </div>
+                    </div>
                 </div>
 
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12, marginBottom: 16 }}>
@@ -123,13 +179,13 @@ export default function HeadAdminDashboard({
                             Payment totals mirror project finance snapshots.
                         </div>
                         <div style={{ marginTop: 6, fontSize: 12 }}>
-                            Contract: <strong>{money(paymentTotals.contract_sum)}</strong>
+                            Total Contract Value: <strong>{money(paymentTotals.contract_sum)}</strong>
                         </div>
                         <div style={{ marginTop: 2, fontSize: 12 }}>
-                            Collected: <strong>{money(paymentTotals.collected_sum)}</strong>
+                            Collected Value: <strong>{money(paymentTotals.collected_sum)}</strong>
                         </div>
                         <div style={{ marginTop: 2, fontSize: 12 }}>
-                            Remaining: <strong>{money(paymentTotals.remaining_sum)}</strong>
+                            Uncollected Value: <strong>{money(paymentTotals.remaining_sum)}</strong>
                         </div>
                     </div>
                 </div>

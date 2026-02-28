@@ -1,6 +1,6 @@
 import Layout from './Layout';
-import DataTable from './DataTable';
-import { Head, router } from '@inertiajs/react';
+import ProjectAccordionTable from './ProjectAccordionTable';
+import { Head } from '@inertiajs/react';
 
 const cardStyle = {
     background: 'var(--surface-1)',
@@ -34,42 +34,18 @@ const statusBadgeStyle = (status) => {
 };
 
 export default function DeliveryConfirmationsPage({ deliveries = [], deliveryTable = {} }) {
-    const table = {
-        search: deliveryTable?.search ?? '',
-        perPage: Number(deliveryTable?.per_page ?? 10),
-        page: Number(deliveryTable?.current_page ?? 1),
-        lastPage: Number(deliveryTable?.last_page ?? 1),
-        total: Number(deliveryTable?.total ?? deliveries.length ?? 0),
-        from: deliveryTable?.from ?? null,
-        to: deliveryTable?.to ?? null,
-    };
-
-    const navigateTable = (overrides = {}) => {
-        router.get('/delivery', {
-            search: overrides.search !== undefined ? overrides.search : table.search,
-            per_page: overrides.per_page !== undefined ? overrides.per_page : table.perPage,
-            page: overrides.page !== undefined ? overrides.page : table.page,
-        }, {
-            preserveState: true,
-            preserveScroll: true,
-            replace: true,
-        });
-    };
-
     const columns = [
         {
             key: 'id',
             label: 'ID',
             width: 80,
             render: (row) => <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 12 }}>#{row.id}</span>,
-            searchAccessor: (row) => String(row.id ?? ''),
         },
         {
             key: 'delivery_date',
             label: 'Delivery Date',
             width: 130,
             render: (row) => <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 12 }}>{row.delivery_date || '-'}</span>,
-            searchAccessor: (row) => row.delivery_date,
         },
         {
             key: 'project',
@@ -83,34 +59,45 @@ export default function DeliveryConfirmationsPage({ deliveries = [], deliveryTab
                     </div>
                 </div>
             ),
-            searchAccessor: (row) => `${row.project_name || ''} ${row.project_id ?? ''}`,
         },
         {
             key: 'foreman_name',
             label: 'Foreman',
             width: 170,
             render: (row) => row.foreman_name || '-',
-            searchAccessor: (row) => row.foreman_name,
         },
         {
             key: 'item_delivered',
             label: 'Item Delivered',
             render: (row) => <div style={{ fontWeight: 600 }}>{row.item_delivered || '-'}</div>,
-            searchAccessor: (row) => row.item_delivered,
         },
         {
             key: 'quantity',
             label: 'Quantity',
             width: 120,
             render: (row) => row.quantity || '-',
-            searchAccessor: (row) => row.quantity,
         },
         {
             key: 'supplier',
             label: 'Supplier',
             width: 180,
             render: (row) => row.supplier || <span style={{ color: 'var(--text-muted)' }}>-</span>,
-            searchAccessor: (row) => row.supplier,
+        },
+        {
+            key: 'photo',
+            label: 'Photo',
+            width: 120,
+            render: (row) => (
+                row.photo_path ? (
+                    <a href={`/storage/${row.photo_path}`} target="_blank" rel="noreferrer">
+                        <img
+                            src={`/storage/${row.photo_path}`}
+                            alt={row.item_delivered || 'Delivery photo'}
+                            style={{ width: 72, height: 52, objectFit: 'cover', borderRadius: 6, border: '1px solid var(--border-color)' }}
+                        />
+                    </a>
+                ) : <span style={{ color: 'var(--text-muted)' }}>-</span>
+            ),
         },
         {
             key: 'status',
@@ -133,14 +120,12 @@ export default function DeliveryConfirmationsPage({ deliveries = [], deliveryTab
                     {row.status || 'received'}
                 </span>
             ),
-            searchAccessor: (row) => row.status,
         },
         {
             key: 'created_at',
             label: 'Logged At',
             width: 170,
             render: (row) => <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 12 }}>{row.created_at || '-'}</span>,
-            searchAccessor: (row) => row.created_at,
         },
     ];
 
@@ -149,23 +134,14 @@ export default function DeliveryConfirmationsPage({ deliveries = [], deliveryTab
             <Head title="Delivery" />
             <Layout title="Delivery Confirmations">
                 <div style={cardStyle}>
-                    <DataTable
+                    <ProjectAccordionTable
                         columns={columns}
                         rows={deliveries}
                         rowKey="id"
                         searchPlaceholder="Search deliveries..."
                         emptyMessage="No delivery confirmations yet."
-                        serverSide
-                        serverSearchValue={table.search}
-                        serverPage={table.page}
-                        serverPerPage={table.perPage}
-                        serverTotalItems={table.total}
-                        serverTotalPages={table.lastPage}
-                        serverFrom={table.from}
-                        serverTo={table.to}
-                        onServerSearchChange={(value) => navigateTable({ search: value, page: 1 })}
-                        onServerPerPageChange={(value) => navigateTable({ per_page: value, page: 1 })}
-                        onServerPageChange={(value) => navigateTable({ page: value })}
+                        routePath="/delivery"
+                        table={deliveryTable}
                     />
                 </div>
             </Layout>

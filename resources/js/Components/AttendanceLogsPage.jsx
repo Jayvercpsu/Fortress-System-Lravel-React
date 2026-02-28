@@ -44,6 +44,8 @@ export default function AttendanceLogsPage({
     filters = {},
     foremen = [],
     projects = [],
+    workerRoles = [],
+    attendanceCodes = [],
 }) {
     const table = useMemo(
         () => ({
@@ -63,6 +65,9 @@ export default function AttendanceLogsPage({
         date_to: filters?.date_to ?? '',
         foreman_id: String(filters?.foreman_id ?? ''),
         project_id: String(filters?.project_id ?? ''),
+        worker_role: String(filters?.worker_role ?? ''),
+        entry_mode: String(filters?.entry_mode ?? ''),
+        attendance_code: String(filters?.attendance_code ?? ''),
     });
 
     useEffect(() => {
@@ -71,6 +76,9 @@ export default function AttendanceLogsPage({
             date_to: filters?.date_to ?? '',
             foreman_id: String(filters?.foreman_id ?? ''),
             project_id: String(filters?.project_id ?? ''),
+            worker_role: String(filters?.worker_role ?? ''),
+            entry_mode: String(filters?.entry_mode ?? ''),
+            attendance_code: String(filters?.attendance_code ?? ''),
         });
     }, [filters]);
 
@@ -83,6 +91,9 @@ export default function AttendanceLogsPage({
             date_to: overrides.date_to !== undefined ? overrides.date_to : draftFilters.date_to,
             foreman_id: overrides.foreman_id !== undefined ? overrides.foreman_id : draftFilters.foreman_id,
             project_id: overrides.project_id !== undefined ? overrides.project_id : draftFilters.project_id,
+            worker_role: overrides.worker_role !== undefined ? overrides.worker_role : draftFilters.worker_role,
+            entry_mode: overrides.entry_mode !== undefined ? overrides.entry_mode : draftFilters.entry_mode,
+            attendance_code: overrides.attendance_code !== undefined ? overrides.attendance_code : draftFilters.attendance_code,
         };
 
         Object.keys(params).forEach((key) => {
@@ -125,11 +136,46 @@ export default function AttendanceLogsPage({
             searchAccessor: (row) => row.project_name,
         },
         {
+            key: 'entry_mode',
+            label: 'Entry Type',
+            width: 140,
+            render: (row) =>
+                row.entry_mode === 'time_log' ? (
+                    <span style={{ fontWeight: 700, color: '#4ade80' }}>Time Log</span>
+                ) : (
+                    <span style={{ fontWeight: 700, color: 'var(--text-muted)' }}>Status-Based</span>
+                ),
+            searchAccessor: (row) => row.entry_mode,
+        },
+        {
+            key: 'attendance_code',
+            label: 'Code',
+            width: 120,
+            render: (row) => {
+                if (!row.attendance_code) {
+                    return <span style={{ color: 'var(--text-muted)' }}>-</span>;
+                }
+                return (
+                    <span
+                        title={row.attendance_code_is_derived ? 'Derived from hours for legacy records' : undefined}
+                        style={{ fontWeight: 700 }}
+                    >
+                        {row.attendance_code}
+                        {row.attendance_code_is_derived ? '*' : ''}
+                    </span>
+                );
+            },
+            searchAccessor: (row) => `${row.attendance_code || ''}`,
+        },
+        {
             key: 'time_range',
             label: 'Time In/Out',
-            render: (row) => `${timeLabel(row.time_in)} - ${timeLabel(row.time_out)}`,
-            searchAccessor: (row) => `${row.time_in || ''} ${row.time_out || ''}`,
-            width: 120,
+            render: (row) =>
+                row.entry_mode === 'time_log'
+                    ? `${timeLabel(row.time_in)} - ${timeLabel(row.time_out)}`
+                    : <span style={{ color: 'var(--text-muted)' }}>N/A (status-based)</span>,
+            searchAccessor: (row) => `${row.time_in || ''} ${row.time_out || ''} ${row.entry_mode || ''}`,
+            width: 150,
         },
         {
             key: 'hours',
@@ -148,7 +194,7 @@ export default function AttendanceLogsPage({
                 <div style={{ display: 'grid', gap: 16 }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
                         <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
-                            Browse attendance logs with project/foreman/date filters. Times are shown in Philippine time (Asia/Manila).
+                            Browse attendance logs with role and entry type filters. Status-based rows come from weekly/day-code submissions and may not have time in/out.
                         </div>
                         <ActionButton href="/attendance/summary" variant="view" style={{ padding: '8px 12px', fontSize: 13 }}>
                             Cutoff Summary
@@ -156,7 +202,7 @@ export default function AttendanceLogsPage({
                     </div>
 
                     <div style={cardStyle}>
-                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: 12 }}>
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))', gap: 12 }}>
                             <div>
                                 <div style={{ fontSize: 12, marginBottom: 6, color: 'var(--text-muted)' }}>Date From</div>
                                 <DatePickerInput
@@ -203,13 +249,59 @@ export default function AttendanceLogsPage({
                                     ))}
                                 </select>
                             </div>
+                            <div>
+                                <div style={{ fontSize: 12, marginBottom: 6, color: 'var(--text-muted)' }}>Worker Role</div>
+                                <select
+                                    value={draftFilters.worker_role}
+                                    onChange={(e) => setDraftFilters((prev) => ({ ...prev, worker_role: e.target.value }))}
+                                    style={inputStyle}
+                                >
+                                    <option value="">All roles</option>
+                                    {workerRoles.map((role) => (
+                                        <option key={role} value={role}>
+                                            {role}
+                                        </option>
+                                    ))}
+                                </select>
+                            </div>
+                            <div>
+                                <div style={{ fontSize: 12, marginBottom: 6, color: 'var(--text-muted)' }}>Entry Type</div>
+                                <select
+                                    value={draftFilters.entry_mode}
+                                    onChange={(e) => setDraftFilters((prev) => ({ ...prev, entry_mode: e.target.value }))}
+                                    style={inputStyle}
+                                >
+                                    <option value="">All entry types</option>
+                                    <option value="time_log">Time Log (with in/out)</option>
+                                    <option value="status_based">Status-Based (weekly/day-code)</option>
+                                </select>
+                            </div>
+                            <div>
+                                <div style={{ fontSize: 12, marginBottom: 6, color: 'var(--text-muted)' }}>Attendance Code</div>
+                                <select
+                                    value={draftFilters.attendance_code}
+                                    onChange={(e) => setDraftFilters((prev) => ({ ...prev, attendance_code: e.target.value }))}
+                                    style={inputStyle}
+                                >
+                                    <option value="">All codes</option>
+                                    {(attendanceCodes.length ? attendanceCodes : ['P', 'A', 'H', 'R', 'F']).map((code) => (
+                                        <option key={code} value={code}>
+                                            {code}
+                                        </option>
+                                    ))}
+                                </select>
+                            </div>
+                        </div>
+
+                        <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 8 }}>
+                            Codes: P = Present, A = Absent, H = Half Day, R = Rest Day, F = Field Work. * means derived from old rows without saved code.
                         </div>
 
                         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 12 }}>
                             <ActionButton
                                 variant="neutral"
                                 onClick={() => {
-                                    const cleared = { date_from: '', date_to: '', foreman_id: '', project_id: '' };
+                                    const cleared = { date_from: '', date_to: '', foreman_id: '', project_id: '', worker_role: '', entry_mode: '', attendance_code: '' };
                                     setDraftFilters(cleared);
                                     navigate({ ...cleared, page: 1 });
                                 }}

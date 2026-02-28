@@ -21,7 +21,7 @@ class MaterialRequestController extends Controller
         }
 
         $query = MaterialRequest::query()
-            ->with('foreman:id,fullname');
+            ->with(['foreman:id,fullname', 'project:id,name']);
 
         if ($search !== '') {
             $query->where(function ($builder) use ($search) {
@@ -30,6 +30,7 @@ class MaterialRequestController extends Controller
                     ->orWhere('unit', 'like', "%{$search}%")
                     ->orWhere('remarks', 'like', "%{$search}%")
                     ->orWhere('status', 'like', "%{$search}%")
+                    ->orWhereHas('project', fn ($q) => $q->where('name', 'like', "%{$search}%"))
                     ->orWhereHas('foreman', fn ($q) => $q->where('fullname', 'like', "%{$search}%"));
             });
         }
@@ -42,12 +43,15 @@ class MaterialRequestController extends Controller
         $requests = collect($paginator->items())
             ->map(fn (MaterialRequest $row) => [
                 'id' => $row->id,
+                'project_id' => $row->project_id,
+                'project_name' => $row->project?->name,
                 'foreman_name' => $row->foreman?->fullname ?? 'Unknown',
                 'material_name' => $row->material_name,
                 'quantity' => $row->quantity,
                 'unit' => $row->unit,
                 'remarks' => $row->remarks,
                 'status' => $row->status,
+                'photo_path' => $row->photo_path,
                 'created_at' => optional($row->created_at)?->toDateTimeString(),
             ])
             ->values();

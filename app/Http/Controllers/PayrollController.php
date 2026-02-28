@@ -12,6 +12,7 @@ use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 
@@ -618,8 +619,13 @@ class PayrollController extends Controller
 
     private function resolveRateForWorker(string $workerName, ?string $role): float
     {
+        $normalizedName = trim($workerName);
+        if ($normalizedName === '') {
+            return 0.0;
+        }
+
         $workerRate = Worker::query()
-            ->where('name', $workerName)
+            ->whereRaw('LOWER(name) = ?', [Str::lower($normalizedName)])
             ->whereNotNull('default_rate_per_hour')
             ->where('default_rate_per_hour', '>', 0)
             ->orderByDesc('id')
@@ -631,7 +637,7 @@ class PayrollController extends Controller
 
         $foremanRate = User::query()
             ->where('role', 'foreman')
-            ->where('fullname', $workerName)
+            ->whereRaw('LOWER(fullname) = ?', [Str::lower($normalizedName)])
             ->whereNotNull('default_rate_per_hour')
             ->where('default_rate_per_hour', '>', 0)
             ->orderByDesc('id')
@@ -642,7 +648,7 @@ class PayrollController extends Controller
         }
 
         $exactRate = Payroll::query()
-            ->where('worker_name', $workerName)
+            ->whereRaw('LOWER(worker_name) = ?', [Str::lower($normalizedName)])
             ->where('rate_per_hour', '>', 0)
             ->orderByDesc('id')
             ->value('rate_per_hour');

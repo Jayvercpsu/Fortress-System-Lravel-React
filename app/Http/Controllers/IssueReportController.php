@@ -21,7 +21,7 @@ class IssueReportController extends Controller
         }
 
         $query = IssueReport::query()
-            ->with('foreman:id,fullname');
+            ->with(['foreman:id,fullname', 'project:id,name']);
 
         if ($search !== '') {
             $query->where(function ($builder) use ($search) {
@@ -29,6 +29,7 @@ class IssueReportController extends Controller
                     ->orWhere('description', 'like', "%{$search}%")
                     ->orWhere('severity', 'like', "%{$search}%")
                     ->orWhere('status', 'like', "%{$search}%")
+                    ->orWhereHas('project', fn ($q) => $q->where('name', 'like', "%{$search}%"))
                     ->orWhereHas('foreman', fn ($q) => $q->where('fullname', 'like', "%{$search}%"));
             });
         }
@@ -41,11 +42,14 @@ class IssueReportController extends Controller
         $issues = collect($paginator->items())
             ->map(fn (IssueReport $row) => [
                 'id' => $row->id,
+                'project_id' => $row->project_id,
+                'project_name' => $row->project?->name,
                 'foreman_name' => $row->foreman?->fullname ?? 'Unknown',
                 'issue_title' => $row->issue_title,
                 'description' => $row->description,
                 'severity' => $row->severity,
                 'status' => $row->status,
+                'photo_path' => $row->photo_path,
                 'created_at' => optional($row->created_at)?->toDateTimeString(),
             ])
             ->values();

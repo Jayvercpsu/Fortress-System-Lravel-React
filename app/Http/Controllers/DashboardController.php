@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Attendance;
 use App\Models\DeliveryConfirmation;
+use App\Models\Expense;
 use App\Models\IssueReport;
 use App\Models\MaterialRequest;
 use App\Models\Payroll;
@@ -12,6 +13,7 @@ use App\Models\ProgressSubmitToken;
 use App\Models\Project;
 use App\Models\ProjectAssignment;
 use App\Models\ProjectScope;
+use App\Models\ScopePhoto;
 use App\Models\User;
 use App\Models\WeeklyAccomplishment;
 use Illuminate\Http\Request;
@@ -30,6 +32,7 @@ class DashboardController extends Controller
     {
         $projectKpis = $this->projectKpis();
         $payrollPaymentKpis = $this->payrollAndPaymentKpis();
+        $companyFinancialSummary = $this->companyFinancialSummary((float) ($projectKpis['financial_totals']['contract_sum'] ?? 0));
 
         $stats = [
             'total_users' => User::where('role', '!=', 'head_admin')->count(),
@@ -52,6 +55,7 @@ class DashboardController extends Controller
                 'pending_materials' => $stats['pending_materials'],
                 'open_issues' => $stats['open_issues'],
             ],
+            'company_financial_summary' => $companyFinancialSummary,
         ]);
 
         $materialsPager = MaterialRequest::query()
@@ -126,6 +130,7 @@ class DashboardController extends Controller
     public function admin(Request $request)
     {
         $projectKpis = $this->projectKpis();
+        $companyFinancialSummary = $this->companyFinancialSummary((float) ($projectKpis['financial_totals']['contract_sum'] ?? 0));
 
         // Intentionally exclude payroll-related figures from admin payload.
         $kpis = [
@@ -133,6 +138,7 @@ class DashboardController extends Controller
             'financial_totals' => $projectKpis['financial_totals'],
             'company_progress_percent' => $projectKpis['company_progress_percent'],
             'projects' => $projectKpis['projects'],
+            'company_financial_summary' => $companyFinancialSummary,
         ];
 
         $projectSnapshotPager = $this->paginateCollection(
@@ -195,6 +201,7 @@ class DashboardController extends Controller
         );
 
         $kpis = $this->payrollAndPaymentKpis();
+        $kpis['company_financial_summary'] = $this->companyFinancialSummary((float) ($kpis['payment_totals']['contract_sum'] ?? 0));
 
         return Inertia::render('HR/Dashboard', compact('payrolls', 'totalPayable', 'projects', 'kpis', 'projectPaymentsPager', 'recentPayrollsPager'));
     }
@@ -230,6 +237,7 @@ class DashboardController extends Controller
                 'delivery_date' => $delivery->delivery_date ? (string) $delivery->delivery_date : null,
                 'supplier' => $delivery->supplier,
                 'status' => $delivery->status,
+                'photo_path' => $delivery->photo_path,
                 'created_at' => optional($delivery->created_at)?->toDateTimeString(),
             ])
             ->values();
@@ -246,6 +254,7 @@ class DashboardController extends Controller
                 'quantity' => $row->quantity,
                 'unit' => $row->unit,
                 'status' => $row->status,
+                'photo_path' => $row->photo_path,
             ])->values()
         );
 
@@ -260,6 +269,7 @@ class DashboardController extends Controller
                 'issue_title' => $row->issue_title,
                 'severity' => $row->severity,
                 'status' => $row->status,
+                'photo_path' => $row->photo_path,
             ])->values()
         );
 
@@ -279,8 +289,92 @@ class DashboardController extends Controller
                 'delivery_date' => $delivery->delivery_date ? (string) $delivery->delivery_date : null,
                 'supplier' => $delivery->supplier,
                 'status' => $delivery->status,
+                'photo_path' => $delivery->photo_path,
                 'created_at' => optional($delivery->created_at)?->toDateTimeString(),
             ])->values()
+        );
+
+        $weeklyProjectId = trim((string) $request->query('foreman_weekly_project_id', ''));
+        $weeklyProjectWeek = trim((string) $request->query('foreman_weekly_project_week', ''));
+
+        $weeklyAccomplishmentsByProjectPager = WeeklyAccomplishment::query()
+            ->with('project:id,name')
+            ->where('foreman_id', $user->id)
+            ->when(
+                $weeklyProjectId !== '',
+                fn ($query) => $query->where('project_id', (int) $weeklyProjectId)
+            )
+            ->selectRaw('
+                project_id,
+                COUNT(*) as scope_entries,
+                COUNT(DISTINCT week_start) as submitted_weeks,
+                AVG(percent_completed) as avg_percent_completed,
+                MAX(week_start) as latest_week_start,
+                MAX(created_at) as last_submitted_at
+            ')
+            ->groupBy('project_id')
+            ->when(
+                $weeklyProjectWeek !== '',
+                fn ($query) => $query->havingRaw('MAX(week_start) = ?', [$weeklyProjectWeek])
+            )
+            ->orderByDesc('last_submitted_at')
+            ->paginate(6, ['*'], 'foreman_dashboard_weekly_projects_page')
+            ->withQueryString();
+        $weeklyAccomplishmentsByProjectPager->setCollection(
+            $weeklyAccomplishmentsByProjectPager->getCollection()->map(function (WeeklyAccomplishment $row) use ($user) {
+                $lastSubmittedAt = $row->last_submitted_at
+                    ? Carbon::parse((string) $row->last_submitted_at)
+                        ->setTimezone(self::PH_TIMEZONE)
+                        ->toDateTimeString()
+                    : null;
+                $latestWeekStart = $row->latest_week_start ? (string) $row->latest_week_start : null;
+                $latestScopeEntries = collect();
+                $scopePhotoCountsByScope = collect();
+
+                if ($row->project_id !== null) {
+                    $scopePhotoCountsByScope = ProjectScope::query()
+                        ->where('project_id', $row->project_id)
+                        ->withCount('photos')
+                        ->get(['scope_name'])
+                        ->filter(fn (ProjectScope $scope) => trim((string) ($scope->scope_name ?? '')) !== '')
+                        ->mapWithKeys(fn (ProjectScope $scope) => [
+                            Str::lower(trim((string) $scope->scope_name)) => (int) ($scope->photos_count ?? 0),
+                        ]);
+                }
+
+                if ($latestWeekStart !== null) {
+                    $latestScopeEntries = WeeklyAccomplishment::query()
+                        ->where('foreman_id', $user->id)
+                        ->whereDate('week_start', $latestWeekStart)
+                        ->when(
+                            $row->project_id === null,
+                            fn ($query) => $query->whereNull('project_id'),
+                            fn ($query) => $query->where('project_id', $row->project_id)
+                        )
+                        ->orderBy('scope_of_work')
+                        ->get(['scope_of_work', 'percent_completed'])
+                        ->map(fn (WeeklyAccomplishment $entry) => [
+                            'scope_of_work' => $entry->scope_of_work,
+                            'percent_completed' => round((float) ($entry->percent_completed ?? 0), 1),
+                            'scope_photo_count' => (int) ($scopePhotoCountsByScope->get(
+                                Str::lower(trim((string) ($entry->scope_of_work ?? ''))),
+                                0
+                            ) ?? 0),
+                        ])
+                        ->values();
+                }
+
+                return [
+                    'project_id' => $row->project_id,
+                    'project_name' => $row->project?->name ?? 'Unassigned',
+                    'scope_entries' => (int) ($row->scope_entries ?? 0),
+                    'submitted_weeks' => (int) ($row->submitted_weeks ?? 0),
+                    'avg_percent_completed' => round((float) ($row->avg_percent_completed ?? 0), 1),
+                    'latest_week_start' => $latestWeekStart,
+                    'last_submitted_at' => $lastSubmittedAt,
+                    'latest_scope_entries' => $latestScopeEntries,
+                ];
+            })->values()
         );
 
         $progressPhotos = ProgressPhoto::query()
@@ -356,6 +450,11 @@ class DashboardController extends Controller
             }
         }
 
+        $weeklyAccomplishmentsByProjectFilters = [
+            'project_id' => $weeklyProjectId,
+            'latest_week_start' => $weeklyProjectWeek,
+        ];
+
         return Inertia::render('Foreman/Dashboard', compact(
             'user',
             'attendances',
@@ -367,6 +466,8 @@ class DashboardController extends Controller
             'materialRequestsPager',
             'issueReportsPager',
             'deliveriesPager',
+            'weeklyAccomplishmentsByProjectPager',
+            'weeklyAccomplishmentsByProjectFilters',
             'projects',
             'assignedProjects',
             'foremanAttendanceToday',
@@ -380,66 +481,6 @@ class DashboardController extends Controller
         $user = Auth::user();
         $assignedProjectIds = $this->resolveForemanAssignedProjectIds($user);
         $assignedProjects = $this->foremanAssignedProjectsPayload($user, $assignedProjectIds);
-
-        $projectScopes = ProjectScope::query()
-            ->when(
-                $assignedProjectIds->isNotEmpty(),
-                fn ($query) => $query->whereIn('project_id', $assignedProjectIds->all()),
-                fn ($query) => $query->whereRaw('1 = 0')
-            )
-            ->orderBy('scope_name')
-            ->get(['id', 'project_id', 'scope_name'])
-            ->map(fn (ProjectScope $scope) => [
-                'id' => $scope->id,
-                'project_id' => $scope->project_id,
-                'scope_name' => $scope->scope_name,
-            ])
-            ->values();
-
-        $projects = Project::query()
-            ->when(
-                $assignedProjectIds->isNotEmpty(),
-                fn ($query) => $query->whereIn('id', $assignedProjectIds->all()),
-                fn ($query) => $query->whereRaw('1 = 0')
-            )
-            ->orderBy('name')
-            ->get(['id', 'name'])
-            ->map(fn (Project $project) => ['id' => $project->id, 'name' => $project->name])
-            ->values();
-
-        $latestWeeklyAccomplishmentDraft = null;
-        $latestWeeklyAccomplishment = WeeklyAccomplishment::query()
-            ->where('foreman_id', $user->id)
-            ->latest()
-            ->first(['week_start', 'project_id']);
-
-        if ($latestWeeklyAccomplishment) {
-            $latestWeekStart = $latestWeeklyAccomplishment->week_start;
-            $latestProjectId = $latestWeeklyAccomplishment->project_id;
-            $latestWeekEntries = WeeklyAccomplishment::query()
-                ->where('foreman_id', $user->id)
-                ->where('week_start', $latestWeekStart)
-                ->when(
-                    $latestProjectId === null,
-                    fn ($query) => $query->whereNull('project_id'),
-                    fn ($query) => $query->where('project_id', $latestProjectId)
-                )
-                ->latest()
-                ->get(['project_id', 'scope_of_work', 'percent_completed', 'week_start']);
-
-            $latestWeeklyAccomplishmentDraft = [
-                'week_start' => (string) $latestWeekStart,
-                'project_id' => $latestProjectId,
-                'entries' => $latestWeekEntries
-                    ->unique(fn (WeeklyAccomplishment $row) => strtolower(trim((string) $row->scope_of_work)))
-                    ->values()
-                    ->map(fn (WeeklyAccomplishment $row) => [
-                        'scope_of_work' => $row->scope_of_work,
-                        'percent_completed' => $row->percent_completed,
-                    ])
-                    ->all(),
-            ];
-        }
 
         $recentMaterialRequests = MaterialRequest::query()
             ->where('foreman_id', $user->id)
@@ -455,6 +496,7 @@ class DashboardController extends Controller
                 'unit' => $requestRow->unit,
                 'remarks' => $requestRow->remarks,
                 'status' => $requestRow->status,
+                'photo_path' => $requestRow->photo_path,
                 'created_at' => optional($requestRow->created_at)?->toDateTimeString(),
             ])
         );
@@ -472,6 +514,7 @@ class DashboardController extends Controller
                 'description' => $issueRow->description,
                 'severity' => $issueRow->severity,
                 'status' => $issueRow->status,
+                'photo_path' => $issueRow->photo_path,
                 'created_at' => optional($issueRow->created_at)?->toDateTimeString(),
             ])
         );
@@ -493,6 +536,7 @@ class DashboardController extends Controller
                 'delivery_date' => $deliveryRow->delivery_date ? (string) $deliveryRow->delivery_date : null,
                 'supplier' => $deliveryRow->supplier,
                 'status' => $deliveryRow->status,
+                'photo_path' => $deliveryRow->photo_path,
                 'created_at' => optional($deliveryRow->created_at)?->toDateTimeString(),
             ])
         );
@@ -513,6 +557,7 @@ class DashboardController extends Controller
         $progressPhotos->setCollection(
             $progressPhotos->getCollection()->map(fn (ProgressPhoto $photo) => [
                 'id' => $photo->id,
+                'project_id' => $photo->project_id,
                 'photo_path' => $photo->photo_path,
                 'caption' => $photo->caption,
                 'project_name' => $photo->project?->name ?? 'Unassigned',
@@ -520,13 +565,44 @@ class DashboardController extends Controller
             ])
         );
 
+        $weeklyScopePhotos = ScopePhoto::query()
+            ->with(['scope:id,project_id,scope_name', 'scope.project:id,name'])
+            ->whereHas('scope', function ($scopeQuery) use ($assignedProjectIds) {
+                if ($assignedProjectIds->isNotEmpty()) {
+                    $scopeQuery->whereIn('project_id', $assignedProjectIds->all());
+                    return;
+                }
+
+                $scopeQuery->whereRaw('1 = 0');
+            })
+            ->latest()
+            ->paginate(10, ['*'], 'weekly_scope_photos_page')
+            ->withQueryString();
+
+        $weeklyScopePhotos->setCollection(
+            $weeklyScopePhotos->getCollection()->map(function (ScopePhoto $photo) {
+                $caption = trim((string) ($photo->caption ?? ''));
+                $normalizedCaption = Str::lower($caption);
+                $isWeeklyProgressPhoto = Str::startsWith($normalizedCaption, '[jotform weekly]')
+                    || Str::startsWith($normalizedCaption, '[public weekly]');
+
+                return [
+                    'id' => $photo->id,
+                    'project_id' => $photo->scope?->project_id,
+                    'project_name' => $photo->scope?->project?->name ?? 'Unassigned',
+                    'scope_name' => $photo->scope?->scope_name ?? 'Unknown Scope',
+                    'photo_path' => $photo->photo_path,
+                    'caption' => $photo->caption,
+                    'source' => $isWeeklyProgressPhoto ? 'weekly_progress' : 'monitoring_board',
+                    'created_at' => optional($photo->created_at)?->toDateTimeString(),
+                ];
+            })
+        );
+
         return Inertia::render('Foreman/Submissions', compact(
-            'user',
-            'projects',
             'assignedProjects',
-            'projectScopes',
-            'latestWeeklyAccomplishmentDraft',
             'progressPhotos',
+            'weeklyScopePhotos',
             'recentMaterialRequests',
             'recentIssueReports',
             'recentDeliveries'
@@ -613,6 +689,81 @@ class DashboardController extends Controller
                 'collected_sum' => $collectedSum,
                 'remaining_sum' => $remainingSum,
             ],
+        ];
+    }
+
+    private function companyFinancialSummary(float $totalContractValue): array
+    {
+        $materials = 0.0;
+        $laborFromExpenses = 0.0;
+        $subcontractors = 0.0;
+        $miscellaneous = 0.0;
+        $equipment = 0.0;
+
+        Expense::query()
+            ->get(['category', 'amount'])
+            ->each(function (Expense $expense) use (&$materials, &$laborFromExpenses, &$subcontractors, &$miscellaneous, &$equipment): void {
+                $amount = (float) ($expense->amount ?? 0);
+                if ($amount <= 0) {
+                    return;
+                }
+
+                $category = Str::lower(trim((string) ($expense->category ?? '')));
+
+                if ($category === '' || $category === 'uncategorized') {
+                    $miscellaneous += $amount;
+                    return;
+                }
+
+                if (Str::contains($category, ['material'])) {
+                    $materials += $amount;
+                    return;
+                }
+
+                if (Str::contains($category, ['subcontract', 'sub-con', 'subcon'])) {
+                    $subcontractors += $amount;
+                    return;
+                }
+
+                if (Str::contains($category, ['equipment', 'equip', 'tool'])) {
+                    $equipment += $amount;
+                    return;
+                }
+
+                if (Str::contains($category, ['labor', 'labour', 'payroll', 'wage', 'salary'])) {
+                    $laborFromExpenses += $amount;
+                    return;
+                }
+
+                $miscellaneous += $amount;
+            });
+
+        $payrollLabor = round((float) Payroll::query()->sum('net'), 2);
+        $laborPayroll = $payrollLabor > 0
+            ? $payrollLabor
+            : round($laborFromExpenses, 2);
+
+        $materials = round($materials, 2);
+        $subcontractors = round($subcontractors, 2);
+        $miscellaneous = round($miscellaneous, 2);
+        $equipment = round($equipment, 2);
+
+        $totalExpenses = round($materials + $laborPayroll + $subcontractors + $miscellaneous + $equipment, 2);
+        $netProfit = round($totalContractValue - $totalExpenses, 2);
+        $netMarginPercent = $totalContractValue > 0
+            ? round(($netProfit / $totalContractValue) * 100, 2)
+            : 0.0;
+
+        return [
+            'total_contract_value' => round($totalContractValue, 2),
+            'materials' => $materials,
+            'labor_payroll' => $laborPayroll,
+            'subcontractors' => $subcontractors,
+            'miscellaneous' => $miscellaneous,
+            'equipment' => $equipment,
+            'total_expenses' => $totalExpenses,
+            'net_profit' => $netProfit,
+            'net_margin_percent' => $netMarginPercent,
         ];
     }
 

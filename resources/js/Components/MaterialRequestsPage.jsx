@@ -1,6 +1,6 @@
 import Layout from './Layout';
-import DataTable from './DataTable';
-import { Head, router } from '@inertiajs/react';
+import ProjectAccordionTable from './ProjectAccordionTable';
+import { Head } from '@inertiajs/react';
 
 const cardStyle = {
     background: 'var(--surface-1)',
@@ -34,55 +34,29 @@ const statusBadgeStyle = (status) => {
 };
 
 export default function MaterialRequestsPage({ materialRequests = [], materialRequestTable = {} }) {
-    const table = {
-        search: materialRequestTable?.search ?? '',
-        perPage: Number(materialRequestTable?.per_page ?? 10),
-        page: Number(materialRequestTable?.current_page ?? 1),
-        lastPage: Number(materialRequestTable?.last_page ?? 1),
-        total: Number(materialRequestTable?.total ?? materialRequests.length ?? 0),
-        from: materialRequestTable?.from ?? null,
-        to: materialRequestTable?.to ?? null,
-    };
-
-    const navigateTable = (overrides = {}) => {
-        router.get('/materials', {
-            search: overrides.search !== undefined ? overrides.search : table.search,
-            per_page: overrides.per_page !== undefined ? overrides.per_page : table.perPage,
-            page: overrides.page !== undefined ? overrides.page : table.page,
-        }, {
-            preserveState: true,
-            preserveScroll: true,
-            replace: true,
-        });
-    };
-
     const columns = [
         {
             key: 'created_at',
             label: 'Submitted',
             width: 170,
             render: (row) => <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 12 }}>{row.created_at || '-'}</span>,
-            searchAccessor: (row) => row.created_at,
         },
         {
             key: 'foreman_name',
             label: 'Foreman',
             width: 170,
             render: (row) => row.foreman_name || '-',
-            searchAccessor: (row) => row.foreman_name,
         },
         {
             key: 'material_name',
             label: 'Material',
             render: (row) => <div style={{ fontWeight: 600 }}>{row.material_name || '-'}</div>,
-            searchAccessor: (row) => row.material_name,
         },
         {
             key: 'quantity',
             label: 'Qty',
             width: 130,
             render: (row) => `${row.quantity || '-'} ${row.unit || ''}`.trim(),
-            searchAccessor: (row) => `${row.quantity || ''} ${row.unit || ''}`,
         },
         {
             key: 'remarks',
@@ -92,7 +66,22 @@ export default function MaterialRequestsPage({ materialRequests = [], materialRe
                     {row.remarks || '-'}
                 </div>
             ),
-            searchAccessor: (row) => row.remarks,
+        },
+        {
+            key: 'photo',
+            label: 'Photo',
+            width: 120,
+            render: (row) => (
+                row.photo_path ? (
+                    <a href={`/storage/${row.photo_path}`} target="_blank" rel="noreferrer">
+                        <img
+                            src={`/storage/${row.photo_path}`}
+                            alt={row.material_name || 'Material photo'}
+                            style={{ width: 72, height: 52, objectFit: 'cover', borderRadius: 6, border: '1px solid var(--border-color)' }}
+                        />
+                    </a>
+                ) : <span style={{ color: 'var(--text-muted)' }}>-</span>
+            ),
         },
         {
             key: 'status',
@@ -115,7 +104,6 @@ export default function MaterialRequestsPage({ materialRequests = [], materialRe
                     {row.status || 'pending'}
                 </span>
             ),
-            searchAccessor: (row) => row.status,
         },
     ];
 
@@ -124,23 +112,14 @@ export default function MaterialRequestsPage({ materialRequests = [], materialRe
             <Head title="Materials" />
             <Layout title="Materials / Requests">
                 <div style={cardStyle}>
-                    <DataTable
+                    <ProjectAccordionTable
                         columns={columns}
                         rows={materialRequests}
                         rowKey="id"
                         searchPlaceholder="Search material requests..."
                         emptyMessage="No material requests yet."
-                        serverSide
-                        serverSearchValue={table.search}
-                        serverPage={table.page}
-                        serverPerPage={table.perPage}
-                        serverTotalItems={table.total}
-                        serverTotalPages={table.lastPage}
-                        serverFrom={table.from}
-                        serverTo={table.to}
-                        onServerSearchChange={(value) => navigateTable({ search: value, page: 1 })}
-                        onServerPerPageChange={(value) => navigateTable({ per_page: value, page: 1 })}
-                        onServerPageChange={(value) => navigateTable({ page: value })}
+                        routePath="/materials"
+                        table={materialRequestTable}
                     />
                 </div>
             </Layout>

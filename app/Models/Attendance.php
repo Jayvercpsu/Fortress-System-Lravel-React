@@ -12,6 +12,7 @@ class Attendance extends Model {
         'time_in',
         'time_out',
         'hours',
+        'attendance_code',
         'selfie_path',
     ];
 

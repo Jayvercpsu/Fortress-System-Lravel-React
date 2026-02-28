@@ -8,10 +8,14 @@ use App\Models\IssueReport;
 use App\Models\MaterialRequest;
 use App\Models\ProgressPhoto;
 use App\Models\ProgressSubmitToken;
+use App\Models\Project;
 use App\Models\ProjectFile;
+use App\Models\ProjectScope;
 use App\Models\ProjectUpdate;
+use App\Models\ScopePhoto;
 use App\Models\WeeklyAccomplishment;
 use App\Models\Worker;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
@@ -100,6 +104,221 @@ class PublicProgressController extends Controller
             ])
             ->values();
 
+        $recentDeliveries = DeliveryConfirmation::query()
+            ->where('foreman_id', $submitToken->foreman_id)
+            ->where('project_id', $submitToken->project_id)
+            ->latest()
+            ->take(5)
+            ->get(['id', 'item_delivered', 'quantity', 'delivery_date', 'supplier', 'status', 'photo_path', 'created_at'])
+            ->map(fn (DeliveryConfirmation $delivery) => [
+                'id' => $delivery->id,
+                'item_delivered' => $delivery->item_delivered,
+                'quantity' => $delivery->quantity,
+                'delivery_date' => $delivery->delivery_date ? Carbon::parse($delivery->delivery_date)->toDateString() : null,
+                'supplier' => $delivery->supplier,
+                'status' => $delivery->status,
+                'photo_path' => $delivery->photo_path,
+                'created_at' => optional($delivery->created_at)?->toDateTimeString(),
+            ])
+            ->values();
+
+        $recentMaterialRequests = MaterialRequest::query()
+            ->where('foreman_id', $submitToken->foreman_id)
+            ->where('project_id', $submitToken->project_id)
+            ->latest()
+            ->take(5)
+            ->get(['id', 'project_id', 'material_name', 'quantity', 'unit', 'remarks', 'status', 'photo_path', 'created_at'])
+            ->map(fn (MaterialRequest $requestRow) => [
+                'id' => $requestRow->id,
+                'project_id' => $requestRow->project_id,
+                'material_name' => $requestRow->material_name,
+                'quantity' => $requestRow->quantity,
+                'unit' => $requestRow->unit,
+                'remarks' => $requestRow->remarks,
+                'status' => $requestRow->status,
+                'photo_path' => $requestRow->photo_path,
+                'created_at' => optional($requestRow->created_at)?->toDateTimeString(),
+            ])
+            ->values();
+
+        $recentIssueReports = IssueReport::query()
+            ->where('foreman_id', $submitToken->foreman_id)
+            ->where('project_id', $submitToken->project_id)
+            ->latest()
+            ->take(5)
+            ->get(['id', 'project_id', 'issue_title', 'description', 'severity', 'status', 'photo_path', 'created_at'])
+            ->map(fn (IssueReport $issueRow) => [
+                'id' => $issueRow->id,
+                'project_id' => $issueRow->project_id,
+                'issue_title' => $issueRow->issue_title,
+                'description' => $issueRow->description,
+                'severity' => $issueRow->severity,
+                'status' => $issueRow->status,
+                'photo_path' => $issueRow->photo_path,
+                'created_at' => optional($issueRow->created_at)?->toDateTimeString(),
+            ])
+            ->values();
+
+        $attendanceSavedByWeek = Attendance::query()
+            ->where('foreman_id', $submitToken->foreman_id)
+            ->where('project_id', $submitToken->project_id)
+            ->whereNotNull('date')
+            ->orderBy('date')
+            ->orderBy('worker_name')
+            ->get(['worker_name', 'worker_role', 'date', 'hours', 'attendance_code'])
+            ->groupBy(function (Attendance $attendance) {
+                return Carbon::parse($attendance->date)->startOfWeek(Carbon::MONDAY)->toDateString();
+            })
+            ->map(function ($weekRows) {
+                $workers = [];
+                foreach ($weekRows as $row) {
+                    $workerName = trim((string) $row->worker_name);
+                    if ($workerName === '') {
+                        continue;
+                    }
+
+                    $workerRole = trim((string) ($row->worker_role ?? 'Worker'));
+                    $workerRole = $workerRole !== '' ? $workerRole : 'Worker';
+                    $workerKey = Str::lower($workerName . '|' . $workerRole);
+
+                    if (!isset($workers[$workerKey])) {
+                        $workers[$workerKey] = [
+                            'worker_name' => $workerName,
+                            'worker_role' => $workerRole,
+                            'days' => collect(self::ATTENDANCE_DAY_KEYS)->mapWithKeys(fn (string $dayKey) => [$dayKey => ''])->all(),
+                        ];
+                    }
+
+                    $dayKey = Carbon::parse($row->date)->format('D');
+                    $dayMap = [
+                        'Mon' => 'mon',
+                        'Tue' => 'tue',
+                        'Wed' => 'wed',
+                        'Thu' => 'thu',
+                        'Fri' => 'fri',
+                        'Sat' => 'sat',
+                        'Sun' => 'sun',
+                    ];
+                    $resolvedDayKey = $dayMap[$dayKey] ?? null;
+                    if ($resolvedDayKey === null) {
+                        continue;
+                    }
+
+                    $storedStatus = strtoupper(trim((string) ($row->attendance_code ?? '')));
+                    $workers[$workerKey]['days'][$resolvedDayKey] = in_array($storedStatus, array_keys(self::ATTENDANCE_STATUS_HOURS), true)
+                        ? $storedStatus
+                        : $this->statusFromHours((float) $row->hours);
+                }
+
+                return collect($workers)
+                    ->sortBy(fn (array $worker) => Str::lower($worker['worker_name']))
+                    ->values()
+                    ->all();
+            })
+            ->all();
+
+        $weeklySavedByWeek = WeeklyAccomplishment::query()
+            ->where('foreman_id', $submitToken->foreman_id)
+            ->where('project_id', $submitToken->project_id)
+            ->orderBy('week_start')
+            ->orderBy('scope_of_work')
+            ->get(['week_start', 'scope_of_work', 'percent_completed'])
+            ->values();
+
+        $foremanName = trim((string) ($submitToken->foreman->fullname ?? ''));
+        $normalizedForemanName = Str::lower($foremanName);
+
+        $projectScopes = ProjectScope::query()
+            ->where('project_id', $submitToken->project_id)
+            ->orderBy('scope_name')
+            ->get(['id', 'scope_name', 'assigned_personnel'])
+            ->filter(function (ProjectScope $scopeRow) use ($normalizedForemanName) {
+                $assignedPersonnel = collect(preg_split('/[,;]+/', (string) ($scopeRow->assigned_personnel ?? '')))
+                    ->map(fn ($name) => trim((string) $name))
+                    ->filter(fn (string $name) => $name !== '')
+                    ->map(fn (string $name) => Str::lower($name))
+                    ->values();
+
+                if ($assignedPersonnel->isEmpty()) {
+                    return true;
+                }
+
+                if ($normalizedForemanName === '') {
+                    return false;
+                }
+
+                return $assignedPersonnel->contains($normalizedForemanName);
+            });
+
+        $projectScopeNames = $projectScopes
+            ->pluck('scope_name')
+            ->map(fn ($scope) => trim((string) $scope))
+            ->filter(fn (string $scope) => $scope !== '')
+            ->unique(fn (string $scope) => Str::lower($scope))
+            ->values();
+
+        $weeklyScopeOfWorks = $projectScopeNames->isNotEmpty()
+            ? $projectScopeNames->all()
+            : self::WEEKLY_SCOPE_OF_WORKS;
+
+        $weeklyScopeLookup = collect($weeklyScopeOfWorks)
+            ->mapWithKeys(fn (string $scope) => [Str::lower($scope) => true])
+            ->all();
+
+        $weeklyScopePhotoMap = [];
+        $projectScopesById = $projectScopes->keyBy(fn (ProjectScope $scope) => (int) $scope->id);
+
+        if ($projectScopesById->isNotEmpty()) {
+            $scopePhotos = ScopePhoto::query()
+                ->whereIn('project_scope_id', $projectScopesById->keys()->all())
+                ->orderByDesc('id')
+                ->get(['id', 'project_scope_id', 'photo_path', 'caption', 'created_at']);
+
+            foreach ($scopePhotos as $scopePhoto) {
+                $projectScope = $projectScopesById->get((int) $scopePhoto->project_scope_id);
+                if (!$projectScope) {
+                    continue;
+                }
+
+                $scopeName = trim((string) ($projectScope->scope_name ?? ''));
+                if ($scopeName === '') {
+                    continue;
+                }
+
+                $scopeKey = Str::lower($scopeName);
+                if (!isset($weeklyScopePhotoMap[$scopeKey])) {
+                    $weeklyScopePhotoMap[$scopeKey] = [];
+                }
+
+                if (count($weeklyScopePhotoMap[$scopeKey]) >= 8) {
+                    continue;
+                }
+
+                $weeklyScopePhotoMap[$scopeKey][] = [
+                    'id' => (int) $scopePhoto->id,
+                    'photo_path' => $scopePhoto->photo_path,
+                    'caption' => $scopePhoto->caption,
+                    'created_at' => optional($scopePhoto->created_at)?->toDateTimeString(),
+                ];
+            }
+        }
+
+        $weeklySavedByWeek = $weeklySavedByWeek
+            ->groupBy(fn (WeeklyAccomplishment $row) => $row->week_start ? Carbon::parse($row->week_start)->toDateString() : '')
+            ->map(function ($rows) use ($weeklyScopeLookup) {
+                return $rows->map(function (WeeklyAccomplishment $row) use ($weeklyScopeLookup) {
+                    $scope = trim((string) ($row->scope_of_work ?? ''));
+                    $percentValue = $row->percent_completed;
+                    $percent = $percentValue === null ? '' : (string) ((float) $percentValue + 0);
+                    return [
+                        'scope_of_work' => $scope,
+                        'percent_completed' => $percent,
+                        'is_manual' => !isset($weeklyScopeLookup[Str::lower($scope)]),
+                    ];
+                })->values()->all();
+            })
+            ->all();
+
         return Inertia::render('Public/ProgressSubmit', [
             'submitToken' => [
                 'token' => $submitToken->token,
@@ -108,9 +327,15 @@ class PublicProgressController extends Controller
                 'foreman_name' => $submitToken->foreman->fullname,
                 'expires_at' => optional($submitToken->expires_at)?->toDateTimeString(),
                 'workers' => $workers,
-                'weekly_scope_of_works' => self::WEEKLY_SCOPE_OF_WORKS,
+                'weekly_scope_of_works' => $weeklyScopeOfWorks,
+                'weekly_scope_photo_map' => $weeklyScopePhotoMap,
                 'photo_categories' => self::PHOTO_CATEGORIES,
                 'recent_photos' => $recentPhotos,
+                'recent_deliveries' => $recentDeliveries,
+                'recent_material_requests' => $recentMaterialRequests,
+                'recent_issue_reports' => $recentIssueReports,
+                'attendance_saved_by_week' => $attendanceSavedByWeek,
+                'weekly_saved_by_week' => $weeklySavedByWeek,
             ],
         ]);
     }
@@ -173,11 +398,17 @@ class PublicProgressController extends Controller
             'material_quantity' => ['nullable', 'string', 'max:120'],
             'material_unit' => ['nullable', 'string', 'max:120'],
             'material_remarks' => ['nullable', 'string', 'max:1000'],
+            'material_photo' => ['nullable', 'image', 'max:10240'],
 
             'weekly_week_start' => ['nullable', 'date'],
             'weekly_scopes' => ['nullable', 'array'],
             'weekly_scopes.*.scope_of_work' => ['nullable', 'string', 'max:255'],
             'weekly_scopes.*.percent_completed' => ['nullable', 'numeric', 'min:0', 'max:100'],
+            'weekly_scopes.*.photo_caption' => ['nullable', 'string', 'max:255'],
+            'weekly_scopes.*.photos' => ['nullable', 'array'],
+            'weekly_scopes.*.photos.*' => ['nullable', 'image', 'max:10240'],
+            'weekly_removed_scopes' => ['nullable', 'array'],
+            'weekly_removed_scopes.*' => ['nullable', 'string', 'max:255'],
 
             'photo_file' => ['nullable', 'image', 'max:10240'],
             'photo_category' => ['nullable', Rule::in(self::PHOTO_CATEGORIES)],
@@ -222,6 +453,8 @@ class PublicProgressController extends Controller
                 ]);
             }
 
+            $this->syncWorkersFromAttendanceEntries($submitToken, $attendanceEntries);
+
             $weekStart = Carbon::parse($attendanceWeekStart)->startOfWeek(Carbon::MONDAY);
 
             foreach ($attendanceEntries as $entry) {
@@ -244,6 +477,7 @@ class PublicProgressController extends Controller
                         ],
                         [
                             'hours' => $hours,
+                            'attendance_code' => $status,
                             'time_in' => null,
                             'time_out' => null,
                             'selfie_path' => null,
@@ -277,6 +511,12 @@ class PublicProgressController extends Controller
             $status = $deliveryStatus === 'complete' ? 'received' : 'incomplete';
             $itemDelivered = trim((string) ($validated['delivery_item_delivered'] ?? ''));
             $quantity = trim((string) ($validated['delivery_quantity'] ?? ''));
+            $deliveryPhotoPath = null;
+            $note = trim((string) ($validated['delivery_note'] ?? ''));
+
+            if (isset($validated['delivery_photo'])) {
+                $deliveryPhotoPath = $validated['delivery_photo']->store('progress-photos/public-token/' . $submitToken->project_id, 'public');
+            }
 
             DeliveryConfirmation::create([
                 'project_id' => $submitToken->project_id,
@@ -286,11 +526,10 @@ class PublicProgressController extends Controller
                 'delivery_date' => $deliveryDate,
                 'supplier' => trim((string) ($validated['delivery_supplier'] ?? '')) ?: null,
                 'status' => $status,
+                'photo_path' => $deliveryPhotoPath,
             ]);
 
-            if (isset($validated['delivery_photo'])) {
-                $path = $validated['delivery_photo']->store('progress-photos/public-token/' . $submitToken->project_id, 'public');
-                $note = trim((string) ($validated['delivery_note'] ?? ''));
+            if ($deliveryPhotoPath !== null) {
                 $caption = '[Delivery] ' . ($status === 'received' ? 'Complete' : 'Incomplete');
                 if ($note !== '') {
                     $caption .= ' - ' . $note;
@@ -299,7 +538,7 @@ class PublicProgressController extends Controller
                 ProgressPhoto::create([
                     'foreman_id' => $submitToken->foreman_id,
                     'project_id' => $submitToken->project_id,
-                    'photo_path' => $path,
+                    'photo_path' => $deliveryPhotoPath,
                     'caption' => $caption,
                 ]);
             }
@@ -312,7 +551,7 @@ class PublicProgressController extends Controller
             $validated['material_quantity'] ?? null,
             $validated['material_unit'] ?? null,
             $validated['material_remarks'] ?? null,
-        ]);
+        ]) || isset($validated['material_photo']);
 
         if ($materialTouched) {
             $materialName = trim((string) ($validated['material_name'] ?? ''));
@@ -325,14 +564,36 @@ class PublicProgressController extends Controller
                 ]);
             }
 
+            $materialPhotoPath = null;
+            if (isset($validated['material_photo'])) {
+                $materialPhotoPath = $validated['material_photo']->store('progress-photos/public-token/' . $submitToken->project_id, 'public');
+            }
+
             MaterialRequest::create([
+                'project_id' => $submitToken->project_id,
                 'foreman_id' => $submitToken->foreman_id,
                 'material_name' => $materialName,
                 'quantity' => $materialQuantity,
                 'unit' => $materialUnit,
                 'remarks' => trim((string) ($validated['material_remarks'] ?? '')) ?: null,
                 'status' => 'pending',
+                'photo_path' => $materialPhotoPath,
             ]);
+
+            if ($materialPhotoPath !== null) {
+                $caption = '[Material] ' . $materialName;
+                $remarks = trim((string) ($validated['material_remarks'] ?? ''));
+                if ($remarks !== '') {
+                    $caption .= ' - ' . $remarks;
+                }
+
+                ProgressPhoto::create([
+                    'foreman_id' => $submitToken->foreman_id,
+                    'project_id' => $submitToken->project_id,
+                    'photo_path' => $materialPhotoPath,
+                    'caption' => $caption,
+                ]);
+            }
 
             $submittedAny = true;
         }
@@ -342,12 +603,37 @@ class PublicProgressController extends Controller
                 return [
                     'scope_of_work' => trim((string) ($scope['scope_of_work'] ?? '')),
                     'percent_completed' => trim((string) ($scope['percent_completed'] ?? '')),
+                    'photo_caption' => trim((string) ($scope['photo_caption'] ?? '')),
+                    'photos' => collect($scope['photos'] ?? [])
+                        ->filter(fn ($photo) => $photo instanceof UploadedFile)
+                        ->values()
+                        ->all(),
                 ];
             })
             ->filter(fn (array $scope) => $scope['scope_of_work'] !== '' && $scope['percent_completed'] !== '')
             ->values();
 
-        if ($weeklyScopes->isNotEmpty()) {
+        $weeklyScopePhotos = collect($validated['weekly_scopes'] ?? [])
+            ->map(function (array $scope) {
+                return [
+                    'scope_of_work' => trim((string) ($scope['scope_of_work'] ?? '')),
+                    'photo_caption' => trim((string) ($scope['photo_caption'] ?? '')),
+                    'photos' => collect($scope['photos'] ?? [])
+                        ->filter(fn ($photo) => $photo instanceof UploadedFile)
+                        ->values()
+                        ->all(),
+                ];
+            })
+            ->filter(fn (array $scope) => $scope['scope_of_work'] !== '' && count($scope['photos']) > 0)
+            ->values();
+
+        $weeklyRemovedScopes = collect($validated['weekly_removed_scopes'] ?? [])
+            ->map(fn ($scope) => trim((string) $scope))
+            ->filter(fn (string $scope) => $scope !== '')
+            ->unique(fn (string $scope) => Str::lower($scope))
+            ->values();
+
+        if ($weeklyScopes->isNotEmpty() || $weeklyRemovedScopes->isNotEmpty() || $weeklyScopePhotos->isNotEmpty()) {
             $weeklyWeekStart = trim((string) ($validated['weekly_week_start'] ?? ''));
             if ($weeklyWeekStart === '') {
                 throw ValidationException::withMessages([
@@ -355,7 +641,23 @@ class PublicProgressController extends Controller
                 ]);
             }
 
-            $weekStart = Carbon::parse($weeklyWeekStart)->toDateString();
+            $weekStart = Carbon::parse($weeklyWeekStart)->startOfWeek(Carbon::MONDAY)->toDateString();
+            $submittedScopeKeys = $weeklyScopes
+                ->pluck('scope_of_work')
+                ->map(fn (string $scope) => Str::lower($scope))
+                ->values();
+            $scopesToDelete = $weeklyRemovedScopes
+                ->filter(fn (string $scope) => !$submittedScopeKeys->contains(Str::lower($scope)))
+                ->values();
+
+            if ($scopesToDelete->isNotEmpty()) {
+                WeeklyAccomplishment::query()
+                    ->where('foreman_id', $submitToken->foreman_id)
+                    ->where('project_id', $submitToken->project_id)
+                    ->whereDate('week_start', $weekStart)
+                    ->whereIn('scope_of_work', $scopesToDelete->all())
+                    ->delete();
+            }
 
             foreach ($weeklyScopes as $scope) {
                 WeeklyAccomplishment::updateOrCreate(
@@ -371,6 +673,18 @@ class PublicProgressController extends Controller
                 );
             }
 
+            $this->syncProjectScopesFromWeeklyEntries(
+                $submitToken->project_id,
+                trim((string) ($submitToken->foreman->fullname ?? '')),
+                $weeklyScopes->all()
+            );
+            $this->storeScopePhotosFromWeeklyEntries(
+                $submitToken->project_id,
+                $weeklyScopePhotos->all(),
+                $weekStart,
+                trim((string) ($submitToken->foreman->fullname ?? ''))
+            );
+            $this->syncProjectOverallProgressFromWeekly($submitToken->project_id);
             $submittedAny = true;
         }
 
@@ -425,22 +739,26 @@ class PublicProgressController extends Controller
             }
 
             $severity = $issueUrgency === 'normal' ? 'medium' : $issueUrgency;
+            $issuePhotoPath = null;
+            if (isset($validated['issue_photo'])) {
+                $issuePhotoPath = $validated['issue_photo']->store('progress-photos/public-token/' . $submitToken->project_id, 'public');
+            }
 
             IssueReport::create([
+                'project_id' => $submitToken->project_id,
                 'foreman_id' => $submitToken->foreman_id,
                 'issue_title' => $issueTitle,
                 'description' => $issueDescription,
                 'severity' => $severity,
                 'status' => 'open',
+                'photo_path' => $issuePhotoPath,
             ]);
 
-            if (isset($validated['issue_photo'])) {
-                $path = $validated['issue_photo']->store('progress-photos/public-token/' . $submitToken->project_id, 'public');
-
+            if ($issuePhotoPath !== null) {
                 ProgressPhoto::create([
                     'foreman_id' => $submitToken->foreman_id,
                     'project_id' => $submitToken->project_id,
-                    'photo_path' => $path,
+                    'photo_path' => $issuePhotoPath,
                     'caption' => '[Issue] ' . $issueTitle,
                 ]);
             }
@@ -479,6 +797,8 @@ class PublicProgressController extends Controller
 
         $validated = $request->validate($rules);
         $weekStart = Carbon::parse($validated['week_start'])->startOfWeek(Carbon::MONDAY);
+        $entries = collect($validated['entries']);
+        $this->syncWorkersFromAttendanceEntries($submitToken, $entries);
 
         foreach ($validated['entries'] as $entry) {
             $workerName = trim((string) $entry['worker_name']);
@@ -506,6 +826,7 @@ class PublicProgressController extends Controller
                     ],
                     [
                         'hours' => $hours,
+                        'attendance_code' => $status,
                         'time_in' => null,
                         'time_out' => null,
                         'selfie_path' => null,
@@ -538,6 +859,12 @@ class PublicProgressController extends Controller
         $status = $validated['status'] === 'complete' ? 'received' : 'incomplete';
         $itemDelivered = trim((string) ($validated['item_delivered'] ?? ''));
         $quantity = trim((string) ($validated['quantity'] ?? ''));
+        $deliveryPhotoPath = null;
+        $note = trim((string) ($validated['note'] ?? ''));
+
+        if (isset($validated['photo'])) {
+            $deliveryPhotoPath = $validated['photo']->store('progress-photos/public-token/' . $submitToken->project_id, 'public');
+        }
 
         DeliveryConfirmation::create([
             'project_id' => $submitToken->project_id,
@@ -547,11 +874,10 @@ class PublicProgressController extends Controller
             'delivery_date' => $validated['delivery_date'],
             'supplier' => trim((string) ($validated['supplier'] ?? '')) ?: null,
             'status' => $status,
+            'photo_path' => $deliveryPhotoPath,
         ]);
 
-        if (isset($validated['photo'])) {
-            $path = $validated['photo']->store('progress-photos/public-token/' . $submitToken->project_id, 'public');
-            $note = trim((string) ($validated['note'] ?? ''));
+        if ($deliveryPhotoPath !== null) {
             $caption = '[Delivery] ' . ($status === 'received' ? 'Complete' : 'Incomplete');
             if ($note !== '') {
                 $caption .= ' - ' . $note;
@@ -560,7 +886,7 @@ class PublicProgressController extends Controller
             ProgressPhoto::create([
                 'foreman_id' => $submitToken->foreman_id,
                 'project_id' => $submitToken->project_id,
-                'photo_path' => $path,
+                'photo_path' => $deliveryPhotoPath,
                 'caption' => $caption,
             ]);
         }
@@ -581,16 +907,39 @@ class PublicProgressController extends Controller
             'quantity' => ['required', 'string', 'max:120'],
             'unit' => ['required', 'string', 'max:120'],
             'remarks' => ['nullable', 'string', 'max:1000'],
+            'photo' => ['nullable', 'image', 'max:10240'],
         ]);
 
+        $materialPhotoPath = null;
+        if (isset($validated['photo'])) {
+            $materialPhotoPath = $validated['photo']->store('progress-photos/public-token/' . $submitToken->project_id, 'public');
+        }
+
         MaterialRequest::create([
+            'project_id' => $submitToken->project_id,
             'foreman_id' => $submitToken->foreman_id,
             'material_name' => trim((string) $validated['material_name']),
             'quantity' => trim((string) $validated['quantity']),
             'unit' => trim((string) $validated['unit']),
             'remarks' => trim((string) ($validated['remarks'] ?? '')) ?: null,
             'status' => 'pending',
+            'photo_path' => $materialPhotoPath,
         ]);
+
+        if ($materialPhotoPath !== null) {
+            $caption = '[Material] ' . trim((string) $validated['material_name']);
+            $remarks = trim((string) ($validated['remarks'] ?? ''));
+            if ($remarks !== '') {
+                $caption .= ' - ' . $remarks;
+            }
+
+            ProgressPhoto::create([
+                'foreman_id' => $submitToken->foreman_id,
+                'project_id' => $submitToken->project_id,
+                'photo_path' => $materialPhotoPath,
+                'caption' => $caption,
+            ]);
+        }
 
         $submitToken->markSubmitted();
 
@@ -608,9 +957,14 @@ class PublicProgressController extends Controller
             'scopes' => ['required', 'array', 'min:1'],
             'scopes.*.scope_of_work' => ['required', 'string', 'max:255'],
             'scopes.*.percent_completed' => ['required', 'numeric', 'min:0', 'max:100'],
+            'scopes.*.photo_caption' => ['nullable', 'string', 'max:255'],
+            'scopes.*.photos' => ['nullable', 'array'],
+            'scopes.*.photos.*' => ['nullable', 'image', 'max:10240'],
         ]);
 
-        $weekStart = Carbon::parse($validated['week_start'])->toDateString();
+        $weekStart = Carbon::parse($validated['week_start'])
+            ->startOfWeek(Carbon::MONDAY)
+            ->toDateString();
 
         foreach ($validated['scopes'] as $scope) {
             $scopeName = trim((string) ($scope['scope_of_work'] ?? ''));
@@ -631,6 +985,18 @@ class PublicProgressController extends Controller
             );
         }
 
+        $this->syncProjectScopesFromWeeklyEntries(
+            $submitToken->project_id,
+            trim((string) ($submitToken->foreman->fullname ?? '')),
+            $validated['scopes']
+        );
+        $this->storeScopePhotosFromWeeklyEntries(
+            $submitToken->project_id,
+            $validated['scopes'],
+            $weekStart,
+            trim((string) ($submitToken->foreman->fullname ?? ''))
+        );
+        $this->syncProjectOverallProgressFromWeekly($submitToken->project_id);
         $submitToken->markSubmitted();
 
         return redirect()
@@ -689,21 +1055,26 @@ class PublicProgressController extends Controller
             ? 'medium'
             : $validated['urgency'];
 
+        $issuePhotoPath = null;
+        if (isset($validated['photo'])) {
+            $issuePhotoPath = $validated['photo']->store('progress-photos/public-token/' . $submitToken->project_id, 'public');
+        }
+
         IssueReport::create([
+            'project_id' => $submitToken->project_id,
             'foreman_id' => $submitToken->foreman_id,
             'issue_title' => trim((string) $validated['issue_title']),
             'description' => trim((string) $validated['description']),
             'severity' => $severity,
             'status' => 'open',
+            'photo_path' => $issuePhotoPath,
         ]);
 
-        if (isset($validated['photo'])) {
-            $path = $validated['photo']->store('progress-photos/public-token/' . $submitToken->project_id, 'public');
-
+        if ($issuePhotoPath !== null) {
             ProgressPhoto::create([
                 'foreman_id' => $submitToken->foreman_id,
                 'project_id' => $submitToken->project_id,
-                'photo_path' => $path,
+                'photo_path' => $issuePhotoPath,
                 'caption' => '[Issue] ' . trim((string) $validated['issue_title']),
             ]);
         }
@@ -754,5 +1125,216 @@ class PublicProgressController extends Controller
         $random = Str::lower(Str::random(6));
 
         return "public_progress_{$timestamp}_{$random}.{$safeExtension}";
+    }
+
+    private function statusFromHours(float $hours): string
+    {
+        if ($hours >= 7.5) {
+            return 'P';
+        }
+
+        if ($hours >= 3.5) {
+            return 'H';
+        }
+
+        return 'A';
+    }
+
+    private function syncWorkersFromAttendanceEntries(ProgressSubmitToken $submitToken, iterable $attendanceEntries): void
+    {
+        $normalizedNames = collect($attendanceEntries)
+            ->map(fn ($entry) => trim((string) (($entry['worker_name'] ?? ''))))
+            ->filter(fn (string $name) => $name !== '')
+            ->unique(fn (string $name) => Str::lower($name))
+            ->values();
+
+        foreach ($normalizedNames as $workerName) {
+            $worker = Worker::query()
+                ->where('foreman_id', $submitToken->foreman_id)
+                ->whereRaw('LOWER(name) = ?', [Str::lower($workerName)])
+                ->first();
+
+            if (!$worker) {
+                Worker::create([
+                    'foreman_id' => $submitToken->foreman_id,
+                    'project_id' => $submitToken->project_id,
+                    'name' => $workerName,
+                ]);
+                continue;
+            }
+
+            if ($worker->project_id === null) {
+                $worker->project_id = $submitToken->project_id;
+                $worker->save();
+            }
+        }
+    }
+
+    private function storeScopePhotosFromWeeklyEntries(
+        int $projectId,
+        iterable $weeklyScopes,
+        ?string $weekStart = null,
+        string $fallbackAssignee = ''
+    ): void
+    {
+        if ($projectId <= 0) {
+            return;
+        }
+
+        $assignee = trim($fallbackAssignee);
+        $projectScopeRows = ProjectScope::query()
+            ->where('project_id', $projectId)
+            ->get(['id', 'scope_name'])
+            ->filter(fn (ProjectScope $scope) => trim((string) ($scope->scope_name ?? '')) !== '')
+            ->keyBy(fn (ProjectScope $scope) => Str::lower(trim((string) $scope->scope_name)));
+
+        foreach ($weeklyScopes as $scope) {
+            $scopeName = trim((string) ($scope['scope_of_work'] ?? ''));
+            if ($scopeName === '') {
+                continue;
+            }
+
+            $projectScope = $projectScopeRows->get(Str::lower($scopeName));
+            if (!$projectScope) {
+                $projectScope = ProjectScope::query()->create([
+                    'project_id' => $projectId,
+                    'scope_name' => $scopeName,
+                    'assigned_personnel' => $assignee !== '' ? $assignee : null,
+                    'progress_percent' => 0,
+                    'status' => 'NOT_STARTED',
+                    'remarks' => null,
+                ]);
+
+                $projectScopeRows->put(Str::lower($scopeName), $projectScope);
+            }
+
+            $uploadedPhotos = collect($scope['photos'] ?? [])
+                ->filter(fn ($photo) => $photo instanceof UploadedFile)
+                ->values();
+
+            if ($uploadedPhotos->isEmpty()) {
+                continue;
+            }
+
+            $photoCaption = trim((string) ($scope['photo_caption'] ?? ''));
+
+            foreach ($uploadedPhotos as $photo) {
+                $path = $photo->store('scope-photos/' . $projectScope->id, 'public');
+
+                ScopePhoto::query()->create([
+                    'project_scope_id' => $projectScope->id,
+                    'photo_path' => $path,
+                    'caption' => $this->weeklyScopePhotoCaption($scopeName, $photoCaption, $weekStart),
+                ]);
+            }
+        }
+    }
+
+    private function weeklyScopePhotoCaption(string $scopeName, string $photoCaption, ?string $weekStart): string
+    {
+        $parts = ['[Jotform Weekly]'];
+        if ($weekStart !== null && trim($weekStart) !== '') {
+            $parts[] = 'Week: ' . trim($weekStart);
+        }
+        $parts[] = 'Scope: ' . trim($scopeName);
+        if ($photoCaption !== '') {
+            $parts[] = $photoCaption;
+        }
+
+        return implode(' | ', $parts);
+    }
+
+    private function syncProjectOverallProgressFromWeekly(int $projectId): void
+    {
+        if ($projectId <= 0) {
+            return;
+        }
+
+        $project = Project::query()->find($projectId);
+        if (!$project) {
+            return;
+        }
+
+        $latestWeekStart = WeeklyAccomplishment::query()
+            ->where('project_id', $projectId)
+            ->max('week_start');
+
+        $progressPercent = null;
+
+        if ($latestWeekStart) {
+            $progressPercent = (float) (WeeklyAccomplishment::query()
+                ->where('project_id', $projectId)
+                ->whereDate('week_start', $latestWeekStart)
+                ->avg('percent_completed') ?? 0);
+        }
+
+        if ($progressPercent === null) {
+            $progressPercent = (float) ($project->scopes()->avg('progress_percent') ?? 0);
+        }
+
+        $overallProgress = (int) round(max(0, min(100, $progressPercent)));
+
+        if ((int) ($project->overall_progress ?? 0) !== $overallProgress) {
+            $project->update([
+                'overall_progress' => $overallProgress,
+            ]);
+        }
+    }
+
+    private function syncProjectScopesFromWeeklyEntries(int $projectId, string $fallbackAssignee, iterable $weeklyScopes): void
+    {
+        if ($projectId <= 0) {
+            return;
+        }
+
+        $assignee = trim($fallbackAssignee);
+
+        foreach ($weeklyScopes as $scope) {
+            $scopeName = trim((string) ($scope['scope_of_work'] ?? ''));
+            if ($scopeName === '') {
+                continue;
+            }
+
+            $progress = (int) round(max(0, min(100, (float) ($scope['percent_completed'] ?? 0))));
+            $existingScope = ProjectScope::query()
+                ->where('project_id', $projectId)
+                ->whereRaw('LOWER(scope_name) = ?', [Str::lower($scopeName)])
+                ->first();
+
+            if ($existingScope) {
+                $updates = [
+                    'progress_percent' => $progress,
+                ];
+
+                if (trim((string) ($existingScope->assigned_personnel ?? '')) === '' && $assignee !== '') {
+                    $updates['assigned_personnel'] = $assignee;
+                }
+
+                $existingScope->update($updates);
+                continue;
+            }
+
+            ProjectScope::query()->create([
+                'project_id' => $projectId,
+                'scope_name' => $scopeName,
+                'assigned_personnel' => $assignee !== '' ? $assignee : null,
+                'progress_percent' => $progress,
+                'status' => $this->scopeStatusFromProgress($progress),
+                'remarks' => null,
+            ]);
+        }
+    }
+
+    private function scopeStatusFromProgress(int $progress): string
+    {
+        if ($progress >= 100) {
+            return 'COMPLETED';
+        }
+
+        if ($progress <= 0) {
+            return 'NOT_STARTED';
+        }
+
+        return 'IN_PROGRESS';
     }
 }

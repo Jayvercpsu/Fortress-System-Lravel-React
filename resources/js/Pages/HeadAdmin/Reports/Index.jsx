@@ -29,12 +29,12 @@ export default function ReportsIndex({ summary = {}, projectProfitability = [] }
             <Layout title="Reports / Project Profitability">
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: 12, marginBottom: 16 }}>
                     <StatCard label="Projects" value={summary.project_count ?? 0} />
-                    <StatCard label="Collected Sum" value={money(summary.collected_sum)} color="#22c55e" />
+                    <StatCard label="Collected Contract Value" value={money(summary.collected_sum)} color="#22c55e" />
                     <StatCard label="Allocated Payroll" value={money(summary.allocated_payroll_sum)} color="#fbbf24" />
-                    <StatCard label="Expense Sum" value={money(summary.expense_sum)} color="#fb7185" />
+                    <StatCard label="Total Expenses" value={money(summary.expense_sum)} color="#fb7185" />
                     <StatCard label="Total Cost" value={money(summary.total_cost_sum)} color="#f87171" />
-                    <StatCard label="Profit (Collected Basis)" value={money(summary.profit_collected_basis_sum)} color="#4ade80" />
-                    <StatCard label="Profit (Contract Basis)" value={money(summary.profit_contract_basis_sum)} color="#60a5fa" />
+                    <StatCard label="Net Profit (Collected Basis)" value={money(summary.profit_collected_basis_sum)} color="#4ade80" />
+                    <StatCard label="Net Profit (Contract Basis)" value={money(summary.profit_contract_basis_sum)} color="#60a5fa" />
                     <StatCard label="Unallocated Payroll" value={money(summary.unallocated_payroll_total)} color="#f59e0b" />
                 </div>
 
@@ -50,8 +50,8 @@ export default function ReportsIndex({ summary = {}, projectProfitability = [] }
                                     'Expenses',
                                     'Payroll',
                                     'Total Cost',
-                                    'Profit (Collected)',
-                                    'Profit (Contract)',
+                                    'Net Profit (Collected)',
+                                    'Net Profit (Contract)',
                                 ].map((header) => (
                                     <th
                                         key={header}

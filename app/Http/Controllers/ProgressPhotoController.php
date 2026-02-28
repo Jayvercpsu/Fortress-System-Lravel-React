@@ -41,6 +41,7 @@ class ProgressPhotoController extends Controller
                 'photo_path' => $photo->photo_path,
                 'caption' => $photo->caption,
                 'foreman_name' => $photo->foreman?->fullname ?? 'Unknown',
+                'project_id' => $photo->project_id,
                 'project_name' => $photo->project?->name ?? 'Unassigned',
                 'created_at' => optional($photo->created_at)?->toDateTimeString(),
             ])

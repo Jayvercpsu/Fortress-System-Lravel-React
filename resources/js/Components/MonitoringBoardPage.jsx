@@ -1,7 +1,8 @@
 import Layout from './Layout';
 import Modal from './Modal';
+import SearchableDropdown from './SearchableDropdown';
 import { Head, Link, router, useForm, usePage } from '@inertiajs/react';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import toast from 'react-hot-toast';
 import { ArrowLeft } from 'lucide-react';
 
@@ -23,14 +24,55 @@ const inputStyle = {
 };
 
 const STATUS_OPTIONS = ['NOT_STARTED', 'IN_PROGRESS', 'HOLD', 'COMPLETED'];
+const normalizeAssignedPersonnelNames = (value) => {
+    const rawNames = Array.isArray(value)
+        ? value
+        : String(value ?? '').split(/[;,]+/);
+    const seen = new Set();
 
-export default function MonitoringBoardPage({ project, scopes = [] }) {
+    return rawNames
+        .map((name) => String(name ?? '').trim())
+        .filter((name) => {
+            if (!name) return false;
+            const key = name.toLowerCase();
+            if (seen.has(key)) return false;
+            seen.add(key);
+            return true;
+        });
+};
+
+const removeAssignedPersonnelName = (names, toRemove) => {
+    const needle = String(toRemove ?? '').trim().toLowerCase();
+    if (!needle) return normalizeAssignedPersonnelNames(names);
+
+    return normalizeAssignedPersonnelNames(names).filter((name) => name.toLowerCase() !== needle);
+};
+
+const joinAssignedPersonnelNames = (names) => normalizeAssignedPersonnelNames(names).join(', ');
+
+export default function MonitoringBoardPage({ project, scopes = [], foreman_options: foremanOptions = [] }) {
     const { flash } = usePage().props;
     const [editingScopeId, setEditingScopeId] = useState(null);
     const [scopeToDelete, setScopeToDelete] = useState(null);
     const [deleting, setDeleting] = useState(false);
     const [uploadScopeId, setUploadScopeId] = useState(null);
     const [photoInputKey, setPhotoInputKey] = useState(0);
+    const [createAssignedPersonnelNames, setCreateAssignedPersonnelNames] = useState([]);
+    const [editAssignedPersonnelNames, setEditAssignedPersonnelNames] = useState([]);
+    const assignedPersonnelOptions = useMemo(() => {
+        const rows = Array.isArray(foremanOptions) ? foremanOptions : [];
+
+        return rows
+            .map((row) => {
+                const fullname = String(row?.fullname || '').trim();
+                if (fullname === '') return null;
+                return {
+                    value: fullname,
+                    label: fullname,
+                };
+            })
+            .filter(Boolean);
+    }, [foremanOptions]);
 
     const {
         data: createData,
@@ -84,6 +126,7 @@ export default function MonitoringBoardPage({ project, scopes = [] }) {
             preserveScroll: true,
             onSuccess: () => {
                 resetCreateData();
+                setCreateAssignedPersonnelNames([]);
                 setCreateData('progress_percent', 0);
                 setCreateData('status', STATUS_OPTIONS[0]);
             },
@@ -93,6 +136,7 @@ export default function MonitoringBoardPage({ project, scopes = [] }) {
 
     const startEdit = (scope) => {
         setEditingScopeId(scope.id);
+        setEditAssignedPersonnelNames(normalizeAssignedPersonnelNames(scope.assigned_personnel ?? ''));
         setEditData({
             scope_name: scope.scope_name ?? '',
             assigned_personnel: scope.assigned_personnel ?? '',
@@ -106,7 +150,10 @@ export default function MonitoringBoardPage({ project, scopes = [] }) {
         event.preventDefault();
         patch(`/scopes/${scopeId}`, {
             preserveScroll: true,
-            onSuccess: () => setEditingScopeId(null),
+            onSuccess: () => {
+                setEditingScopeId(null);
+                setEditAssignedPersonnelNames([]);
+            },
             onError: () => toast.error('Unable to update scope.'),
         });
     };
@@ -159,6 +206,37 @@ export default function MonitoringBoardPage({ project, scopes = [] }) {
             },
             onError: () => toast.error('Unable to upload scope photo.'),
         });
+    };
+
+    const updateCreateAssignedPersonnelNames = (updater) => {
+        setCreateAssignedPersonnelNames((prev) => {
+            const current = normalizeAssignedPersonnelNames(prev);
+            const nextRaw = typeof updater === 'function' ? updater(current) : updater;
+            const next = normalizeAssignedPersonnelNames(nextRaw);
+            setCreateData('assigned_personnel', joinAssignedPersonnelNames(next));
+            return next;
+        });
+    };
+
+    const updateEditAssignedPersonnelNames = (updater) => {
+        setEditAssignedPersonnelNames((prev) => {
+            const current = normalizeAssignedPersonnelNames(prev);
+            const nextRaw = typeof updater === 'function' ? updater(current) : updater;
+            const next = normalizeAssignedPersonnelNames(nextRaw);
+            setEditData('assigned_personnel', joinAssignedPersonnelNames(next));
+            return next;
+        });
+    };
+
+    const personnelChipStyle = {
+        display: 'inline-flex',
+        alignItems: 'center',
+        gap: 6,
+        padding: '4px 8px',
+        borderRadius: 999,
+        border: '1px solid var(--border-color)',
+        background: 'var(--surface-2)',
+        fontSize: 12,
     };
 
     return (
@@ -214,11 +292,57 @@ export default function MonitoringBoardPage({ project, scopes = [] }) {
 
                     <label>
                         <div style={{ fontSize: 12, marginBottom: 6 }}>Assigned Personnel</div>
-                        <input
-                            value={createData.assigned_personnel}
-                            onChange={(event) => setCreateData('assigned_personnel', event.target.value)}
-                            style={inputStyle}
-                        />
+                        {assignedPersonnelOptions.length > 0 ? (
+                            <div style={{ display: 'grid', gap: 6 }}>
+                                <SearchableDropdown
+                                    options={assignedPersonnelOptions}
+                                    value=""
+                                    onChange={(value) => {
+                                        if (!value) return;
+                                        updateCreateAssignedPersonnelNames((prev) => [...prev, value]);
+                                    }}
+                                    placeholder="Add foreman"
+                                    searchPlaceholder="Search foreman..."
+                                    emptyMessage="No foreman found"
+                                    getOptionValue={(option) => option.value}
+                                    getOptionLabel={(option) => option.label}
+                                    style={{ ...inputStyle, minHeight: 40, padding: '8px 10px' }}
+                                />
+                                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                                    {createAssignedPersonnelNames.length === 0 ? (
+                                        <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>No foreman selected.</span>
+                                    ) : (
+                                        createAssignedPersonnelNames.map((name) => (
+                                            <span key={`create-assign-${name}`} style={personnelChipStyle}>
+                                                <span>{name}</span>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => updateCreateAssignedPersonnelNames((prev) => removeAssignedPersonnelName(prev, name))}
+                                                    style={{
+                                                        border: 'none',
+                                                        background: 'transparent',
+                                                        color: 'var(--text-muted)',
+                                                        cursor: 'pointer',
+                                                        fontSize: 12,
+                                                        padding: 0,
+                                                        lineHeight: 1,
+                                                    }}
+                                                    aria-label={`Remove ${name}`}
+                                                >
+                                                    x
+                                                </button>
+                                            </span>
+                                        ))
+                                    )}
+                                </div>
+                            </div>
+                        ) : (
+                            <input
+                                value={createData.assigned_personnel}
+                                onChange={(event) => setCreateData('assigned_personnel', event.target.value)}
+                                style={inputStyle}
+                            />
+                        )}
                         {createErrors.assigned_personnel && <div style={{ color: '#f87171', fontSize: 12, marginTop: 4 }}>{createErrors.assigned_personnel}</div>}
                     </label>
 
@@ -329,11 +453,57 @@ export default function MonitoringBoardPage({ project, scopes = [] }) {
                                         </td>
                                         <td style={{ padding: '10px 8px', borderBottom: '1px solid var(--border-color)' }}>
                                             {isEditing ? (
-                                                <input
-                                                    value={editData.assigned_personnel}
-                                                    onChange={(event) => setEditData('assigned_personnel', event.target.value)}
-                                                    style={inputStyle}
-                                                />
+                                                assignedPersonnelOptions.length > 0 ? (
+                                                    <div style={{ display: 'grid', gap: 6 }}>
+                                                        <SearchableDropdown
+                                                            options={assignedPersonnelOptions}
+                                                            value=""
+                                                            onChange={(value) => {
+                                                                if (!value) return;
+                                                                updateEditAssignedPersonnelNames((prev) => [...prev, value]);
+                                                            }}
+                                                            placeholder="Add foreman"
+                                                            searchPlaceholder="Search foreman..."
+                                                            emptyMessage="No foreman found"
+                                                            getOptionValue={(option) => option.value}
+                                                            getOptionLabel={(option) => option.label}
+                                                            style={{ ...inputStyle, minHeight: 40, padding: '8px 10px' }}
+                                                        />
+                                                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                                                            {editAssignedPersonnelNames.length === 0 ? (
+                                                                <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>No foreman selected.</span>
+                                                            ) : (
+                                                                editAssignedPersonnelNames.map((name) => (
+                                                                    <span key={`edit-assign-${scope.id}-${name}`} style={personnelChipStyle}>
+                                                                        <span>{name}</span>
+                                                                        <button
+                                                                            type="button"
+                                                                            onClick={() => updateEditAssignedPersonnelNames((prev) => removeAssignedPersonnelName(prev, name))}
+                                                                            style={{
+                                                                                border: 'none',
+                                                                                background: 'transparent',
+                                                                                color: 'var(--text-muted)',
+                                                                                cursor: 'pointer',
+                                                                                fontSize: 12,
+                                                                                padding: 0,
+                                                                                lineHeight: 1,
+                                                                            }}
+                                                                            aria-label={`Remove ${name}`}
+                                                                        >
+                                                                            x
+                                                                        </button>
+                                                                    </span>
+                                                                ))
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                ) : (
+                                                    <input
+                                                        value={editData.assigned_personnel}
+                                                        onChange={(event) => setEditData('assigned_personnel', event.target.value)}
+                                                        style={inputStyle}
+                                                    />
+                                                )
                                             ) : (
                                                 scope.assigned_personnel || '-'
                                             )}
@@ -513,7 +683,10 @@ export default function MonitoringBoardPage({ project, scopes = [] }) {
                                                 <div style={{ display: 'inline-flex', gap: 8 }}>
                                                     <button
                                                         type="button"
-                                                        onClick={() => setEditingScopeId(null)}
+                                                        onClick={() => {
+                                                            setEditingScopeId(null);
+                                                            setEditAssignedPersonnelNames([]);
+                                                        }}
                                                         style={{
                                                             background: 'var(--button-bg)',
                                                             color: 'var(--text-main)',

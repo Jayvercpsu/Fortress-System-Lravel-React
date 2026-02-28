@@ -42,6 +42,7 @@ class WeeklyAccomplishmentController extends Controller
             ->map(fn (WeeklyAccomplishment $row) => [
                 'id' => $row->id,
                 'foreman_name' => $row->foreman?->fullname ?? 'Unknown',
+                'project_id' => $row->project_id,
                 'project_name' => $row->project?->name ?? 'Unassigned',
                 'week_start' => $row->week_start ? (string) $row->week_start : null,
                 'scope_of_work' => $row->scope_of_work,

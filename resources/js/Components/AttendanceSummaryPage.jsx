@@ -29,6 +29,8 @@ export default function AttendanceSummaryPage({
     filters = {},
     foremen = [],
     projects = [],
+    workerRoles = [],
+    attendanceCodes = [],
     summaryTotals = {},
 }) {
     const table = useMemo(
@@ -49,6 +51,9 @@ export default function AttendanceSummaryPage({
         date_to: filters?.date_to ?? '',
         foreman_id: String(filters?.foreman_id ?? ''),
         project_id: String(filters?.project_id ?? ''),
+        worker_role: String(filters?.worker_role ?? ''),
+        entry_mode: String(filters?.entry_mode ?? ''),
+        attendance_code: String(filters?.attendance_code ?? ''),
     });
 
     useEffect(() => {
@@ -57,6 +62,9 @@ export default function AttendanceSummaryPage({
             date_to: filters?.date_to ?? '',
             foreman_id: String(filters?.foreman_id ?? ''),
             project_id: String(filters?.project_id ?? ''),
+            worker_role: String(filters?.worker_role ?? ''),
+            entry_mode: String(filters?.entry_mode ?? ''),
+            attendance_code: String(filters?.attendance_code ?? ''),
         });
     }, [filters]);
 
@@ -69,6 +77,9 @@ export default function AttendanceSummaryPage({
             date_to: overrides.date_to !== undefined ? overrides.date_to : draftFilters.date_to,
             foreman_id: overrides.foreman_id !== undefined ? overrides.foreman_id : draftFilters.foreman_id,
             project_id: overrides.project_id !== undefined ? overrides.project_id : draftFilters.project_id,
+            worker_role: overrides.worker_role !== undefined ? overrides.worker_role : draftFilters.worker_role,
+            entry_mode: overrides.entry_mode !== undefined ? overrides.entry_mode : draftFilters.entry_mode,
+            attendance_code: overrides.attendance_code !== undefined ? overrides.attendance_code : draftFilters.attendance_code,
         };
 
         Object.keys(params).forEach((key) => {
@@ -133,7 +144,7 @@ export default function AttendanceSummaryPage({
                 <div style={{ display: 'grid', gap: 16 }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
                         <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
-                            Generate cutoff totals by worker, foreman, and project. Cutoff/date filters follow Philippine time (Asia/Manila).
+                            Generate cutoff totals by worker, foreman, role, and entry type. Cutoff/date filters follow Philippine time (Asia/Manila).
                         </div>
                         <ActionButton href="/attendance" variant="view" style={{ padding: '8px 12px', fontSize: 13 }}>
                             View Logs
@@ -141,7 +152,7 @@ export default function AttendanceSummaryPage({
                     </div>
 
                     <div style={cardStyle}>
-                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: 12 }}>
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))', gap: 12 }}>
                             <div>
                                 <div style={{ fontSize: 12, marginBottom: 6, color: 'var(--text-muted)' }}>Cutoff Start</div>
                                 <DatePickerInput
@@ -188,13 +199,55 @@ export default function AttendanceSummaryPage({
                                     ))}
                                 </select>
                             </div>
+                            <div>
+                                <div style={{ fontSize: 12, marginBottom: 6, color: 'var(--text-muted)' }}>Worker Role</div>
+                                <select
+                                    value={draftFilters.worker_role}
+                                    onChange={(e) => setDraftFilters((prev) => ({ ...prev, worker_role: e.target.value }))}
+                                    style={inputStyle}
+                                >
+                                    <option value="">All roles</option>
+                                    {workerRoles.map((role) => (
+                                        <option key={role} value={role}>
+                                            {role}
+                                        </option>
+                                    ))}
+                                </select>
+                            </div>
+                            <div>
+                                <div style={{ fontSize: 12, marginBottom: 6, color: 'var(--text-muted)' }}>Entry Type</div>
+                                <select
+                                    value={draftFilters.entry_mode}
+                                    onChange={(e) => setDraftFilters((prev) => ({ ...prev, entry_mode: e.target.value }))}
+                                    style={inputStyle}
+                                >
+                                    <option value="">All entry types</option>
+                                    <option value="time_log">Time Log (with in/out)</option>
+                                    <option value="status_based">Status-Based (weekly/day-code)</option>
+                                </select>
+                            </div>
+                            <div>
+                                <div style={{ fontSize: 12, marginBottom: 6, color: 'var(--text-muted)' }}>Attendance Code</div>
+                                <select
+                                    value={draftFilters.attendance_code}
+                                    onChange={(e) => setDraftFilters((prev) => ({ ...prev, attendance_code: e.target.value }))}
+                                    style={inputStyle}
+                                >
+                                    <option value="">All codes</option>
+                                    {(attendanceCodes.length ? attendanceCodes : ['P', 'A', 'H', 'R', 'F']).map((code) => (
+                                        <option key={code} value={code}>
+                                            {code}
+                                        </option>
+                                    ))}
+                                </select>
+                            </div>
                         </div>
 
                         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 12 }}>
                             <ActionButton
                                 variant="neutral"
                                 onClick={() => {
-                                    const cleared = { date_from: '', date_to: '', foreman_id: '', project_id: '' };
+                                    const cleared = { date_from: '', date_to: '', foreman_id: '', project_id: '', worker_role: '', entry_mode: '', attendance_code: '' };
                                     setDraftFilters(cleared);
                                     navigate({ ...cleared, page: 1 });
                                 }}

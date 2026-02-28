@@ -7,12 +7,14 @@ use App\Models\Project;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
 
 class AttendanceController extends Controller
 {
     private const PH_TIMEZONE = 'Asia/Manila';
+    private const ENTRY_MODE_TIME_LOG = 'time_log';
+    private const ENTRY_MODE_STATUS_BASED = 'status_based';
+    private const ATTENDANCE_CODES = ['P', 'A', 'H', 'R', 'F'];
 
     public function index(Request $request)
     {
@@ -39,22 +41,30 @@ class AttendanceController extends Controller
             ->withQueryString();
 
         $attendances = collect($paginator->items())
-            ->map(fn (Attendance $attendance) => [
-                'id' => $attendance->id,
-                'date' => optional($attendance->date)?->toDateString(),
-                'worker_name' => $attendance->worker_name,
-                'worker_role' => $attendance->worker_role,
-                'foreman_name' => $attendance->foreman?->fullname,
-                'project_id' => $attendance->project_id,
-                'project_name' => $attendance->project?->name,
-                'time_in' => $attendance->time_in,
-                'time_out' => $attendance->time_out,
-                'hours' => (float) ($attendance->hours ?? 0),
-                'selfie_path' => $attendance->selfie_path,
-                'created_at' => $attendance->created_at
-                    ? $attendance->created_at->copy()->timezone(self::PH_TIMEZONE)->format('Y-m-d h:i:s A')
-                    : null,
-            ])
+            ->map(function (Attendance $attendance) {
+                $entryMode = $this->resolveEntryMode($attendance);
+                $attendanceCode = $this->resolveAttendanceCode($attendance, $entryMode);
+
+                return [
+                    'id' => $attendance->id,
+                    'date' => optional($attendance->date)?->toDateString(),
+                    'worker_name' => $attendance->worker_name,
+                    'worker_role' => $attendance->worker_role,
+                    'foreman_name' => $attendance->foreman?->fullname,
+                    'project_id' => $attendance->project_id,
+                    'project_name' => $attendance->project?->name,
+                    'time_in' => $attendance->time_in,
+                    'time_out' => $attendance->time_out,
+                    'entry_mode' => $entryMode,
+                    'attendance_code' => $attendanceCode['value'],
+                    'attendance_code_is_derived' => $attendanceCode['is_derived'],
+                    'hours' => (float) ($attendance->hours ?? 0),
+                    'selfie_path' => $attendance->selfie_path,
+                    'created_at' => $attendance->created_at
+                        ? $attendance->created_at->copy()->timezone(self::PH_TIMEZONE)->format('Y-m-d h:i:s A')
+                        : null,
+                ];
+            })
             ->values();
 
         return Inertia::render($this->rolePage($request, 'Index'), [
@@ -63,6 +73,8 @@ class AttendanceController extends Controller
             'filters' => $filters,
             'foremen' => $this->foremanOptions(),
             'projects' => $this->projectOptions(),
+            'workerRoles' => $this->workerRoleOptions(),
+            'attendanceCodes' => $this->attendanceCodeOptions(),
         ]);
     }
 
@@ -142,6 +154,8 @@ class AttendanceController extends Controller
             'filters' => $filters,
             'foremen' => $this->foremanOptions(),
             'projects' => $this->projectOptions(),
+            'workerRoles' => $this->workerRoleOptions(),
+            'attendanceCodes' => $this->attendanceCodeOptions(),
             'summaryTotals' => $summaryTotals,
         ]);
     }
@@ -177,13 +191,43 @@ class AttendanceController extends Controller
             ->values();
     }
 
+    private function workerRoleOptions()
+    {
+        return Attendance::query()
+            ->whereNotNull('worker_role')
+            ->where('worker_role', '!=', '')
+            ->select('worker_role')
+            ->distinct()
+            ->orderBy('worker_role')
+            ->pluck('worker_role')
+            ->values();
+    }
+
+    private function attendanceCodeOptions()
+    {
+        return collect(self::ATTENDANCE_CODES)->values();
+    }
+
     private function filtersFromRequest(Request $request): array
     {
+        $entryMode = trim((string) $request->query('entry_mode', ''));
+        if (!in_array($entryMode, [self::ENTRY_MODE_TIME_LOG, self::ENTRY_MODE_STATUS_BASED], true)) {
+            $entryMode = '';
+        }
+
+        $attendanceCode = strtoupper(trim((string) $request->query('attendance_code', '')));
+        if (!in_array($attendanceCode, self::ATTENDANCE_CODES, true)) {
+            $attendanceCode = '';
+        }
+
         return [
             'date_from' => $request->query('date_from') ?: '',
             'date_to' => $request->query('date_to') ?: '',
             'foreman_id' => $request->query('foreman_id') ?: '',
             'project_id' => $request->query('project_id') ?: '',
+            'worker_role' => trim((string) ($request->query('worker_role') ?: '')),
+            'entry_mode' => $entryMode,
+            'attendance_code' => $attendanceCode,
         ];
     }
 
@@ -201,6 +245,14 @@ class AttendanceController extends Controller
         if ($filters['project_id']) {
             $query->where('project_id', $filters['project_id']);
         }
+        if ($filters['worker_role']) {
+            $query->where('worker_role', $filters['worker_role']);
+        }
+        if ($filters['attendance_code']) {
+            $query->where('attendance_code', $filters['attendance_code']);
+        }
+
+        $this->applyEntryModeFilter($query, $filters['entry_mode'], 'time_in', 'time_out');
 
         if ($search !== '') {
             $query->where(function ($builder) use ($search) {
@@ -227,6 +279,15 @@ class AttendanceController extends Controller
         if ($filters['project_id']) {
             $query->where('attendances.project_id', $filters['project_id']);
         }
+        if ($filters['worker_role']) {
+            $query->where('attendances.worker_role', $filters['worker_role']);
+        }
+        if ($filters['attendance_code']) {
+            $query->where('attendances.attendance_code', $filters['attendance_code']);
+        }
+
+        $this->applyEntryModeFilter($query, $filters['entry_mode'], 'attendances.time_in', 'attendances.time_out');
+
         if ($search !== '') {
             $query->where(function ($builder) use ($search) {
                 $builder
@@ -236,6 +297,55 @@ class AttendanceController extends Controller
                     ->orWhere('projects.name', 'like', "%{$search}%");
             });
         }
+    }
+
+    private function applyEntryModeFilter($query, string $entryMode, string $timeInColumn, string $timeOutColumn): void
+    {
+        if ($entryMode === self::ENTRY_MODE_TIME_LOG) {
+            $query->where(function ($builder) use ($timeInColumn, $timeOutColumn) {
+                $builder->whereNotNull($timeInColumn)->orWhereNotNull($timeOutColumn);
+            });
+            return;
+        }
+
+        if ($entryMode === self::ENTRY_MODE_STATUS_BASED) {
+            $query->whereNull($timeInColumn)->whereNull($timeOutColumn);
+        }
+    }
+
+    private function resolveEntryMode(Attendance $attendance): string
+    {
+        $timeIn = trim((string) ($attendance->time_in ?? ''));
+        $timeOut = trim((string) ($attendance->time_out ?? ''));
+
+        return ($timeIn !== '' || $timeOut !== '')
+            ? self::ENTRY_MODE_TIME_LOG
+            : self::ENTRY_MODE_STATUS_BASED;
+    }
+
+    private function resolveAttendanceCode(Attendance $attendance, string $entryMode): array
+    {
+        $storedCode = strtoupper(trim((string) ($attendance->attendance_code ?? '')));
+        if (in_array($storedCode, self::ATTENDANCE_CODES, true)) {
+            return ['value' => $storedCode, 'is_derived' => false];
+        }
+
+        if ($entryMode === self::ENTRY_MODE_TIME_LOG) {
+            return ['value' => null, 'is_derived' => false];
+        }
+
+        $hours = (float) ($attendance->hours ?? 0);
+        if ($hours >= 7.5) {
+            return ['value' => 'P', 'is_derived' => true];
+        }
+        if ($hours >= 3.5) {
+            return ['value' => 'H', 'is_derived' => true];
+        }
+        if ($hours <= 0) {
+            return ['value' => 'A/R/F', 'is_derived' => true];
+        }
+
+        return ['value' => null, 'is_derived' => true];
     }
 
     private function tableMeta($paginator, string $search): array

@@ -1,7 +1,7 @@
 import Layout from './Layout';
-import DataTable from './DataTable';
 import Modal from './Modal';
-import { Head, router } from '@inertiajs/react';
+import ProjectAccordionTable from './ProjectAccordionTable';
+import { Head } from '@inertiajs/react';
 import { useState } from 'react';
 
 const cardStyle = {
@@ -13,28 +13,6 @@ const cardStyle = {
 
 export default function ProgressPhotosPage({ photos = [], photoTable = {} }) {
     const [previewPhoto, setPreviewPhoto] = useState(null);
-
-    const tableState = {
-        search: photoTable?.search ?? '',
-        perPage: Number(photoTable?.per_page ?? 10),
-        page: Number(photoTable?.current_page ?? 1),
-        lastPage: Number(photoTable?.last_page ?? 1),
-        total: Number(photoTable?.total ?? photos.length ?? 0),
-        from: photoTable?.from ?? null,
-        to: photoTable?.to ?? null,
-    };
-
-    const navigateTable = (overrides = {}) => {
-        router.get('/progress-photos', {
-            search: overrides.search !== undefined ? overrides.search : tableState.search,
-            per_page: overrides.per_page !== undefined ? overrides.per_page : tableState.perPage,
-            page: overrides.page !== undefined ? overrides.page : tableState.page,
-        }, {
-            preserveState: true,
-            preserveScroll: true,
-            replace: true,
-        });
-    };
 
     const columns = [
         {
@@ -66,25 +44,21 @@ export default function ProgressPhotosPage({ photos = [], photoTable = {} }) {
             key: 'foreman_name',
             label: 'Foreman',
             render: (photo) => photo.foreman_name || '-',
-            searchAccessor: (photo) => photo.foreman_name,
         },
         {
             key: 'project_name',
             label: 'Project',
             render: (photo) => photo.project_name || '-',
-            searchAccessor: (photo) => photo.project_name,
         },
         {
             key: 'caption',
             label: 'Caption',
             render: (photo) => photo.caption || '-',
-            searchAccessor: (photo) => photo.caption,
         },
         {
             key: 'created_at',
             label: 'Uploaded At',
             render: (photo) => photo.created_at || '-',
-            searchAccessor: (photo) => photo.created_at,
         },
     ];
 
@@ -93,23 +67,14 @@ export default function ProgressPhotosPage({ photos = [], photoTable = {} }) {
             <Head title="Progress Photos" />
             <Layout title="Progress Photos">
                 <div style={cardStyle}>
-                    <DataTable
+                    <ProjectAccordionTable
                         columns={columns}
                         rows={photos}
                         rowKey="id"
                         searchPlaceholder="Search foreman, project, or caption..."
                         emptyMessage="No foreman proof photos yet."
-                        serverSide
-                        serverSearchValue={tableState.search}
-                        serverPage={tableState.page}
-                        serverPerPage={tableState.perPage}
-                        serverTotalItems={tableState.total}
-                        serverTotalPages={tableState.lastPage}
-                        serverFrom={tableState.from}
-                        serverTo={tableState.to}
-                        onServerSearchChange={(value) => navigateTable({ search: value, page: 1 })}
-                        onServerPerPageChange={(value) => navigateTable({ per_page: value, page: 1 })}
-                        onServerPageChange={(value) => navigateTable({ page: value })}
+                        routePath="/progress-photos"
+                        table={photoTable}
                     />
                 </div>
 
@@ -143,3 +108,4 @@ export default function ProgressPhotosPage({ photos = [], photoTable = {} }) {
         </>
     );
 }
+
