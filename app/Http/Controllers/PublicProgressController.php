@@ -411,7 +411,6 @@ class PublicProgressController extends Controller
         $issueTouched = isset($validated['issue_photo']) || $this->hasAnyText([
             $validated['issue_title'] ?? null,
             $validated['issue_description'] ?? null,
-            $validated['issue_urgency'] ?? null,
         ]);
 
         if ($issueTouched) {
