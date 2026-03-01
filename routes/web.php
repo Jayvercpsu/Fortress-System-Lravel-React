@@ -106,6 +106,7 @@ Route::middleware(['auth', 'role:head_admin,admin'])->group(function () {
     Route::get('/materials', [MaterialRequestController::class, 'index'])->name('materials.index');
     Route::patch('/materials/{materialRequest}/status', [MaterialRequestController::class, 'updateStatus'])->name('materials.status');
     Route::get('/delivery', [DeliveryConfirmationController::class, 'index'])->name('delivery.index');
+    Route::patch('/issues/{issueReport}/status', [IssueReportController::class, 'updateStatus'])->name('issues.status');
     Route::get('/issues', [IssueReportController::class, 'index'])->name('issues.index');
 
     Route::get('/projects', [ProjectController::class, 'index'])->name('projects.index');

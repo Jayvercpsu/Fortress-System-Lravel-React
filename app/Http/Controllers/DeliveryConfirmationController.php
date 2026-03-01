@@ -15,6 +15,7 @@ class DeliveryConfirmationController extends Controller
         $search = trim((string) $request->query('search', ''));
         $allowedPerPage = [5, 10, 25, 50];
         $perPage = (int) $request->query('per_page', 10);
+        $status = trim((string) $request->query('status', ''));
 
         if (!in_array($perPage, $allowedPerPage, true)) {
             $perPage = 10;
@@ -43,6 +44,9 @@ class DeliveryConfirmationController extends Controller
 
         $projectQuery = DeliveryConfirmation::query();
         $applySearch($projectQuery);
+        if ($status !== '') {
+            $projectQuery->where('status', $status);
+        }
 
         $projectPaginator = (clone $projectQuery)
             ->selectRaw('project_id, MAX(created_at) as last_created_at')
@@ -65,6 +69,9 @@ class DeliveryConfirmationController extends Controller
                     'project:id,name',
                 ]);
             $applySearch($deliveryQuery);
+            if ($status !== '') {
+                $deliveryQuery->where('status', $status);
+            }
 
             $nonNullProjectIds = array_values(array_filter($projectIds, fn ($value) => $value !== null));
             $hasNullProject = in_array(null, $projectIds, true);
@@ -121,11 +128,13 @@ class DeliveryConfirmationController extends Controller
 
         return Inertia::render($page, [
             'deliveries' => $deliveries,
-            'deliveryTable' => $this->tableMeta($projectPaginator, $search),
+            'deliveryTable' => $this->tableMeta($projectPaginator, $search, $status),
+            'statusFilters' => ['received', 'incomplete', 'rejected'],
+            'selectedStatus' => $status,
         ]);
     }
 
-    private function tableMeta($paginator, string $search): array
+    private function tableMeta($paginator, string $search, string $status = ''): array
     {
         return [
             'search' => $search,
@@ -135,6 +144,7 @@ class DeliveryConfirmationController extends Controller
             'total' => $paginator->total(),
             'from' => $paginator->firstItem(),
             'to' => $paginator->lastItem(),
+            'status' => $status,
         ];
     }
 }

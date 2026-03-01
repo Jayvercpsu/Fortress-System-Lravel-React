@@ -32,10 +32,12 @@ export default function ProjectAccordionTable({
     table = {},
     groupPageSize = 5,
     expandAllGroups = false,
+    statusOptions = [],
 }) {
     const [searchDraft, setSearchDraft] = useState(String(table?.search ?? ''));
     const [expandedByGroup, setExpandedByGroup] = useState({});
     const [groupPageByKey, setGroupPageByKey] = useState({});
+    const [statusValue, setStatusValue] = useState(String(table?.status ?? ''));
 
     const tableState = {
         search: String(table?.search ?? ''),
@@ -45,11 +47,16 @@ export default function ProjectAccordionTable({
         total: Number(table?.total ?? rows.length ?? 0),
         from: table?.from ?? null,
         to: table?.to ?? null,
+        status: table?.status ?? '',
     };
 
     useEffect(() => {
         setSearchDraft(String(tableState.search ?? ''));
     }, [tableState.search]);
+
+    useEffect(() => {
+        setStatusValue(String(tableState.status ?? ''));
+    }, [tableState.status]);
 
     const grouped = useMemo(() => {
         const groups = new Map();
@@ -113,6 +120,7 @@ export default function ProjectAccordionTable({
             router.get(routePath, {
                 search: searchDraft,
                 per_page: tableState.perPage,
+                status: statusValue || undefined,
                 page: 1,
             }, {
                 preserveState: true,
@@ -122,12 +130,42 @@ export default function ProjectAccordionTable({
         }, 300);
 
         return () => window.clearTimeout(handle);
-    }, [routePath, searchDraft, tableState.search, tableState.perPage]);
+    }, [routePath, searchDraft, statusValue, tableState.search, tableState.perPage]);
+
+    const applyStatus = (value) => {
+        router.get(routePath, {
+            search: tableState.search,
+            per_page: tableState.perPage,
+            status: value || undefined,
+            page: 1,
+        }, {
+            preserveState: true,
+            preserveScroll: true,
+            replace: true,
+        });
+    };
+
+    const normalizedStatusOptions = statusOptions
+        .filter((option) => option !== null && option !== undefined)
+        .map((option) => {
+            if (typeof option === 'string') {
+                const label = option
+                    .split(/[_\s]+/)
+                    .filter(Boolean)
+                    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+                    .join(' ');
+                return { value: option, label };
+            }
+            return option;
+        });
+
+    const hasStatusFilter = normalizedStatusOptions.length > 0;
 
     const applyTablePage = (page) => {
         router.get(routePath, {
             search: tableState.search,
             per_page: tableState.perPage,
+            status: tableState.status || undefined,
             page,
         }, {
             preserveState: true,
@@ -140,6 +178,7 @@ export default function ProjectAccordionTable({
         router.get(routePath, {
             search: tableState.search,
             per_page: perPage,
+            status: tableState.status || undefined,
             page: 1,
         }, {
             preserveState: true,
@@ -180,6 +219,27 @@ export default function ProjectAccordionTable({
                             </option>
                         ))}
                     </select>
+                    {hasStatusFilter ? (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                            <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>Status</span>
+                            <select
+                                value={statusValue}
+                                onChange={(e) => {
+                                    const next = e.target.value;
+                                    setStatusValue(next);
+                                    applyStatus(next);
+                                }}
+                                style={controlStyle}
+                            >
+                                <option value="">All statuses</option>
+                                {normalizedStatusOptions.map((option) => (
+                                    <option key={option.value} value={option.value}>
+                                        {option.label}
+                                    </option>
+                                ))}
+                            </select>
+                        </div>
+                    ) : null}
                 </div>
             </div>
 

@@ -6,6 +6,8 @@ use App\Models\IssueReport;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 
+use Illuminate\Validation\Rule;
+
 class IssueReportController extends Controller
 {
     public function index(Request $request)
@@ -15,6 +17,7 @@ class IssueReportController extends Controller
         $search = trim((string) $request->query('search', ''));
         $allowedPerPage = [5, 10, 25, 50];
         $perPage = (int) $request->query('per_page', 10);
+        $status = trim((string) $request->query('status', ''));
 
         if (!in_array($perPage, $allowedPerPage, true)) {
             $perPage = 10;
@@ -37,6 +40,9 @@ class IssueReportController extends Controller
 
         $projectQuery = IssueReport::query();
         $applySearch($projectQuery);
+        if ($status !== '') {
+            $projectQuery->where('status', $status);
+        }
 
         $paginator = (clone $projectQuery)
             ->selectRaw('project_id, MAX(created_at) as last_created_at')
@@ -56,6 +62,9 @@ class IssueReportController extends Controller
             $issueQuery = IssueReport::query()
                 ->with(['foreman:id,fullname', 'project:id,name']);
             $applySearch($issueQuery);
+            if ($status !== '') {
+                $issueQuery->where('status', $status);
+            }
 
             $nonNullProjectIds = array_values(array_filter($projectIds, fn ($value) => $value !== null));
             $hasNullProject = in_array(null, $projectIds, true);
@@ -111,11 +120,32 @@ class IssueReportController extends Controller
 
         return Inertia::render($page, [
             'issues' => $issues,
-            'issueTable' => $this->tableMeta($paginator, $search),
+            'issueTable' => $this->tableMeta($paginator, $search, $status),
+            'statusFilters' => ['open', 'resolved'],
+            'selectedStatus' => $status,
         ]);
     }
 
-    private function tableMeta($paginator, string $search): array
+    public function updateStatus(Request $request, IssueReport $issueReport)
+    {
+        abort_unless(in_array($request->user()->role, ['head_admin', 'admin'], true), 403);
+
+        $validated = $request->validate([
+            'status' => ['required', Rule::in(['open', 'resolved'])],
+        ]);
+
+        if ((string) $issueReport->status === (string) $validated['status']) {
+            return redirect()->back()->with('success', 'Status already ' . $validated['status'] . '.');
+        }
+
+        $issueReport->update([
+            'status' => $validated['status'],
+        ]);
+
+        return redirect()->back()->with('success', 'Issue marked as ' . $validated['status'] . '.');
+    }
+
+    private function tableMeta($paginator, string $search, string $status = ''): array
     {
         return [
             'search' => $search,
@@ -125,6 +155,7 @@ class IssueReportController extends Controller
             'total' => $paginator->total(),
             'from' => $paginator->firstItem(),
             'to' => $paginator->lastItem(),
+            'status' => $status,
         ];
     }
 }

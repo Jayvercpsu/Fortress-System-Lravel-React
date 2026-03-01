@@ -17,6 +17,7 @@ class MaterialRequestController extends Controller
         $search = trim((string) $request->query('search', ''));
         $allowedPerPage = [5, 10, 25, 50];
         $perPage = (int) $request->query('per_page', 10);
+        $status = trim((string) $request->query('status', ''));
 
         if (!in_array($perPage, $allowedPerPage, true)) {
             $perPage = 10;
@@ -40,6 +41,9 @@ class MaterialRequestController extends Controller
 
         $projectQuery = MaterialRequest::query();
         $applySearch($projectQuery);
+        if ($status !== '') {
+            $projectQuery->where('status', $status);
+        }
 
         $projectPaginator = (clone $projectQuery)
             ->selectRaw('project_id, MAX(created_at) as last_created_at')
@@ -59,6 +63,9 @@ class MaterialRequestController extends Controller
             $requestsQuery = MaterialRequest::query()
                 ->with(['foreman:id,fullname', 'project:id,name']);
             $applySearch($requestsQuery);
+            if ($status !== '') {
+                $requestsQuery->where('status', $status);
+            }
 
             $nonNullProjectIds = array_values(array_filter($projectIds, fn ($value) => $value !== null));
             $hasNullProject = in_array(null, $projectIds, true);
@@ -115,7 +122,9 @@ class MaterialRequestController extends Controller
 
         return Inertia::render($page, [
             'materialRequests' => $requests,
-            'materialRequestTable' => $this->tableMeta($projectPaginator, $search),
+            'materialRequestTable' => $this->tableMeta($projectPaginator, $search, $status),
+            'statusFilters' => ['pending', 'approved', 'rejected'],
+            'selectedStatus' => $status,
         ]);
     }
 
@@ -138,7 +147,7 @@ class MaterialRequestController extends Controller
         return redirect()->back()->with('success', 'Material request marked as ' . $validated['status'] . '.');
     }
 
-    private function tableMeta($paginator, string $search): array
+    private function tableMeta($paginator, string $search, string $status = ''): array
     {
         return [
             'search' => $search,
@@ -148,6 +157,7 @@ class MaterialRequestController extends Controller
             'total' => $paginator->total(),
             'from' => $paginator->firstItem(),
             'to' => $paginator->lastItem(),
+            'status' => $status,
         ];
     }
 }

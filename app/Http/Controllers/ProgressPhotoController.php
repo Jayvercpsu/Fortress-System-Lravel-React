@@ -15,6 +15,7 @@ class ProgressPhotoController extends Controller
         $search = trim((string) $request->query('search', ''));
         $allowedPerPage = [5, 10, 25, 50];
         $perPage = (int) $request->query('per_page', 10);
+        $status = trim((string) $request->query('status', ''));
         if (!in_array($perPage, $allowedPerPage, true)) {
             $perPage = 10;
         }
@@ -104,11 +105,13 @@ class ProgressPhotoController extends Controller
 
         return Inertia::render($page, [
             'photos' => $photos,
-            'photoTable' => $this->tableMeta($paginator, $search),
+            'photoTable' => $this->tableMeta($paginator, $search, $status),
+            'statusFilters' => [],
+            'selectedStatus' => $status,
         ]);
     }
 
-    private function tableMeta($paginator, string $search): array
+    private function tableMeta($paginator, string $search, string $status = ''): array
     {
         return [
             'search' => $search,
@@ -118,6 +121,7 @@ class ProgressPhotoController extends Controller
             'total' => $paginator->total(),
             'from' => $paginator->firstItem(),
             'to' => $paginator->lastItem(),
+            'status' => $status,
         ];
     }
 }

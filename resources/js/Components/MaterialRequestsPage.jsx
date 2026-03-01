@@ -1,4 +1,5 @@
 import Layout from './Layout';
+import Modal from './Modal';
 import ProjectAccordionTable from './ProjectAccordionTable';
 import ActionButton from './ActionButton';
 import { Head, router } from '@inertiajs/react';
@@ -35,8 +36,13 @@ const statusBadgeStyle = (status) => {
     };
 };
 
-export default function MaterialRequestsPage({ materialRequests = [], materialRequestTable = {} }) {
+export default function MaterialRequestsPage({
+    materialRequests = [],
+    materialRequestTable = {},
+    statusFilters = [],
+}) {
     const [processingId, setProcessingId] = useState(null);
+    const [previewPhoto, setPreviewPhoto] = useState(null);
     const columns = [
         {
             key: 'created_at',
@@ -76,13 +82,21 @@ export default function MaterialRequestsPage({ materialRequests = [], materialRe
             width: 120,
             render: (row) => (
                 row.photo_path ? (
-                    <a href={`/storage/${row.photo_path}`} target="_blank" rel="noreferrer">
+                    <button
+                        type="button"
+                        onClick={() => setPreviewPhoto({
+                            path: row.photo_path,
+                            caption: row.material_name || 'Material photo',
+                            meta: `Requested by ${row.foreman_name || 'unknown'}`,
+                        })}
+                        style={{ border: 'none', background: 'transparent', padding: 0, cursor: 'pointer' }}
+                    >
                         <img
                             src={`/storage/${row.photo_path}`}
                             alt={row.material_name || 'Material photo'}
                             style={{ width: 72, height: 52, objectFit: 'cover', borderRadius: 6, border: '1px solid var(--border-color)' }}
                         />
-                    </a>
+                    </button>
                 ) : <span style={{ color: 'var(--text-muted)' }}>-</span>
             ),
         },
@@ -155,19 +169,48 @@ export default function MaterialRequestsPage({ materialRequests = [], materialRe
             <Head title="Materials" />
             <Layout title="Materials / Requests">
                 <div style={cardStyle}>
-                    <ProjectAccordionTable
-                        columns={columns}
-                        rows={materialRequests}
-                        rowKey="id"
+                <ProjectAccordionTable
+                    columns={columns}
+                    rows={materialRequests}
+                    rowKey="id"
                     searchPlaceholder="Search material requests..."
                     emptyMessage="No material requests yet."
                     routePath="/materials"
                     table={materialRequestTable}
                     groupPageSize={10}
                     expandAllGroups
+                    statusOptions={statusFilters}
                 />
-                </div>
-            </Layout>
-        </>
-    );
+            </div>
+            <Modal
+                open={!!previewPhoto}
+                onClose={() => setPreviewPhoto(null)}
+                title={previewPhoto?.caption || 'Material Photo'}
+                maxWidth={900}
+            >
+                {previewPhoto && (
+                    <div style={{ display: 'grid', gap: 10 }}>
+                        <img
+                            src={`/storage/${previewPhoto.path}`}
+                            alt={previewPhoto.caption || 'Material photo'}
+                            style={{
+                                width: '100%',
+                                maxHeight: '70vh',
+                                objectFit: 'contain',
+                                border: '1px solid var(--border-color)',
+                                borderRadius: 8,
+                                background: 'var(--surface-2)',
+                            }}
+                        />
+                        {previewPhoto.meta ? (
+                            <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+                                {previewPhoto.meta}
+                            </div>
+                        ) : null}
+                    </div>
+                )}
+            </Modal>
+        </Layout>
+    </>
+);
 }

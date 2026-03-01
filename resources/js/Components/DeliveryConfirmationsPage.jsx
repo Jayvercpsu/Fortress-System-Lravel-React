@@ -1,6 +1,8 @@
 import Layout from './Layout';
+import Modal from './Modal';
 import ProjectAccordionTable from './ProjectAccordionTable';
 import { Head } from '@inertiajs/react';
+import { useState } from 'react';
 
 const cardStyle = {
     background: 'var(--surface-1)',
@@ -33,7 +35,12 @@ const statusBadgeStyle = (status) => {
     };
 };
 
-export default function DeliveryConfirmationsPage({ deliveries = [], deliveryTable = {} }) {
+export default function DeliveryConfirmationsPage({
+    deliveries = [],
+    deliveryTable = {},
+    statusFilters = [],
+}) {
+    const [previewPhoto, setPreviewPhoto] = useState(null);
     const columns = [
         {
             key: 'id',
@@ -89,13 +96,21 @@ export default function DeliveryConfirmationsPage({ deliveries = [], deliveryTab
             width: 120,
             render: (row) => (
                 row.photo_path ? (
-                    <a href={`/storage/${row.photo_path}`} target="_blank" rel="noreferrer">
+                    <button
+                        type="button"
+                        onClick={() => setPreviewPhoto({
+                            path: row.photo_path,
+                            caption: row.item_delivered || 'Delivery photo',
+                            meta: `${row.delivery_date || '-'} · ${row.supplier || 'Unknown supplier'}`,
+                        })}
+                        style={{ border: 'none', background: 'transparent', padding: 0, cursor: 'pointer' }}
+                    >
                         <img
                             src={`/storage/${row.photo_path}`}
                             alt={row.item_delivered || 'Delivery photo'}
                             style={{ width: 72, height: 52, objectFit: 'cover', borderRadius: 6, border: '1px solid var(--border-color)' }}
                         />
-                    </a>
+                    </button>
                 ) : <span style={{ color: 'var(--text-muted)' }}>-</span>
             ),
         },
@@ -134,19 +149,48 @@ export default function DeliveryConfirmationsPage({ deliveries = [], deliveryTab
             <Head title="Delivery" />
             <Layout title="Delivery Confirmations">
                 <div style={cardStyle}>
-                    <ProjectAccordionTable
-                        columns={columns}
-                        rows={deliveries}
-                        rowKey="id"
+                <ProjectAccordionTable
+                    columns={columns}
+                    rows={deliveries}
+                    rowKey="id"
                     searchPlaceholder="Search deliveries..."
                     emptyMessage="No delivery confirmations yet."
                     routePath="/delivery"
                     table={deliveryTable}
                     groupPageSize={10}
                     expandAllGroups
+                    statusOptions={statusFilters}
                 />
-                </div>
-            </Layout>
-        </>
-    );
+            </div>
+            <Modal
+                open={!!previewPhoto}
+                onClose={() => setPreviewPhoto(null)}
+                title={previewPhoto?.caption || 'Delivery Photo'}
+                maxWidth={900}
+            >
+                {previewPhoto && (
+                    <div style={{ display: 'grid', gap: 10 }}>
+                        <img
+                            src={`/storage/${previewPhoto.path}`}
+                            alt={previewPhoto.caption || 'Delivery photo'}
+                            style={{
+                                width: '100%',
+                                maxHeight: '70vh',
+                                objectFit: 'contain',
+                                border: '1px solid var(--border-color)',
+                                borderRadius: 8,
+                                background: 'var(--surface-2)',
+                            }}
+                        />
+                        {previewPhoto.meta ? (
+                            <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+                                {previewPhoto.meta}
+                            </div>
+                        ) : null}
+                    </div>
+                )}
+            </Modal>
+        </Layout>
+    </>
+);
 }

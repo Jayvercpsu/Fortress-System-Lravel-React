@@ -11,7 +11,7 @@ const cardStyle = {
     padding: 16,
 };
 
-export default function ProgressPhotosPage({ photos = [], photoTable = {} }) {
+export default function ProgressPhotosPage({ photos = [], photoTable = {}, statusFilters = [] }) {
     const [previewPhoto, setPreviewPhoto] = useState(null);
 
     const columns = [
@@ -75,6 +75,7 @@ export default function ProgressPhotosPage({ photos = [], photoTable = {} }) {
                     emptyMessage="No foreman proof photos yet."
                     routePath="/progress-photos"
                     table={photoTable}
+                    statusOptions={statusFilters}
                     groupPageSize={10}
                     expandAllGroups
                 />

@@ -2,8 +2,10 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\ScopePhoto;
 use App\Models\WeeklyAccomplishment;
 use Illuminate\Http\Request;
+use Illuminate\Support\Str;
 use Inertia\Inertia;
 
 class WeeklyAccomplishmentController extends Controller
@@ -49,15 +51,15 @@ class WeeklyAccomplishmentController extends Controller
             ->values()
             ->unique()
             ->all();
+        $status = trim((string) $request->query('status', ''));
+        $nonNullProjectIds = array_values(array_filter($projectIds, fn ($value) => $value !== null));
+        $hasNullProject = in_array(null, $projectIds, true);
 
         $accomplishments = collect([]);
         if (!empty($projectIds)) {
             $accomplishmentQuery = WeeklyAccomplishment::query()
                 ->with('foreman:id,fullname', 'project:id,name');
             $applySearch($accomplishmentQuery);
-
-            $nonNullProjectIds = array_values(array_filter($projectIds, fn ($value) => $value !== null));
-            $hasNullProject = in_array(null, $projectIds, true);
 
             $accomplishmentQuery->where(function ($builder) use ($nonNullProjectIds, $hasNullProject) {
                 if (!empty($nonNullProjectIds)) {
@@ -89,6 +91,45 @@ class WeeklyAccomplishmentController extends Controller
                 ->values();
         }
 
+        $weeklyScopePhotoMap = [];
+        if (!empty($nonNullProjectIds)) {
+            $scopePhotos = ScopePhoto::query()
+                ->select([
+                    'scope_photos.id',
+                    'scope_photos.photo_path',
+                    'scope_photos.caption',
+                    'scope_photos.created_at',
+                    'project_scopes.scope_name',
+                ])
+                ->join('project_scopes', 'project_scopes.id', '=', 'scope_photos.project_scope_id')
+                ->whereIn('project_scopes.project_id', $nonNullProjectIds)
+                ->orderByDesc('scope_photos.id')
+                ->get();
+
+            foreach ($scopePhotos as $scopePhoto) {
+                $scopeName = trim((string) ($scopePhoto->scope_name ?? ''));
+                if ($scopeName === '') {
+                    continue;
+                }
+
+                $scopeKey = Str::lower($scopeName);
+                if (!isset($weeklyScopePhotoMap[$scopeKey])) {
+                    $weeklyScopePhotoMap[$scopeKey] = [];
+                }
+
+                if (count($weeklyScopePhotoMap[$scopeKey]) >= 8) {
+                    continue;
+                }
+
+                $weeklyScopePhotoMap[$scopeKey][] = [
+                    'id' => (int) $scopePhoto->id,
+                    'photo_path' => $scopePhoto->photo_path,
+                    'caption' => $scopePhoto->caption,
+                    'created_at' => optional($scopePhoto->created_at)?->toDateTimeString(),
+                ];
+            }
+        }
+
         $accomplishments = $accomplishments
             ->map(fn (WeeklyAccomplishment $row) => [
                 'id' => $row->id,
@@ -108,11 +149,14 @@ class WeeklyAccomplishmentController extends Controller
 
         return Inertia::render($page, [
             'weeklyAccomplishments' => $accomplishments,
-            'weeklyAccomplishmentTable' => $this->tableMeta($paginator, $search),
+            'weeklyAccomplishmentTable' => $this->tableMeta($paginator, $search, $status),
+            'weeklyScopePhotoMap' => $weeklyScopePhotoMap,
+            'statusFilters' => [],
+            'selectedStatus' => $status,
         ]);
     }
 
-    private function tableMeta($paginator, string $search): array
+    private function tableMeta($paginator, string $search, string $status = ''): array
     {
         return [
             'search' => $search,
@@ -122,6 +166,7 @@ class WeeklyAccomplishmentController extends Controller
             'total' => $paginator->total(),
             'from' => $paginator->firstItem(),
             'to' => $paginator->lastItem(),
+            'status' => $status,
         ];
     }
 }

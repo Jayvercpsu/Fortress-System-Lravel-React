@@ -1,6 +1,9 @@
+import { Head, router } from '@inertiajs/react';
+import { useState } from 'react';
+import ActionButton from './ActionButton';
 import Layout from './Layout';
+import Modal from './Modal';
 import ProjectAccordionTable from './ProjectAccordionTable';
-import { Head } from '@inertiajs/react';
 
 const cardStyle = {
     background: 'var(--surface-1)',
@@ -50,7 +53,19 @@ const statusBadgeStyle = (status) => {
     };
 };
 
-export default function IssueReportsPage({ issues = [], issueTable = {} }) {
+export default function IssueReportsPage({ issues = [], issueTable = {}, statusFilters = [] }) {
+    const [processingId, setProcessingId] = useState(null);
+    const [previewPhoto, setPreviewPhoto] = useState(null);
+
+    const updateStatus = (row, status) => {
+        if (processingId === row.id || row.status === status) return;
+        setProcessingId(row.id);
+        router.patch(`/issues/${row.id}/status`, { status }, {
+            preserveScroll: true,
+            preserveState: true,
+            onFinish: () => setProcessingId(null),
+        });
+    };
     const columns = [
         {
             key: 'created_at',
@@ -84,13 +99,21 @@ export default function IssueReportsPage({ issues = [], issueTable = {} }) {
             width: 120,
             render: (row) => (
                 row.photo_path ? (
-                    <a href={`/storage/${row.photo_path}`} target="_blank" rel="noreferrer">
+                    <button
+                        type="button"
+                        onClick={() => setPreviewPhoto({
+                            path: row.photo_path,
+                            caption: row.issue_title || 'Issue photo',
+                            meta: `${row.severity || 'normal'} issue · ${row.foreman_name || 'Unknown foreman'}`,
+                        })}
+                        style={{ border: 'none', background: 'transparent', padding: 0, cursor: 'pointer' }}
+                    >
                         <img
                             src={`/storage/${row.photo_path}`}
                             alt={row.issue_title || 'Issue photo'}
                             style={{ width: 72, height: 52, objectFit: 'cover', borderRadius: 6, border: '1px solid var(--border-color)' }}
                         />
-                    </a>
+                    </button>
                 ) : <span style={{ color: 'var(--text-muted)' }}>-</span>
             ),
         },
@@ -138,6 +161,39 @@ export default function IssueReportsPage({ issues = [], issueTable = {} }) {
                 </span>
             ),
         },
+        {
+            key: 'actions',
+            label: 'Actions',
+            width: 190,
+            render: (row) => {
+                const busy = processingId === row.id;
+                return (
+                    <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                        {row.status !== 'resolved' ? (
+                            <ActionButton
+                                type="button"
+                                variant="success"
+                                disabled={busy}
+                                style={{ padding: '6px 10px', fontSize: 11 }}
+                                onClick={() => updateStatus(row, 'resolved')}
+                            >
+                                Mark Resolved
+                            </ActionButton>
+                        ) : (
+                            <ActionButton
+                                type="button"
+                                variant="neutral"
+                                disabled={busy}
+                                style={{ padding: '6px 10px', fontSize: 11 }}
+                                onClick={() => updateStatus(row, 'open')}
+                            >
+                                Reopen
+                            </ActionButton>
+                        )}
+                    </div>
+                );
+            },
+        },
     ];
 
     return (
@@ -145,19 +201,48 @@ export default function IssueReportsPage({ issues = [], issueTable = {} }) {
             <Head title="Issues" />
             <Layout title="Issue Reports">
                 <div style={cardStyle}>
-                    <ProjectAccordionTable
-                        columns={columns}
-                        rows={issues}
-                        rowKey="id"
+                <ProjectAccordionTable
+                    columns={columns}
+                    rows={issues}
+                    rowKey="id"
                     searchPlaceholder="Search issues..."
                     emptyMessage="No issue reports yet."
                     routePath="/issues"
                     table={issueTable}
                     groupPageSize={10}
                     expandAllGroups
+                    statusOptions={statusFilters}
                 />
-                </div>
-            </Layout>
-        </>
-    );
+            </div>
+            <Modal
+                open={!!previewPhoto}
+                onClose={() => setPreviewPhoto(null)}
+                title={previewPhoto?.caption || 'Issue Photo'}
+                maxWidth={900}
+            >
+                {previewPhoto && (
+                    <div style={{ display: 'grid', gap: 10 }}>
+                        <img
+                            src={`/storage/${previewPhoto.path}`}
+                            alt={previewPhoto.caption || 'Issue photo'}
+                            style={{
+                                width: '100%',
+                                maxHeight: '70vh',
+                                objectFit: 'contain',
+                                border: '1px solid var(--border-color)',
+                                borderRadius: 8,
+                                background: 'var(--surface-2)',
+                            }}
+                        />
+                        {previewPhoto.meta ? (
+                            <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+                                {previewPhoto.meta}
+                            </div>
+                        ) : null}
+                    </div>
+                )}
+            </Modal>
+        </Layout>
+    </>
+);
 }
