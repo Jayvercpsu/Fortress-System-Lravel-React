@@ -20,15 +20,13 @@ class DeliveryConfirmationController extends Controller
             $perPage = 10;
         }
 
-        $query = DeliveryConfirmation::query()
-            ->with([
-                'foreman:id,fullname',
-                'project:id,name',
-            ]);
+        $applySearch = function ($builder) use ($search) {
+            if ($search === '') {
+                return;
+            }
 
-        if ($search !== '') {
-            $query->where(function ($builder) use ($search) {
-                $builder->where('item_delivered', 'like', "%{$search}%")
+            $builder->where(function ($query) use ($search) {
+                $query->where('item_delivered', 'like', "%{$search}%")
                     ->orWhere('quantity', 'like', "%{$search}%")
                     ->orWhere('supplier', 'like', "%{$search}%")
                     ->orWhere('status', 'like', "%{$search}%")
@@ -37,18 +35,71 @@ class DeliveryConfirmationController extends Controller
                     ->orWhereHas('project', fn ($q) => $q->where('name', 'like', "%{$search}%"));
 
                 if (ctype_digit($search)) {
-                    $builder->orWhere('id', (int) $search)
+                    $query->orWhere('id', (int) $search)
                         ->orWhere('project_id', (int) $search);
                 }
             });
-        }
+        };
 
-        $paginator = $query
-            ->latest()
+        $projectQuery = DeliveryConfirmation::query();
+        $applySearch($projectQuery);
+
+        $projectPaginator = (clone $projectQuery)
+            ->selectRaw('project_id, MAX(created_at) as last_created_at')
+            ->groupBy('project_id')
+            ->orderByDesc('last_created_at')
             ->paginate($perPage)
             ->withQueryString();
 
-        $deliveries = collect($paginator->items())
+        $projectIds = collect($projectPaginator->items())
+            ->map(fn ($item) => $item->project_id ?? null)
+            ->values()
+            ->unique()
+            ->all();
+
+        $deliveries = collect([]);
+        if (!empty($projectIds)) {
+            $deliveryQuery = DeliveryConfirmation::query()
+                ->with([
+                    'foreman:id,fullname',
+                    'project:id,name',
+                ]);
+            $applySearch($deliveryQuery);
+
+            $nonNullProjectIds = array_values(array_filter($projectIds, fn ($value) => $value !== null));
+            $hasNullProject = in_array(null, $projectIds, true);
+
+            $deliveryQuery->where(function ($builder) use ($nonNullProjectIds, $hasNullProject) {
+                if (!empty($nonNullProjectIds)) {
+                    $builder->whereIn('project_id', $nonNullProjectIds);
+                    if ($hasNullProject) {
+                        $builder->orWhereNull('project_id');
+                    }
+                } elseif ($hasNullProject) {
+                    $builder->whereNull('project_id');
+                } else {
+                    $builder->whereRaw('0 = 1');
+                }
+            });
+
+            $deliveries = $deliveryQuery
+                ->latest()
+                ->get()
+                ->sortBy(function (DeliveryConfirmation $row) use ($projectIds) {
+                    $targetKey = $row->project_id === null ? '__null__' : (string) $row->project_id;
+                    foreach ($projectIds as $index => $projectId) {
+                        $currentKey = $projectId === null ? '__null__' : (string) $projectId;
+                        if ($currentKey === $targetKey) {
+                            return $index;
+                        }
+                    }
+
+                    return PHP_INT_MAX;
+                })
+                ->values();
+        }
+
+        $deliveries = $deliveries
             ->map(fn (DeliveryConfirmation $row) => [
                 'id' => $row->id,
                 'project_id' => $row->project_id,
@@ -70,7 +121,7 @@ class DeliveryConfirmationController extends Controller
 
         return Inertia::render($page, [
             'deliveries' => $deliveries,
-            'deliveryTable' => $this->tableMeta($paginator, $search),
+            'deliveryTable' => $this->tableMeta($projectPaginator, $search),
         ]);
     }
 

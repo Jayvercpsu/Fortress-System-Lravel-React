@@ -20,26 +20,77 @@ class IssueReportController extends Controller
             $perPage = 10;
         }
 
-        $query = IssueReport::query()
-            ->with(['foreman:id,fullname', 'project:id,name']);
+        $applySearch = function ($builder) use ($search) {
+            if ($search === '') {
+                return;
+            }
 
-        if ($search !== '') {
-            $query->where(function ($builder) use ($search) {
-                $builder->where('issue_title', 'like', "%{$search}%")
+            $builder->where(function ($query) use ($search) {
+                $query->where('issue_title', 'like', "%{$search}%")
                     ->orWhere('description', 'like', "%{$search}%")
                     ->orWhere('severity', 'like', "%{$search}%")
                     ->orWhere('status', 'like', "%{$search}%")
                     ->orWhereHas('project', fn ($q) => $q->where('name', 'like', "%{$search}%"))
                     ->orWhereHas('foreman', fn ($q) => $q->where('fullname', 'like', "%{$search}%"));
             });
-        }
+        };
 
-        $paginator = $query
-            ->latest()
+        $projectQuery = IssueReport::query();
+        $applySearch($projectQuery);
+
+        $paginator = (clone $projectQuery)
+            ->selectRaw('project_id, MAX(created_at) as last_created_at')
+            ->groupBy('project_id')
+            ->orderByDesc('last_created_at')
             ->paginate($perPage)
             ->withQueryString();
 
-        $issues = collect($paginator->items())
+        $projectIds = collect($paginator->items())
+            ->map(fn ($item) => $item->project_id ?? null)
+            ->values()
+            ->unique()
+            ->all();
+
+        $issues = collect([]);
+        if (!empty($projectIds)) {
+            $issueQuery = IssueReport::query()
+                ->with(['foreman:id,fullname', 'project:id,name']);
+            $applySearch($issueQuery);
+
+            $nonNullProjectIds = array_values(array_filter($projectIds, fn ($value) => $value !== null));
+            $hasNullProject = in_array(null, $projectIds, true);
+
+            $issueQuery->where(function ($builder) use ($nonNullProjectIds, $hasNullProject) {
+                if (!empty($nonNullProjectIds)) {
+                    $builder->whereIn('project_id', $nonNullProjectIds);
+                    if ($hasNullProject) {
+                        $builder->orWhereNull('project_id');
+                    }
+                } elseif ($hasNullProject) {
+                    $builder->whereNull('project_id');
+                } else {
+                    $builder->whereRaw('0 = 1');
+                }
+            });
+
+            $issues = $issueQuery
+                ->latest()
+                ->get()
+                ->sortBy(function (IssueReport $row) use ($projectIds) {
+                    $targetKey = $row->project_id === null ? '__null__' : (string) $row->project_id;
+                    foreach ($projectIds as $index => $projectId) {
+                        $currentKey = $projectId === null ? '__null__' : (string) $projectId;
+                        if ($currentKey === $targetKey) {
+                            return $index;
+                        }
+                    }
+
+                    return PHP_INT_MAX;
+                })
+                ->values();
+        }
+
+        $issues = $issues
             ->map(fn (IssueReport $row) => [
                 'id' => $row->id,
                 'project_id' => $row->project_id,

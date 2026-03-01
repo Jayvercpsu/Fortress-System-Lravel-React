@@ -149,11 +149,13 @@ export default function IssueReportsPage({ issues = [], issueTable = {} }) {
                         columns={columns}
                         rows={issues}
                         rowKey="id"
-                        searchPlaceholder="Search issues..."
-                        emptyMessage="No issue reports yet."
-                        routePath="/issues"
-                        table={issueTable}
-                    />
+                    searchPlaceholder="Search issues..."
+                    emptyMessage="No issue reports yet."
+                    routePath="/issues"
+                    table={issueTable}
+                    groupPageSize={10}
+                    expandAllGroups
+                />
                 </div>
             </Layout>
         </>

@@ -5,6 +5,8 @@ namespace App\Http\Controllers;
 use App\Models\MaterialRequest;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Log;
 
 class MaterialRequestController extends Controller
 {
@@ -20,12 +22,13 @@ class MaterialRequestController extends Controller
             $perPage = 10;
         }
 
-        $query = MaterialRequest::query()
-            ->with(['foreman:id,fullname', 'project:id,name']);
+        $applySearch = function ($builder) use ($search) {
+            if ($search === '') {
+                return;
+            }
 
-        if ($search !== '') {
-            $query->where(function ($builder) use ($search) {
-                $builder->where('material_name', 'like', "%{$search}%")
+            $builder->where(function ($query) use ($search) {
+                $query->where('material_name', 'like', "%{$search}%")
                     ->orWhere('quantity', 'like', "%{$search}%")
                     ->orWhere('unit', 'like', "%{$search}%")
                     ->orWhere('remarks', 'like', "%{$search}%")
@@ -33,14 +36,64 @@ class MaterialRequestController extends Controller
                     ->orWhereHas('project', fn ($q) => $q->where('name', 'like', "%{$search}%"))
                     ->orWhereHas('foreman', fn ($q) => $q->where('fullname', 'like', "%{$search}%"));
             });
-        }
+        };
 
-        $paginator = $query
-            ->latest()
+        $projectQuery = MaterialRequest::query();
+        $applySearch($projectQuery);
+
+        $projectPaginator = (clone $projectQuery)
+            ->selectRaw('project_id, MAX(created_at) as last_created_at')
+            ->groupBy('project_id')
+            ->orderByDesc('last_created_at')
             ->paginate($perPage)
             ->withQueryString();
 
-        $requests = collect($paginator->items())
+        $projectIds = collect($projectPaginator->items())
+            ->map(fn ($item) => $item->project_id ?? null)
+            ->values()
+            ->unique()
+            ->all();
+
+        $requests = collect([]);
+        if (!empty($projectIds)) {
+            $requestsQuery = MaterialRequest::query()
+                ->with(['foreman:id,fullname', 'project:id,name']);
+            $applySearch($requestsQuery);
+
+            $nonNullProjectIds = array_values(array_filter($projectIds, fn ($value) => $value !== null));
+            $hasNullProject = in_array(null, $projectIds, true);
+
+            $requestsQuery->where(function ($builder) use ($nonNullProjectIds, $hasNullProject) {
+                if (!empty($nonNullProjectIds)) {
+                    $builder->whereIn('project_id', $nonNullProjectIds);
+                    if ($hasNullProject) {
+                        $builder->orWhereNull('project_id');
+                    }
+                } elseif ($hasNullProject) {
+                    $builder->whereNull('project_id');
+                } else {
+                    $builder->whereRaw('0 = 1');
+                }
+            });
+
+            $requests = $requestsQuery
+                ->latest()
+                ->get()
+                ->sortBy(function (MaterialRequest $row) use ($projectIds) {
+                    $targetKey = $row->project_id === null ? '__null__' : (string) $row->project_id;
+                    foreach ($projectIds as $index => $projectId) {
+                        $currentKey = $projectId === null ? '__null__' : (string) $projectId;
+                        if ($currentKey === $targetKey) {
+                            return $index;
+                        }
+                    }
+
+                    return PHP_INT_MAX;
+                })
+                ->values();
+        }
+
+        $requests = $requests
             ->map(fn (MaterialRequest $row) => [
                 'id' => $row->id,
                 'project_id' => $row->project_id,
@@ -62,8 +115,27 @@ class MaterialRequestController extends Controller
 
         return Inertia::render($page, [
             'materialRequests' => $requests,
-            'materialRequestTable' => $this->tableMeta($paginator, $search),
+            'materialRequestTable' => $this->tableMeta($projectPaginator, $search),
         ]);
+    }
+
+    public function updateStatus(Request $request, MaterialRequest $materialRequest)
+    {
+        abort_unless(in_array($request->user()->role, ['head_admin', 'admin'], true), 403);
+
+        $validated = $request->validate([
+            'status' => ['required', 'in:pending,approved,rejected'],
+        ]);
+
+        if ((string) $materialRequest->status === (string) $validated['status']) {
+            return redirect()->back()->with('success', 'Status already ' . $validated['status'] . '.');
+        }
+
+        $materialRequest->update([
+            'status' => $validated['status'],
+        ]);
+
+        return redirect()->back()->with('success', 'Material request marked as ' . $validated['status'] . '.');
     }
 
     private function tableMeta($paginator, string $search): array

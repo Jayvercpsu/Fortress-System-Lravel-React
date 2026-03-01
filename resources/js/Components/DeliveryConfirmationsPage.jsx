@@ -138,11 +138,13 @@ export default function DeliveryConfirmationsPage({ deliveries = [], deliveryTab
                         columns={columns}
                         rows={deliveries}
                         rowKey="id"
-                        searchPlaceholder="Search deliveries..."
-                        emptyMessage="No delivery confirmations yet."
-                        routePath="/delivery"
-                        table={deliveryTable}
-                    />
+                    searchPlaceholder="Search deliveries..."
+                    emptyMessage="No delivery confirmations yet."
+                    routePath="/delivery"
+                    table={deliveryTable}
+                    groupPageSize={10}
+                    expandAllGroups
+                />
                 </div>
             </Layout>
         </>

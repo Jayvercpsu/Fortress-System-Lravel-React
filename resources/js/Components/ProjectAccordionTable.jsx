@@ -31,6 +31,7 @@ export default function ProjectAccordionTable({
     routePath,
     table = {},
     groupPageSize = 5,
+    expandAllGroups = false,
 }) {
     const [searchDraft, setSearchDraft] = useState(String(table?.search ?? ''));
     const [expandedByGroup, setExpandedByGroup] = useState({});
@@ -79,9 +80,14 @@ export default function ProjectAccordionTable({
         setExpandedByGroup((prev) => {
             const next = {};
             grouped.forEach((group) => {
+                if (expandAllGroups) {
+                    next[group.key] = true;
+                    return;
+                }
+
                 if (prev[group.key]) next[group.key] = true;
             });
-            if (grouped.length > 0 && Object.keys(next).length === 0) {
+            if (!expandAllGroups && grouped.length > 0 && Object.keys(next).length === 0) {
                 next[grouped[0].key] = true;
             }
             return next;
@@ -96,7 +102,7 @@ export default function ProjectAccordionTable({
             });
             return next;
         });
-    }, [grouped, groupPageSize]);
+    }, [grouped, groupPageSize, expandAllGroups]);
 
     useEffect(() => {
         const handle = window.setTimeout(() => {

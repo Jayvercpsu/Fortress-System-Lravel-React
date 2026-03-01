@@ -1,6 +1,8 @@
 import Layout from './Layout';
 import ProjectAccordionTable from './ProjectAccordionTable';
-import { Head } from '@inertiajs/react';
+import ActionButton from './ActionButton';
+import { Head, router } from '@inertiajs/react';
+import { useState } from 'react';
 
 const cardStyle = {
     background: 'var(--surface-1)',
@@ -34,6 +36,7 @@ const statusBadgeStyle = (status) => {
 };
 
 export default function MaterialRequestsPage({ materialRequests = [], materialRequestTable = {} }) {
+    const [processingId, setProcessingId] = useState(null);
     const columns = [
         {
             key: 'created_at',
@@ -105,6 +108,46 @@ export default function MaterialRequestsPage({ materialRequests = [], materialRe
                 </span>
             ),
         },
+        {
+            key: 'actions',
+            label: 'Actions',
+            width: 220,
+            render: (row) => {
+                const busy = processingId === row.id;
+                const mutateStatus = (status) => {
+                    if (busy || row.status === status) return;
+                    setProcessingId(row.id);
+                    router.patch(`/materials/${row.id}/status`, { status }, {
+                        preserveScroll: true,
+                        preserveState: true,
+                        onFinish: () => setProcessingId(null),
+                    });
+                };
+
+                return (
+                    <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                        <ActionButton
+                            type="button"
+                            variant="success"
+                            style={{ padding: '6px 10px', fontSize: 11 }}
+                            disabled={busy || row.status === 'approved'}
+                            onClick={() => mutateStatus('approved')}
+                        >
+                            Approve
+                        </ActionButton>
+                        <ActionButton
+                            type="button"
+                            variant="danger"
+                            style={{ padding: '6px 10px', fontSize: 11 }}
+                            disabled={busy || row.status === 'rejected'}
+                            onClick={() => mutateStatus('rejected')}
+                        >
+                            Reject
+                        </ActionButton>
+                    </div>
+                );
+            },
+        },
     ];
 
     return (
@@ -116,11 +159,13 @@ export default function MaterialRequestsPage({ materialRequests = [], materialRe
                         columns={columns}
                         rows={materialRequests}
                         rowKey="id"
-                        searchPlaceholder="Search material requests..."
-                        emptyMessage="No material requests yet."
-                        routePath="/materials"
-                        table={materialRequestTable}
-                    />
+                    searchPlaceholder="Search material requests..."
+                    emptyMessage="No material requests yet."
+                    routePath="/materials"
+                    table={materialRequestTable}
+                    groupPageSize={10}
+                    expandAllGroups
+                />
                 </div>
             </Layout>
         </>

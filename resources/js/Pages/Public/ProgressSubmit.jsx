@@ -3,6 +3,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { Camera, Check, ChevronDown, Plus } from 'lucide-react';
 import toast from 'react-hot-toast';
 import DatePickerInput from '../../Components/DatePickerInput';
+import Modal from '../../Components/Modal';
 
 const DAYS = [
     { key: 'mon', label: 'Mon' },
@@ -248,6 +249,7 @@ export default function ProgressSubmit({ submitToken }) {
     const [weeklyRemovedScopesByWeek, setWeeklyRemovedScopesByWeek] = useState({});
     const [photoForm, setPhotoForm] = useState({ category: '', description: '', photo: null });
     const [issue, setIssue] = useState({ issue_title: '', description: '', urgency: 'normal', photo: null });
+    const [previewPhoto, setPreviewPhoto] = useState(null);
     const [submitting, setSubmitting] = useState(false);
     const [removedAttendanceWorkerIds, setRemovedAttendanceWorkerIds] = useState([]);
     const attendanceWorkerPool = useMemo(() => {
@@ -333,6 +335,15 @@ export default function ProgressSubmit({ submitToken }) {
     const dayTotal = (key) => attendanceRows.reduce((sum, row) => sum + (POINTS[row?.days?.[key] || ''] || 0), 0);
 
     const toggle = (key) => setExpanded((prev) => ({ ...prev, [key]: !prev[key] }));
+    const openPhotoPreview = (photoPath, title = 'Photo Preview', meta = '') => {
+        const normalizedPath = String(photoPath || '').trim();
+        if (normalizedPath === '') return;
+        setPreviewPhoto({
+            src: `/storage/${normalizedPath}`,
+            title,
+            meta: String(meta || '').trim(),
+        });
+    };
     const unhideAttendanceWorker = (name, role) => {
         const id = workerIdentity(name, role);
         if (!id) return;
@@ -539,19 +550,27 @@ export default function ProgressSubmit({ submitToken }) {
             <textarea className="jf-input" rows={3} placeholder="Note (optional)" value={delivery.note} onChange={(e) => setDelivery((p) => ({ ...p, note: e.target.value }))} />
             <div style={{ marginTop: 10 }}>
                 <div className="jf-small-title" style={{ fontSize: 16, marginBottom: 6 }}>Recent Delivery Confirmations</div>
-                <div className="jf-recent-list">
+                <div className="jf-recent-list jf-recent-list-two">
                     {recentDeliveries.length === 0 ? (
                         <div className="jf-note">No recent delivery confirmations yet.</div>
                     ) : recentDeliveries.map((row) => (
                         <div key={row.id} className="jf-recent-card">
                             {row.photo_path ? (
-                                <a href={`/storage/${row.photo_path}`} target="_blank" rel="noreferrer" style={{ display: 'block', marginBottom: 6 }}>
+                                <button
+                                    type="button"
+                                    onClick={() => openPhotoPreview(
+                                        row.photo_path,
+                                        row.item_delivered || 'Delivery Photo',
+                                        `Delivery Date: ${row.delivery_date || '-'}${row.supplier ? ` | Supplier: ${row.supplier}` : ''}`
+                                    )}
+                                    style={{ display: 'block', marginBottom: 6, border: 'none', background: 'transparent', padding: 0, width: '100%', cursor: 'pointer' }}
+                                >
                                     <img
                                         src={`/storage/${row.photo_path}`}
                                         alt={row.item_delivered || 'Delivery photo'}
                                         style={{ width: '100%', maxHeight: 130, objectFit: 'cover', borderRadius: 6, border: '1px solid #d4cec0' }}
                                     />
-                                </a>
+                                </button>
                             ) : null}
                             <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, alignItems: 'flex-start' }}>
                                 <div style={{ fontWeight: 700 }}>{row.item_delivered || 'Item not specified'}</div>
@@ -580,19 +599,27 @@ export default function ProgressSubmit({ submitToken }) {
             <div className="jf-note">{material.photo?.name || 'No photo selected'}</div>
             <div style={{ marginTop: 10 }}>
                 <div className="jf-small-title" style={{ fontSize: 16, marginBottom: 6 }}>Recent Material Requests</div>
-                <div className="jf-recent-list">
+                <div className="jf-recent-list jf-recent-list-two">
                     {recentMaterialRequests.length === 0 ? (
                         <div className="jf-note">No recent material requests yet.</div>
                     ) : recentMaterialRequests.map((row) => (
                         <div key={row.id} className="jf-recent-card">
                             {row.photo_path ? (
-                                <a href={`/storage/${row.photo_path}`} target="_blank" rel="noreferrer" style={{ display: 'block', marginBottom: 6 }}>
+                                <button
+                                    type="button"
+                                    onClick={() => openPhotoPreview(
+                                        row.photo_path,
+                                        row.material_name || 'Material Photo',
+                                        `Qty: ${row.quantity || '-'} ${row.unit || ''}`.trim()
+                                    )}
+                                    style={{ display: 'block', marginBottom: 6, border: 'none', background: 'transparent', padding: 0, width: '100%', cursor: 'pointer' }}
+                                >
                                     <img
                                         src={`/storage/${row.photo_path}`}
                                         alt={row.material_name || 'Material photo'}
                                         style={{ width: '100%', maxHeight: 130, objectFit: 'cover', borderRadius: 6, border: '1px solid #d4cec0' }}
                                     />
-                                </a>
+                                </button>
                             ) : null}
                             <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, alignItems: 'flex-start' }}>
                                 <div style={{ fontWeight: 700 }}>{row.material_name || 'Material not specified'}</div>
@@ -664,19 +691,22 @@ export default function ProgressSubmit({ submitToken }) {
                                                     ) : (
                                                         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(72px, 1fr))', gap: 6 }}>
                                                             {existingScopePhotos.map((photo) => (
-                                                                <a
+                                                                <button
                                                                     key={photo.id}
-                                                                    href={`/storage/${photo.photo_path}`}
-                                                                    target="_blank"
-                                                                    rel="noreferrer"
-                                                                    style={{ display: 'block' }}
+                                                                    type="button"
+                                                                    onClick={() => openPhotoPreview(
+                                                                        photo.photo_path,
+                                                                        row.scope_of_work || photo.caption || 'Scope Photo',
+                                                                        photo.created_at || ''
+                                                                    )}
+                                                                    style={{ display: 'block', border: 'none', background: 'transparent', padding: 0, cursor: 'pointer' }}
                                                                 >
                                                                     <img
                                                                         src={`/storage/${photo.photo_path}`}
                                                                         alt={photo.caption || 'Scope photo'}
                                                                         style={{ width: '100%', height: 58, objectFit: 'cover', borderRadius: 6, border: '1px solid #d4cec0' }}
                                                                     />
-                                                                </a>
+                                                                </button>
                                                             ))}
                                                         </div>
                                                     )}
@@ -777,7 +807,13 @@ export default function ProgressSubmit({ submitToken }) {
                 <div style={{ display: 'grid', gap: 8, marginBottom: 10 }}>
                     {photos.length === 0 ? <div className="jf-note">No uploaded photos yet.</div> : photos.map((photo) => (
                         <div key={photo.id} className="jf-photo-item">
-                            <img src={`/storage/${photo.photo_path}`} alt={photo.caption || 'Photo'} />
+                            <button
+                                type="button"
+                                onClick={() => openPhotoPreview(photo.photo_path, photo.caption || 'Photo', photo.created_at || '')}
+                                style={{ border: 'none', background: 'transparent', padding: 0, cursor: 'pointer', width: 90, justifySelf: 'start' }}
+                            >
+                                <img src={`/storage/${photo.photo_path}`} alt={photo.caption || 'Photo'} />
+                            </button>
                             <div>
                                 <div style={{ fontWeight: 700 }}>{photo.caption || 'No description'}</div>
                                 <div className="jf-note">{photo.created_at || '-'}</div>
@@ -803,19 +839,27 @@ export default function ProgressSubmit({ submitToken }) {
             </div>
             <div style={{ marginTop: 10 }}>
                 <div className="jf-small-title" style={{ fontSize: 16, marginBottom: 6 }}>Recent Issue Reports</div>
-                <div className="jf-recent-list">
+                <div className="jf-recent-list jf-recent-list-two">
                     {recentIssueReports.length === 0 ? (
                         <div className="jf-note">No recent issue reports yet.</div>
                     ) : recentIssueReports.map((row) => (
                         <div key={row.id} className="jf-recent-card">
                             {row.photo_path ? (
-                                <a href={`/storage/${row.photo_path}`} target="_blank" rel="noreferrer" style={{ display: 'block', marginBottom: 6 }}>
+                                <button
+                                    type="button"
+                                    onClick={() => openPhotoPreview(
+                                        row.photo_path,
+                                        row.issue_title || 'Issue Photo',
+                                        `Severity: ${humanize(row.severity)}`
+                                    )}
+                                    style={{ display: 'block', marginBottom: 6, border: 'none', background: 'transparent', padding: 0, width: '100%', cursor: 'pointer' }}
+                                >
                                     <img
                                         src={`/storage/${row.photo_path}`}
                                         alt={row.issue_title || 'Issue photo'}
                                         style={{ width: '100%', maxHeight: 130, objectFit: 'cover', borderRadius: 6, border: '1px solid #d4cec0' }}
                                     />
-                                </a>
+                                </button>
                             ) : null}
                             <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, alignItems: 'flex-start' }}>
                                 <div style={{ fontWeight: 700 }}>{row.issue_title || 'Issue not specified'}</div>
@@ -849,7 +893,7 @@ export default function ProgressSubmit({ submitToken }) {
                     .jf-top{height:24px;background:#373850}
                     .jf-wrap{max-width:1080px;margin:0 auto;padding:16px 14px 28px}
                     .jf-meta{border:1px solid #c9c2b2;background:#f2eee6;border-radius:12px;padding:12px 14px;display:grid;gap:4px;font-size:13px}
-                    .jf-acc{max-width:760px;margin:12px auto 0;border:2px solid #bcb4a2;border-radius:14px;background:#ece7db;overflow:hidden}
+                    .jf-acc{width:100%;margin:12px 0 0;border:2px solid #bcb4a2;border-radius:14px;background:#ece7db;overflow:hidden}
                     .jf-acc-head{width:100%;border:none;background:#ece7db;min-height:78px;padding:0 18px;display:flex;align-items:center;justify-content:space-between;cursor:pointer}
                     .jf-acc-title{font-size:24px;font-weight:700;display:flex;align-items:center;gap:10px}
                     .jf-arrow{transition:transform .2s ease}
@@ -881,6 +925,7 @@ export default function ProgressSubmit({ submitToken }) {
                     .jf-photo-item img{width:90px;height:70px;object-fit:cover;border-radius:8px;border:1px solid #d3ccbd}
                     .jf-small-title{font-size:18px;font-weight:700;margin-bottom:8px}
                     .jf-recent-list{display:grid;gap:8px;max-height:220px;overflow:auto;padding-right:2px}
+                    .jf-recent-list-two{grid-template-columns:repeat(2,minmax(0,1fr))}
                     .jf-recent-card{border:1px solid #d9d2c2;background:#fff;border-radius:8px;padding:8px;display:grid;gap:2px}
                     .jf-recent-chip{display:inline-flex;align-items:center;justify-content:center;border-radius:999px;padding:2px 8px;font-size:11px;font-weight:700;background:#ece7db;border:1px solid #d1c7b4;color:#2f3a4a;text-transform:uppercase;white-space:nowrap}
                     .jf-radio-row{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px;border:1px solid #cfd3db;border-radius:8px;background:#fff;padding:10px 8px}
@@ -889,7 +934,7 @@ export default function ProgressSubmit({ submitToken }) {
                     .jf-submit-btn{width:100%;max-width:420px;border:none;border-radius:10px;min-height:50px;background:#2f70d4;color:#fff;font-size:18px;font-weight:800;cursor:pointer}
                     .jf-submit-btn:disabled{opacity:.7;cursor:not-allowed}
                     @media (max-width:980px){.jf-photo-layout{grid-template-columns:1fr}}
-                    @media (max-width:760px){.jf-grid2{grid-template-columns:1fr}.jf-acc-title{font-size:20px}.jf-acc-head{min-height:68px}.jf-submit-btn{font-size:16px;min-height:46px}}
+                    @media (max-width:760px){.jf-grid2{grid-template-columns:1fr}.jf-recent-list-two{grid-template-columns:1fr}.jf-acc-title{font-size:20px}.jf-acc-head{min-height:68px}.jf-submit-btn{font-size:16px;min-height:46px}}
                 `}</style>
                 <div className="jf-top" />
                 <div className="jf-wrap">
@@ -916,6 +961,41 @@ export default function ProgressSubmit({ submitToken }) {
                     </div>
                 </div>
             </div>
+            <Modal
+                open={!!previewPhoto}
+                onClose={() => setPreviewPhoto(null)}
+                title={previewPhoto?.title || 'Photo Preview'}
+                maxWidth={980}
+            >
+                {previewPhoto ? (
+                    <div style={{ display: 'grid', gap: 10 }}>
+                        <img
+                            src={previewPhoto.src}
+                            alt={previewPhoto.title || 'Photo preview'}
+                            style={{
+                                width: '100%',
+                                maxHeight: '72vh',
+                                objectFit: 'contain',
+                                borderRadius: 10,
+                                border: '1px solid #d4cec0',
+                                background: '#fff',
+                            }}
+                        />
+                        {previewPhoto.meta ? (
+                            <div className="jf-note" style={{ fontSize: 13 }}>{previewPhoto.meta}</div>
+                        ) : null}
+                        <a
+                            href={previewPhoto.src}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="jf-btn jf-btn-light"
+                            style={{ width: 'fit-content', textDecoration: 'none' }}
+                        >
+                            Open in new tab
+                        </a>
+                    </div>
+                ) : null}
+            </Modal>
         </>
     );
 }

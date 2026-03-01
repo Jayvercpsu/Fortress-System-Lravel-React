@@ -64,14 +64,15 @@ export default function WeeklyAccomplishmentsPage({
                         columns={columns}
                         rows={weeklyAccomplishments}
                         rowKey="id"
-                        searchPlaceholder="Search weekly accomplishments..."
-                        emptyMessage="No weekly accomplishments yet."
-                        routePath="/weekly-accomplishments"
-                        table={weeklyAccomplishmentTable}
-                    />
+                    searchPlaceholder="Search weekly accomplishments..."
+                    emptyMessage="No weekly accomplishments yet."
+                    routePath="/weekly-accomplishments"
+                    table={weeklyAccomplishmentTable}
+                    groupPageSize={10}
+                    expandAllGroups
+                />
                 </div>
             </Layout>
         </>
     );
 }
-

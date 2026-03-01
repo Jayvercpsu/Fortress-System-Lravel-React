@@ -104,6 +104,7 @@ Route::middleware(['auth', 'role:head_admin,admin'])->group(function () {
     Route::get('/reports', [ReportsController::class, 'index'])->name('reports.index');
     Route::get('/weekly-accomplishments', [WeeklyAccomplishmentController::class, 'index'])->name('weekly-accomplishments.index');
     Route::get('/materials', [MaterialRequestController::class, 'index'])->name('materials.index');
+    Route::patch('/materials/{materialRequest}/status', [MaterialRequestController::class, 'updateStatus'])->name('materials.status');
     Route::get('/delivery', [DeliveryConfirmationController::class, 'index'])->name('delivery.index');
     Route::get('/issues', [IssueReportController::class, 'index'])->name('issues.index');
 
