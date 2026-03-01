@@ -6,6 +6,7 @@ use App\Models\Attendance;
 use App\Models\Expense;
 use App\Models\Payroll;
 use App\Models\Project;
+use App\Models\ProjectScope;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
@@ -108,7 +109,13 @@ class ReportsController extends Controller
             }
         }
 
-        $rows = $projects->map(function (Project $project) use ($expenseByProject, $allocatedPayrollByProject) {
+        $scopeAggregates = ProjectScope::query()
+            ->selectRaw('project_id, SUM(contract_amount) as total_scope_contract, SUM(weight_percent) as total_weight_percent, SUM(contract_amount * progress_percent / 100) as accomplished_amount, SUM(weight_percent * progress_percent / 100) as weighted_progress')
+            ->groupBy('project_id')
+            ->get()
+            ->keyBy(fn ($row) => (int) $row->project_id);
+
+        $rows = $projects->map(function (Project $project) use ($expenseByProject, $allocatedPayrollByProject, $scopeAggregates) {
             $projectId = (int) $project->id;
             $contractAmount = round((float) $project->contract_amount, 2);
             $collectedAmount = round((float) $project->total_client_payment, 2);
@@ -118,6 +125,10 @@ class ReportsController extends Controller
             $totalCost = round($expenseTotal + $allocatedPayroll, 2);
             $profitCollectedBasis = round($collectedAmount - $totalCost, 2);
             $profitContractBasis = round($contractAmount - $totalCost, 2);
+            $scopeInfo = $scopeAggregates->get($projectId);
+            $scopeContractTotal = round((float) ($scopeInfo->total_scope_contract ?? 0), 2);
+            $weightedProgressPct = $scopeInfo ? round((float) ($scopeInfo->weighted_progress ?? 0), 2) : 0.0;
+            $computedAmount = round((float) ($scopeInfo->accomplished_amount ?? 0), 2);
 
             return [
                 'id' => $projectId,
@@ -134,6 +145,9 @@ class ReportsController extends Controller
                 'total_cost' => $totalCost,
                 'profit_collected_basis' => $profitCollectedBasis,
                 'profit_contract_basis' => $profitContractBasis,
+                'scope_contract_total' => $scopeContractTotal,
+                'computed_amount_to_date' => $computedAmount,
+                'weighted_progress_percent' => $weightedProgressPct,
                 'profit_margin_collected_percent' => $collectedAmount > 0
                     ? round(($profitCollectedBasis / $collectedAmount) * 100, 1)
                     : null,

@@ -184,12 +184,14 @@ export default function ForemanSubmissions({
         return Array.from(groups.values());
     }, [weeklyScopePhotosPager.data]);
 
+    const isProgressPreview = previewPhoto?.previewKind === 'progress';
     const currentPreviewIndex = useMemo(() => {
-        if (!previewPhoto) return -1;
-        return progressPhotosPager.data.findIndex((photo) => Number(photo.id) === Number(previewPhoto.id));
-    }, [previewPhoto, progressPhotosPager.data]);
-    const canPreviewPrev = currentPreviewIndex > 0;
-    const canPreviewNext = currentPreviewIndex >= 0 && currentPreviewIndex < progressPhotosPager.data.length - 1;
+        if (!isProgressPreview) return -1;
+        return progressPhotosPager.data.findIndex((photo) => Number(photo.id) === Number(previewPhoto?.id));
+    }, [previewPhoto, progressPhotosPager.data, isProgressPreview]);
+    const canPreviewPrev = isProgressPreview && currentPreviewIndex > 0;
+    const canPreviewNext =
+        isProgressPreview && currentPreviewIndex >= 0 && currentPreviewIndex < progressPhotosPager.data.length - 1;
 
     useEffect(() => {
         if (flash?.success) toast.success(flash.success);
@@ -198,19 +200,25 @@ export default function ForemanSubmissions({
 
     useEffect(() => {
         if (!previewPhoto) return;
-        if (currentPreviewIndex === -1) {
+        if (isProgressPreview && currentPreviewIndex === -1) {
             setPreviewPhoto(null);
         }
     }, [previewPhoto, currentPreviewIndex]);
 
     const showPrevPreviewPhoto = () => {
         if (!canPreviewPrev) return;
-        setPreviewPhoto(progressPhotosPager.data[currentPreviewIndex - 1] ?? null);
+        setPreviewPhoto({
+            ...(progressPhotosPager.data[currentPreviewIndex - 1] ?? null),
+            previewKind: 'progress',
+        });
     };
 
     const showNextPreviewPhoto = () => {
         if (!canPreviewNext) return;
-        setPreviewPhoto(progressPhotosPager.data[currentPreviewIndex + 1] ?? null);
+        setPreviewPhoto({
+            ...(progressPhotosPager.data[currentPreviewIndex + 1] ?? null),
+            previewKind: 'progress',
+        });
     };
 
     return (
@@ -292,13 +300,26 @@ export default function ForemanSubmissions({
                                         materialRequestsPager.data.map((row) => (
                                             <div key={row.id} style={{ border: '1px solid var(--border-color)', borderRadius: 8, padding: 8, background: 'var(--surface-1)' }}>
                                                 {row.photo_path ? (
-                                                    <a href={`/storage/${row.photo_path}`} target="_blank" rel="noreferrer" style={{ display: 'inline-block', marginBottom: 6 }}>
+                                                    <button
+                                                        type="button"
+                                                            onClick={() =>
+                                                                setPreviewPhoto({
+                                                                    photo_path: row.photo_path,
+                                                                    caption: row.material_name || 'Material photo',
+                                                                    meta: `Material request | Qty: ${row.quantity || '-'} ${row.unit || ''}`,
+                                                                    created_at: row.created_at,
+                                                                    project_name: row.project_name || 'Unassigned',
+                                                                    previewKind: 'material',
+                                                                })
+                                                            }
+                                                        style={{ display: 'inline-block', marginBottom: 6, border: 'none', background: 'transparent', padding: 0, cursor: 'pointer' }}
+                                                    >
                                                         <img
                                                             src={`/storage/${row.photo_path}`}
                                                             alt={row.material_name || 'Material photo'}
                                                             style={{ width: 88, height: 62, objectFit: 'cover', borderRadius: 6, border: '1px solid var(--border-color)' }}
                                                         />
-                                                    </a>
+                                                    </button>
                                                 ) : null}
                                                 <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, alignItems: 'start' }}>
                                                     <div style={{ fontWeight: 700, fontSize: 13 }}>{row.material_name}</div>
@@ -327,13 +348,26 @@ export default function ForemanSubmissions({
                                         issueReportsPager.data.map((row) => (
                                             <div key={row.id} style={{ border: '1px solid var(--border-color)', borderRadius: 8, padding: 8, background: 'var(--surface-1)' }}>
                                                 {row.photo_path ? (
-                                                    <a href={`/storage/${row.photo_path}`} target="_blank" rel="noreferrer" style={{ display: 'inline-block', marginBottom: 6 }}>
+                                                    <button
+                                                        type="button"
+                                                            onClick={() =>
+                                                                setPreviewPhoto({
+                                                                    photo_path: row.photo_path,
+                                                                    caption: row.issue_title || 'Issue photo',
+                                                                    meta: `Severity: ${row.severity || 'normal'}`,
+                                                                    created_at: row.created_at,
+                                                                    project_name: row.project_name || 'Unassigned',
+                                                                    previewKind: 'issue',
+                                                                })
+                                                            }
+                                                        style={{ display: 'inline-block', marginBottom: 6, border: 'none', background: 'transparent', padding: 0, cursor: 'pointer' }}
+                                                    >
                                                         <img
                                                             src={`/storage/${row.photo_path}`}
                                                             alt={row.issue_title || 'Issue photo'}
                                                             style={{ width: 88, height: 62, objectFit: 'cover', borderRadius: 6, border: '1px solid var(--border-color)' }}
                                                         />
-                                                    </a>
+                                                    </button>
                                                 ) : null}
                                                 <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, alignItems: 'start' }}>
                                                     <div style={{ fontWeight: 700, fontSize: 13 }}>{row.issue_title}</div>
@@ -362,13 +396,26 @@ export default function ForemanSubmissions({
                                         deliveriesPager.data.map((row) => (
                                             <div key={row.id} style={{ border: '1px solid var(--border-color)', borderRadius: 8, padding: 8, background: 'var(--surface-1)' }}>
                                                 {row.photo_path ? (
-                                                    <a href={`/storage/${row.photo_path}`} target="_blank" rel="noreferrer" style={{ display: 'inline-block', marginBottom: 6 }}>
+                                                    <button
+                                                        type="button"
+                                                            onClick={() =>
+                                                                setPreviewPhoto({
+                                                                    photo_path: row.photo_path,
+                                                                    caption: row.item_delivered || 'Delivery photo',
+                                                                    meta: `Delivery Date: ${row.delivery_date || '-'} | Supplier: ${row.supplier || 'None'}`,
+                                                                    created_at: row.created_at,
+                                                                    project_name: row.project_name || 'Unassigned',
+                                                                    previewKind: 'delivery',
+                                                                })
+                                                            }
+                                                        style={{ display: 'inline-block', marginBottom: 6, border: 'none', background: 'transparent', padding: 0, cursor: 'pointer' }}
+                                                    >
                                                         <img
                                                             src={`/storage/${row.photo_path}`}
                                                             alt={row.item_delivered || 'Delivery photo'}
                                                             style={{ width: 88, height: 62, objectFit: 'cover', borderRadius: 6, border: '1px solid var(--border-color)' }}
                                                         />
-                                                    </a>
+                                                    </button>
                                                 ) : null}
                                                 <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, alignItems: 'start' }}>
                                                     <div style={{ fontWeight: 700, fontSize: 13 }}>{row.item_delivered}</div>
@@ -427,7 +474,7 @@ export default function ForemanSubmissions({
                                                 <button
                                                     key={photo.id}
                                                     type="button"
-                                                    onClick={() => setPreviewPhoto(photo)}
+                                onClick={() => setPreviewPhoto({ ...photo, previewKind: 'progress' })}
                                                     style={{
                                                         textDecoration: 'none',
                                                         color: 'inherit',
@@ -496,11 +543,20 @@ export default function ForemanSubmissions({
 
                                         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: 8 }}>
                                             {group.photos.map((photo) => (
-                                                <a
+                                                <button
                                                     key={photo.id}
-                                                    href={`/storage/${photo.photo_path}`}
-                                                    target="_blank"
-                                                    rel="noreferrer"
+                                                    type="button"
+                                                    onClick={() =>
+                                                        setPreviewPhoto({
+                                                            ...photo,
+                                                            caption: photo.caption || 'Scope photo',
+                                                            meta: `${group.project_name || 'Unassigned'} · ${group.scope_name}`,
+                                                            created_at: photo.created_at,
+                                                            project_name: group.project_name,
+                                                            scope_name: group.scope_name,
+                                                            source: 'scope',
+                                                        })
+                                                    }
                                                     style={{
                                                         textDecoration: 'none',
                                                         color: 'inherit',
@@ -509,6 +565,7 @@ export default function ForemanSubmissions({
                                                         background: 'var(--surface-1)',
                                                         padding: 8,
                                                         display: 'block',
+                                                        cursor: 'pointer',
                                                     }}
                                                 >
                                                     <img
@@ -536,7 +593,7 @@ export default function ForemanSubmissions({
                                                     <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 3 }}>
                                                         {photo.created_at || '-'}
                                                     </div>
-                                                </a>
+                                                </button>
                                             ))}
                                         </div>
                                     </div>
@@ -570,24 +627,28 @@ export default function ForemanSubmissions({
                                         display: 'block',
                                     }}
                                 />
-                                <button
-                                    type="button"
-                                    onClick={showPrevPreviewPhoto}
-                                    disabled={!canPreviewPrev}
-                                    aria-label="Previous photo"
-                                    style={previewArrowBtn(canPreviewPrev, 'left')}
-                                >
-                                    <ChevronLeft size={20} strokeWidth={2.25} />
-                                </button>
-                                <button
-                                    type="button"
-                                    onClick={showNextPreviewPhoto}
-                                    disabled={!canPreviewNext}
-                                    aria-label="Next photo"
-                                    style={previewArrowBtn(canPreviewNext, 'right')}
-                                >
-                                    <ChevronRight size={20} strokeWidth={2.25} />
-                                </button>
+                                {isProgressPreview ? (
+                                    <>
+                                        <button
+                                            type="button"
+                                            onClick={showPrevPreviewPhoto}
+                                            disabled={!canPreviewPrev}
+                                            aria-label="Previous photo"
+                                            style={previewArrowBtn(canPreviewPrev, 'left')}
+                                        >
+                                            <ChevronLeft size={20} strokeWidth={2.25} />
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={showNextPreviewPhoto}
+                                            disabled={!canPreviewNext}
+                                            aria-label="Next photo"
+                                            style={previewArrowBtn(canPreviewNext, 'right')}
+                                        >
+                                            <ChevronRight size={20} strokeWidth={2.25} />
+                                        </button>
+                                    </>
+                                ) : null}
                             </div>
                             <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
                                 Project: {previewPhoto.project_name || 'Unassigned'} | {previewPhoto.created_at || '-'}

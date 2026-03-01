@@ -46,6 +46,8 @@ export default function ReportsIndex({ summary = {}, projectProfitability = [] }
                                 {[
                                     'Project',
                                     'Progress',
+                                    'Weighted Progress',
+                                    'Computed Amount',
                                     'Collected',
                                     'Expenses',
                                     'Payroll',
@@ -87,6 +89,22 @@ export default function ReportsIndex({ summary = {}, projectProfitability = [] }
                                         </td>
                                         <td style={{ padding: '10px 12px', fontFamily: "'DM Mono', monospace" }}>
                                             {row.overall_progress}%
+                                        </td>
+                                        <td
+                                            style={{
+                                                padding: '10px 12px',
+                                                fontFamily: "'DM Mono', monospace",
+                                            }}
+                                        >
+                                            {row.weighted_progress_percent != null ? `${row.weighted_progress_percent.toFixed(2)}%` : '-'}
+                                        </td>
+                                        <td
+                                            style={{
+                                                padding: '10px 12px',
+                                                fontFamily: "'DM Mono', monospace",
+                                            }}
+                                        >
+                                            {money(row.computed_amount_to_date)}
                                         </td>
                                         <td style={{ padding: '10px 12px', fontFamily: "'DM Mono', monospace" }}>
                                             {money(row.collected_amount)}

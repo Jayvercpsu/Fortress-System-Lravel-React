@@ -29,6 +29,10 @@ class MonitoringController extends Controller
                 'progress_percent' => (int) $scope->progress_percent,
                 'status' => $scope->status,
                 'remarks' => $scope->remarks,
+                'contract_amount' => (float) ($scope->contract_amount ?? 0),
+                'weight_percent' => (float) ($scope->weight_percent ?? 0),
+                'start_date' => optional($scope->start_date)?->toDateString(),
+                'target_completion' => optional($scope->target_completion)?->toDateString(),
                 'updated_at' => optional($scope->updated_at)?->toDateTimeString(),
                 'photos' => $scope->photos->map(fn ($photo) => [
                     'id' => $photo->id,
@@ -105,6 +109,10 @@ class MonitoringController extends Controller
             'progress_percent' => ['required', 'integer', 'min:0', 'max:100'],
             'status' => ['required', 'string', 'max:50'],
             'remarks' => ['nullable', 'string', 'max:2000'],
+            'contract_amount' => ['required', 'numeric', 'min:0'],
+            'weight_percent' => ['required', 'numeric', 'min:0', 'max:100'],
+            'start_date' => ['nullable', 'date'],
+            'target_completion' => ['nullable', 'date'],
         ]);
     }
 

@@ -24,6 +24,8 @@ const inputStyle = {
 };
 
 const STATUS_OPTIONS = ['NOT_STARTED', 'IN_PROGRESS', 'HOLD', 'COMPLETED'];
+const money = (value) =>
+    `P ${Number(value || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 const normalizeAssignedPersonnelNames = (value) => {
     const rawNames = Array.isArray(value)
         ? value
@@ -59,6 +61,7 @@ export default function MonitoringBoardPage({ project, scopes = [], foreman_opti
     const [photoInputKey, setPhotoInputKey] = useState(0);
     const [createAssignedPersonnelNames, setCreateAssignedPersonnelNames] = useState([]);
     const [editAssignedPersonnelNames, setEditAssignedPersonnelNames] = useState([]);
+    const [scopePreview, setScopePreview] = useState(null);
     const assignedPersonnelOptions = useMemo(() => {
         const rows = Array.isArray(foremanOptions) ? foremanOptions : [];
 
@@ -82,11 +85,15 @@ export default function MonitoringBoardPage({ project, scopes = [], foreman_opti
         errors: createErrors,
         reset: resetCreateData,
     } = useForm({
-        scope_name: '',
-        assigned_personnel: '',
-        progress_percent: 0,
-        status: STATUS_OPTIONS[0],
-        remarks: '',
+    scope_name: '',
+    assigned_personnel: '',
+    progress_percent: 0,
+    status: STATUS_OPTIONS[0],
+    remarks: '',
+    contract_amount: '',
+    weight_percent: '',
+    start_date: '',
+    target_completion: '',
     });
 
     const {
@@ -96,11 +103,15 @@ export default function MonitoringBoardPage({ project, scopes = [], foreman_opti
         processing: updating,
         errors: editErrors,
     } = useForm({
-        scope_name: '',
-        assigned_personnel: '',
-        progress_percent: 0,
-        status: STATUS_OPTIONS[0],
-        remarks: '',
+    scope_name: '',
+    assigned_personnel: '',
+    progress_percent: 0,
+    status: STATUS_OPTIONS[0],
+    remarks: '',
+    contract_amount: '',
+    weight_percent: '',
+    start_date: '',
+    target_completion: '',
     });
 
     const {
@@ -129,6 +140,10 @@ export default function MonitoringBoardPage({ project, scopes = [], foreman_opti
                 setCreateAssignedPersonnelNames([]);
                 setCreateData('progress_percent', 0);
                 setCreateData('status', STATUS_OPTIONS[0]);
+                setCreateData('contract_amount', '');
+                setCreateData('weight_percent', '');
+                setCreateData('start_date', '');
+                setCreateData('target_completion', '');
             },
             onError: () => toast.error('Unable to add scope.'),
         });
@@ -143,6 +158,10 @@ export default function MonitoringBoardPage({ project, scopes = [], foreman_opti
             progress_percent: Number(scope.progress_percent ?? 0),
             status: scope.status ?? STATUS_OPTIONS[0],
             remarks: scope.remarks ?? '',
+            contract_amount: scope.contract_amount ?? '',
+            weight_percent: scope.weight_percent ?? '',
+            start_date: scope.start_date ?? '',
+            target_completion: scope.target_completion ?? '',
         });
     };
 
@@ -375,6 +394,55 @@ export default function MonitoringBoardPage({ project, scopes = [], foreman_opti
                         {createErrors.status && <div style={{ color: '#f87171', fontSize: 12, marginTop: 4 }}>{createErrors.status}</div>}
                     </label>
 
+                    <label>
+                        <div style={{ fontSize: 12, marginBottom: 6 }}>Contract Amount</div>
+                        <input
+                            type="number"
+                            min="0"
+                            step="0.01"
+                            value={createData.contract_amount}
+                            onChange={(event) => setCreateData('contract_amount', event.target.value)}
+                            style={inputStyle}
+                        />
+                        {createErrors.contract_amount && <div style={{ color: '#f87171', fontSize: 12, marginTop: 4 }}>{createErrors.contract_amount}</div>}
+                    </label>
+
+                    <label>
+                        <div style={{ fontSize: 12, marginBottom: 6 }}>Weight %</div>
+                        <input
+                            type="number"
+                            min="0"
+                            max="100"
+                            step="0.01"
+                            value={createData.weight_percent}
+                            onChange={(event) => setCreateData('weight_percent', event.target.value)}
+                            style={inputStyle}
+                        />
+                        {createErrors.weight_percent && <div style={{ color: '#f87171', fontSize: 12, marginTop: 4 }}>{createErrors.weight_percent}</div>}
+                    </label>
+
+                    <label>
+                        <div style={{ fontSize: 12, marginBottom: 6 }}>Start Date</div>
+                        <input
+                            type="date"
+                            value={createData.start_date}
+                            onChange={(event) => setCreateData('start_date', event.target.value)}
+                            style={inputStyle}
+                        />
+                        {createErrors.start_date && <div style={{ color: '#f87171', fontSize: 12, marginTop: 4 }}>{createErrors.start_date}</div>}
+                    </label>
+
+                    <label>
+                        <div style={{ fontSize: 12, marginBottom: 6 }}>Target Completion</div>
+                        <input
+                            type="date"
+                            value={createData.target_completion}
+                            onChange={(event) => setCreateData('target_completion', event.target.value)}
+                            style={inputStyle}
+                        />
+                        {createErrors.target_completion && <div style={{ color: '#f87171', fontSize: 12, marginTop: 4 }}>{createErrors.target_completion}</div>}
+                    </label>
+
                     <label style={{ gridColumn: '1 / -1' }}>
                         <div style={{ fontSize: 12, marginBottom: 6 }}>Remarks</div>
                         <textarea
@@ -410,10 +478,10 @@ export default function MonitoringBoardPage({ project, scopes = [], foreman_opti
                     <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
                         <thead>
                             <tr>
-                                {['Scope', 'Assigned', 'Progress', 'Status', 'Remarks', 'Photos', 'Updated', 'Actions'].map((label) => (
-                                    <th
-                                        key={label}
-                                        style={{
+                        {['Scope', 'Contract', 'Weight', 'Start', 'Target', 'Assigned', 'Progress', 'Status', 'Remarks', 'Photos', 'Updated', 'Actions'].map((label) => (
+                            <th
+                                key={label}
+                                style={{
                                             textAlign: 'left',
                                             borderBottom: '1px solid var(--border-color)',
                                             color: 'var(--text-muted)',
@@ -449,6 +517,63 @@ export default function MonitoringBoardPage({ project, scopes = [], foreman_opti
                                                 />
                                             ) : (
                                                 scope.scope_name
+                                            )}
+                                        </td>
+                                        <td style={{ padding: '10px 8px', borderBottom: '1px solid var(--border-color)' }}>
+                                            {isEditing ? (
+                                                <input
+                                                    type="number"
+                                                    min="0"
+                                                    step="0.01"
+                                                    value={editData.contract_amount}
+                                                    onChange={(event) => setEditData('contract_amount', event.target.value)}
+                                                    style={inputStyle}
+                                                />
+                                            ) : scope.contract_amount ? (
+                                                money(scope.contract_amount)
+                                            ) : (
+                                                '-'
+                                            )}
+                                        </td>
+                                        <td style={{ padding: '10px 8px', borderBottom: '1px solid var(--border-color)', whiteSpace: 'nowrap' }}>
+                                            {isEditing ? (
+                                                <input
+                                                    type="number"
+                                                    min="0"
+                                                    max="100"
+                                                    step="0.01"
+                                                    value={editData.weight_percent}
+                                                    onChange={(event) => setEditData('weight_percent', event.target.value)}
+                                                    style={inputStyle}
+                                                />
+                                            ) : scope.weight_percent ? (
+                                                `${Number(scope.weight_percent).toFixed(2)}%`
+                                            ) : (
+                                                '-'
+                                            )}
+                                        </td>
+                                        <td style={{ padding: '10px 8px', borderBottom: '1px solid var(--border-color)' }}>
+                                            {isEditing ? (
+                                                <input
+                                                    type="date"
+                                                    value={editData.start_date}
+                                                    onChange={(event) => setEditData('start_date', event.target.value)}
+                                                    style={inputStyle}
+                                                />
+                                            ) : (
+                                                scope.start_date || '-'
+                                            )}
+                                        </td>
+                                        <td style={{ padding: '10px 8px', borderBottom: '1px solid var(--border-color)' }}>
+                                            {isEditing ? (
+                                                <input
+                                                    type="date"
+                                                    value={editData.target_completion}
+                                                    onChange={(event) => setEditData('target_completion', event.target.value)}
+                                                    style={inputStyle}
+                                                />
+                                            ) : (
+                                                scope.target_completion || '-'
                                             )}
                                         </td>
                                         <td style={{ padding: '10px 8px', borderBottom: '1px solid var(--border-color)' }}>
@@ -555,39 +680,46 @@ export default function MonitoringBoardPage({ project, scopes = [], foreman_opti
                                                 {scope.photos?.length > 0 ? (
                                                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
                                                         {scope.photos.map((photo) => (
-                                                            <a
+                                                            <button
                                                                 key={photo.id}
-                                                                href={`/storage/${photo.photo_path}`}
-                                                                target="_blank"
-                                                                rel="noreferrer"
+                                                                type="button"
+                                                                onClick={() => setScopePreview({ ...photo, scope: scope.scope_name })}
                                                                 style={{
-                                                                    textDecoration: 'none',
-                                                                    color: 'inherit',
-                                                                    border: '1px solid var(--border-color)',
-                                                                    borderRadius: 8,
-                                                                    padding: 6,
+                                                                    border: 'none',
+                                                                    background: 'transparent',
+                                                                    padding: 0,
+                                                                    cursor: 'pointer',
                                                                     width: 106,
-                                                                    background: 'var(--surface-2)',
+                                                                    textAlign: 'left',
                                                                 }}
                                                             >
-                                                                <img
-                                                                    src={`/storage/${photo.photo_path}`}
-                                                                    alt={photo.caption || 'Scope photo'}
+                                                                <div
                                                                     style={{
-                                                                        width: '100%',
-                                                                        height: 68,
-                                                                        objectFit: 'cover',
-                                                                        borderRadius: 6,
-                                                                        marginBottom: 4,
+                                                                        border: '1px solid var(--border-color)',
+                                                                        borderRadius: 8,
+                                                                        padding: 6,
+                                                                        background: 'var(--surface-2)',
                                                                     }}
-                                                                />
-                                                                <div style={{ fontSize: 11, color: 'var(--text-main)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                                                    {photo.caption || 'No caption'}
+                                                                >
+                                                                    <img
+                                                                        src={`/storage/${photo.photo_path}`}
+                                                                        alt={photo.caption || 'Scope photo'}
+                                                                        style={{
+                                                                            width: '100%',
+                                                                            height: 68,
+                                                                            objectFit: 'cover',
+                                                                            borderRadius: 6,
+                                                                            marginBottom: 4,
+                                                                        }}
+                                                                    />
+                                                                    <div style={{ fontSize: 11, color: 'var(--text-main)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                                                        {photo.caption || 'No caption'}
+                                                                    </div>
+                                                                    <div style={{ fontSize: 10, color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                                                        {photo.created_at || '-'}
+                                                                    </div>
                                                                 </div>
-                                                                <div style={{ fontSize: 10, color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                                                    {photo.created_at || '-'}
-                                                                </div>
-                                                            </a>
+                                                            </button>
                                                         ))}
                                                     </div>
                                                 ) : (
@@ -754,13 +886,25 @@ export default function MonitoringBoardPage({ project, scopes = [], foreman_opti
                         </tbody>
                     </table>
 
-                    {(editErrors.scope_name || editErrors.progress_percent || editErrors.status || editErrors.assigned_personnel || editErrors.remarks) && (
+                    {(editErrors.scope_name ||
+                        editErrors.progress_percent ||
+                        editErrors.status ||
+                        editErrors.assigned_personnel ||
+                        editErrors.remarks ||
+                        editErrors.contract_amount ||
+                        editErrors.weight_percent ||
+                        editErrors.start_date ||
+                        editErrors.target_completion) && (
                         <div style={{ color: '#f87171', fontSize: 12, marginTop: 10 }}>
                             {editErrors.scope_name ||
                                 editErrors.progress_percent ||
                                 editErrors.status ||
                                 editErrors.assigned_personnel ||
-                                editErrors.remarks}
+                                editErrors.remarks ||
+                                editErrors.contract_amount ||
+                                editErrors.weight_percent ||
+                                editErrors.start_date ||
+                                editErrors.target_completion}
                         </div>
                     )}
                 </div>
@@ -822,6 +966,34 @@ export default function MonitoringBoardPage({ project, scopes = [], foreman_opti
                             </button>
                         </div>
                     </div>
+                </Modal>
+                <Modal
+                    open={!!scopePreview}
+                    onClose={() => setScopePreview(null)}
+                    title={scopePreview?.caption || scopePreview?.scope || 'Scope Photo'}
+                    maxWidth={900}
+                >
+                    {scopePreview && (
+                        <div style={{ display: 'grid', gap: 10 }}>
+                            <img
+                                src={`/storage/${scopePreview.photo_path}`}
+                                alt={scopePreview.caption || scopePreview.scope || 'Scope photo'}
+                                style={{
+                                    width: '100%',
+                                    maxHeight: '70vh',
+                                    objectFit: 'contain',
+                                    border: '1px solid var(--border-color)',
+                                    borderRadius: 8,
+                                    background: 'var(--surface-2)',
+                                }}
+                            />
+                            <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+                                {scopePreview.scope ? `Scope: ${scopePreview.scope}` : null}
+                                {scopePreview.scope && scopePreview.created_at ? ' | ' : ''}
+                                {scopePreview.created_at || '-'}
+                            </div>
+                        </div>
+                    )}
                 </Modal>
             </Layout>
         </>

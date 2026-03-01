@@ -426,6 +426,15 @@ export default function HeadAdminProjectsShow({
                                 <Link href={`/projects/${project.id}/monitoring`} style={shortcutLinkStyle}>
                                     Open Monitoring Board
                                 </Link>
+                                <a
+                                    href={`/projects/${project.id}/client-receipt`}
+                                    style={shortcutLinkStyle}
+                                    target="_blank"
+                                    rel="noreferrer noopener"
+                                    data-inertia="false"
+                                >
+                                    View Client Receipt
+                                </a>
                                 <Link href={`/projects/${project.id}/expenses`} style={shortcutLinkStyle}>
                                     Open Expenses
                                 </Link>

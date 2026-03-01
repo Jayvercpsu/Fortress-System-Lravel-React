@@ -9,6 +9,7 @@ use App\Models\Payment;
 use App\Models\Project;
 use App\Models\ProjectAssignment;
 use App\Models\ProjectWorker;
+use App\Models\ProgressSubmitToken;
 use App\Models\User;
 use App\Models\Worker;
 use Illuminate\Pagination\LengthAwarePaginator;
@@ -16,6 +17,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 
@@ -308,6 +310,42 @@ class ProjectController extends Controller
         return redirect()
             ->route('projects.show', ['project' => $project->id])
             ->with('success', 'Project updated.');
+    }
+
+    public function projectReceipt(Request $request, Project $project)
+    {
+        abort_unless(in_array($request->user()->role, ['head_admin', 'admin'], true), 403);
+
+        $assignment = $project->assignments()
+            ->where('role_in_project', 'foreman')
+            ->latest('id')
+            ->first(['user_id']);
+
+        $foremanId = $assignment->user_id ?? null;
+        if ($foremanId === null) {
+            abort(404, 'No foreman assigned to this project.');
+        }
+
+        $token = ProgressSubmitToken::query()
+            ->where('project_id', $project->id)
+            ->where('foreman_id', $foremanId)
+            ->whereNull('revoked_at')
+            ->where(function ($query) {
+                $query->whereNull('expires_at')->orWhere('expires_at', '>', now());
+            })
+            ->latest('id')
+            ->first();
+
+        if (!$token) {
+            $token = ProgressSubmitToken::create([
+                'project_id' => $project->id,
+                'foreman_id' => $foremanId,
+                'token' => Str::random(48),
+                'expires_at' => now()->addDays(30),
+            ]);
+        }
+
+        return redirect()->route('public.progress-receipt', ['token' => $token->token]);
     }
 
     public function updatePhase(Request $request, Project $project)

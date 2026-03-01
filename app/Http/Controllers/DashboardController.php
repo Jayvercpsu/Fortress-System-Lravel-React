@@ -483,6 +483,7 @@ class DashboardController extends Controller
         $assignedProjects = $this->foremanAssignedProjectsPayload($user, $assignedProjectIds);
 
         $recentMaterialRequests = MaterialRequest::query()
+            ->with('project:id,name')
             ->where('foreman_id', $user->id)
             ->latest()
             ->paginate(5, ['*'], 'materials_page')
@@ -491,6 +492,8 @@ class DashboardController extends Controller
         $recentMaterialRequests->setCollection(
             $recentMaterialRequests->getCollection()->map(fn (MaterialRequest $requestRow) => [
                 'id' => $requestRow->id,
+                'project_id' => $requestRow->project_id,
+                'project_name' => $requestRow->project?->name,
                 'material_name' => $requestRow->material_name,
                 'quantity' => $requestRow->quantity,
                 'unit' => $requestRow->unit,

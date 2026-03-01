@@ -13,10 +13,18 @@ class ProjectScope extends Model
         'progress_percent',
         'status',
         'remarks',
+        'contract_amount',
+        'weight_percent',
+        'start_date',
+        'target_completion',
     ];
 
     protected $casts = [
         'progress_percent' => 'integer',
+        'contract_amount' => 'decimal:2',
+        'weight_percent' => 'decimal:2',
+        'start_date' => 'date',
+        'target_completion' => 'date',
     ];
 
     public function project()

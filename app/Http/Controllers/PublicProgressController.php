@@ -340,6 +340,77 @@ class PublicProgressController extends Controller
         ]);
     }
 
+    public function receipt(Request $request, string $token)
+    {
+        $submitToken = $this->resolveActiveToken($token);
+        $project = $submitToken->project;
+
+        $scopes = $project->scopes()
+            ->with(['photos' => fn ($query) => $query->latest('id')->limit(4)])
+            ->orderBy('scope_name')
+            ->get();
+
+        $scopeRows = $scopes->map(function (ProjectScope $scope) {
+            $progress = (float) ($scope->progress_percent ?? 0);
+            $weight = (float) ($scope->weight_percent ?? 0);
+            $contract = (float) ($scope->contract_amount ?? 0);
+            $computedPercent = round($weight * $progress / 100, 2);
+            $amountToDate = round($contract * min(100, $progress) / 100, 2);
+
+            return [
+                'id' => $scope->id,
+                'scope_name' => $scope->scope_name,
+                'contract_amount' => $contract,
+                'weight_percent' => $weight,
+                'progress_percent' => (int) $scope->progress_percent,
+                'computed_percent' => $computedPercent,
+                'amount_to_date' => $amountToDate,
+                'start_date' => optional($scope->start_date)?->toDateString(),
+                'target_completion' => optional($scope->target_completion)?->toDateString(),
+                'assigned_personnel' => $scope->assigned_personnel,
+                'photos' => $scope->photos->map(fn ($photo) => [
+                    'id' => $photo->id,
+                    'photo_path' => $photo->photo_path,
+                    'caption' => $photo->caption,
+                    'created_at' => optional($photo->created_at)?->toDateTimeString(),
+                ])->values(),
+            ];
+        })->values();
+
+        $issueTotals = IssueReport::query()
+            ->where('project_id', $project->id)
+            ->selectRaw('status, COUNT(*) as total')
+            ->groupBy('status')
+            ->pluck('total', 'status')
+            ->all();
+
+        $totals = [
+            'contract_total' => round($scopeRows->sum('contract_amount'), 2),
+            'weight_total' => round($scopeRows->sum('weight_percent'), 2),
+            'weighted_progress_percent' => round($scopeRows->sum('computed_percent'), 2),
+            'computed_amount_total' => round($scopeRows->sum('amount_to_date'), 2),
+        ];
+
+        return Inertia::render('Public/ProgressReceipt', [
+            'project' => [
+                'id' => $project->id,
+                'name' => $project->name,
+                'client' => $project->client,
+                'phase' => $project->phase,
+                'status' => $project->status,
+            ],
+            'foreman_name' => $submitToken->foreman->fullname ?? '',
+            'scopes' => $scopeRows,
+            'totals' => $totals,
+            'issue_summary' => [
+                'open' => $issueTotals['open'] ?? 0,
+                'resolved' => $issueTotals['resolved'] ?? 0,
+            ],
+            'token' => $submitToken->token,
+            'expires_at' => optional($submitToken->expires_at)?->toDateTimeString(),
+        ]);
+    }
+
     public function store(Request $request, string $token)
     {
         $submitToken = $this->resolveActiveToken($token);
