@@ -1,4 +1,5 @@
 import Layout from '../../../Components/Layout';
+import ActionButton from '../../../Components/ActionButton';
 import { Head } from '@inertiajs/react';
 
 const cardStyle = {
@@ -6,6 +7,12 @@ const cardStyle = {
     border: '1px solid var(--border-color)',
     borderRadius: 12,
     padding: 16,
+};
+
+const receiptLinkStyle = {
+    color: 'var(--success)',
+    fontWeight: 600,
+    textDecoration: 'none',
 };
 
 const money = (value) =>
@@ -54,6 +61,7 @@ export default function ReportsIndex({ summary = {}, projectProfitability = [] }
                                     'Total Cost',
                                     'Net Profit (Collected)',
                                     'Net Profit (Contract)',
+                                    'Receipt',
                                 ].map((header) => (
                                     <th
                                         key={header}
@@ -74,7 +82,7 @@ export default function ReportsIndex({ summary = {}, projectProfitability = [] }
                         <tbody>
                             {projectProfitability.length === 0 ? (
                                 <tr>
-                                    <td colSpan={8} style={{ padding: 28, textAlign: 'center', color: 'var(--text-muted)' }}>
+                                    <td colSpan={11} style={{ padding: 28, textAlign: 'center', color: 'var(--text-muted)' }}>
                                         No project profitability data yet.
                                     </td>
                                 </tr>
@@ -143,6 +151,17 @@ export default function ReportsIndex({ summary = {}, projectProfitability = [] }
                                             <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>
                                                 {row.profit_margin_contract_percent == null ? '-' : `${row.profit_margin_contract_percent}%`}
                                             </div>
+                                        </td>
+                                        <td style={{ padding: '10px 12px' }}>
+                                            <ActionButton
+                                                href={`/projects/${row.id}/client-receipt`}
+                                                external
+                                                variant="success"
+                                                style={{ padding: '6px 10px', fontSize: 11 }}
+                                                data-inertia="false"
+                                            >
+                                                View Receipt
+                                            </ActionButton>
                                         </td>
                                     </tr>
                                 ))

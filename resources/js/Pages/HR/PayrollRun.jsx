@@ -251,13 +251,21 @@ export default function PayrollRun({
                         <div
                             style={{
                                 display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
                                 gap: 28,
+                                alignItems: 'center',
                                 flexWrap: 'wrap',
+                                justifyContent: 'space-between',
                             }}
                         >
-                            <div style={{ display: 'flex', alignItems: 'center', alignSelf: 'flex-start', paddingTop: 24, gap: 8, flexWrap: 'wrap' }}>
+                            <div
+                                style={{
+                                    display: 'flex',
+                                    gap: 8,
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    flexWrap: 'wrap',
+                                }}
+                            >
                                 <ActionButton href="/payroll/worker-rates" variant="success" style={{ padding: '10px 16px', fontSize: 13 }}>
                                     Worker Rates
                                 </ActionButton>
@@ -269,10 +277,10 @@ export default function PayrollRun({
                             <div
                                 style={{
                                     display: 'grid',
-                                    gridTemplateColumns: 'repeat(2, minmax(220px, 320px)) auto',
+                                    gridTemplateColumns: 'repeat(2, minmax(260px, 360px)) auto',
                                     gap: 12,
-                                    alignItems: 'start',
-                                    justifyContent: 'start',
+                                    alignItems: 'flex-start',
+                                    justifyContent: 'center',
                                 }}
                             >
                                 <label style={{ display: 'grid', alignContent: 'start' }}>
@@ -306,7 +314,7 @@ export default function PayrollRun({
                                     ) : null}
                                 </label>
 
-                                <div style={{ display: 'flex', justifyContent: 'flex-start', alignItems: 'start', paddingTop: 24 }}>
+                                <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'start', paddingTop: 16 }}>
                                     <ActionButton type="submit" variant="success" disabled={generateForm.processing} style={{ padding: '10px 16px', fontSize: 13 }}>
                                         {generateForm.processing ? 'Generating...' : 'Generate Payroll'}
                                     </ActionButton>

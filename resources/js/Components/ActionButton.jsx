@@ -64,7 +64,13 @@ export default function ActionButton({
     if (href) {
         if (external) {
             return (
-                <a href={href} style={resolvedStyle} {...rest}>
+                <a
+                    href={href}
+                    style={resolvedStyle}
+                    target="_blank"
+                    rel="noreferrer noopener"
+                    {...rest}
+                >
                     {children}
                 </a>
             );

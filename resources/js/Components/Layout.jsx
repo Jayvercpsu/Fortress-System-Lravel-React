@@ -7,7 +7,7 @@ const navByRole = {
     head_admin: [
         { label: 'Dashboard', href: '/head-admin', icon: 'fi fi-rr-dashboard' },
         { label: 'Projects', href: '/projects', icon: 'fi fi-rr-diagram-project' },
-        { label: 'Builders', href: '/builders', icon: 'fi fi-rr-users' },
+        // Builders navigation temporarily hidden
         { label: 'Attendance', href: '/attendance', icon: 'fi fi-rr-calendar-check' },
         { label: 'Payroll', href: '/payroll/run', icon: 'fi fi-rr-money-bill-wave' },
         { label: 'Materials', href: '/materials', icon: 'fi fi-rr-shopping-cart' },
