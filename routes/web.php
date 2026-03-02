@@ -43,7 +43,7 @@ Route::get('/progress-receipt/{token}', [PublicProgressController::class, 'recei
 
 Route::middleware(['auth', 'role:head_admin,admin,hr,foreman'])->group(function () {
     Route::get('/settings', [SettingsController::class, 'index'])->name('settings.index');
-    Route::patch('/settings', [SettingsController::class, 'update'])->name('settings.update');
+    Route::post('/settings', [SettingsController::class, 'update'])->name('settings.update');
 });
 
 Route::middleware(['auth', 'role:head_admin'])->group(function () {

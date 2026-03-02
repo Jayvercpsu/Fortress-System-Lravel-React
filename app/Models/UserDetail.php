@@ -18,6 +18,7 @@ class UserDetail extends Model
         'civil_status',
         'phone',
         'address',
+        'profile_photo_path',
     ];
 
     protected $casts = [

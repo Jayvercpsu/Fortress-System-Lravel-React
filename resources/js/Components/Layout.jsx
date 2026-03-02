@@ -55,6 +55,7 @@ const roleLabels = {
 export default function Layout({ children, title }) {
     const { auth } = usePage().props;
     const user = auth?.user;
+    const profilePhotoUrl = user?.profile_photo_path ? `/storage/${user.profile_photo_path}` : null;
     const navItems = navByRole[user?.role] || [];
     const currentPath =
         typeof window !== 'undefined'
@@ -155,8 +156,48 @@ export default function Layout({ children, title }) {
                     </nav>
 
                     <div style={{ padding: '12px 16px', borderTop: '1px solid var(--border-color)' }}>
-                        <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 4 }}>{user?.fullname}</div>
-                        <div style={{ fontSize: 11, color: 'var(--text-muted-2)', marginBottom: 10 }}>{user?.email}</div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
+                        <div
+                            style={{
+                                width: 42,
+                                minWidth: 42,
+                                height: 42,
+                                minHeight: 42,
+                                borderRadius: 999,
+                                overflow: 'hidden',
+                                background: 'var(--surface-2)',
+                                border: '1px solid var(--border-color)',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                aspectRatio: '1 / 1',
+                            }}
+                        >
+                            {profilePhotoUrl ? (
+                                <img
+                                    src={profilePhotoUrl}
+                                    alt="Profile"
+                                    style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: 999 }}
+                                />
+                            ) : (
+                                <BrandIcon size={32} borderRadius={999} />
+                            )}
+                        </div>
+                        <div style={{ minWidth: 0 }}>
+                            <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{user?.fullname}</div>
+                            <div
+                                style={{
+                                    fontSize: 11,
+                                    color: 'var(--text-muted-2)',
+                                    whiteSpace: 'nowrap',
+                                    overflow: 'hidden',
+                                    textOverflow: 'ellipsis',
+                                }}
+                            >
+                                {user?.email}
+                            </div>
+                        </div>
+                    </div>
 
                         <button
                             onClick={() => setShowLogoutModal(true)}

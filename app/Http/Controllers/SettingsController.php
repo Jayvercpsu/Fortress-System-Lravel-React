@@ -4,8 +4,10 @@ namespace App\Http\Controllers;
 
 use App\Models\User;
 use Illuminate\Http\Request;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Storage;
 use Inertia\Inertia;
 
 class SettingsController extends Controller
@@ -34,12 +36,17 @@ class SettingsController extends Controller
 
         $user->save();
 
+        $detailData = $this->detailPayloadFromValidated($validated);
+        if (!empty($validated['profile_photo'])) {
+            $detailData['profile_photo_path'] = $this->storeProfilePhoto($validated['profile_photo'], $user);
+        }
+
         $user->detail()->updateOrCreate(
             ['user_id' => $user->id],
-            $this->detailPayloadFromValidated($validated)
+            $detailData
         );
 
-        return redirect()->route('settings.index');
+        return redirect()->route('settings.index')->with('success', 'Settings updated successfully.');
     }
 
     private function rules(User $user): array
@@ -73,6 +80,7 @@ class SettingsController extends Controller
             'civil_status' => 'nullable|string|max:100',
             'phone' => 'nullable|string|max:50',
             'address' => 'nullable|string|max:500',
+            'profile_photo' => 'nullable|image|mimes:jpg,jpeg,png,gif,webp|max:5120',
         ];
     }
 
@@ -91,6 +99,23 @@ class SettingsController extends Controller
         ];
     }
 
+    private function storeProfilePhoto(UploadedFile $photo, User $user): string
+    {
+        $detail = $user->detail;
+        if ($detail?->profile_photo_path) {
+            Storage::disk('public')->delete($detail->profile_photo_path);
+        }
+
+        $filename = sprintf(
+            'profile_%s_%s.%s',
+            now()->format('YmdHis'),
+            substr(md5((string) rand()), 0, 6),
+            $photo->guessExtension() ?? 'jpg'
+        );
+
+        return $photo->storeAs('profile-photos/' . $user->id, $filename, 'public');
+    }
+
     private function settingsPayload(User $user): array
     {
         $detail = $user->detail;
@@ -99,6 +124,7 @@ class SettingsController extends Controller
             'fullname' => $user->fullname ?? '',
             'email' => $user->email ?? '',
             'role' => $user->role ?? '',
+            'profile_photo_path' => $detail?->profile_photo_path ?? '',
             'birth_date' => optional($detail?->birth_date)->toDateString(),
             'place_of_birth' => $detail?->place_of_birth ?? '',
             'sex' => $detail?->sex ?? '',

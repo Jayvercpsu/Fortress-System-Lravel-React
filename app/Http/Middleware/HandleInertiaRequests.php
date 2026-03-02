@@ -15,11 +15,12 @@ class HandleInertiaRequests extends Middleware {
                     'fullname' => $request->user()->fullname,
                     'email'    => $request->user()->email,
                     'role'     => $request->user()->role,
+                    'profile_photo_path' => optional($request->user()->detail)->profile_photo_path,
                 ] : null,
             ],
             'flash' => [
-                'success' => $request->session()->get('success'),
-                'error'   => $request->session()->get('error'),
+                'success' => $request->session()->pull('success'),
+                'error'   => $request->session()->pull('error'),
             ],
         ]);
     }
