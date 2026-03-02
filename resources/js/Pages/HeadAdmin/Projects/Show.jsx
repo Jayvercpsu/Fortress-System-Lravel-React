@@ -58,6 +58,9 @@ const shortcutLinkStyle = {
 const money = (value) =>
     `P ${Number(value || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
+const MAX_UPLOAD_SIZE_BYTES = 20 * 1024 * 1024;
+const MAX_UPLOAD_SIZE_LABEL = '20 MB';
+
 const mono = { fontFamily: "'DM Mono', monospace" };
 
 const parseAssignedForemen = (value) =>
@@ -106,6 +109,7 @@ export default function HeadAdminProjectsShow({
     const [pendingAssignedForeman, setPendingAssignedForeman] = useState('');
     const [assignedForemenDraft, setAssignedForemenDraft] = useState(() => parseAssignedForemen(project?.assigned ?? ''));
     const [savingAssignedForemen, setSavingAssignedForemen] = useState(false);
+    const [clientFileError, setClientFileError] = useState('');
 
     const {
         data: fileData,
@@ -206,10 +210,40 @@ export default function HeadAdminProjectsShow({
 
     const uploadFile = (e) => {
         e.preventDefault();
+
+        const file = fileData.file;
+        if (!file) {
+            setClientFileError('Please select a file before uploading.');
+            return;
+        }
+
+        if (file.size > MAX_UPLOAD_SIZE_BYTES) {
+            setClientFileError(`File must be ${MAX_UPLOAD_SIZE_LABEL} or smaller.`);
+            return;
+        }
+
+        setClientFileError('');
+
         postFile(`/projects/${project.id}/files${projectShowQueryString({ tab: 'files', files_page: 1 })}`, {
             forceFormData: true,
             onError: () => toast.error('Upload failed.'),
         });
+    };
+
+    const handleFileInputChange = (event) => {
+        const file = event.target.files?.[0] ?? null;
+        setFileData('file', file);
+
+        if (!file) {
+            setClientFileError('');
+            return;
+        }
+
+        if (file.size > MAX_UPLOAD_SIZE_BYTES) {
+            setClientFileError(`File must be ${MAX_UPLOAD_SIZE_LABEL} or smaller.`);
+        } else {
+            setClientFileError('');
+        }
     };
 
     const addUpdate = (e) => {
@@ -294,6 +328,16 @@ export default function HeadAdminProjectsShow({
                 <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
                     <ActionButton type="button" variant="view" onClick={() => setPreviewFile(file)}>
                         Open
+                    </ActionButton>
+                    <ActionButton
+                        variant="view"
+                        href={`/storage/${file.file_path}`}
+                        external
+                        download
+                        rel="noreferrer"
+                        style={{ padding: '5px 10px' }}
+                    >
+                        Download
                     </ActionButton>
                     <ActionButton type="button" variant="danger" onClick={() => deleteFile(file.id)}>
                         Delete
@@ -662,8 +706,10 @@ export default function HeadAdminProjectsShow({
                 {tab === 'files' && (
                     <div style={{ display: 'grid', gap: 14 }}>
                         <form onSubmit={uploadFile} style={{ ...cardStyle, display: 'grid', gap: 10 }}>
-                            <div style={{ fontWeight: 700 }}>Upload Plan/File</div>
-                            <input type="file" onChange={(e) => setFileData('file', e.target.files?.[0] ?? null)} />
+                            <div style={{ fontWeight: 700 }}>Upload Plan/File (max {MAX_UPLOAD_SIZE_LABEL})</div>
+                            <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>Files over {MAX_UPLOAD_SIZE_LABEL} will be rejected.</div>
+                            <input type="file" onChange={handleFileInputChange} />
+                            {clientFileError && <div style={{ color: '#f87171', fontSize: 12 }}>{clientFileError}</div>}
                             {fileErrors.file && <div style={{ color: '#f87171', fontSize: 12 }}>{fileErrors.file}</div>}
                             <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
                                 <button type="submit" disabled={uploading} style={{ background: 'var(--success)', color: '#fff', border: 'none', borderRadius: 8, padding: '8px 12px' }}>
