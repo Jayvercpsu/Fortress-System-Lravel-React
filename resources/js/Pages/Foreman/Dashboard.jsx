@@ -3,6 +3,7 @@ import InlinePagination from '../../Components/InlinePagination';
 import SearchableDropdown from '../../Components/SearchableDropdown';
 import DatePickerInput from '../../Components/DatePickerInput';
 import ActionButton from '../../Components/ActionButton';
+import Modal from '../../Components/Modal';
 import { Head, Link, router, usePage } from '@inertiajs/react';
 import { Fragment, useEffect, useMemo, useState } from 'react';
 import toast from 'react-hot-toast';
@@ -92,6 +93,7 @@ export default function ForemanDashboard({
         foremanAttendanceToday?.project_id ? String(foremanAttendanceToday.project_id) : ''
     );
     const [clockTick, setClockTick] = useState(Date.now());
+    const [dashboardPreviewPhoto, setDashboardPreviewPhoto] = useState(null);
 
     const projectOptions = useMemo(
         () => (Array.isArray(projects) ? projects.map((project) => ({ id: project.id, name: project.name })) : []),
@@ -173,6 +175,14 @@ export default function ForemanDashboard({
             preserveScroll: true,
             replace: true,
         });
+    };
+
+    const openDashboardPreview = (photo) => {
+        setDashboardPreviewPhoto(photo);
+    };
+
+    const closeDashboardPreview = () => {
+        setDashboardPreviewPhoto(null);
     };
 
     const foremanLiveHours = useMemo(() => {
@@ -493,13 +503,25 @@ export default function ForemanDashboard({
                                     {materialRequestRows.map((item) => (
                                         <div key={item.id} style={{ border: '1px solid var(--border-color)', borderRadius: 8, padding: 10, background: 'var(--surface-2)' }}>
                                             {item.photo_path ? (
-                                                <a href={`/storage/${item.photo_path}`} target="_blank" rel="noreferrer" style={{ display: 'inline-block', marginBottom: 6 }}>
+                                                <button
+                                                    type="button"
+                                                    onClick={() =>
+                                                        openDashboardPreview({
+                                                            photo_path: item.photo_path,
+                                                            caption: item.material_name || 'Material photo',
+                                                            project_name: item.project_name || 'Unassigned',
+                                                            meta: `Qty: ${item.quantity || '-'} ${item.unit || ''}`,
+                                                            created_at: item.created_at,
+                                                        })
+                                                    }
+                                                    style={{ display: 'inline-block', marginBottom: 6, border: 'none', background: 'transparent', padding: 0, cursor: 'pointer' }}
+                                                >
                                                     <img
                                                         src={`/storage/${item.photo_path}`}
                                                         alt={item.material_name || 'Material photo'}
                                                         style={{ width: 88, height: 62, objectFit: 'cover', borderRadius: 6, border: '1px solid var(--border-color)' }}
                                                     />
-                                                </a>
+                                                </button>
                                             ) : null}
                                             <div style={{ fontWeight: 700 }}>{item.material_name}</div>
                                             <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
@@ -522,13 +544,25 @@ export default function ForemanDashboard({
                                     {issueReportRows.map((item) => (
                                         <div key={item.id} style={{ border: '1px solid var(--border-color)', borderRadius: 8, padding: 10, background: 'var(--surface-2)' }}>
                                             {item.photo_path ? (
-                                                <a href={`/storage/${item.photo_path}`} target="_blank" rel="noreferrer" style={{ display: 'inline-block', marginBottom: 6 }}>
+                                                <button
+                                                    type="button"
+                                                    onClick={() =>
+                                                        openDashboardPreview({
+                                                            photo_path: item.photo_path,
+                                                            caption: item.issue_title || 'Issue photo',
+                                                            project_name: item.project_name || 'Unassigned',
+                                                            meta: `Severity: ${item.severity || 'normal'}`,
+                                                            created_at: item.created_at,
+                                                        })
+                                                    }
+                                                    style={{ display: 'inline-block', marginBottom: 6, border: 'none', background: 'transparent', padding: 0, cursor: 'pointer' }}
+                                                >
                                                     <img
                                                         src={`/storage/${item.photo_path}`}
                                                         alt={item.issue_title || 'Issue photo'}
                                                         style={{ width: 88, height: 62, objectFit: 'cover', borderRadius: 6, border: '1px solid var(--border-color)' }}
                                                     />
-                                                </a>
+                                                </button>
                                             ) : null}
                                             <div style={{ fontWeight: 700 }}>{item.issue_title}</div>
                                             <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
@@ -550,13 +584,25 @@ export default function ForemanDashboard({
                                     {deliveryRows.map((item) => (
                                         <div key={item.id} style={{ border: '1px solid var(--border-color)', borderRadius: 8, padding: 10, background: 'var(--surface-2)' }}>
                                             {item.photo_path ? (
-                                                <a href={`/storage/${item.photo_path}`} target="_blank" rel="noreferrer" style={{ display: 'inline-block', marginBottom: 6 }}>
+                                                <button
+                                                    type="button"
+                                                    onClick={() =>
+                                                        openDashboardPreview({
+                                                            photo_path: item.photo_path,
+                                                            caption: item.item_delivered || 'Delivery photo',
+                                                            project_name: item.project_name || 'Unassigned',
+                                                            meta: `Qty: ${item.quantity || '-'} • ${item.delivery_date || '-'}`,
+                                                            created_at: item.created_at,
+                                                        })
+                                                    }
+                                                    style={{ display: 'inline-block', marginBottom: 6, border: 'none', background: 'transparent', padding: 0, cursor: 'pointer' }}
+                                                >
                                                     <img
                                                         src={`/storage/${item.photo_path}`}
                                                         alt={item.item_delivered || 'Delivery photo'}
                                                         style={{ width: 88, height: 62, objectFit: 'cover', borderRadius: 6, border: '1px solid var(--border-color)' }}
                                                     />
-                                                </a>
+                                                </button>
                                             ) : null}
                                             <div style={{ fontWeight: 700 }}>{item.item_delivered}</div>
                                             <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>
@@ -739,6 +785,55 @@ export default function ForemanDashboard({
                         <InlinePagination pager={weeklyAccomplishmentsByProjectPager} />
                     </div>
                 </div>
+                <Modal
+                    open={!!dashboardPreviewPhoto}
+                    onClose={closeDashboardPreview}
+                    title={dashboardPreviewPhoto?.caption || 'Photo preview'}
+                    maxWidth={900}
+                >
+                    {dashboardPreviewPhoto && (
+                        <div style={{ display: 'grid', gap: 10 }}>
+                            <img
+                                src={`/storage/${dashboardPreviewPhoto.photo_path}`}
+                                alt={dashboardPreviewPhoto.caption || 'Preview photo'}
+                                style={{
+                                    width: '100%',
+                                    maxHeight: '70vh',
+                                    objectFit: 'contain',
+                                    border: '1px solid var(--border-color)',
+                                    borderRadius: 8,
+                                    background: 'var(--surface-2)',
+                                    display: 'block',
+                                }}
+                            />
+                            <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+                                Project: {dashboardPreviewPhoto.project_name || 'Unassigned'} | {dashboardPreviewPhoto.created_at || '-'}
+                            </div>
+                            {dashboardPreviewPhoto.meta ? (
+                                <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{dashboardPreviewPhoto.meta}</div>
+                            ) : null}
+                            <div style={{ textAlign: 'right' }}>
+                                <a
+                                    href={`/storage/${dashboardPreviewPhoto.photo_path}`}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    style={{
+                                        border: '1px solid var(--border-color)',
+                                        borderRadius: 8,
+                                        padding: '6px 12px',
+                                        fontSize: 12,
+                                        fontWeight: 700,
+                                        textDecoration: 'none',
+                                        color: 'var(--text-main)',
+                                        background: 'var(--button-bg)',
+                                    }}
+                                >
+                                    Open in new tab
+                                </a>
+                            </div>
+                        </div>
+                    )}
+                </Modal>
             </Layout>
         </>
     );
