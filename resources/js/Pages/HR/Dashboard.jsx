@@ -1,6 +1,7 @@
 import Layout from '../../Components/Layout';
 import InlinePagination from '../../Components/InlinePagination';
-import { Head, Link } from '@inertiajs/react';
+import ActionButton from '../../Components/ActionButton';
+import { Head } from '@inertiajs/react';
 
 const cardStyle = {
     background: 'var(--surface-1)',
@@ -93,35 +94,19 @@ export default function HRDashboard({
                             </div>
                         </div>
                         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                            <Link
+                            <ActionButton
                                 href="/payroll/run"
-                                style={{
-                                    background: 'var(--success)',
-                                    color: '#fff',
-                                    borderRadius: 8,
-                                    padding: '9px 14px',
-                                    fontSize: 13,
-                                    fontWeight: 700,
-                                    textDecoration: 'none',
-                                }}
+                                variant="success"
+                                style={{ padding: '9px 14px', fontSize: 13 }}
                             >
                                 Manage Payroll
-                            </Link>
-                            <Link
+                            </ActionButton>
+                            <ActionButton
                                 href="/payroll"
-                                style={{
-                                    background: 'var(--button-bg)',
-                                    color: 'var(--text-main)',
-                                    border: '1px solid var(--border-color)',
-                                    borderRadius: 8,
-                                    padding: '9px 14px',
-                                    fontSize: 13,
-                                    fontWeight: 700,
-                                    textDecoration: 'none',
-                                }}
+                                style={{ padding: '9px 14px', fontSize: 13 }}
                             >
                                 Payroll Entries
-                            </Link>
+                            </ActionButton>
                         </div>
                     </div>
                 </div>
@@ -175,36 +160,18 @@ export default function HRDashboard({
                                         </div>
                                     </div>
                                     <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', justifySelf: 'end' }}>
-                                        <Link
+                                        <ActionButton
                                             href={`/projects/${project.id}/payments`}
-                                            style={{
-                                                background: 'var(--button-bg)',
-                                                color: 'var(--text-main)',
-                                                border: '1px solid var(--border-color)',
-                                                borderRadius: 8,
-                                                padding: '7px 10px',
-                                                textDecoration: 'none',
-                                                fontSize: 12,
-                                                fontWeight: 700,
-                                            }}
+                                            style={{ padding: '7px 10px' }}
                                         >
                                             Payments
-                                        </Link>
-                                        <Link
+                                        </ActionButton>
+                                        <ActionButton
                                             href={`/projects/${project.id}/financials`}
-                                            style={{
-                                                background: 'var(--button-bg)',
-                                                color: 'var(--text-main)',
-                                                border: '1px solid var(--border-color)',
-                                                borderRadius: 8,
-                                                padding: '7px 10px',
-                                                textDecoration: 'none',
-                                                fontSize: 12,
-                                                fontWeight: 700,
-                                            }}
+                                            style={{ padding: '7px 10px' }}
                                         >
                                             Financials
-                                        </Link>
+                                        </ActionButton>
                                     </div>
                                 </div>
                             ))

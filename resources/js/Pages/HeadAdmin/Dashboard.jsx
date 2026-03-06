@@ -1,6 +1,7 @@
 import Layout from '../../Components/Layout';
 import InlinePagination from '../../Components/InlinePagination';
-import { Head, Link } from '@inertiajs/react';
+import ActionButton from '../../Components/ActionButton';
+import { Head } from '@inertiajs/react';
 
 const cardStyle = {
     background: 'var(--surface-1)',
@@ -167,21 +168,12 @@ export default function HeadAdminDashboard({
                                         <div style={{ fontSize: 12, fontFamily: "'DM Mono', monospace" }}>
                                             {money(project.total_client_payment)}
                                         </div>
-                                        <Link
+                                        <ActionButton
                                             href={`/projects/${project.id}`}
-                                            style={{
-                                                textDecoration: 'none',
-                                                border: '1px solid var(--border-color)',
-                                                borderRadius: 8,
-                                                padding: '6px 10px',
-                                                background: 'var(--button-bg)',
-                                                color: 'var(--text-main)',
-                                                fontSize: 12,
-                                                fontWeight: 600,
-                                            }}
+                                            style={{ padding: '6px 10px' }}
                                         >
                                             Open
-                                        </Link>
+                                        </ActionButton>
                                     </div>
                                 ))
                             )}

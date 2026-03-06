@@ -1,8 +1,9 @@
 import Layout from './Layout';
+import ActionButton from './ActionButton';
 import DataTable from './DataTable';
 import Modal from './Modal';
 import DatePickerInput from './DatePickerInput';
-import { Head, Link, router, useForm, usePage } from '@inertiajs/react';
+import { Head, router, useForm, usePage } from '@inertiajs/react';
 import { useEffect, useState } from 'react';
 import toast from 'react-hot-toast';
 import { ArrowLeft } from 'lucide-react';
@@ -142,21 +143,14 @@ export default function ProjectPaymentsPage({ project, payments = [], paymentTab
             label: 'Actions',
             align: 'right',
             render: (payment) => (
-                <button
+                <ActionButton
                     type="button"
+                    variant="danger"
                     onClick={() => setPaymentToDelete(payment)}
-                    style={{
-                        background: 'rgba(239,68,68,0.14)',
-                        color: '#f87171',
-                        border: '1px solid rgba(239,68,68,0.3)',
-                        borderRadius: 8,
-                        padding: '6px 10px',
-                        cursor: 'pointer',
-                        fontSize: 12,
-                    }}
+                    style={{ padding: '6px 10px' }}
                 >
                     Delete
-                </button>
+                </ActionButton>
             ),
         },
     ];
@@ -169,40 +163,20 @@ export default function ProjectPaymentsPage({ project, payments = [], paymentTab
             <Layout title={`Payments - ${project.name}`}>
                 <div style={{ marginBottom: 12 }}>
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap' }}>
-                        <Link
+                        <ActionButton
                             href={backHref}
-                            style={{
-                                display: 'inline-flex',
-                                alignItems: 'center',
-                                gap: 8,
-                                color: 'var(--text-main)',
-                                textDecoration: 'none',
-                                border: '1px solid var(--border-color)',
-                                background: 'var(--button-bg)',
-                                borderRadius: 8,
-                                padding: '8px 12px',
-                                fontSize: 13,
-                            }}
+                            style={{ padding: '8px 12px', fontSize: 13 }}
                         >
                             <ArrowLeft size={16} />
                             Back
-                        </Link>
+                        </ActionButton>
 
-                        <Link
+                        <ActionButton
                             href={`/projects/${project.id}/financials`}
-                            style={{
-                                background: 'var(--button-bg)',
-                                color: 'var(--text-main)',
-                                border: '1px solid var(--border-color)',
-                                borderRadius: 8,
-                                padding: '8px 12px',
-                                fontSize: 13,
-                                fontWeight: 700,
-                                textDecoration: 'none',
-                            }}
+                            style={{ padding: '8px 12px', fontSize: 13 }}
                         >
                             Open Financials
-                        </Link>
+                        </ActionButton>
                     </div>
                 </div>
 
@@ -257,23 +231,14 @@ export default function ProjectPaymentsPage({ project, payments = [], paymentTab
                     </label>
 
                     <div style={{ gridColumn: '1 / -1', display: 'flex', justifyContent: 'flex-end' }}>
-                        <button
+                        <ActionButton
                             type="submit"
+                            variant="success"
                             disabled={processing}
-                            style={{
-                                background: 'var(--success)',
-                                color: '#fff',
-                                border: 'none',
-                                borderRadius: 8,
-                                padding: '10px 16px',
-                                fontSize: 13,
-                                fontWeight: 600,
-                                cursor: processing ? 'not-allowed' : 'pointer',
-                                opacity: processing ? 0.7 : 1,
-                            }}
+                            style={{ padding: '10px 16px', fontSize: 13 }}
                         >
                             {processing ? 'Saving...' : 'Add Payment'}
-                        </button>
+                        </ActionButton>
                     </div>
                 </form>
 
@@ -309,35 +274,21 @@ export default function ProjectPaymentsPage({ project, payments = [], paymentTab
                             Delete this payment ({money(paymentToDelete?.amount)})?
                         </div>
                         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
-                            <button
+                            <ActionButton
                                 type="button"
                                 onClick={() => setPaymentToDelete(null)}
-                                style={{
-                                    background: 'var(--button-bg)',
-                                    color: 'var(--text-main)',
-                                    border: '1px solid var(--border-color)',
-                                    borderRadius: 8,
-                                    padding: '8px 12px',
-                                    cursor: 'pointer',
-                                }}
+                                style={{ padding: '8px 12px' }}
                             >
                                 Cancel
-                            </button>
-                            <button
+                            </ActionButton>
+                            <ActionButton
                                 type="button"
+                                variant="danger"
                                 onClick={deletePayment}
-                                style={{
-                                    background: '#ef4444',
-                                    color: '#fff',
-                                    border: 'none',
-                                    borderRadius: 8,
-                                    padding: '8px 12px',
-                                    cursor: 'pointer',
-                                    fontWeight: 600,
-                                }}
+                                style={{ padding: '8px 12px' }}
                             >
                                 Delete
-                            </button>
+                            </ActionButton>
                         </div>
                     </div>
                 </Modal>

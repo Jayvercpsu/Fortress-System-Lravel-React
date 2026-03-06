@@ -1,5 +1,6 @@
 import Layout from './Layout';
 import DatePickerInput from './DatePickerInput';
+import ActionButton from './ActionButton';
 import { Head, useForm } from '@inertiajs/react';
 import toast from 'react-hot-toast';
 
@@ -153,7 +154,7 @@ export default function UserFormPage({ mode = 'create', user = {} }) {
                         </div>
 
                         <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
-                            <button
+                            <ActionButton
                                 type="button"
                                 onClick={() => {
                                     if (window.history.length > 1) {
@@ -162,36 +163,19 @@ export default function UserFormPage({ mode = 'create', user = {} }) {
                                         window.location.href = '/users';
                                     }
                                 }}
-                                style={{
-                                    background: 'var(--button-bg)',
-                                    color: 'var(--text-muted)',
-                                    border: '1px solid var(--border-color)',
-                                    borderRadius: 8,
-                                    padding: '10px 14px',
-                                    fontSize: 13,
-                                    cursor: 'pointer',
-                                }}
+                                style={{ padding: '10px 14px', fontSize: 13, color: 'var(--text-muted)' }}
                             >
                                 Cancel
-                            </button>
+                            </ActionButton>
 
-                            <button
+                            <ActionButton
                                 type="submit"
+                                variant="success"
                                 disabled={processing}
-                                style={{
-                                    background: 'var(--success)',
-                                    color: '#fff',
-                                    border: 'none',
-                                    borderRadius: 8,
-                                    padding: '10px 16px',
-                                    fontSize: 13,
-                                    fontWeight: 600,
-                                    cursor: processing ? 'not-allowed' : 'pointer',
-                                    opacity: processing ? 0.7 : 1,
-                                }}
+                                style={{ padding: '10px 16px', fontSize: 13 }}
                             >
                                 {processing ? 'Saving...' : isEdit ? 'Update User' : 'Create User'}
-                            </button>
+                            </ActionButton>
                         </div>
                     </form>
                 </div>

@@ -1,6 +1,7 @@
 import Layout from '../../../Components/Layout';
 import DataTable from '../../../Components/DataTable';
-import { Head, Link, router } from '@inertiajs/react';
+import ActionButton from '../../../Components/ActionButton';
+import { Head, router } from '@inertiajs/react';
 
 const roleColor = { admin: '#60a5fa', hr: '#fbbf24', foreman: '#4ade80' };
 
@@ -102,35 +103,20 @@ export default function UsersIndex({ users = [], userTable = {} }) {
             label: 'Actions',
             render: (user) => (
                 <div style={{ display: 'inline-flex', gap: 8 }}>
-                    <Link
+                    <ActionButton
                         href={`/users/${user.id}/edit${listQueryString()}`}
-                        style={{
-                            background: 'var(--button-bg)',
-                            color: 'var(--text-main)',
-                            border: '1px solid var(--border-color)',
-                            borderRadius: 6,
-                            padding: '5px 12px',
-                            fontSize: 12,
-                            textDecoration: 'none',
-                        }}
+                        style={{ padding: '5px 12px' }}
                     >
                         Edit
-                    </Link>
-                    <button
+                    </ActionButton>
+                    <ActionButton
                         type="button"
+                        variant="danger"
                         onClick={() => deleteUser(user.id)}
-                        style={{
-                            background: 'rgba(248,81,73,0.12)',
-                            color: '#f87171',
-                            border: '1px solid rgba(248,81,73,0.25)',
-                            borderRadius: 6,
-                            padding: '5px 12px',
-                            fontSize: 12,
-                            cursor: 'pointer',
-                        }}
+                        style={{ padding: '5px 12px' }}
                     >
                         Delete
-                    </button>
+                    </ActionButton>
                 </div>
             ),
         },
@@ -141,21 +127,13 @@ export default function UsersIndex({ users = [], userTable = {} }) {
             <Head title="Users" />
             <Layout title="User Management">
                 <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 20 }}>
-                    <Link
+                    <ActionButton
                         href="/users/create"
-                        style={{
-                            background: 'var(--success)',
-                            color: '#fff',
-                            border: 'none',
-                            borderRadius: 8,
-                            padding: '9px 20px',
-                            fontSize: 13,
-                            fontWeight: 600,
-                            textDecoration: 'none',
-                        }}
+                        variant="success"
+                        style={{ padding: '9px 20px', fontSize: 13 }}
                     >
                         + Create User
-                    </Link>
+                    </ActionButton>
                 </div>
 
                 <div

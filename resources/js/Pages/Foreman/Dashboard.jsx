@@ -350,39 +350,19 @@ export default function ForemanDashboard({
                                                 </div>
                                             </div>
                                             <div style={{ fontSize: 12, ...mono }}>{project.overall_progress}%</div>
-                                            <Link
-                                                href={`/foreman/attendance`}
-                                                style={{
-                                                    textDecoration: 'none',
-                                                    border: '1px solid var(--border-color)',
-                                                    borderRadius: 8,
-                                                    padding: '6px 10px',
-                                                    background: 'var(--button-bg)',
-                                                    color: 'var(--text-main)',
-                                                    fontSize: 12,
-                                                    fontWeight: 600,
-                                                }}
-                                            >
+                                            <ActionButton href="/foreman/attendance" style={{ padding: '6px 10px' }}>
                                                 Attendance
-                                            </Link>
-                                            <a
+                                            </ActionButton>
+                                            <ActionButton
                                                 href={project.public_submit_url}
+                                                external
+                                                variant="success"
                                                 target="_blank"
                                                 rel="noreferrer"
-                                                style={{
-                                                    textDecoration: 'none',
-                                                    background: 'var(--success)',
-                                                    color: '#fff',
-                                                    borderRadius: 8,
-                                                    padding: '6px 10px',
-                                                    fontSize: 12,
-                                                    fontWeight: 700,
-                                                    textAlign: 'center',
-                                                    whiteSpace: 'nowrap',
-                                                }}
+                                                style={{ padding: '6px 10px', textAlign: 'center' }}
                                             >
                                                 Open Jotform
-                                            </a>
+                                            </ActionButton>
                                         </div>
                                     ))}
                                 </div>

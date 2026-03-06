@@ -2,7 +2,7 @@ import Layout from '../../Components/Layout';
 import DataTable from '../../Components/DataTable';
 import ActionButton from '../../Components/ActionButton';
 import Modal from '../../Components/Modal';
-import { Head, Link, router, useForm, usePage } from '@inertiajs/react';
+import { Head, router, useForm, usePage } from '@inertiajs/react';
 import { useEffect, useMemo, useState } from 'react';
 import toast from 'react-hot-toast';
 import { ArrowLeft } from 'lucide-react';
@@ -171,24 +171,13 @@ export default function WorkerRates({ workerRates = [], workerRateTable = {} }) 
             <Head title="Worker Rates" />
             <Layout title="Worker Rates">
                 <div style={{ marginBottom: 12 }}>
-                    <Link
+                    <ActionButton
                         href="/payroll/run"
-                        style={{
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            gap: 8,
-                            color: 'var(--text-main)',
-                            textDecoration: 'none',
-                            border: '1px solid var(--border-color)',
-                            background: 'var(--button-bg)',
-                            borderRadius: 8,
-                            padding: '8px 12px',
-                            fontSize: 13,
-                        }}
+                        style={{ padding: '8px 12px', fontSize: 13 }}
                     >
                         <ArrowLeft size={16} />
                         Back to Payroll Run
-                    </Link>
+                    </ActionButton>
                 </div>
 
                 <div style={{ display: 'grid', gap: 16 }}>

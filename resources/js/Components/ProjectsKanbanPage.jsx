@@ -1,5 +1,6 @@
+import ActionButton from './ActionButton';
 import Modal from './Modal';
-import { Link, router } from '@inertiajs/react';
+import { router } from '@inertiajs/react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import toast from 'react-hot-toast';
 
@@ -30,18 +31,6 @@ const input = {
     boxSizing: 'border-box',
 };
 
-const actionPillStyle = {
-    display: 'inline-flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    textDecoration: 'none',
-    borderRadius: 8,
-    padding: '6px 10px',
-    fontSize: 12,
-    fontWeight: 600,
-    lineHeight: 1.2,
-};
-
 const DRAG_AUTO_SCROLL_EDGE = 72;
 const DRAG_AUTO_SCROLL_STEP = 22;
 const KANBAN_CARD_HEIGHT = 365;
@@ -56,23 +45,6 @@ const singleLineClampStyle = {
 
 const money = (value) => `P ${Number(value || 0).toLocaleString(undefined, { maximumFractionDigits: 0 })}`;
 const pct = (value) => `${Math.max(0, Math.min(100, Number(value || 0)))}%`;
-
-const statusPillStyle = (status) => {
-    const key = String(status || '').toLowerCase();
-    const color = key === 'completed' ? '#22c55e' : key === 'planning' ? '#94a3b8' : '#60a5fa';
-    return {
-        display: 'inline-flex',
-        alignItems: 'center',
-        padding: '3px 8px',
-        borderRadius: 999,
-        fontSize: 11,
-        fontWeight: 700,
-        color,
-        background: `${color}14`,
-        border: `1px solid ${color}33`,
-        textTransform: 'uppercase',
-    };
-};
 
 export default function ProjectsKanbanPage({
     projectBoard = {},
@@ -205,19 +177,15 @@ export default function ProjectsKanbanPage({
             <div style={{ ...panel, padding: 14, display: 'flex', gap: 12, justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap' }}>
                 <form onSubmit={onSearchSubmit} style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', flex: '1 1 520px' }}>
                     <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search projects..." style={{ ...input, minWidth: 260, flex: '1 1 360px' }} />
-                    <button type="submit" style={{ background: 'var(--success)', color: '#fff', border: 'none', borderRadius: 8, padding: '9px 14px', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>Search</button>
-                    <button type="button" onClick={clearSearch} style={{ background: 'var(--button-bg)', color: 'var(--text-main)', border: '1px solid var(--border-color)', borderRadius: 8, padding: '9px 14px', fontSize: 13, cursor: 'pointer' }}>Clear</button>
+                    <ActionButton type="submit" variant="success" style={{ padding: '9px 14px', fontSize: 13 }}>Search</ActionButton>
+                    <ActionButton type="button" onClick={clearSearch} style={{ padding: '9px 14px', fontSize: 13 }}>Clear</ActionButton>
                 </form>
 
                 <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
                     <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
                         {loadedCount} loaded / {totalMatching} matching • 5 per phase per load
                     </div>
-                    {canCreate && (
-                        <Link href="/projects/create" style={{ background: 'var(--success)', color: '#fff', borderRadius: 8, padding: '9px 14px', textDecoration: 'none', fontSize: 13, fontWeight: 600 }}>
-                            + Create Project
-                        </Link>
-                    )}
+                    {canCreate && <ActionButton href="/projects/create" variant="success" style={{ padding: '9px 14px', fontSize: 13 }}>+ Create Project</ActionButton>}
                 </div>
             </div>
 
@@ -393,10 +361,11 @@ export default function ProjectsKanbanPage({
                                                 </div>
                                             </div>
 
-                                            <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
-                                                <span style={statusPillStyle(project.status)}>{project.status || 'N/A'}</span>
-                                                {project.target && <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>Target: {project.target}</span>}
-                                            </div>
+                                            {project.target ? (
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                                                    <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>Target: {project.target}</span>
+                                                </div>
+                                            ) : null}
 
                                             <div style={{ display: 'grid', gap: 4, fontSize: 11, minHeight: 0, alignContent: 'start' }}>
                                                 <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, minWidth: 0 }}>
@@ -422,12 +391,8 @@ export default function ProjectsKanbanPage({
                                             </div>
 
                                             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                                                <Link href={`/projects/${project.id}`} style={{ ...actionPillStyle, color: 'var(--active-text)', border: '1px solid color-mix(in srgb, var(--active-text) 25%, var(--border-color))', background: 'color-mix(in srgb, var(--active-bg) 55%, transparent)' }}>Manage</Link>
-                                                {canDelete && (
-                                                    <button type="button" onClick={() => setProjectToDelete({ id: project.id, name: project.name })} style={{ ...actionPillStyle, border: '1px solid rgba(248,81,73,0.25)', background: 'rgba(248,81,73,0.12)', color: '#f87171', cursor: 'pointer' }}>
-                                                        Delete
-                                                    </button>
-                                                )}
+                                                <ActionButton href={`/projects/${project.id}`} variant="view" style={{ padding: '6px 10px' }}>Manage</ActionButton>
+                                                {canDelete && <ActionButton type="button" variant="danger" onClick={() => setProjectToDelete({ id: project.id, name: project.name })} style={{ padding: '6px 10px' }}>Delete</ActionButton>}
                                             </div>
                                         </div>
                                     )) : (
@@ -450,13 +415,13 @@ export default function ProjectsKanbanPage({
                                     }}
                                 >
                                     {column.has_more ? (
-                                        <button
+                                        <ActionButton
                                             type="button"
                                             onClick={() => reloadBoard({ [column.page_param]: Number(column.current_page || 1) + 1 })}
-                                            style={{ width: '100%', background: 'var(--button-bg)', color: 'var(--text-main)', border: '1px solid var(--border-color)', borderRadius: 8, padding: '9px 12px', cursor: 'pointer', fontSize: 12, fontWeight: 600 }}
+                                            style={{ width: '100%', padding: '9px 12px' }}
                                         >
                                             Load more projects ({column.remaining} left)
-                                        </button>
+                                        </ActionButton>
                                     ) : (
                                         <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{column.total > 0 ? 'All projects loaded' : 'No records'}</div>
                                     )}
@@ -475,8 +440,8 @@ export default function ProjectsKanbanPage({
                             This also removes related design/build trackers, expenses, files, and updates.
                         </div>
                         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
-                            <button type="button" onClick={() => setProjectToDelete(null)} style={{ background: 'var(--button-bg)', color: 'var(--text-main)', border: '1px solid var(--border-color)', borderRadius: 8, padding: '8px 12px', cursor: 'pointer', fontSize: 12 }}>Cancel</button>
-                            <button type="button" onClick={deleteProject} style={{ background: '#ef4444', color: '#fff', border: 'none', borderRadius: 8, padding: '8px 12px', cursor: 'pointer', fontSize: 12, fontWeight: 600 }}>Delete Project</button>
+                            <ActionButton type="button" onClick={() => setProjectToDelete(null)} style={{ padding: '8px 12px' }}>Cancel</ActionButton>
+                            <ActionButton type="button" variant="danger" onClick={deleteProject} style={{ padding: '8px 12px' }}>Delete Project</ActionButton>
                         </div>
                     </div>
                 </Modal>

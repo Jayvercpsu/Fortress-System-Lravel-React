@@ -203,23 +203,9 @@ export default function MaterialsManagerPage({ materials = [], materialTable = {
                         </label>
 
                         <div style={{ gridColumn: '1 / -1', display: 'flex', justifyContent: 'flex-end' }}>
-                            <button
-                                type="submit"
-                                disabled={creating}
-                                style={{
-                                    background: 'var(--success)',
-                                    color: '#fff',
-                                    border: 'none',
-                                    borderRadius: 8,
-                                    padding: '10px 16px',
-                                    fontSize: 13,
-                                    fontWeight: 600,
-                                    cursor: creating ? 'not-allowed' : 'pointer',
-                                    opacity: creating ? 0.7 : 1,
-                                }}
-                            >
+                            <ActionButton type="submit" variant="success" disabled={creating} style={{ padding: '10px 16px', fontSize: 13 }}>
                                 {creating ? 'Saving...' : 'Add Material'}
-                            </button>
+                            </ActionButton>
                         </div>
                     </form>
 

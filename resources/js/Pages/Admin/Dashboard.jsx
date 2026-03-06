@@ -1,6 +1,7 @@
 import Layout from '../../Components/Layout';
 import InlinePagination from '../../Components/InlinePagination';
-import { Head, Link } from '@inertiajs/react';
+import ActionButton from '../../Components/ActionButton';
+import { Head } from '@inertiajs/react';
 
 const cardStyle = {
     background: 'var(--surface-1)',
@@ -112,22 +113,12 @@ export default function AdminDashboard({ kpis = {}, projectSnapshotPager = null 
                                     <div style={{ fontSize: 12, fontFamily: "'DM Mono', monospace" }}>
                                         {money(project.total_client_payment)}
                                     </div>
-                                    <Link
+                                    <ActionButton
                                         href={`/projects/${project.id}`}
-                                        style={{
-                                            textDecoration: 'none',
-                                            borderRadius: 8,
-                                            border: '1px solid var(--border-color)',
-                                            background: 'var(--button-bg)',
-                                            color: 'var(--text-main)',
-                                            padding: '6px 10px',
-                                            fontSize: 12,
-                                            fontWeight: 600,
-                                            textAlign: 'center',
-                                        }}
+                                        style={{ padding: '6px 10px', textAlign: 'center' }}
                                     >
                                         Open
-                                    </Link>
+                                    </ActionButton>
                                 </div>
                             ))}
                         </div>

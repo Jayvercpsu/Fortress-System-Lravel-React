@@ -76,6 +76,7 @@ export default function ProgressSubmit({ submitToken }) {
     const scopes = Array.isArray(submitToken?.weekly_scope_of_works) && submitToken.weekly_scope_of_works.length ? submitToken.weekly_scope_of_works : SCOPES;
     const categories = Array.isArray(submitToken?.photo_categories) && submitToken.photo_categories.length ? submitToken.photo_categories : CATEGORIES;
     const photos = Array.isArray(submitToken?.recent_photos) ? submitToken.recent_photos : [];
+    const receiptUrl = submitToken?.receipt_url || (submitToken?.token ? `/progress-receipt/${submitToken.token}` : '#');
 
     const [expanded, setExpanded] = useState({ attendance: false, delivery: false, materials: false, weekly: false, photos: false, issues: false });
     const [attendanceWeek, setAttendanceWeek] = useState(monday);
@@ -344,6 +345,8 @@ export default function ProgressSubmit({ submitToken }) {
                     .jf-top{height:24px;background:#373850}
                     .jf-wrap{max-width:1080px;margin:0 auto;padding:16px 14px 28px}
                     .jf-meta{border:1px solid #c9c2b2;background:#f2eee6;border-radius:12px;padding:12px 14px;display:grid;gap:4px;font-size:13px}
+                    .jf-meta-actions{margin-top:10px;display:flex;justify-content:flex-end}
+                    .jf-meta-link{display:inline-flex;align-items:center;justify-content:center;text-decoration:none;border-radius:8px;padding:9px 14px;font-size:13px;font-weight:800;background:#2f70d4;color:#fff}
                     .jf-acc{max-width:760px;margin:12px auto 0;border:2px solid #bcb4a2;border-radius:14px;background:#ece7db;overflow:hidden}
                     .jf-acc-head{width:100%;border:none;background:#ece7db;min-height:78px;padding:0 18px;display:flex;align-items:center;justify-content:space-between;cursor:pointer}
                     .jf-acc-title{font-size:24px;font-weight:700;display:flex;align-items:center;gap:10px}
@@ -389,6 +392,11 @@ export default function ProgressSubmit({ submitToken }) {
                         <div>Project: <strong>{submitToken.project_name}</strong></div>
                         <div>Foreman: <strong>{submitToken.foreman_name}</strong></div>
                         {submitToken.expires_at ? <div>Link expires at: {submitToken.expires_at}</div> : null}
+                        <div className="jf-meta-actions">
+                            <a href={receiptUrl} className="jf-meta-link" target="_blank" rel="noreferrer">
+                                Open Receipt
+                            </a>
+                        </div>
                     </div>
 
                     {SECTIONS.map((section) => (

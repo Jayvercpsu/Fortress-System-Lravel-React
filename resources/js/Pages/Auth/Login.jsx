@@ -1,6 +1,7 @@
 import { useForm, Head } from '@inertiajs/react';
 import { useEffect } from 'react';
 import toast from 'react-hot-toast';
+import ActionButton from '../../Components/ActionButton';
 import BrandIcon from '../../Components/BrandIcon';
 
 export default function Login() {
@@ -137,24 +138,18 @@ export default function Login() {
                                 />
                             </div>
 
-                            <button
+                            <ActionButton
                                 type="submit"
+                                variant="success"
                                 disabled={processing}
                                 style={{
                                     width: '100%',
-                                    background: 'var(--success)',
-                                    color: '#fff',
-                                    border: 'none',
-                                    borderRadius: 8,
                                     padding: '11px 0',
                                     fontSize: 14,
-                                    fontWeight: 600,
-                                    cursor: 'pointer',
-                                    opacity: processing ? 0.7 : 1,
                                 }}
                             >
                                 {processing ? 'Signing in...' : 'Sign In'}
-                            </button>
+                            </ActionButton>
                         </form>
                     </div>
                 </div>

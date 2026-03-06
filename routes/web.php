@@ -31,6 +31,7 @@ Route::get('/login', [AuthController::class, 'showLogin'])->name('login');
 Route::post('/login', [AuthController::class, 'login']);
 Route::post('/logout', [AuthController::class, 'logout'])->name('logout');
 Route::get('/progress-submit/{token}', [PublicProgressController::class, 'show'])->name('public.progress-submit.show');
+Route::get('/progress-receipt/{token}', [PublicProgressController::class, 'receipt'])->name('public.progress-receipt.show');
 Route::post('/progress-submit/{token}', [PublicProgressController::class, 'store'])->name('public.progress-submit.store');
 Route::post('/progress-submit/{token}/submit-all', [PublicProgressController::class, 'storeAll'])->name('public.progress-submit.submit_all');
 Route::post('/progress-submit/{token}/attendance', [PublicProgressController::class, 'storeAttendance'])->name('public.progress-submit.attendance');
