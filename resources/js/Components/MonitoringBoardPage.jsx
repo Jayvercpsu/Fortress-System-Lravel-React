@@ -2,6 +2,7 @@ import Layout from './Layout';
 import ActionButton from './ActionButton';
 import Modal from './Modal';
 import EditModal from './EditModal';
+import ConfirmationModal from './ConfirmationModal';
 import SearchableDropdown from './SearchableDropdown';
 import DatePickerInput from './DatePickerInput';
 import TextInput from './TextInput';
@@ -10,7 +11,7 @@ import TextareaInput from './TextareaInput';
 import { Head, router, useForm } from '@inertiajs/react';
 import { useMemo, useState } from 'react';
 import toast from 'react-hot-toast';
-import { ArrowLeft } from 'lucide-react';
+import { ArrowLeft, Trash2 } from 'lucide-react';
 
 const cardStyle = {
     background: 'var(--surface-1)',
@@ -37,6 +38,8 @@ export default function MonitoringBoardPage({ project, scopes = [], foreman_opti
     const [editScope, setEditScope] = useState(null);
     const [scopeToDelete, setScopeToDelete] = useState(null);
     const [deleting, setDeleting] = useState(false);
+    const [photoToDelete, setPhotoToDelete] = useState(null);
+    const [deletingPhoto, setDeletingPhoto] = useState(false);
     const [uploadScopeId, setUploadScopeId] = useState(null);
     const [photoInputKey, setPhotoInputKey] = useState(0);
     const [scopePreview, setScopePreview] = useState(null);
@@ -179,6 +182,33 @@ export default function MonitoringBoardPage({ project, scopes = [], foreman_opti
             },
             onError: () => toast.error('Unable to delete scope.'),
             onFinish: () => setDeleting(false),
+        });
+    };
+
+    const requestDeletePhoto = (photo, scope) => {
+        setPhotoToDelete({
+            ...photo,
+            scope_name: scope?.scope_name || '',
+        });
+    };
+
+    const closeDeletePhoto = () => {
+        if (deletingPhoto) return;
+        setPhotoToDelete(null);
+    };
+
+    const confirmDeletePhoto = () => {
+        if (!photoToDelete) return;
+
+        setDeletingPhoto(true);
+        router.delete(`/scope-photos/${photoToDelete.id}`, {
+            preserveScroll: true,
+            onSuccess: () => {
+                setPhotoToDelete(null);
+                toast.success('Scope photo deleted successfully.');
+            },
+            onError: () => toast.error('Unable to delete scope photo.'),
+            onFinish: () => setDeletingPhoto(false),
         });
     };
 
@@ -424,46 +454,83 @@ export default function MonitoringBoardPage({ project, scopes = [], foreman_opti
                                                 {scope.photos?.length > 0 ? (
                                                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
                                                         {scope.photos.map((photo) => (
-                                                            <button
+                                                            <div
                                                                 key={photo.id}
-                                                                type="button"
-                                                                onClick={() => setScopePreview({ ...photo, scope: scope.scope_name })}
                                                                 style={{
-                                                                    border: 'none',
-                                                                    background: 'transparent',
-                                                                    padding: 0,
-                                                                    cursor: 'pointer',
-                                                                    width: 106,
-                                                                    textAlign: 'left',
+                                                                    width: 110,
+                                                                    position: 'relative',
                                                                 }}
+                                                                className="bb-photo-tile"
                                                             >
-                                                                <div
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => setScopePreview({ ...photo, scope: scope.scope_name })}
                                                                     style={{
-                                                                        border: '1px solid var(--border-color)',
-                                                                        borderRadius: 8,
-                                                                        padding: 6,
-                                                                        background: 'var(--surface-2)',
+                                                                        border: 'none',
+                                                                        background: 'transparent',
+                                                                        padding: 0,
+                                                                        cursor: 'pointer',
+                                                                        textAlign: 'left',
+                                                                        width: '100%',
                                                                     }}
                                                                 >
-                                                                    <img
-                                                                        src={`/storage/${photo.photo_path}`}
-                                                                        alt={photo.caption || 'Scope photo'}
+                                                                    <div
                                                                         style={{
-                                                                            width: '100%',
-                                                                            height: 68,
-                                                                            objectFit: 'cover',
-                                                                            borderRadius: 6,
-                                                                            marginBottom: 4,
+                                                                            border: '1px solid var(--border-color)',
+                                                                            borderRadius: 8,
+                                                                            padding: 6,
+                                                                            background: 'var(--surface-2)',
                                                                         }}
-                                                                    />
-                                                                    <div style={{ fontSize: 11, color: 'var(--text-main)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                                                        {photo.caption || 'No caption'}
+                                                                    >
+                                                                        <img
+                                                                            src={`/storage/${photo.photo_path}`}
+                                                                            alt={photo.caption || 'Scope photo'}
+                                                                            style={{
+                                                                                width: '100%',
+                                                                                height: 68,
+                                                                                objectFit: 'cover',
+                                                                                borderRadius: 6,
+                                                                                marginBottom: 4,
+                                                                            }}
+                                                                        />
+                                                                        <div style={{ fontSize: 11, color: 'var(--text-main)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                                                            {photo.caption || 'No caption'}
+                                                                        </div>
+                                                                        <div style={{ fontSize: 10, color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                                                            {photo.created_at || '-'}
+                                                                        </div>
                                                                     </div>
-                                                                    <div style={{ fontSize: 10, color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                                                        {photo.created_at || '-'}
-                                                                    </div>
-                                                                </div>
-                                                            </button>
+                                                                </button>
+                                                                <button
+                                                                    type="button"
+                                                                    aria-label="Delete photo"
+                                                                    disabled={deletingPhoto}
+                                                                    onClick={(event) => {
+                                                                        event.stopPropagation();
+                                                                        requestDeletePhoto(photo, scope);
+                                                                    }}
+                                                                    style={{
+                                                                        position: 'absolute',
+                                                                        top: 6,
+                                                                        right: 6,
+                                                                        width: 26,
+                                                                        height: 26,
+                                                                        borderRadius: 999,
+                                                                        border: '1px solid #b91c1c',
+                                                                        background: '#ef4444',
+                                                                        display: 'inline-flex',
+                                                                        alignItems: 'center',
+                                                                        justifyContent: 'center',
+                                                                        color: '#fff',
+                                                                        cursor: deletingPhoto ? 'not-allowed' : 'pointer',
+                                                                        opacity: deletingPhoto ? 0.6 : 1,
+                                                                        boxShadow: '0 6px 12px rgba(239, 68, 68, 0.35)',
+                                                                    }}
+                                                                    className="bb-photo-delete"
+                                                                >
+                                                                    <Trash2 size={14} strokeWidth={2.2} />
+                                                                </button>
+                                                            </div>
                                                         ))}
                                                     </div>
                                                 ) : (
@@ -661,36 +728,32 @@ export default function MonitoringBoardPage({ project, scopes = [], foreman_opti
                     </div>
                 </EditModal>
 
-                <Modal
+                <ConfirmationModal
                     open={!!scopeToDelete}
+                    title="Delete Scope"
+                    message={scopeToDelete ? `Delete "${scopeToDelete.scope_name}"? This action cannot be undone.` : 'Delete this scope?'}
+                    confirmLabel={deleting ? 'Deleting...' : 'Delete'}
+                    cancelLabel="Cancel"
+                    danger
+                    processing={deleting}
                     onClose={closeDeleteModal}
-                    title="Confirm Scope Deletion"
-                    maxWidth={520}
-                >
-                    <div style={{ display: 'grid', gap: 14 }}>
-                        <div style={{ fontSize: 13, color: 'var(--text-main)' }}>
-                            Delete this scope permanently?
-                        </div>
-                        <div
-                            style={{
-                                border: '1px solid var(--border-color)',
-                                borderRadius: 8,
-                                padding: '10px 12px',
-                                background: 'var(--surface-2)',
-                            }}
-                        >
-                            <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 4 }}>Scope Name</div>
-                            <div style={{ fontWeight: 600 }}>{scopeToDelete?.scope_name || '-'}</div>
-                        </div>
-
-                        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
-                            <ActionButton type="button" onClick={closeDeleteModal} disabled={deleting} style={{ padding: '8px 12px' }}>Cancel</ActionButton>
-                            <ActionButton type="button" variant="danger" onClick={confirmDeleteScope} disabled={deleting} style={{ padding: '8px 12px' }}>
-                                {deleting ? 'Deleting...' : 'Confirm Delete'}
-                            </ActionButton>
-                        </div>
-                    </div>
-                </Modal>
+                    onConfirm={confirmDeleteScope}
+                />
+                <ConfirmationModal
+                    open={!!photoToDelete}
+                    title="Delete Scope Photo"
+                    message={
+                        photoToDelete
+                            ? `Delete this photo${photoToDelete.caption ? ` "${photoToDelete.caption}"` : ''}? This action cannot be undone.`
+                            : 'Delete this photo?'
+                    }
+                    confirmLabel={deletingPhoto ? 'Deleting...' : 'Delete'}
+                    cancelLabel="Cancel"
+                    danger
+                    processing={deletingPhoto}
+                    onClose={closeDeletePhoto}
+                    onConfirm={confirmDeletePhoto}
+                />
                 <Modal
                     open={!!scopePreview}
                     onClose={() => setScopePreview(null)}
@@ -720,6 +783,20 @@ export default function MonitoringBoardPage({ project, scopes = [], foreman_opti
                     )}
                 </Modal>
             </Layout>
+            <style>{`
+                .bb-photo-tile .bb-photo-delete{
+                    opacity:0;
+                    pointer-events:none;
+                    transform:translateY(0);
+                    transition:opacity 160ms ease, transform 160ms ease;
+                }
+                .bb-photo-tile:hover .bb-photo-delete,
+                .bb-photo-tile:focus-within .bb-photo-delete{
+                    opacity:1;
+                    pointer-events:auto;
+                    transform:translateY(-1px);
+                }
+            `}</style>
         </>
     );
 }

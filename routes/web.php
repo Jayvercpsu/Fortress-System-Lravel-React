@@ -131,6 +131,7 @@ Route::middleware(['auth', 'role:head_admin,admin'])->group(function () {
     Route::patch('/scopes/{scope}', [MonitoringController::class, 'update'])->name('scopes.update');
     Route::delete('/scopes/{scope}', [MonitoringController::class, 'destroy'])->name('scopes.destroy');
     Route::post('/scopes/{scope}/photos', [ScopePhotoController::class, 'store'])->name('scope-photos.store');
+    Route::delete('/scope-photos/{photo}', [ScopePhotoController::class, 'destroy'])->name('scope-photos.destroy');
     Route::get('/progress-photos', [ProgressPhotoController::class, 'index'])->name('progress-photos.index');
     Route::get('/projects/{project}/client-receipt', [ProjectController::class, 'projectReceipt'])->name('projects.client_receipt');
     Route::get('/projects/{project}', [ProjectController::class, 'show'])->name('projects.show');
