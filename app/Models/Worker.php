@@ -3,13 +3,17 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\SoftDeletes;
 
 class Worker extends Model
 {
+    use SoftDeletes;
+
     protected $fillable = [
         'foreman_id',
         'project_id',
         'name',
+        'job_type',
         'default_rate_per_hour',
         'birth_date',
         'place_of_birth',

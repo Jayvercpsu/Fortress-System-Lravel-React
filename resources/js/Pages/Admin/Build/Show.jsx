@@ -3,6 +3,9 @@ import ActionButton from '../../../Components/ActionButton';
 import DataTable from '../../../Components/DataTable';
 import DatePickerInput from '../../../Components/DatePickerInput';
 import SearchableDropdown from '../../../Components/SearchableDropdown';
+import ConfirmationModal from '../../../Components/ConfirmationModal';
+import EditModal from '../../../Components/EditModal';
+import TextInput from '../../../Components/TextInput';
 import { Head, router, useForm } from '@inertiajs/react';
 import { useEffect, useState } from 'react';
 import toast from 'react-hot-toast';
@@ -43,7 +46,9 @@ export default function AdminBuildShow({
         const tab = new URLSearchParams(window.location.search).get('tab');
         return tab === 'expenses' ? 'expenses' : 'tracker';
     });
-    const [editingExpenseId, setEditingExpenseId] = useState(null);
+    const [editExpense, setEditExpense] = useState(null);
+    const [expenseToDelete, setExpenseToDelete] = useState(null);
+    const [deletingExpense, setDeletingExpense] = useState(false);
 
     const { data, setData, patch, processing, errors } = useForm({
         construction_contract: build.construction_contract ?? 0,
@@ -72,6 +77,7 @@ export default function AdminBuildShow({
         patch: patchExpense,
         processing: updatingExpense,
         errors: editErrors,
+        clearErrors: clearEditErrors,
     } = useForm({
         category: '',
         amount: '',
@@ -149,7 +155,7 @@ export default function AdminBuildShow({
         e.preventDefault();
         patch(`/projects/${projectId}/build`, {
             preserveScroll: true,
-            onSuccess: () => toast.success('Build tracker updated.'),
+            onSuccess: () => toast.success('Build tracker updated successfully.'),
             onError: () => toast.error('Please fix the highlighted fields and try again.'),
         });
     };
@@ -161,14 +167,15 @@ export default function AdminBuildShow({
             onSuccess: () => {
                 resetExpense('category', 'amount', 'note');
                 setExpenseData('date', today());
-                toast.success('Expense added.');
+                toast.success('Expense added successfully.');
             },
             onError: () => toast.error('Unable to add expense. Check the form fields.'),
         });
     };
 
     const startEditExpense = (expense) => {
-        setEditingExpenseId(expense.id);
+        setEditExpense(expense);
+        if (clearEditErrors) clearEditErrors();
         setEditData({
             category: expense.category ?? '',
             amount: expense.amount ?? '',
@@ -177,23 +184,35 @@ export default function AdminBuildShow({
         });
     };
 
-    const submitEditExpense = (e, expenseId) => {
+    const closeEditExpense = () => {
+        if (updatingExpense) return;
+        setEditExpense(null);
+        if (clearEditErrors) clearEditErrors();
+    };
+
+    const submitEditExpense = (e) => {
         e.preventDefault();
-        patchExpense(`/expenses/${expenseId}${expenseActionQuery()}`, {
+        if (!editExpense) return;
+        patchExpense(`/expenses/${editExpense.id}${expenseActionQuery()}`, {
             preserveScroll: true,
             onSuccess: () => {
-                setEditingExpenseId(null);
-                toast.success('Expense updated.');
+                setEditExpense(null);
+                toast.success('Expense updated successfully.');
             },
             onError: () => toast.error('Unable to update expense.'),
         });
     };
 
     const deleteExpense = (expenseId) => {
+        setDeletingExpense(true);
         router.delete(`/expenses/${expenseId}${expenseActionQuery()}`, {
             preserveScroll: true,
-            onSuccess: () => toast.success('Expense deleted.'),
+            onSuccess: () => toast.success('Expense deleted successfully.'),
             onError: () => toast.error('Unable to delete expense.'),
+            onFinish: () => {
+                setDeletingExpense(false);
+                setExpenseToDelete(null);
+            },
         });
     };
 
@@ -201,97 +220,50 @@ export default function AdminBuildShow({
         {
             key: 'category',
             label: 'Category',
-            render: (expense) =>
-                editingExpenseId === expense.id ? (
-                    <div style={{ minWidth: 220 }}>
-                        <SearchableDropdown
-                            options={Array.from(new Set([...(availableCategories || []), editData.category].filter(Boolean)))}
-                            value={editData.category}
-                            onChange={(value) => setEditData('category', value)}
-                            getOptionLabel={(option) => option}
-                            getOptionValue={(option) => option}
-                            placeholder="Select category"
-                            searchPlaceholder="Search categories..."
-                            emptyMessage="No categories found"
-                            style={{ ...inputStyle, minHeight: 40, padding: '8px 10px' }}
-                            dropdownWidth={300}
-                        />
-                    </div>
-                ) : (
-                    <div style={{ fontWeight: 600, textTransform: 'capitalize' }}>{expense.category || '-'}</div>
-                ),
+            render: (expense) => <div style={{ fontWeight: 600, textTransform: 'capitalize' }}>{expense.category || '-'}</div>,
             searchAccessor: (expense) => expense.category,
         },
         {
             key: 'date',
             label: 'Date',
-            render: (expense) =>
-                editingExpenseId === expense.id ? (
-                    <DatePickerInput value={editData.date} onChange={(value) => setEditData('date', value)} style={inputStyle} />
-                ) : (
-                    <div style={{ fontSize: 13 }}>{expense.date || '-'}</div>
-                ),
+            render: (expense) => <div style={{ fontSize: 13 }}>{expense.date || '-'}</div>,
             searchAccessor: (expense) => expense.date,
         },
         {
             key: 'note',
             label: 'Note',
-            render: (expense) =>
-                editingExpenseId === expense.id ? (
-                    <div style={{ display: 'grid', gap: 6 }}>
-                        <input value={editData.note} onChange={(e) => setEditData('note', e.target.value)} style={inputStyle} />
-                        {(editErrors.category || editErrors.amount || editErrors.date || editErrors.note) && (
-                            <div style={{ color: '#f87171', fontSize: 12 }}>
-                                {editErrors.category || editErrors.amount || editErrors.date || editErrors.note}
-                            </div>
-                        )}
-                    </div>
-                ) : (
-                    <div style={{ fontSize: 13, color: expense.note ? 'var(--text-main)' : 'var(--text-muted)' }}>{expense.note || '-'}</div>
-                ),
+            render: (expense) => (
+                <div style={{ fontSize: 13, color: expense.note ? 'var(--text-main)' : 'var(--text-muted)' }}>{expense.note || '-'}</div>
+            ),
             searchAccessor: (expense) => expense.note,
         },
         {
             key: 'amount',
             label: 'Amount',
             align: 'right',
-            render: (expense) =>
-                editingExpenseId === expense.id ? (
-                    <input type="number" step="0.01" min="0" value={editData.amount} onChange={(e) => setEditData('amount', e.target.value)} style={{ ...inputStyle, textAlign: 'right' }} />
-                ) : (
-                    <div style={{ fontWeight: 700 }}>{money(expense.amount)}</div>
-                ),
+            render: (expense) => <div style={{ fontWeight: 700 }}>{money(expense.amount)}</div>,
             searchAccessor: (expense) => expense.amount,
         },
         {
             key: 'actions',
             label: 'Actions',
             align: 'right',
-            render: (expense) =>
-                editingExpenseId === expense.id ? (
-                    <div style={{ display: 'inline-flex', gap: 8 }}>
-                        <ActionButton type="button" variant="neutral" onClick={() => setEditingExpenseId(null)}>
-                            Cancel
-                        </ActionButton>
-                        <ActionButton
-                            type="button"
-                            variant="success"
-                            onClick={(e) => submitEditExpense(e, expense.id)}
-                            disabled={updatingExpense}
-                        >
-                            Save
-                        </ActionButton>
-                    </div>
-                ) : (
-                    <div style={{ display: 'inline-flex', gap: 8 }}>
-                        <ActionButton type="button" variant="edit" onClick={() => startEditExpense(expense)}>
-                            Edit
-                        </ActionButton>
-                        <ActionButton type="button" variant="danger" onClick={() => deleteExpense(expense.id)}>
-                            Delete
-                        </ActionButton>
-                    </div>
-                ),
+            render: (expense) => (
+                <div style={{ display: 'inline-flex', gap: 8 }}>
+                    <ActionButton type="button" variant="edit" onClick={() => startEditExpense(expense)}>
+                        Edit
+                    </ActionButton>
+                    <ActionButton
+                        type="button"
+                        variant="danger"
+                        onClick={() => setExpenseToDelete(expense)}
+                        disabled={deletingExpense}
+                        loading={deletingExpense && expenseToDelete?.id === expense.id}
+                    >
+                        {deletingExpense && expenseToDelete?.id === expense.id ? 'Deleting...' : 'Delete'}
+                    </ActionButton>
+                </div>
+            ),
         },
     ];
 
@@ -333,13 +305,13 @@ export default function AdminBuildShow({
                         <div style={{ ...cardStyle, display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 14 }}>
                             <label>
                                 <div style={{ fontSize: 12, marginBottom: 6 }}>Construction Contract</div>
-                                <input type="number" step="0.01" min="0" value={data.construction_contract} onChange={(e) => setData('construction_contract', e.target.value)} style={inputStyle} />
+                                <TextInput type="number" step="0.01" min="0" value={data.construction_contract} onChange={(e) => setData('construction_contract', e.target.value)} style={inputStyle} />
                                 {errors.construction_contract && <div style={{ color: '#f87171', fontSize: 12, marginTop: 4 }}>{errors.construction_contract}</div>}
                             </label>
 
                             <label>
                                 <div style={{ fontSize: 12, marginBottom: 6 }}>Total Client Payment</div>
-                                <input type="number" step="0.01" min="0" value={data.total_client_payment} onChange={(e) => setData('total_client_payment', e.target.value)} style={inputStyle} />
+                                <TextInput type="number" step="0.01" min="0" value={data.total_client_payment} onChange={(e) => setData('total_client_payment', e.target.value)} style={inputStyle} />
                                 {errors.total_client_payment && <div style={{ color: '#f87171', fontSize: 12, marginTop: 4 }}>{errors.total_client_payment}</div>}
                             </label>
                             <div style={{ gridColumn: '1 / -1', border: '1px dashed var(--border-color)', borderRadius: 10, padding: 12 }}>
@@ -412,7 +384,7 @@ export default function AdminBuildShow({
                             </label>
                             <label>
                                 <div style={{ fontSize: 12, marginBottom: 6 }}>Amount</div>
-                                <input type="number" step="0.01" min="0" value={expenseData.amount} onChange={(e) => setExpenseData('amount', e.target.value)} style={inputStyle} />
+                                <TextInput type="number" step="0.01" min="0" value={expenseData.amount} onChange={(e) => setExpenseData('amount', e.target.value)} style={inputStyle} />
                                 {expenseErrors.amount && <div style={{ color: '#f87171', fontSize: 12, marginTop: 4 }}>{expenseErrors.amount}</div>}
                             </label>
                             <label>
@@ -422,7 +394,7 @@ export default function AdminBuildShow({
                             </label>
                             <label>
                                 <div style={{ fontSize: 12, marginBottom: 6 }}>Note</div>
-                                <input value={expenseData.note} onChange={(e) => setExpenseData('note', e.target.value)} style={inputStyle} />
+                                <TextInput value={expenseData.note} onChange={(e) => setExpenseData('note', e.target.value)} style={inputStyle} />
                                 {expenseErrors.note && <div style={{ color: '#f87171', fontSize: 12, marginTop: 4 }}>{expenseErrors.note}</div>}
                             </label>
                             <div style={{ gridColumn: '1 / -1', display: 'flex', justifyContent: 'flex-end' }}>
@@ -459,6 +431,62 @@ export default function AdminBuildShow({
                         </div>
                     </div>
                 )}
+                <EditModal
+                    open={!!editExpense}
+                    onClose={closeEditExpense}
+                    onSubmit={submitEditExpense}
+                    title={editExpense ? `Edit Expense - ${editExpense.category || 'Uncategorized'}` : 'Edit Expense'}
+                    submitLabel="Save Changes"
+                    processing={updatingExpense}
+                    maxWidth={560}
+                >
+                    <div style={{ display: 'grid', gap: 12 }}>
+                        <label>
+                            <div style={{ fontSize: 12, marginBottom: 6 }}>Category</div>
+                            <SearchableDropdown
+                                options={Array.from(new Set([...(availableCategories || []), editData.category].filter(Boolean)))}
+                                value={editData.category}
+                                onChange={(value) => setEditData('category', value)}
+                                getOptionLabel={(option) => option}
+                                getOptionValue={(option) => option}
+                                placeholder="Select category"
+                                searchPlaceholder="Search categories..."
+                                emptyMessage="No categories found"
+                                style={{ ...inputStyle, minHeight: 40, padding: '8px 10px' }}
+                                dropdownWidth={320}
+                            />
+                            {editErrors.category && <div style={{ color: '#f87171', fontSize: 12, marginTop: 4 }}>{editErrors.category}</div>}
+                        </label>
+
+                        <label>
+                            <div style={{ fontSize: 12, marginBottom: 6 }}>Amount</div>
+                            <TextInput type="number" step="0.01" min="0" value={editData.amount} onChange={(e) => setEditData('amount', e.target.value)} style={inputStyle} />
+                            {editErrors.amount && <div style={{ color: '#f87171', fontSize: 12, marginTop: 4 }}>{editErrors.amount}</div>}
+                        </label>
+
+                        <label>
+                            <div style={{ fontSize: 12, marginBottom: 6 }}>Date</div>
+                            <DatePickerInput value={editData.date} onChange={(value) => setEditData('date', value)} style={inputStyle} />
+                            {editErrors.date && <div style={{ color: '#f87171', fontSize: 12, marginTop: 4 }}>{editErrors.date}</div>}
+                        </label>
+
+                        <label>
+                            <div style={{ fontSize: 12, marginBottom: 6 }}>Note</div>
+                            <TextInput value={editData.note} onChange={(e) => setEditData('note', e.target.value)} style={inputStyle} />
+                            {editErrors.note && <div style={{ color: '#f87171', fontSize: 12, marginTop: 4 }}>{editErrors.note}</div>}
+                        </label>
+                    </div>
+                </EditModal>
+                <ConfirmationModal
+                    open={!!expenseToDelete}
+                    onClose={() => (deletingExpense ? null : setExpenseToDelete(null))}
+                    onConfirm={() => (expenseToDelete ? deleteExpense(expenseToDelete.id) : null)}
+                    title="Delete Expense"
+                    message={expenseToDelete ? `Delete expense "${expenseToDelete.category || 'Uncategorized'}" (${money(expenseToDelete.amount)})?` : 'Delete this expense?'}
+                    confirmLabel={deletingExpense ? 'Deleting...' : 'Delete'}
+                    processing={deletingExpense}
+                    danger
+                />
             </Layout>
         </>
     );

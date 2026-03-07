@@ -1,53 +1,146 @@
 import { Head } from '@inertiajs/react';
+import {
+    AlertTriangle,
+    CalendarDays,
+    CheckCircle2,
+    FolderKanban,
+    ImageIcon,
+    Link2,
+    Printer,
+} from 'lucide-react';
 import { useState } from 'react';
+import ActionButton from '../../Components/ActionButton';
 import Modal from '../../Components/Modal';
 
 const formatMoney = (value) =>
-    `P ${Number(value || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    `P ${Number(value || 0).toLocaleString(undefined, {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+    })}`;
 
-const headerRowStyle = {
-    display: 'grid',
-    gridTemplateColumns: '1fr 1fr',
-    gap: 12,
-    marginBottom: 20,
+const formatPercent = (value, digits = 2) => `${Number(value || 0).toFixed(digits)}%`;
+
+const normalizeDateValue = (value) => {
+    const text = String(value || '').trim();
+    if (text === '') return '';
+    return text.includes(' ') ? text.replace(' ', 'T') : text;
 };
 
-const summaryGrid = {
-    display: 'grid',
-    gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
-    gap: 12,
-    marginBottom: 20,
+const formatDate = (value) => {
+    const normalized = normalizeDateValue(value);
+    if (!normalized) return '-';
+
+    const parsed = new Date(normalized);
+    if (Number.isNaN(parsed.getTime())) return value;
+
+    return parsed.toLocaleDateString('en-US', {
+        month: 'numeric',
+        day: 'numeric',
+        year: '2-digit',
+    });
 };
 
-const panelStyle = {
-    border: '1px solid #d1c7b4',
-    borderRadius: 12,
-    padding: 16,
-    background: '#faf6f0',
+const formatDateTime = (value) => {
+    const normalized = normalizeDateValue(value);
+    if (!normalized) return 'No expiry';
+
+    const parsed = new Date(normalized);
+    if (Number.isNaN(parsed.getTime())) return value;
+
+    return parsed.toLocaleString('en-US', {
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric',
+        hour: 'numeric',
+        minute: '2-digit',
+    });
 };
 
-const tableStyle = {
-    width: '100%',
-    borderCollapse: 'collapse',
-    fontSize: 13,
-    marginBottom: 16,
+const humanize = (value) =>
+    String(value || '')
+        .trim()
+        .split(/[_\s]+/)
+        .filter(Boolean)
+        .map((part) => part.charAt(0).toUpperCase() + part.slice(1).toLowerCase())
+        .join(' ');
+
+const getInitials = (value) => {
+    const parts = String(value || '')
+        .trim()
+        .split(/\s+/)
+        .filter(Boolean)
+        .slice(0, 2);
+
+    if (parts.length === 0) return 'NA';
+    return parts.map((part) => part.charAt(0).toUpperCase()).join('');
 };
 
-const thTdStyle = {
-    padding: '10px 8px',
-    borderBottom: '1px solid #d1c7b4',
-    textAlign: 'left',
+const parseAssignees = (value) =>
+    String(value || '')
+        .split(/[;,|]+/)
+        .map((entry) => entry.trim())
+        .filter(Boolean);
+
+const progressTone = (value) => {
+    if (value >= 100) {
+        return {
+            bar: 'linear-gradient(90deg, #2f8a4c 0%, #4fb36f 100%)',
+            badgeBackground: 'rgba(47, 138, 76, 0.14)',
+            badgeColor: '#23653a',
+        };
+    }
+
+    if (value >= 60) {
+        return {
+            bar: 'linear-gradient(90deg, #2f6fc9 0%, #5a95e6 100%)',
+            badgeBackground: 'rgba(47, 111, 201, 0.14)',
+            badgeColor: '#24508f',
+        };
+    }
+
+    if (value >= 25) {
+        return {
+            bar: 'linear-gradient(90deg, #b7792e 0%, #d89b4d 100%)',
+            badgeBackground: 'rgba(183, 121, 46, 0.14)',
+            badgeColor: '#8a5a21',
+        };
+    }
+
+    return {
+        bar: 'linear-gradient(90deg, #8f9399 0%, #b2b8c0 100%)',
+        badgeBackground: 'rgba(107, 114, 128, 0.12)',
+        badgeColor: '#4b5563',
+    };
 };
 
-const photoGrid = {
-    display: 'grid',
-    gridTemplateColumns: 'repeat(auto-fit, minmax(60px, 1fr))',
-    gap: 6,
+const normalizeScopeRow = (scope, index) => {
+    const assignees = Array.isArray(scope?.assignees)
+        ? scope.assignees
+        : parseAssignees(scope?.assigned_personnel || scope?.assignee).map((name) => ({
+              name,
+              photo_path: null,
+          }));
+
+    return {
+        id: scope?.id ?? `scope-${index}`,
+        scopeName: String(scope?.scope_name || scope?.scopeName || `Scope ${index + 1}`),
+        contractAmount: Number(scope?.contract_amount ?? 0),
+        weightPercent: Number(scope?.weight_percent ?? 0),
+        progressPercent: Number(scope?.progress_percent ?? 0),
+        computedPercent: Number(scope?.computed_percent ?? 0),
+        amountToDate: Number(scope?.amount_to_date ?? scope?.computed_amount ?? 0),
+        startDate: scope?.start_date || '-',
+        targetDate: scope?.target_completion || scope?.target_date || '-',
+        assignees,
+        photos: Array.isArray(scope?.photos) ? scope.photos : [],
+        issues: scope?.issues && typeof scope.issues === 'object' ? scope.issues : null,
+        status: String(scope?.status || '').trim(),
+    };
 };
 
 export default function ProgressReceipt({
+    receipt,
     project,
-    foreman_name: foremanName,
     scopes = [],
     totals = {},
     issue_summary: issueSummary = { open: 0, resolved: 0 },
@@ -55,179 +148,669 @@ export default function ProgressReceipt({
     expires_at: expiresAt,
 }) {
     const [previewPhoto, setPreviewPhoto] = useState(null);
-    const scopeRows = Array.isArray(scopes) ? scopes : [];
+
+    const projectName = project?.name || receipt?.project_name || 'Project Receipt';
+    const clientName = project?.client || receipt?.client_name || 'Client unavailable';
+    const projectPhase = project?.phase || receipt?.project_phase || 'Phase TBD';
+    const projectStatus = project?.status || receipt?.project_status || 'Status TBD';
+    const scopeRowsSource =
+        Array.isArray(scopes) && scopes.length > 0
+            ? scopes
+            : Array.isArray(receipt?.scopes)
+              ? receipt.scopes
+              : [];
+    const scopeRows = scopeRowsSource.map((scope, index) => normalizeScopeRow(scope, index));
+    const summaryTotals = {
+        contractTotal: Number(totals?.contract_total ?? receipt?.total_contract_amount ?? 0),
+        weightTotal: Number(totals?.weight_total ?? receipt?.total_weight_percent ?? 0),
+        weightedProgress: Number(totals?.weighted_progress_percent ?? receipt?.weighted_progress_percent ?? 0),
+        computedAmount: Number(totals?.computed_amount_total ?? receipt?.computed_amount ?? 0),
+    };
+    const projectIssueTotals = {
+        open: Number(issueSummary?.open ?? 0),
+        resolved: Number(issueSummary?.resolved ?? 0),
+    };
+    const accessText = String(token || receipt?.access_link || '').trim() || 'Unavailable';
 
     return (
         <>
-            <Head title={`Progress Receipt - ${project?.name || 'Project'}`} />
-            <div style={{ maxWidth: 1200, margin: '0 auto', padding: '32px 16px 40px' }}>
-                <div style={{ ...headerRowStyle, alignItems: 'baseline' }}>
-                    <div>
-                        <div style={{ textTransform: 'uppercase', fontSize: 12, color: '#7c6e57' }}>Project</div>
-                        <div style={{ fontSize: 26, fontWeight: 700 }}>{project?.name || '-'}</div>
-                        <div style={{ fontSize: 14, color: '#444' }}>
-                            {project?.client ? `Client: ${project.client}` : 'Client unknown'} · {project?.phase || 'Phase TBD'} · {project?.status || 'Status TBD'}
+            <Head title={`Progress Receipt - ${projectName}`} />
+            <div className="receipt-page">
+                <style>{`
+                    .receipt-page{
+                        --border-color:#d8cfbf;
+                        --button-bg:#fbf6ec;
+                        --text-main:#1f1b16;
+                        --text-muted:#736654;
+                        --active-text:#214c7a;
+                        --active-bg:#ddeafb;
+                        --success:#245f3b;
+                        min-height:100vh;
+                        padding:32px 18px 44px;
+                        background:
+                            radial-gradient(circle at top left, rgba(255,248,232,0.92) 0%, rgba(255,248,232,0) 32%),
+                            linear-gradient(180deg, #f6f2ea 0%, #efe8dc 100%);
+                        color:var(--text-main);
+                        font-family:'DM Sans', sans-serif;
+                    }
+                    .receipt-shell{max-width:1380px;margin:0 auto}
+                    .receipt-hero{
+                        display:grid;
+                        grid-template-columns:minmax(0, 1.75fr) minmax(300px, 1fr);
+                        gap:18px;
+                        padding:24px;
+                        border:1px solid var(--border-color);
+                        border-radius:28px;
+                        background:rgba(255,252,246,0.92);
+                        box-shadow:0 24px 60px rgba(117,93,54,0.08);
+                    }
+                    .receipt-eyebrow{
+                        display:inline-flex;
+                        align-items:center;
+                        gap:8px;
+                        margin-bottom:12px;
+                        color:#8b7352;
+                        font-size:12px;
+                        font-weight:700;
+                        letter-spacing:0.14em;
+                        text-transform:uppercase;
+                    }
+                    .receipt-title{
+                        margin:0;
+                        font-size:42px;
+                        line-height:1;
+                        letter-spacing:-0.03em;
+                    }
+                    .receipt-subtitle{
+                        margin:12px 0 0;
+                        font-size:15px;
+                        line-height:1.65;
+                        color:var(--text-muted);
+                    }
+                    .receipt-access-panel{
+                        display:grid;
+                        gap:14px;
+                        align-content:start;
+                        padding:18px;
+                        border-radius:22px;
+                        background:linear-gradient(180deg, rgba(245,239,226,0.95) 0%, rgba(252,247,238,0.98) 100%);
+                        border:1px solid var(--border-color);
+                    }
+                    .receipt-access-label{
+                        font-size:11px;
+                        color:#8b7352;
+                        letter-spacing:0.12em;
+                        font-weight:700;
+                        text-transform:uppercase;
+                    }
+                    .receipt-meta-line{
+                        display:flex;
+                        align-items:flex-start;
+                        gap:10px;
+                        color:var(--text-muted);
+                        font-size:13px;
+                        line-height:1.45;
+                    }
+                    .receipt-meta-line svg{margin-top:1px;flex:0 0 auto}
+                    .receipt-token{
+                        font-family:'DM Mono', monospace;
+                        font-size:12px;
+                        word-break:break-all;
+                    }
+                    .receipt-kpi-grid{
+                        display:grid;
+                        grid-template-columns:repeat(4, minmax(0, 1fr));
+                        gap:14px;
+                        margin:18px 0;
+                    }
+                    .receipt-kpi{
+                        padding:18px 20px;
+                        border-radius:22px;
+                        border:1px solid var(--border-color);
+                        background:rgba(255,252,246,0.92);
+                        box-shadow:0 14px 32px rgba(117,93,54,0.05);
+                    }
+                    .receipt-kpi-label{
+                        font-size:12px;
+                        font-weight:700;
+                        letter-spacing:0.12em;
+                        text-transform:uppercase;
+                        color:#8b7352;
+                    }
+                    .receipt-kpi-value{
+                        margin-top:10px;
+                        font-size:32px;
+                        line-height:1;
+                        font-weight:800;
+                        letter-spacing:-0.03em;
+                    }
+                    .receipt-kpi-note{
+                        margin-top:10px;
+                        font-size:12px;
+                        color:var(--text-muted);
+                    }
+                    .receipt-board{
+                        border:1px solid var(--border-color);
+                        border-radius:28px;
+                        background:rgba(255,252,246,0.96);
+                        overflow:hidden;
+                        box-shadow:0 18px 42px rgba(117,93,54,0.06);
+                    }
+                    .receipt-board-head{
+                        display:flex;
+                        align-items:center;
+                        justify-content:space-between;
+                        gap:14px;
+                        padding:22px 22px 18px;
+                        border-bottom:1px solid rgba(216, 207, 191, 0.65);
+                    }
+                    .receipt-board-title{
+                        margin:0;
+                        font-size:24px;
+                        letter-spacing:-0.02em;
+                    }
+                    .receipt-board-copy{
+                        margin:6px 0 0;
+                        color:var(--text-muted);
+                        font-size:13px;
+                    }
+                    .receipt-table-wrap{overflow:auto}
+                    .receipt-table{
+                        width:100%;
+                        min-width:1320px;
+                        border-collapse:separate;
+                        border-spacing:0;
+                    }
+                    .receipt-table th,
+                    .receipt-table td{
+                        padding:14px 10px;
+                        border-bottom:1px solid rgba(216, 207, 191, 0.78);
+                        text-align:left;
+                        vertical-align:middle;
+                    }
+                    .receipt-table th{
+                        position:sticky;
+                        top:0;
+                        z-index:1;
+                        background:#efe7d8;
+                        color:#6d5b42;
+                        font-size:11px;
+                        font-weight:800;
+                        letter-spacing:0.1em;
+                        text-transform:uppercase;
+                    }
+                    .receipt-table tbody tr:hover{background:rgba(33, 76, 122, 0.035)}
+                    .receipt-scope-cell{
+                        display:grid;
+                        grid-template-columns:auto 1fr;
+                        gap:10px;
+                        align-items:flex-start;
+                    }
+                    .receipt-scope-index{
+                        min-width:30px;
+                        height:30px;
+                        padding:0 8px;
+                        border-radius:999px;
+                        display:inline-flex;
+                        align-items:center;
+                        justify-content:center;
+                        background:#f2eadb;
+                        border:1px solid var(--border-color);
+                        color:#7b6c57;
+                        font-size:12px;
+                        font-weight:700;
+                    }
+                    .receipt-scope-name{
+                        font-size:14px;
+                        font-weight:700;
+                        color:#17130f;
+                    }
+                    .receipt-scope-meta{
+                        margin-top:4px;
+                        font-size:12px;
+                        color:var(--text-muted);
+                    }
+                    .receipt-pill{
+                        display:inline-flex;
+                        align-items:center;
+                        justify-content:center;
+                        padding:5px 9px;
+                        border-radius:999px;
+                        border:1px solid rgba(33, 76, 122, 0.12);
+                        background:rgba(33, 76, 122, 0.07);
+                        color:#214c7a;
+                        font-size:12px;
+                        font-weight:700;
+                        white-space:nowrap;
+                    }
+                    .receipt-progress-cell{
+                        min-width:150px;
+                        display:grid;
+                        gap:8px;
+                    }
+                    .receipt-progress-track{
+                        height:8px;
+                        overflow:hidden;
+                        border-radius:999px;
+                        background:#e7e0d2;
+                    }
+                    .receipt-progress-fill{
+                        display:block;
+                        height:100%;
+                        min-width:8px;
+                        border-radius:inherit;
+                    }
+                    .receipt-progress-pill{
+                        width:fit-content;
+                        display:inline-flex;
+                        align-items:center;
+                        justify-content:center;
+                        padding:3px 8px;
+                        border-radius:999px;
+                        font-size:11px;
+                        font-weight:800;
+                    }
+                    .receipt-assignee{
+                        display:inline-flex;
+                        align-items:center;
+                        gap:8px;
+                        padding:6px 10px;
+                        border-radius:999px;
+                        border:1px solid var(--border-color);
+                        background:#fbf6ed;
+                        font-size:13px;
+                        font-weight:600;
+                        white-space:nowrap;
+                    }
+                    .receipt-assignee-avatar{
+                        width:24px;
+                        height:24px;
+                        border-radius:999px;
+                        display:inline-flex;
+                        align-items:center;
+                        justify-content:center;
+                        background:#ead8c1;
+                        color:#7c5728;
+                        font-size:11px;
+                        font-weight:700;
+                        letter-spacing:0.04em;
+                        position:relative;
+                        overflow:hidden;
+                        flex:0 0 auto;
+                    }
+                    .receipt-assignee-avatar img{
+                        position:absolute;
+                        inset:0;
+                        width:100%;
+                        height:100%;
+                        object-fit:cover;
+                    }
+                    .receipt-photo-strip{
+                        display:flex;
+                        gap:6px;
+                        flex-wrap:wrap;
+                    }
+                    .receipt-photo-thumb{
+                        width:46px;
+                        height:46px;
+                        border:1px solid rgba(216, 207, 191, 0.92);
+                        border-radius:12px;
+                        padding:0;
+                        overflow:hidden;
+                        background:#f4ecdf;
+                        cursor:pointer;
+                        box-shadow:0 8px 18px rgba(77, 63, 43, 0.08);
+                    }
+                    .receipt-photo-thumb img{
+                        width:100%;
+                        height:100%;
+                        object-fit:cover;
+                        display:block;
+                    }
+                    .receipt-photo-empty{
+                        display:inline-flex;
+                        align-items:center;
+                        gap:6px;
+                        color:var(--text-muted);
+                        font-size:12px;
+                        white-space:nowrap;
+                    }
+                    .receipt-issue-pill{
+                        display:inline-flex;
+                        align-items:center;
+                        gap:6px;
+                        padding:6px 10px;
+                        border-radius:999px;
+                        font-size:12px;
+                        font-weight:700;
+                        white-space:nowrap;
+                    }
+                    .receipt-issue-pill.clear{
+                        background:rgba(47, 138, 76, 0.14);
+                        color:#23653a;
+                    }
+                    .receipt-issue-pill.warning{
+                        background:rgba(183, 121, 46, 0.14);
+                        color:#8a5a21;
+                    }
+                    .receipt-help-text{
+                        margin-top:6px;
+                        font-size:11px;
+                        color:var(--text-muted);
+                    }
+                    .receipt-muted{
+                        color:var(--text-muted);
+                        font-size:12px;
+                    }
+                    .receipt-footer{
+                        display:flex;
+                        align-items:center;
+                        justify-content:space-between;
+                        gap:14px;
+                        padding:18px 22px 24px;
+                    }
+                    .receipt-footer-note{
+                        display:flex;
+                        flex-wrap:wrap;
+                        gap:14px;
+                        color:var(--text-muted);
+                        font-size:12px;
+                    }
+                    .receipt-modal-image{
+                        width:100%;
+                        max-height:70vh;
+                        object-fit:contain;
+                        border-radius:16px;
+                        border:1px solid var(--border-color);
+                        background:#fff;
+                    }
+                    @media (max-width: 1080px){
+                        .receipt-hero{grid-template-columns:1fr}
+                        .receipt-kpi-grid{grid-template-columns:repeat(2, minmax(0, 1fr))}
+                    }
+                    @media (max-width: 640px){
+                        .receipt-page{padding:18px 12px 32px}
+                        .receipt-hero{padding:18px;border-radius:22px}
+                        .receipt-title{font-size:31px}
+                        .receipt-kpi-grid{grid-template-columns:1fr}
+                        .receipt-board-head,
+                        .receipt-footer{flex-direction:column;align-items:flex-start}
+                        .receipt-print{width:100%;justify-content:center}
+                    }
+                    @media print{
+                        .receipt-page{padding:0;background:#fff}
+                        .receipt-shell{max-width:none}
+                        .receipt-hero,
+                        .receipt-kpi,
+                        .receipt-board{
+                            box-shadow:none;
+                            background:#fff;
+                        }
+                        .receipt-print{display:none !important}
+                    }
+                `}</style>
+                <div className="receipt-shell">
+                    <section className="receipt-hero">
+                        <div>
+                            <div className="receipt-eyebrow">
+                                <FolderKanban size={15} />
+                                Progress Receipt
+                            </div>
+                            <h1 className="receipt-title">{projectName}</h1>
+                            <p className="receipt-subtitle">
+                                Client: {clientName} | Phase: {humanize(projectPhase)} | Status: {humanize(projectStatus)}
+                            </p>
                         </div>
-                    </div>
-                    <div style={{ textAlign: 'right' }}>
-                        <div style={{ fontSize: 12, color: '#7c6e57' }}>Foreman</div>
-                        <div style={{ fontWeight: 700, fontSize: 16 }}>{foremanName || 'N/A'}</div>
-                        <div style={{ fontSize: 12, color: '#888', marginTop: 6 }}>Access link: {token}</div>
-                        <div style={{ fontSize: 12, color: '#888' }}>Expires: {expiresAt || 'No expiry'}</div>
-                    </div>
-                </div>
-                <div style={summaryGrid}>
-                    <div style={panelStyle}>
-                        <div style={{ fontSize: 12, textTransform: 'uppercase', color: '#8b7761' }}>Total Contract</div>
-                        <div style={{ fontSize: 20, fontWeight: 700 }}>{formatMoney(totals.contract_total)}</div>
-                    </div>
-                    <div style={panelStyle}>
-                        <div style={{ fontSize: 12, textTransform: 'uppercase', color: '#8b7761' }}>Total Weight</div>
-                        <div style={{ fontSize: 20, fontWeight: 700 }}>{totals.weight_total?.toFixed(2) ?? '0.00'}%</div>
-                    </div>
-                    <div style={panelStyle}>
-                        <div style={{ fontSize: 12, textTransform: 'uppercase', color: '#8b7761' }}>Weighted Progress</div>
-                        <div style={{ fontSize: 20, fontWeight: 700 }}>{totals.weighted_progress_percent?.toFixed(2) ?? '0.00'}%</div>
-                    </div>
-                    <div style={panelStyle}>
-                        <div style={{ fontSize: 12, textTransform: 'uppercase', color: '#8b7761' }}>Computed Amount</div>
-                        <div style={{ fontSize: 20, fontWeight: 700 }}>{formatMoney(totals.computed_amount_total)}</div>
-                    </div>
-                </div>
 
-                <table style={tableStyle}>
-                    <thead style={{ background: '#f1ebe1' }}>
-                        <tr>
-                            {[
-                                'Scope of Works',
-                                'Contract',
-                                'Weight %',
-                                'Progress %',
-                                'Computed %',
-                                'Amount',
-                                'Start',
-                                'Target',
-                                'Assignee',
-                                'Photos',
-                                'Issues',
-                            ].map((label) => (
-                                <th key={label} style={{ ...thTdStyle, fontSize: 11, color: '#6a5d46', letterSpacing: 0.4 }}>
-                                    {label}
-                                </th>
-                            ))}
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {scopeRows.map((scope) => (
-                            <tr key={scope.id}>
-                                <td style={thTdStyle}>{scope.scope_name}</td>
-                                <td style={thTdStyle}>{formatMoney(scope.contract_amount)}</td>
-                                <td style={thTdStyle}>{Number(scope.weight_percent).toFixed(2)}%</td>
-                                <td style={thTdStyle}>{`${scope.progress_percent}%`}</td>
-                                <td style={thTdStyle}>{`${scope.computed_percent.toFixed(2)}%`}</td>
-                                <td style={thTdStyle}>{formatMoney(scope.amount_to_date)}</td>
-                                <td style={thTdStyle}>{scope.start_date || '-'}</td>
-                                <td style={thTdStyle}>{scope.target_completion || '-'}</td>
-                                <td style={thTdStyle}>{scope.assigned_personnel || '-'}</td>
-                                <td style={{ ...thTdStyle, width: 160 }}>
-                                    {scope.photos.length === 0 ? (
-                                        '-'
-                                    ) : (
-                                        <div style={photoGrid}>
-                                            {scope.photos.map((photo) => (
-                                                <button
-                                                    key={photo.id}
-                                                    type="button"
-                                                    onClick={() =>
-                                                        setPreviewPhoto({
-                                                            ...photo,
-                                                            caption: photo.caption || scope.scope_name,
-                                                            meta: scope.scope_name,
-                                                            created_at: photo.created_at,
-                                                        })
-                                                    }
-                                                    style={{
-                                                        border: 'none',
-                                                        background: 'transparent',
-                                                        padding: 0,
-                                                        cursor: 'pointer',
-                                                        borderRadius: 6,
-                                                        overflow: 'hidden',
-                                                        border: '1px solid #d1c7b4',
-                                                    }}
-                                                >
-                                                    <img
-                                                        src={`/storage/${photo.photo_path}`}
-                                                        alt={photo.caption || 'Scope photo'}
-                                                        style={{ width: '100%', height: 60, objectFit: 'cover', display: 'block' }}
-                                                    />
-                                                </button>
-                                            ))}
-                                        </div>
-                                    )}
-                                </td>
-                                <td style={thTdStyle}>
-                                    <div style={{ fontSize: 11, color: '#7c7c7c' }}>Open: {issueSummary.open}</div>
-                                    <div style={{ fontSize: 11, color: '#7c7c7c' }}>Resolved: {issueSummary.resolved}</div>
-                                </td>
-                            </tr>
-                        ))}
-                        {scopeRows.length === 0 && (
-                            <tr>
-                                <td colSpan={11} style={{ ...thTdStyle, textAlign: 'center', color: '#9b8f7c' }}>
-                                    No scope data available yet.
-                                </td>
-                            </tr>
-                        )}
-                    </tbody>
-                </table>
+                        <div className="receipt-access-panel">
+                            <div className="receipt-access-label">Receipt Access</div>
+                            <div className="receipt-muted">
+                                {receipt?.submission_count ? `${receipt.submission_count} submission(s)` : 'Public receipt access'}
+                            </div>
+                            <div className="receipt-meta-line">
+                                <Link2 size={14} />
+                                <div>
+                                    <div style={{ fontWeight: 700, color: '#5d503e' }}>Access key</div>
+                                    <div className="receipt-token">{accessText}</div>
+                                </div>
+                            </div>
+                            <div className="receipt-meta-line">
+                                <CalendarDays size={14} />
+                                <div>
+                                    <div style={{ fontWeight: 700, color: '#5d503e' }}>Expires</div>
+                                    <div>{formatDateTime(expiresAt || receipt?.expires_at)}</div>
+                                </div>
+                            </div>
+                        </div>
+                    </section>
 
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 12, color: '#6c5a41' }}>
-                    <div>
-                        Issue log: {issueSummary.open ?? 0} open · {issueSummary.resolved ?? 0} resolved
-                    </div>
-                    <button
-                        type="button"
-                        onClick={() => window.print()}
-                        style={{
-                            border: 'none',
-                            background: '#2f70d4',
-                            color: '#fff',
-                            padding: '8px 14px',
-                            borderRadius: 8,
-                            fontWeight: 700,
-                            cursor: 'pointer',
-                        }}
-                    >
-                        Print Receipt
-                    </button>
+                    <section className="receipt-kpi-grid">
+                        <article className="receipt-kpi">
+                            <div className="receipt-kpi-label">Total Contract</div>
+                            <div className="receipt-kpi-value">{formatMoney(summaryTotals.contractTotal)}</div>
+                            <div className="receipt-kpi-note">Combined contract value across captured scopes.</div>
+                        </article>
+                        <article className="receipt-kpi">
+                            <div className="receipt-kpi-label">Total Weight</div>
+                            <div className="receipt-kpi-value">{formatPercent(summaryTotals.weightTotal, 2)}</div>
+                            <div className="receipt-kpi-note">Weight allocation currently represented in the receipt.</div>
+                        </article>
+                        <article className="receipt-kpi">
+                            <div className="receipt-kpi-label">Weighted Progress</div>
+                            <div className="receipt-kpi-value">{formatPercent(summaryTotals.weightedProgress, 2)}</div>
+                            <div className="receipt-kpi-note">Weighted accomplishment based on reported scope progress.</div>
+                        </article>
+                        <article className="receipt-kpi">
+                            <div className="receipt-kpi-label">Computed Amount</div>
+                            <div className="receipt-kpi-value">{formatMoney(summaryTotals.computedAmount)}</div>
+                            <div className="receipt-kpi-note">Estimated amount earned from the reported progress.</div>
+                        </article>
+                    </section>
+
+                    <section className="receipt-board">
+                        <div className="receipt-board-head">
+                            <div>
+                                <h2 className="receipt-board-title">Scope Breakdown</h2>
+                                <p className="receipt-board-copy">
+                                    Receipt view based on the current submitted scope list, matching the compact visual direction from your reference.
+                                </p>
+                            </div>
+                        </div>
+                        <div className="receipt-table-wrap">
+                            <table className="receipt-table">
+                                <thead>
+                                    <tr>
+                                        <th>Scope of Works</th>
+                                        <th>Contract</th>
+                                        <th>Weight %</th>
+                                        <th>Progress %</th>
+                                        <th>Computed %</th>
+                                        <th>Amount</th>
+                                        <th>Start Date</th>
+                                        <th>Target Completion</th>
+                                        <th>Assignee</th>
+                                        <th>Photos</th>
+                                        <th>Issues</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {scopeRows.map((scope, index) => {
+                                        const tone = progressTone(scope.progressPercent);
+                                        const rowIssueTotals = scope.issues || projectIssueTotals;
+                                        const assignees = Array.isArray(scope.assignees) ? scope.assignees : [];
+                                        const primaryAssignee = assignees[0]?.name || '';
+                                        const primaryPhoto = assignees[0]?.photo_path || '';
+                                        const extraAssignees = assignees.length > 1 ? assignees.length - 1 : 0;
+                                        const assigneeLabel = primaryAssignee
+                                            ? `${primaryAssignee}${extraAssignees ? ` +${extraAssignees}` : ''}`
+                                            : '';
+                                        const openIssues = Number(rowIssueTotals?.open ?? 0);
+                                        const resolvedIssues = Number(rowIssueTotals?.resolved ?? 0);
+                                        const issueHasOpen = openIssues > 0;
+                                        const issueLabel = issueHasOpen
+                                            ? `${openIssues} open`
+                                            : resolvedIssues > 0
+                                              ? `${resolvedIssues} resolved`
+                                              : 'Clear';
+                                        const progressWidth = Math.max(6, Math.min(scope.progressPercent, 100));
+
+                                        return (
+                                            <tr key={scope.id}>
+                                                <td>
+                                                    <div className="receipt-scope-cell">
+                                                        <span className="receipt-scope-index">{index + 1}</span>
+                                                        <div>
+                                                            <div className="receipt-scope-name">{scope.scopeName}</div>
+                                                            <div className="receipt-scope-meta">
+                                                                {scope.status ? humanize(scope.status) : 'Scope status not set'}
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                </td>
+                                                <td>{formatMoney(scope.contractAmount)}</td>
+                                                <td>
+                                                    <span className="receipt-pill">{formatPercent(scope.weightPercent, 2)}</span>
+                                                </td>
+                                                <td>
+                                                    <div className="receipt-progress-cell">
+                                                        <div className="receipt-progress-track">
+                                                            <span
+                                                                className="receipt-progress-fill"
+                                                                style={{
+                                                                    width: `${progressWidth}%`,
+                                                                    background: tone.bar,
+                                                                }}
+                                                            />
+                                                        </div>
+                                                        <span
+                                                            className="receipt-progress-pill"
+                                                            style={{
+                                                                background: tone.badgeBackground,
+                                                                color: tone.badgeColor,
+                                                            }}
+                                                        >
+                                                            {formatPercent(scope.progressPercent, 0)}
+                                                        </span>
+                                                    </div>
+                                                </td>
+                                                <td>{formatPercent(scope.computedPercent, 2)}</td>
+                                                <td>{formatMoney(scope.amountToDate)}</td>
+                                                <td>{formatDate(scope.startDate)}</td>
+                                                <td>{formatDate(scope.targetDate)}</td>
+                                                <td>
+                                                    {assigneeLabel ? (
+                                                        <div
+                                                            className="receipt-assignee"
+                                                            title={assignees.length > 1 ? assignees.map((entry) => entry.name).join(', ') : undefined}
+                                                        >
+                                                            <span className="receipt-assignee-avatar" aria-hidden="true">
+                                                                {getInitials(primaryAssignee)}
+                                                                {primaryPhoto ? (
+                                                                    <img
+                                                                        src={`/storage/${primaryPhoto}`}
+                                                                        alt={primaryAssignee}
+                                                                        onError={(event) => event.currentTarget.remove()}
+                                                                    />
+                                                                ) : null}
+                                                            </span>
+                                                            <span>{assigneeLabel}</span>
+                                                        </div>
+                                                    ) : (
+                                                        <span className="receipt-muted">Unassigned</span>
+                                                    )}
+                                                </td>
+                                                <td>
+                                                    {scope.photos.length === 0 ? (
+                                                        <div className="receipt-photo-empty">
+                                                            <ImageIcon size={14} />
+                                                            No photos
+                                                        </div>
+                                                    ) : (
+                                                        <div className="receipt-photo-strip">
+                                                            {scope.photos.slice(0, 4).map((photo) => (
+                                                                <button
+                                                                    key={photo.id}
+                                                                    type="button"
+                                                                    className="receipt-photo-thumb"
+                                                                    onClick={() =>
+                                                                        setPreviewPhoto({
+                                                                            ...photo,
+                                                                            caption: photo.caption || scope.scopeName,
+                                                                            meta: scope.scopeName,
+                                                                        })
+                                                                    }
+                                                                >
+                                                                    <img
+                                                                        src={`/storage/${photo.photo_path}`}
+                                                                        alt={photo.caption || scope.scopeName}
+                                                                    />
+                                                                </button>
+                                                            ))}
+                                                        </div>
+                                                    )}
+                                                </td>
+                                                <td>
+                                                    <div className={`receipt-issue-pill ${issueHasOpen ? 'warning' : 'clear'}`}>
+                                                        {issueHasOpen ? <AlertTriangle size={15} /> : <CheckCircle2 size={15} />}
+                                                        <span>{issueLabel}</span>
+                                                    </div>
+                                                    {!scope.issues ? <div className="receipt-help-text">Project level log</div> : null}
+                                                </td>
+                                            </tr>
+                                        );
+                                    })}
+                                    {scopeRows.length === 0 ? (
+                                        <tr>
+                                            <td colSpan={11} style={{ textAlign: 'center', color: '#8b7352', padding: '28px 18px' }}>
+                                                No scope data available yet.
+                                            </td>
+                                        </tr>
+                                    ) : null}
+                                </tbody>
+                            </table>
+                        </div>
+                        <div className="receipt-footer">
+                            <div className="receipt-footer-note">
+                                <span>Issue log: {projectIssueTotals.open} open | {projectIssueTotals.resolved} resolved</span>
+                                {receipt?.submitted_at ? <span>Last submitted: {formatDateTime(receipt.submitted_at)}</span> : null}
+                                <span>{scopeRows.length} scope row(s)</span>
+                            </div>
+                            <ActionButton
+                                type="button"
+                                variant="success"
+                                onClick={() => window.print()}
+                                style={{
+                                    padding: '11px 18px',
+                                    fontSize: 14,
+                                    borderRadius: 14,
+                                }}
+                                className="receipt-print"
+                            >
+                                <Printer size={16} />
+                                Print Receipt
+                            </ActionButton>
+                        </div>
+                    </section>
                 </div>
                 <Modal
                     open={!!previewPhoto}
                     onClose={() => setPreviewPhoto(null)}
                     title={previewPhoto?.caption || 'Photo preview'}
-                    maxWidth={900}
+                    maxWidth={920}
                 >
-                    {previewPhoto && (
-                        <div style={{ display: 'grid', gap: 10 }}>
+                    {previewPhoto ? (
+                        <div style={{ display: 'grid', gap: 12 }}>
                             <img
                                 src={`/storage/${previewPhoto.photo_path}`}
                                 alt={previewPhoto.caption || 'Scope photo'}
-                                style={{
-                                    width: '100%',
-                                    maxHeight: '70vh',
-                                    objectFit: 'contain',
-                                    border: '1px solid var(--border-color)',
-                                    borderRadius: 8,
-                                    background: 'var(--surface-2)',
-                                }}
+                                className="receipt-modal-image"
                             />
-                            <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
-                                {previewPhoto.meta ? `${previewPhoto.meta}` : null}
-                                {previewPhoto.created_at ? ` | ${previewPhoto.created_at}` : ''}
+                            <div className="receipt-muted">
+                                {previewPhoto.meta ? `${previewPhoto.meta}` : ''}
+                                {previewPhoto.created_at ? ` | ${formatDateTime(previewPhoto.created_at)}` : ''}
                             </div>
                         </div>
-                    )}
+                    ) : null}
                 </Modal>
             </div>
         </>

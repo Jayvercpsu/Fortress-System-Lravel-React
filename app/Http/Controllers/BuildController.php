@@ -157,7 +157,7 @@ class BuildController extends Controller
 
         return redirect()
             ->route('build.show', ['project' => $project])
-            ->with('success', 'Build tracker updated.');
+            ->with('success', 'Build tracker updated successfully.');
     }
 
     private function syncProjectFinancials(string $projectId): void

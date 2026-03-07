@@ -41,7 +41,7 @@ class ProjectFileController extends Controller
                 'project' => $project->id,
                 ...$this->projectShowQueryParams($request),
             ])
-            ->with('success', 'Project file uploaded.');
+            ->with('success', 'Project file uploaded successfully.');
     }
 
     public function destroy(Request $request, ProjectFile $projectFile)
@@ -60,7 +60,7 @@ class ProjectFileController extends Controller
                 'project' => $projectId,
                 ...$this->projectShowQueryParams($request),
             ])
-            ->with('success', 'Project file deleted.');
+            ->with('success', 'Project file deleted successfully.');
     }
 
     private function authorizeRole(Request $request): void

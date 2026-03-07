@@ -111,7 +111,7 @@ class UserController extends Controller {
             'page' => $request->query('page'),
         ], fn ($value) => $value !== null && $value !== '');
 
-        return redirect()->route('users.index', $query)->with('success', 'User updated.');
+        return redirect()->route('users.index', $query)->with('success', 'User updated successfully.');
     }
 
     public function destroy(Request $request, User $user) {
@@ -124,7 +124,7 @@ class UserController extends Controller {
             'page' => $request->query('page'),
         ], fn ($value) => $value !== null && $value !== '');
 
-        return redirect()->route('users.index', $query)->with('success', 'User deleted.');
+        return redirect()->route('users.index', $query)->with('success', 'User deleted successfully.');
     }
 
     private function userRules(?User $user = null): array {

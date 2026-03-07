@@ -1,0 +1,1005 @@
+<?php
+
+namespace Database\Seeders;
+
+use App\Models\Attendance;
+use App\Models\BuildProject;
+use App\Models\DeliveryConfirmation;
+use App\Models\DesignProject;
+use App\Models\Expense;
+use App\Models\IssueReport;
+use App\Models\Material;
+use App\Models\MaterialRequest;
+use App\Models\Payroll;
+use App\Models\PayrollCutoff;
+use App\Models\PayrollDeduction;
+use App\Models\Payment;
+use App\Models\ProgressPhoto;
+use App\Models\ProgressSubmitToken;
+use App\Models\Project;
+use App\Models\ProjectAssignment;
+use App\Models\ProjectFile;
+use App\Models\ProjectScope;
+use App\Models\ProjectUpdate;
+use App\Models\ProjectWorker;
+use App\Models\ScopePhoto;
+use App\Models\User;
+use App\Models\UserDetail;
+use App\Models\WeeklyAccomplishment;
+use App\Models\Worker;
+use Illuminate\Database\Seeder;
+use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\File;
+use Illuminate\Support\Facades\Storage;
+
+class FortressBuildingFlowSeeder extends Seeder
+{
+    private const PROJECT_NAME = 'Fortress Building';
+    private const ASSET_ROOT = 'demo/fortress-building';
+    private const PRIMARY_FOREMAN_EMAIL = 'fortress.foreman@buildbooks.com';
+    private const CO_FOREMAN_EMAIL = 'fortress.coforeman@buildbooks.com';
+    private const PRIMARY_TOKEN = 'fortress-building-main-demo-token';
+    private const CO_TOKEN = 'fortress-building-co-demo-token';
+    private const PAYROLL_WEEK_START = '2026-03-02';
+    private const PAYROLL_WEEK_END = '2026-03-08';
+    private const ATTENDANCE_CODE_HOURS = [
+        'P' => 8.0,
+        'A' => 0.0,
+        'H' => 4.0,
+        'R' => 0.0,
+        'F' => 0.0,
+    ];
+
+    private ?array $downloadImagesCache = null;
+
+    public function run(): void
+    {
+        $this->ensureMaterialCategories();
+
+        $primaryForeman = User::query()->updateOrCreate(
+            ['email' => self::PRIMARY_FOREMAN_EMAIL],
+            [
+                'fullname' => 'Fortress Demo Foreman',
+                'password' => 'password',
+                'role' => 'foreman',
+                'default_rate_per_hour' => 135.00,
+            ]
+        );
+
+        $coForeman = User::query()->updateOrCreate(
+            ['email' => self::CO_FOREMAN_EMAIL],
+            [
+                'fullname' => 'Fortress Demo Co-Foreman',
+                'password' => 'password',
+                'role' => 'foreman',
+                'default_rate_per_hour' => 128.00,
+            ]
+        );
+
+        $workerSeedRows = $this->workerSeedRows($primaryForeman, $coForeman);
+
+        $this->cleanupExistingProject($primaryForeman, $coForeman, collect($workerSeedRows)->pluck('name')->all());
+
+        $assets = $this->prepareAssets();
+
+        $this->seedUserDetail($primaryForeman, [
+            'age' => 33,
+            'birth_date' => '1992-06-18',
+            'place_of_birth' => 'Cebu City',
+            'sex' => 'male',
+            'civil_status' => 'Married',
+            'phone' => '09171234567',
+            'address' => 'Basak, Mandaue City, Cebu',
+            'profile_photo_path' => $assets['primary_profile'],
+        ]);
+
+        $this->seedUserDetail($coForeman, [
+            'age' => 31,
+            'birth_date' => '1994-01-12',
+            'place_of_birth' => 'Lapu-Lapu City',
+            'sex' => 'male',
+            'civil_status' => 'Single',
+            'phone' => '09179876543',
+            'address' => 'Gun-ob, Lapu-Lapu City, Cebu',
+            'profile_photo_path' => $assets['co_profile'],
+        ]);
+
+        $seedAdmin = User::query()
+            ->whereIn('email', ['headadmin@buildbooks.com', 'admin@buildbooks.com'])
+            ->orderByRaw("FIELD(email, 'headadmin@buildbooks.com', 'admin@buildbooks.com')")
+            ->first()
+            ?: User::query()->updateOrCreate(
+                ['email' => 'fortress.seed.admin@buildbooks.com'],
+                [
+                    'fullname' => 'Fortress Seed Admin',
+                    'password' => 'password',
+                    'role' => 'head_admin',
+                ]
+            );
+
+        DB::transaction(function () use ($assets, $primaryForeman, $coForeman, $seedAdmin, $workerSeedRows): void {
+            $project = Project::query()->create($this->projectAttributes($primaryForeman, $coForeman));
+
+            DesignProject::query()->updateOrCreate(
+                ['project_id' => $project->id],
+                $this->designProjectAttributes($project)
+            );
+
+            BuildProject::query()->updateOrCreate(
+                ['project_id' => $project->id],
+                $this->buildProjectAttributes($project)
+            );
+
+            ProjectAssignment::query()->insert($this->projectAssignmentRows($project, $primaryForeman, $coForeman));
+
+            $scopesByName = collect($this->scopeSeedRows($primaryForeman, $coForeman))->mapWithKeys(function (array $scopeRow) use ($project) {
+                $scope = ProjectScope::query()->create(array_merge($scopeRow, ['project_id' => $project->id]));
+                return [$scopeRow['scope_name'] => $scope];
+            });
+
+            foreach ($this->scopePhotoRows($assets) as $row) {
+                if (!$row['photo']) {
+                    continue;
+                }
+
+                ScopePhoto::query()->create([
+                    'project_scope_id' => $scopesByName[$row['scope']]->id,
+                    'photo_path' => $row['photo'],
+                    'caption' => $row['caption'],
+                ]);
+            }
+
+            foreach ($workerSeedRows as $workerData) {
+                Worker::query()->create(array_merge($workerData, ['project_id' => $project->id]));
+            }
+
+            ProjectWorker::query()->insert($this->projectWorkerRows($project));
+            Attendance::query()->insert($this->buildAttendanceRows($project->id, $primaryForeman, $coForeman, $workerSeedRows));
+            WeeklyAccomplishment::query()->insert($this->weeklyAccomplishmentRows($project, $primaryForeman, $coForeman));
+            MaterialRequest::query()->insert($this->materialRequestRows($project, $primaryForeman, $coForeman, $assets));
+            IssueReport::query()->insert($this->issueRows($project, $primaryForeman, $coForeman, $assets));
+            DeliveryConfirmation::query()->insert($this->deliveryRows($project, $primaryForeman, $coForeman, $assets));
+            ProgressPhoto::query()->insert($this->progressPhotoRows($project, $primaryForeman, $coForeman, $assets));
+            ProjectUpdate::query()->insert($this->projectUpdateRows($project, $seedAdmin, $primaryForeman, $coForeman));
+
+            $projectFiles = $this->projectFileRows($project, $seedAdmin, $assets);
+            if ($projectFiles !== []) {
+                ProjectFile::query()->insert($projectFiles);
+            }
+
+            Payment::query()->insert($this->paymentRows($project));
+            Expense::query()->insert($this->expenseRows($project));
+            ProgressSubmitToken::query()->insert($this->tokenRows($project, $primaryForeman, $coForeman));
+
+            $this->seedPayrollFlow($project->id, $seedAdmin);
+        });
+    }
+
+    private function projectAttributes(User $primaryForeman, User $coForeman): array
+    {
+        return [
+            'name' => self::PROJECT_NAME,
+            'client' => 'Fortress Property Holdings, Inc.',
+            'type' => 'Commercial',
+            'location' => 'Cebu City',
+            'assigned_role' => 'Architect: Maria Santos; Engineer: Carlo Dizon; PM: Luis Mendoza',
+            'assigned' => $primaryForeman->fullname . ', ' . $coForeman->fullname,
+            'target' => '2026-06-30',
+            'status' => 'ONGOING',
+            'phase' => 'Construction',
+            'overall_progress' => 62,
+            'contract_amount' => 1800000.00,
+            'design_fee' => 280000.00,
+            'construction_cost' => 435500.00,
+            'total_client_payment' => 620000.00,
+            'remaining_balance' => 1180000.00,
+            'last_paid_date' => '2026-03-04',
+        ];
+    }
+
+    private function designProjectAttributes(Project $project): array
+    {
+        return [
+            'project_id' => $project->id,
+            'design_contract_amount' => 280000.00,
+            'downpayment' => 80000.00,
+            'total_received' => 180000.00,
+            'office_payroll_deduction' => 15000.00,
+            'design_progress' => 100,
+            'client_approval_status' => 'approved',
+        ];
+    }
+
+    private function buildProjectAttributes(Project $project): array
+    {
+        return [
+            'project_id' => $project->id,
+            'construction_contract' => 1520000.00,
+            'total_client_payment' => 440000.00,
+            'materials_cost' => 298000.00,
+            'labor_cost' => 102500.00,
+            'equipment_cost' => 35000.00,
+        ];
+    }
+
+    private function projectAssignmentRows(Project $project, User $primaryForeman, User $coForeman): array
+    {
+        return [
+            [
+                'project_id' => $project->id,
+                'user_id' => $coForeman->id,
+                'role_in_project' => 'foreman',
+                'created_at' => '2026-03-01 08:00:00',
+                'updated_at' => '2026-03-01 08:00:00',
+            ],
+            [
+                'project_id' => $project->id,
+                'user_id' => $primaryForeman->id,
+                'role_in_project' => 'foreman',
+                'created_at' => '2026-03-01 08:05:00',
+                'updated_at' => '2026-03-01 08:05:00',
+            ],
+        ];
+    }
+
+    private function workerSeedRows(User $primaryForeman, User $coForeman): array
+    {
+        return [
+            [
+                'foreman_id' => $primaryForeman->id,
+                'name' => 'Ramon Castillo',
+                'job_type' => 'Skilled Worker',
+                'default_rate_per_hour' => 95.00,
+                'birth_date' => '1988-04-11',
+                'place_of_birth' => 'Toledo City',
+                'sex' => 'male',
+                'civil_status' => 'Married',
+                'phone' => '09170000001',
+                'address' => 'Poblacion, Toledo City',
+            ],
+            [
+                'foreman_id' => $primaryForeman->id,
+                'name' => 'Leo Navarro',
+                'job_type' => 'Laborer',
+                'default_rate_per_hour' => 92.00,
+                'birth_date' => '1990-07-18',
+                'place_of_birth' => 'Talisay City',
+                'sex' => 'male',
+                'civil_status' => 'Single',
+                'phone' => '09170000002',
+                'address' => 'Tabunok, Talisay City',
+            ],
+            [
+                'foreman_id' => $primaryForeman->id,
+                'name' => 'Joel Santos',
+                'job_type' => 'Skilled Worker',
+                'default_rate_per_hour' => 98.00,
+                'birth_date' => '1987-02-06',
+                'place_of_birth' => 'Mandaue City',
+                'sex' => 'male',
+                'civil_status' => 'Married',
+                'phone' => '09170000003',
+                'address' => 'Subangdaku, Mandaue City',
+            ],
+            [
+                'foreman_id' => $primaryForeman->id,
+                'name' => 'Carlo Belen',
+                'job_type' => 'Worker',
+                'default_rate_per_hour' => 88.00,
+                'birth_date' => '1993-10-30',
+                'place_of_birth' => 'Naga City',
+                'sex' => 'male',
+                'civil_status' => 'Single',
+                'phone' => '09170000004',
+                'address' => 'Colon, Naga City',
+            ],
+            [
+                'foreman_id' => $primaryForeman->id,
+                'name' => 'Alex Manuel',
+                'job_type' => 'Skilled Worker',
+                'default_rate_per_hour' => 100.00,
+                'birth_date' => '1991-12-21',
+                'place_of_birth' => 'Carcar City',
+                'sex' => 'male',
+                'civil_status' => 'Married',
+                'phone' => '09170000005',
+                'address' => 'Poblacion, Carcar City',
+            ],
+            [
+                'foreman_id' => $coForeman->id,
+                'name' => 'Mark Rivera',
+                'job_type' => 'Laborer',
+                'default_rate_per_hour' => 110.00,
+                'birth_date' => '1994-08-15',
+                'place_of_birth' => 'Lapu-Lapu City',
+                'sex' => 'male',
+                'civil_status' => 'Single',
+                'phone' => '09170000006',
+                'address' => 'Pajo, Lapu-Lapu City',
+            ],
+        ];
+    }
+
+    private function scopeSeedRows(User $primaryForeman, User $coForeman): array
+    {
+        return [
+            [
+                'scope_name' => 'Site Preparation and Layout',
+                'assigned_personnel' => $primaryForeman->fullname,
+                'progress_percent' => 100,
+                'status' => 'COMPLETED',
+                'remarks' => 'Temporary facilities, fencing, and layout lines are complete.',
+                'contract_amount' => 150000.00,
+                'weight_percent' => 8.00,
+                'start_date' => '2026-01-05',
+                'target_completion' => '2026-01-18',
+            ],
+            [
+                'scope_name' => 'Foundation and Footings',
+                'assigned_personnel' => $coForeman->fullname,
+                'progress_percent' => 100,
+                'status' => 'COMPLETED',
+                'remarks' => 'Excavation, footing rebar, and concrete pour completed.',
+                'contract_amount' => 280000.00,
+                'weight_percent' => 18.00,
+                'start_date' => '2026-01-12',
+                'target_completion' => '2026-02-02',
+            ],
+            [
+                'scope_name' => 'Structural Columns and Beams',
+                'assigned_personnel' => $primaryForeman->fullname,
+                'progress_percent' => 72,
+                'status' => 'IN_PROGRESS',
+                'remarks' => 'Level 2 beam forms are ready for the next concrete schedule.',
+                'contract_amount' => 360000.00,
+                'weight_percent' => 22.00,
+                'start_date' => '2026-02-01',
+                'target_completion' => '2026-03-22',
+            ],
+            [
+                'scope_name' => 'CHB Walling and Plastering',
+                'assigned_personnel' => $primaryForeman->fullname,
+                'progress_percent' => 48,
+                'status' => 'IN_PROGRESS',
+                'remarks' => 'Ground floor walling is complete, second floor walling is ongoing.',
+                'contract_amount' => 260000.00,
+                'weight_percent' => 16.00,
+                'start_date' => '2026-02-16',
+                'target_completion' => '2026-04-10',
+            ],
+            [
+                'scope_name' => 'Roofing and Waterproofing',
+                'assigned_personnel' => $coForeman->fullname,
+                'progress_percent' => 28,
+                'status' => 'IN_PROGRESS',
+                'remarks' => 'Roof framing is underway. Waterproofing crew is queued next.',
+                'contract_amount' => 310000.00,
+                'weight_percent' => 20.00,
+                'start_date' => '2026-03-01',
+                'target_completion' => '2026-05-02',
+            ],
+            [
+                'scope_name' => 'Electrical and Plumbing Rough-In',
+                'assigned_personnel' => $primaryForeman->fullname,
+                'progress_percent' => 24,
+                'status' => 'IN_PROGRESS',
+                'remarks' => 'Primary conduits and vertical plumbing stacks are partially installed.',
+                'contract_amount' => 180000.00,
+                'weight_percent' => 16.00,
+                'start_date' => '2026-03-03',
+                'target_completion' => '2026-05-18',
+            ],
+        ];
+    }
+
+    private function scopePhotoRows(array $assets): array
+    {
+        return [
+            ['scope' => 'Site Preparation and Layout', 'photo' => $assets['scope_site_1'] ?? null, 'caption' => '[Jotform Weekly] | Week: 2026-03-02 | Scope: Site Preparation and Layout | Mobilization area and layout points'],
+            ['scope' => 'Foundation and Footings', 'photo' => $assets['scope_foundation_1'] ?? null, 'caption' => '[Jotform Weekly] | Week: 2026-03-02 | Scope: Foundation and Footings | Footing rebar inspection before pour'],
+            ['scope' => 'Foundation and Footings', 'photo' => $assets['scope_foundation_2'] ?? null, 'caption' => '[Jotform Weekly] | Week: 2026-03-02 | Scope: Foundation and Footings | Completed footing concrete'],
+            ['scope' => 'Structural Columns and Beams', 'photo' => $assets['scope_structure_1'] ?? null, 'caption' => '[Jotform Weekly] | Week: 2026-03-02 | Scope: Structural Columns and Beams | Level 2 beam formworks'],
+            ['scope' => 'CHB Walling and Plastering', 'photo' => $assets['scope_walling_1'] ?? null, 'caption' => '[Jotform Weekly] | Week: 2026-03-02 | Scope: CHB Walling and Plastering | Ongoing wall alignment and plaster preparation'],
+            ['scope' => 'Roofing and Waterproofing', 'photo' => $assets['scope_roofing_1'] ?? null, 'caption' => '[Jotform Weekly] | Week: 2026-03-02 | Scope: Roofing and Waterproofing | Roofing members ready for sheet installation'],
+            ['scope' => 'Electrical and Plumbing Rough-In', 'photo' => $assets['scope_mep_1'] ?? null, 'caption' => '[Jotform Weekly] | Week: 2026-03-02 | Scope: Electrical and Plumbing Rough-In | Conduit and PVC layout in service area'],
+        ];
+    }
+
+    private function projectWorkerRows(Project $project): array
+    {
+        return [
+            [
+                'project_id' => $project->id,
+                'user_id' => null,
+                'worker_name' => 'Rodel Crane Operator',
+                'rate' => 150.00,
+                'created_at' => '2026-03-01 09:00:00',
+                'updated_at' => '2026-03-01 09:00:00',
+            ],
+            [
+                'project_id' => $project->id,
+                'user_id' => null,
+                'worker_name' => 'Safety Officer Consultant',
+                'rate' => 140.00,
+                'created_at' => '2026-03-01 09:05:00',
+                'updated_at' => '2026-03-01 09:05:00',
+            ],
+        ];
+    }
+
+    private function weeklyAccomplishmentRows(Project $project, User $primaryForeman, User $coForeman): array
+    {
+        return [
+            ['foreman_id' => $primaryForeman->id, 'project_id' => $project->id, 'scope_of_work' => 'Site Preparation and Layout', 'percent_completed' => 100, 'week_start' => '2026-02-23', 'created_at' => '2026-02-28 18:00:00', 'updated_at' => '2026-02-28 18:00:00'],
+            ['foreman_id' => $primaryForeman->id, 'project_id' => $project->id, 'scope_of_work' => 'Foundation and Footings', 'percent_completed' => 85, 'week_start' => '2026-02-23', 'created_at' => '2026-02-28 18:00:00', 'updated_at' => '2026-02-28 18:00:00'],
+            ['foreman_id' => $primaryForeman->id, 'project_id' => $project->id, 'scope_of_work' => 'Structural Columns and Beams', 'percent_completed' => 54, 'week_start' => '2026-02-23', 'created_at' => '2026-02-28 18:00:00', 'updated_at' => '2026-02-28 18:00:00'],
+            ['foreman_id' => $primaryForeman->id, 'project_id' => $project->id, 'scope_of_work' => 'CHB Walling and Plastering', 'percent_completed' => 26, 'week_start' => '2026-02-23', 'created_at' => '2026-02-28 18:00:00', 'updated_at' => '2026-02-28 18:00:00'],
+            ['foreman_id' => $primaryForeman->id, 'project_id' => $project->id, 'scope_of_work' => 'Roofing and Waterproofing', 'percent_completed' => 12, 'week_start' => '2026-02-23', 'created_at' => '2026-02-28 18:00:00', 'updated_at' => '2026-02-28 18:00:00'],
+            ['foreman_id' => $primaryForeman->id, 'project_id' => $project->id, 'scope_of_work' => 'Electrical and Plumbing Rough-In', 'percent_completed' => 8, 'week_start' => '2026-02-23', 'created_at' => '2026-02-28 18:00:00', 'updated_at' => '2026-02-28 18:00:00'],
+            ['foreman_id' => $primaryForeman->id, 'project_id' => $project->id, 'scope_of_work' => 'Site Preparation and Layout', 'percent_completed' => 100, 'week_start' => '2026-03-02', 'created_at' => '2026-03-07 18:05:00', 'updated_at' => '2026-03-07 18:05:00'],
+            ['foreman_id' => $primaryForeman->id, 'project_id' => $project->id, 'scope_of_work' => 'Foundation and Footings', 'percent_completed' => 100, 'week_start' => '2026-03-02', 'created_at' => '2026-03-07 18:05:00', 'updated_at' => '2026-03-07 18:05:00'],
+            ['foreman_id' => $primaryForeman->id, 'project_id' => $project->id, 'scope_of_work' => 'Structural Columns and Beams', 'percent_completed' => 72, 'week_start' => '2026-03-02', 'created_at' => '2026-03-07 18:05:00', 'updated_at' => '2026-03-07 18:05:00'],
+            ['foreman_id' => $primaryForeman->id, 'project_id' => $project->id, 'scope_of_work' => 'CHB Walling and Plastering', 'percent_completed' => 48, 'week_start' => '2026-03-02', 'created_at' => '2026-03-07 18:05:00', 'updated_at' => '2026-03-07 18:05:00'],
+            ['foreman_id' => $primaryForeman->id, 'project_id' => $project->id, 'scope_of_work' => 'Roofing and Waterproofing', 'percent_completed' => 28, 'week_start' => '2026-03-02', 'created_at' => '2026-03-07 18:05:00', 'updated_at' => '2026-03-07 18:05:00'],
+            ['foreman_id' => $primaryForeman->id, 'project_id' => $project->id, 'scope_of_work' => 'Electrical and Plumbing Rough-In', 'percent_completed' => 24, 'week_start' => '2026-03-02', 'created_at' => '2026-03-07 18:05:00', 'updated_at' => '2026-03-07 18:05:00'],
+            ['foreman_id' => $coForeman->id, 'project_id' => $project->id, 'scope_of_work' => 'Structural Columns and Beams', 'percent_completed' => 68, 'week_start' => '2026-02-23', 'created_at' => '2026-02-28 18:20:00', 'updated_at' => '2026-02-28 18:20:00'],
+            ['foreman_id' => $coForeman->id, 'project_id' => $project->id, 'scope_of_work' => 'Roofing and Waterproofing', 'percent_completed' => 10, 'week_start' => '2026-02-23', 'created_at' => '2026-02-28 18:20:00', 'updated_at' => '2026-02-28 18:20:00'],
+            ['foreman_id' => $coForeman->id, 'project_id' => $project->id, 'scope_of_work' => 'Structural Columns and Beams', 'percent_completed' => 72, 'week_start' => '2026-03-02', 'created_at' => '2026-03-07 18:15:00', 'updated_at' => '2026-03-07 18:15:00'],
+            ['foreman_id' => $coForeman->id, 'project_id' => $project->id, 'scope_of_work' => 'Roofing and Waterproofing', 'percent_completed' => 28, 'week_start' => '2026-03-02', 'created_at' => '2026-03-07 18:15:00', 'updated_at' => '2026-03-07 18:15:00'],
+            ['foreman_id' => $coForeman->id, 'project_id' => $project->id, 'scope_of_work' => 'Electrical and Plumbing Rough-In', 'percent_completed' => 24, 'week_start' => '2026-03-02', 'created_at' => '2026-03-07 18:15:00', 'updated_at' => '2026-03-07 18:15:00'],
+        ];
+    }
+
+    private function materialRequestRows(Project $project, User $primaryForeman, User $coForeman, array $assets): array
+    {
+        return [
+            ['project_id' => $project->id, 'foreman_id' => $primaryForeman->id, 'material_name' => 'Cement', 'quantity' => '250', 'unit' => 'bags', 'remarks' => 'Needed for column pours and CHB laying for the next 5 working days.', 'status' => 'pending', 'photo_path' => $assets['material_request_1'] ?? null, 'created_at' => '2026-03-05 09:20:00', 'updated_at' => '2026-03-05 09:20:00'],
+            ['project_id' => $project->id, 'foreman_id' => $primaryForeman->id, 'material_name' => 'Rebar', 'quantity' => '130', 'unit' => 'pcs', 'remarks' => '16mm bars for level 2 beam reinforcement.', 'status' => 'approved', 'photo_path' => $assets['material_request_2'] ?? null, 'created_at' => '2026-03-03 14:10:00', 'updated_at' => '2026-03-03 16:45:00'],
+            ['project_id' => $project->id, 'foreman_id' => $coForeman->id, 'material_name' => 'PVC Pipe', 'quantity' => '40', 'unit' => 'lengths', 'remarks' => 'Sanitary line rough-in for service core and restroom block.', 'status' => 'pending', 'photo_path' => $assets['material_request_3'] ?? null, 'created_at' => '2026-03-06 08:35:00', 'updated_at' => '2026-03-06 08:35:00'],
+            ['project_id' => $project->id, 'foreman_id' => $coForeman->id, 'material_name' => 'Electrical Wire', 'quantity' => '6', 'unit' => 'rolls', 'remarks' => 'Feeder and branch circuits for the admin office segment.', 'status' => 'approved', 'photo_path' => $assets['material_request_4'] ?? null, 'created_at' => '2026-03-04 10:05:00', 'updated_at' => '2026-03-04 13:40:00'],
+        ];
+    }
+
+    private function issueRows(Project $project, User $primaryForeman, User $coForeman, array $assets): array
+    {
+        return [
+            ['project_id' => $project->id, 'foreman_id' => $primaryForeman->id, 'issue_title' => 'Formwork alignment at stair core', 'description' => 'Stair core beam formwork needs minor realignment before the next concrete schedule.', 'severity' => 'high', 'status' => 'open', 'photo_path' => $assets['issue_1'] ?? null, 'created_at' => '2026-03-06 11:15:00', 'updated_at' => '2026-03-06 11:15:00'],
+            ['project_id' => $project->id, 'foreman_id' => $primaryForeman->id, 'issue_title' => 'Rainwater ponding near stockpile', 'description' => 'Drainage channel was blocked after heavy rain. Temporary diversion was installed and issue is resolved.', 'severity' => 'medium', 'status' => 'resolved', 'photo_path' => $assets['issue_2'] ?? null, 'created_at' => '2026-03-04 15:35:00', 'updated_at' => '2026-03-05 08:05:00'],
+            ['project_id' => $project->id, 'foreman_id' => $coForeman->id, 'issue_title' => 'Temporary power panel grounding', 'description' => 'Grounding wire and rod inspection is required before energizing the temporary power extension.', 'severity' => 'medium', 'status' => 'open', 'photo_path' => $assets['issue_3'] ?? null, 'created_at' => '2026-03-07 08:40:00', 'updated_at' => '2026-03-07 08:40:00'],
+        ];
+    }
+
+    private function deliveryRows(Project $project, User $primaryForeman, User $coForeman, array $assets): array
+    {
+        return [
+            ['project_id' => $project->id, 'foreman_id' => $primaryForeman->id, 'item_delivered' => 'Cement', 'quantity' => '150 bags', 'delivery_date' => '2026-03-03', 'supplier' => 'Cebu Prime Construction Supply', 'status' => 'received', 'photo_path' => $assets['delivery_1'] ?? null, 'created_at' => '2026-03-03 10:20:00', 'updated_at' => '2026-03-03 10:20:00'],
+            ['project_id' => $project->id, 'foreman_id' => $primaryForeman->id, 'item_delivered' => 'Rebar 16mm', 'quantity' => '130 pcs', 'delivery_date' => '2026-03-04', 'supplier' => 'Metro Steel Cebu', 'status' => 'received', 'photo_path' => $assets['delivery_2'] ?? null, 'created_at' => '2026-03-04 16:00:00', 'updated_at' => '2026-03-04 16:00:00'],
+            ['project_id' => $project->id, 'foreman_id' => $coForeman->id, 'item_delivered' => 'PVC Pipe', 'quantity' => '28 lengths', 'delivery_date' => '2026-03-06', 'supplier' => 'Lapu-Lapu Industrial Depot', 'status' => 'incomplete', 'photo_path' => $assets['delivery_3'] ?? null, 'created_at' => '2026-03-06 14:25:00', 'updated_at' => '2026-03-06 14:25:00'],
+        ];
+    }
+
+    private function progressPhotoRows(Project $project, User $primaryForeman, User $coForeman, array $assets): array
+    {
+        return [
+            ['foreman_id' => $primaryForeman->id, 'project_id' => $project->id, 'photo_path' => $assets['progress_1'] ?? null, 'caption' => '[General Progress] Beam and slab formworks staged for next week concrete pour.', 'created_at' => '2026-03-05 17:30:00', 'updated_at' => '2026-03-05 17:30:00'],
+            ['foreman_id' => $primaryForeman->id, 'project_id' => $project->id, 'photo_path' => $assets['progress_2'] ?? null, 'caption' => '[Masonry] CHB walling on the ground floor west wing.', 'created_at' => '2026-03-06 17:45:00', 'updated_at' => '2026-03-06 17:45:00'],
+            ['foreman_id' => $coForeman->id, 'project_id' => $project->id, 'photo_path' => $assets['progress_3'] ?? null, 'caption' => '[Plumbing Rough-in] PVC and clean-out runs ready for inspection.', 'created_at' => '2026-03-06 16:20:00', 'updated_at' => '2026-03-06 16:20:00'],
+            ['foreman_id' => $coForeman->id, 'project_id' => $project->id, 'photo_path' => $assets['progress_4'] ?? null, 'caption' => '[Roofing] Truss and purlin installation continuing above the service area.', 'created_at' => '2026-03-07 15:55:00', 'updated_at' => '2026-03-07 15:55:00'],
+        ];
+    }
+
+    private function projectUpdateRows(Project $project, User $seedAdmin, User $primaryForeman, User $coForeman): array
+    {
+        return [
+            ['project_id' => $project->id, 'note' => 'Project kickoff completed with approved design package, survey references, and manpower deployment plan.', 'created_by' => $seedAdmin->id, 'created_at' => '2026-01-05 09:00:00', 'updated_at' => '2026-01-05 09:00:00'],
+            ['project_id' => $project->id, 'note' => 'Foundation and footing activities reached 100% completion after concrete cure inspection.', 'created_by' => $primaryForeman->id, 'created_at' => '2026-02-02 17:10:00', 'updated_at' => '2026-02-02 17:10:00'],
+            ['project_id' => $project->id, 'note' => 'Structural columns and beams reached 72%. Rebar and formworks for the remaining frames are staged.', 'created_by' => $primaryForeman->id, 'created_at' => '2026-03-05 18:10:00', 'updated_at' => '2026-03-05 18:10:00'],
+            ['project_id' => $project->id, 'note' => 'Electrical and plumbing rough-in is now active in parallel with roofing preparation for the next billing cycle.', 'created_by' => $coForeman->id, 'created_at' => '2026-03-07 18:00:00', 'updated_at' => '2026-03-07 18:00:00'],
+        ];
+    }
+
+    private function projectFileRows(Project $project, User $seedAdmin, array $assets): array
+    {
+        return collect([
+            ['file_path' => $assets['guide'] ?? null, 'original_name' => 'Fortress-Building-Flow-Guide.txt'],
+            ['file_path' => $assets['scope_structure_1'] ?? null, 'original_name' => 'Fortress-Building-Structural-Progress.jpg'],
+            ['file_path' => $assets['scope_roofing_1'] ?? null, 'original_name' => 'Fortress-Building-Roofing-Progress.jpg'],
+            ['file_path' => $assets['scope_mep_1'] ?? null, 'original_name' => 'Fortress-Building-MEP-Progress.jpg'],
+        ])
+            ->filter(fn (array $row) => !empty($row['file_path']))
+            ->map(fn (array $row) => [
+                'project_id' => $project->id,
+                'file_path' => $row['file_path'],
+                'original_name' => $row['original_name'],
+                'uploaded_by' => $seedAdmin->id,
+                'created_at' => '2026-03-07 18:30:00',
+                'updated_at' => '2026-03-07 18:30:00',
+            ])
+            ->values()
+            ->all();
+    }
+
+    private function paymentRows(Project $project): array
+    {
+        return [
+            ['project_id' => $project->id, 'amount' => 180000.00, 'date_paid' => '2026-01-10', 'reference' => 'FPH-DEP-260110', 'note' => 'Mobilization and initial design retention release.', 'created_at' => '2026-01-10 11:00:00', 'updated_at' => '2026-01-10 11:00:00'],
+            ['project_id' => $project->id, 'amount' => 220000.00, 'date_paid' => '2026-02-18', 'reference' => 'FPH-PROG-260218', 'note' => 'Progress billing tied to footing and initial framing accomplishments.', 'created_at' => '2026-02-18 15:00:00', 'updated_at' => '2026-02-18 15:00:00'],
+            ['project_id' => $project->id, 'amount' => 220000.00, 'date_paid' => '2026-03-04', 'reference' => 'FPH-PROG-260304', 'note' => 'March progress billing covering structural works and masonry start.', 'created_at' => '2026-03-04 16:20:00', 'updated_at' => '2026-03-04 16:20:00'],
+        ];
+    }
+
+    private function expenseRows(Project $project): array
+    {
+        return [
+            ['project_id' => $project->id, 'category' => 'Cement', 'amount' => 98000.00, 'note' => 'Footing and masonry batch releases.', 'date' => '2026-02-05', 'created_at' => '2026-02-05 10:00:00', 'updated_at' => '2026-02-05 10:00:00'],
+            ['project_id' => $project->id, 'category' => 'Rebar', 'amount' => 124500.00, 'note' => 'Column and beam reinforcement packages.', 'date' => '2026-02-24', 'created_at' => '2026-02-24 14:00:00', 'updated_at' => '2026-02-24 14:00:00'],
+            ['project_id' => $project->id, 'category' => 'Labor', 'amount' => 102500.00, 'note' => 'March 2-8 payroll accrual for the active site team.', 'date' => '2026-03-08', 'created_at' => '2026-03-08 18:00:00', 'updated_at' => '2026-03-08 18:00:00'],
+            ['project_id' => $project->id, 'category' => 'Equipment Rental', 'amount' => 35000.00, 'note' => 'Mixer, vibrators, and scaffolding rental cycle.', 'date' => '2026-03-01', 'created_at' => '2026-03-01 08:30:00', 'updated_at' => '2026-03-01 08:30:00'],
+            ['project_id' => $project->id, 'category' => 'Electrical Wire', 'amount' => 27000.00, 'note' => 'Initial rough-in feeder and branch wire purchase.', 'date' => '2026-03-04', 'created_at' => '2026-03-04 13:00:00', 'updated_at' => '2026-03-04 13:00:00'],
+            ['project_id' => $project->id, 'category' => 'PVC Pipe', 'amount' => 18500.00, 'note' => 'Sanitary and water line rough-in materials.', 'date' => '2026-03-06', 'created_at' => '2026-03-06 11:10:00', 'updated_at' => '2026-03-06 11:10:00'],
+            ['project_id' => $project->id, 'category' => 'Miscellaneous', 'amount' => 30000.00, 'note' => 'Fasteners, safety stock, hauling, and site consumables.', 'date' => '2026-03-07', 'created_at' => '2026-03-07 17:10:00', 'updated_at' => '2026-03-07 17:10:00'],
+        ];
+    }
+
+    private function tokenRows(Project $project, User $primaryForeman, User $coForeman): array
+    {
+        return [
+            ['project_id' => $project->id, 'foreman_id' => $primaryForeman->id, 'token' => self::PRIMARY_TOKEN, 'expires_at' => '2031-02-24 04:02:00', 'revoked_at' => null, 'last_submitted_at' => '2026-03-07 18:05:00', 'submission_count' => 4, 'created_at' => '2026-03-01 08:00:00', 'updated_at' => '2026-03-07 18:05:00'],
+            ['project_id' => $project->id, 'foreman_id' => $coForeman->id, 'token' => self::CO_TOKEN, 'expires_at' => '2031-03-10 04:02:00', 'revoked_at' => null, 'last_submitted_at' => '2026-03-07 18:15:00', 'submission_count' => 2, 'created_at' => '2026-03-01 08:10:00', 'updated_at' => '2026-03-07 18:15:00'],
+        ];
+    }
+
+    private function ensureMaterialCategories(): void
+    {
+        $materials = [
+            ['name' => 'Cement', 'description' => 'Bulk cement for concrete and masonry works.'],
+            ['name' => 'Rebar', 'description' => 'Steel reinforcement for structural concrete members.'],
+            ['name' => 'Electrical Wire', 'description' => 'Wire and cable used for rough-in and fit-out.'],
+            ['name' => 'PVC Pipe', 'description' => 'PVC piping for sanitary and water line installation.'],
+            ['name' => 'Labor', 'description' => 'Labor cost bucket for payroll and site manpower.'],
+            ['name' => 'Equipment Rental', 'description' => 'Rented equipment and temporary tools used on site.'],
+            ['name' => 'Miscellaneous', 'description' => 'Site consumables, hauling, and support purchases.'],
+            ['name' => 'Waterproofing Membrane', 'description' => 'Roofing and wet area waterproofing system material.'],
+        ];
+
+        foreach ($materials as $material) {
+            Material::query()->updateOrCreate(
+                ['name' => $material['name']],
+                ['description' => $material['description']]
+            );
+        }
+    }
+
+    private function seedUserDetail(User $user, array $detailData): void
+    {
+        UserDetail::query()->updateOrCreate(['user_id' => $user->id], $detailData);
+    }
+
+    private function cleanupExistingProject(User $primaryForeman, User $coForeman, array $workerNames): void
+    {
+        Storage::disk('public')->deleteDirectory(self::ASSET_ROOT);
+
+        $projectIds = Project::withTrashed()
+            ->where('name', self::PROJECT_NAME)
+            ->pluck('id');
+
+        if ($projectIds->isNotEmpty()) {
+            $scopeIds = ProjectScope::withTrashed()
+                ->whereIn('project_id', $projectIds->all())
+                ->pluck('id');
+
+            $storagePaths = collect([
+                DB::table('project_files')->whereIn('project_id', $projectIds->all())->pluck('file_path'),
+                DB::table('progress_photos')->whereIn('project_id', $projectIds->all())->pluck('photo_path'),
+                DB::table('material_requests')->whereIn('project_id', $projectIds->all())->pluck('photo_path'),
+                DB::table('issue_reports')->whereIn('project_id', $projectIds->all())->pluck('photo_path'),
+                DB::table('delivery_confirmations')->whereIn('project_id', $projectIds->all())->pluck('photo_path'),
+                DB::table('attendances')->whereIn('project_id', $projectIds->all())->pluck('selfie_path'),
+            ])->flatten();
+
+            if ($scopeIds->isNotEmpty()) {
+                $storagePaths = $storagePaths->merge(
+                    DB::table('scope_photos')->whereIn('project_scope_id', $scopeIds->all())->pluck('photo_path')
+                );
+
+                DB::table('scope_photos')->whereIn('project_scope_id', $scopeIds->all())->delete();
+            }
+
+            Storage::disk('public')->delete(
+                $storagePaths
+                    ->filter(fn ($path) => is_string($path) && trim($path) !== '')
+                    ->map(fn ($path) => trim($path))
+                    ->unique()
+                    ->values()
+                    ->all()
+            );
+
+            DB::table('progress_submit_tokens')->whereIn('project_id', $projectIds->all())->delete();
+            DB::table('attendances')->whereIn('project_id', $projectIds->all())->delete();
+            DB::table('weekly_accomplishments')->whereIn('project_id', $projectIds->all())->delete();
+            DB::table('material_requests')->whereIn('project_id', $projectIds->all())->delete();
+            DB::table('issue_reports')->whereIn('project_id', $projectIds->all())->delete();
+            DB::table('progress_photos')->whereIn('project_id', $projectIds->all())->delete();
+            DB::table('delivery_confirmations')->whereIn('project_id', $projectIds->all())->delete();
+            DB::table('project_assignments')->whereIn('project_id', $projectIds->all())->delete();
+            DB::table('project_workers')->whereIn('project_id', $projectIds->all())->delete();
+            DB::table('workers')
+                ->whereIn('project_id', $projectIds->all())
+                ->orWhere(function ($query) use ($primaryForeman, $coForeman, $workerNames) {
+                    $query
+                        ->whereIn('foreman_id', [$primaryForeman->id, $coForeman->id])
+                        ->whereIn('name', $workerNames);
+                })
+                ->delete();
+            DB::table('payments')->whereIn('project_id', $projectIds->all())->delete();
+            DB::table('expenses')->whereIn('project_id', $projectIds->all())->delete();
+            DB::table('project_updates')->whereIn('project_id', $projectIds->all())->delete();
+            DB::table('project_files')->whereIn('project_id', $projectIds->all())->delete();
+            DB::table('build_projects')->whereIn('project_id', $projectIds->all())->delete();
+            DB::table('design_projects')->whereIn('project_id', $projectIds->all())->delete();
+            DB::table('project_scopes')->whereIn('project_id', $projectIds->all())->delete();
+            DB::table('projects')->whereIn('id', $projectIds->all())->delete();
+        }
+
+        $payrollNames = collect(array_merge([$primaryForeman->fullname, $coForeman->fullname], $workerNames))
+            ->filter(fn ($name) => trim((string) $name) !== '')
+            ->values();
+
+        $cutoff = PayrollCutoff::query()
+            ->whereDate('start_date', self::PAYROLL_WEEK_START)
+            ->whereDate('end_date', self::PAYROLL_WEEK_END)
+            ->first();
+
+        if (!$cutoff) {
+            return;
+        }
+
+        $payrollIds = Payroll::query()
+            ->where('cutoff_id', $cutoff->id)
+            ->whereIn('worker_name', $payrollNames->all())
+            ->pluck('id');
+
+        if ($payrollIds->isNotEmpty()) {
+            PayrollDeduction::query()->whereIn('payroll_id', $payrollIds->all())->delete();
+            Payroll::query()->whereIn('id', $payrollIds->all())->delete();
+        }
+
+        if (!Payroll::query()->where('cutoff_id', $cutoff->id)->exists()) {
+            $cutoff->delete();
+        }
+    }
+
+    private function buildAttendanceRows(int $projectId, User $primaryForeman, User $coForeman, array $workerSeedRows): array
+    {
+        $rows = [];
+        $workerRoleByName = collect($workerSeedRows)
+            ->mapWithKeys(fn (array $worker) => [
+                trim((string) ($worker['name'] ?? '')) => trim((string) ($worker['job_type'] ?? 'Worker')) ?: 'Worker',
+            ]);
+
+        $foremanLogs = [
+            [
+                'foreman' => $primaryForeman,
+                'worker_name' => $primaryForeman->fullname,
+                'entries' => [
+                    ['date' => '2026-02-23', 'time_in' => '07:15', 'time_out' => '17:05'],
+                    ['date' => '2026-02-24', 'time_in' => '07:18', 'time_out' => '17:10'],
+                    ['date' => '2026-02-25', 'time_in' => '07:12', 'time_out' => '17:03'],
+                    ['date' => '2026-02-26', 'time_in' => '07:20', 'time_out' => '17:18'],
+                    ['date' => '2026-02-27', 'time_in' => '07:10', 'time_out' => '16:58'],
+                    ['date' => '2026-02-28', 'time_in' => '07:25', 'time_out' => '15:35'],
+                    ['date' => '2026-03-02', 'time_in' => '07:08', 'time_out' => '17:02'],
+                    ['date' => '2026-03-03', 'time_in' => '07:15', 'time_out' => '17:12'],
+                    ['date' => '2026-03-04', 'time_in' => '07:10', 'time_out' => '17:00'],
+                    ['date' => '2026-03-05', 'time_in' => '07:05', 'time_out' => '17:18'],
+                    ['date' => '2026-03-06', 'time_in' => '07:18', 'time_out' => '17:09'],
+                    ['date' => '2026-03-07', 'time_in' => '07:22', 'time_out' => '15:48'],
+                ],
+            ],
+            [
+                'foreman' => $coForeman,
+                'worker_name' => $coForeman->fullname,
+                'entries' => [
+                    ['date' => '2026-02-23', 'time_in' => '07:32', 'time_out' => '16:48'],
+                    ['date' => '2026-02-24', 'time_in' => '07:28', 'time_out' => '17:00'],
+                    ['date' => '2026-02-25', 'time_in' => '07:35', 'time_out' => '16:55'],
+                    ['date' => '2026-02-26', 'time_in' => '07:30', 'time_out' => '17:08'],
+                    ['date' => '2026-02-27', 'time_in' => '07:40', 'time_out' => '16:45'],
+                    ['date' => '2026-02-28', 'time_in' => '07:42', 'time_out' => '15:18'],
+                    ['date' => '2026-03-02', 'time_in' => '07:30', 'time_out' => '16:54'],
+                    ['date' => '2026-03-03', 'time_in' => '07:26', 'time_out' => '16:58'],
+                    ['date' => '2026-03-04', 'time_in' => '07:38', 'time_out' => '17:04'],
+                    ['date' => '2026-03-05', 'time_in' => '07:40', 'time_out' => '17:16'],
+                    ['date' => '2026-03-06', 'time_in' => '07:28', 'time_out' => '17:10'],
+                    ['date' => '2026-03-07', 'time_in' => '07:36', 'time_out' => '15:20'],
+                ],
+            ],
+        ];
+
+        foreach ($foremanLogs as $definition) {
+            foreach ($definition['entries'] as $entry) {
+                $timestamp = Carbon::parse($entry['date'])->setTime(18, 0, 0)->toDateTimeString();
+                $rows[] = [
+                    'foreman_id' => $definition['foreman']->id,
+                    'project_id' => $projectId,
+                    'worker_name' => $definition['worker_name'],
+                    'worker_role' => 'Foreman',
+                    'date' => $entry['date'],
+                    'time_in' => $entry['time_in'],
+                    'time_out' => $entry['time_out'],
+                    'hours' => $this->hoursBetween($entry['time_in'], $entry['time_out']),
+                    'attendance_code' => null,
+                    'selfie_path' => null,
+                    'created_at' => $timestamp,
+                    'updated_at' => $timestamp,
+                ];
+            }
+        }
+
+        $workerWeeklyCodes = [
+            ['foreman' => $primaryForeman, 'worker_name' => 'Ramon Castillo', 'weeks' => ['2026-02-23' => ['P', 'P', 'P', 'P', 'P', 'P', 'R'], '2026-03-02' => ['P', 'P', 'P', 'P', 'P', 'P', 'R']]],
+            ['foreman' => $primaryForeman, 'worker_name' => 'Leo Navarro', 'weeks' => ['2026-02-23' => ['P', 'P', 'P', 'P', 'H', 'P', 'R'], '2026-03-02' => ['P', 'P', 'H', 'P', 'P', 'A', 'R']]],
+            ['foreman' => $primaryForeman, 'worker_name' => 'Joel Santos', 'weeks' => ['2026-02-23' => ['P', 'P', 'P', 'P', 'P', 'P', 'R'], '2026-03-02' => ['P', 'P', 'P', 'P', 'P', 'P', 'R']]],
+            ['foreman' => $primaryForeman, 'worker_name' => 'Carlo Belen', 'weeks' => ['2026-02-23' => ['P', 'P', 'P', 'H', 'P', 'P', 'R'], '2026-03-02' => ['P', 'P', 'P', 'H', 'P', 'P', 'R']]],
+            ['foreman' => $primaryForeman, 'worker_name' => 'Alex Manuel', 'weeks' => ['2026-02-23' => ['P', 'A', 'P', 'P', 'P', 'P', 'R'], '2026-03-02' => ['P', 'A', 'P', 'P', 'P', 'P', 'R']]],
+            ['foreman' => $coForeman, 'worker_name' => 'Mark Rivera', 'weeks' => ['2026-02-23' => ['P', 'P', 'P', 'P', 'P', 'H', 'R'], '2026-03-02' => ['P', 'P', 'P', 'P', 'P', 'H', 'R']]],
+        ];
+
+        foreach ($workerWeeklyCodes as $workerDefinition) {
+            foreach ($workerDefinition['weeks'] as $weekStart => $codes) {
+                $weekStartDate = Carbon::parse($weekStart);
+
+                foreach ($codes as $offset => $code) {
+                    $date = $weekStartDate->copy()->addDays($offset);
+                    $timestamp = $date->copy()->setTime(18, 10, 0)->toDateTimeString();
+                    $rows[] = [
+                        'foreman_id' => $workerDefinition['foreman']->id,
+                        'project_id' => $projectId,
+                        'worker_name' => $workerDefinition['worker_name'],
+                        'worker_role' => $workerRoleByName->get($workerDefinition['worker_name'], 'Worker'),
+                        'date' => $date->toDateString(),
+                        'time_in' => null,
+                        'time_out' => null,
+                        'hours' => self::ATTENDANCE_CODE_HOURS[$code] ?? 0,
+                        'attendance_code' => $code,
+                        'selfie_path' => null,
+                        'created_at' => $timestamp,
+                        'updated_at' => $timestamp,
+                    ];
+                }
+            }
+        }
+
+        return $rows;
+    }
+
+    private function seedPayrollFlow(int $projectId, User $payrollUser): void
+    {
+        $cutoff = PayrollCutoff::query()->firstOrCreate(
+            ['start_date' => self::PAYROLL_WEEK_START, 'end_date' => self::PAYROLL_WEEK_END],
+            ['status' => 'generated']
+        );
+
+        $attendanceSummary = Attendance::query()
+            ->where('project_id', $projectId)
+            ->whereBetween('date', [self::PAYROLL_WEEK_START, self::PAYROLL_WEEK_END])
+            ->selectRaw('worker_name, worker_role, COALESCE(SUM(hours), 0) as total_hours')
+            ->groupBy('worker_name', 'worker_role')
+            ->orderBy('worker_name')
+            ->get();
+
+        foreach ($attendanceSummary as $row) {
+            $hours = round((float) ($row->total_hours ?? 0), 2);
+            $rate = $row->worker_role === 'Foreman'
+                ? (float) (User::query()->where('fullname', $row->worker_name)->value('default_rate_per_hour') ?? 0)
+                : (float) (Worker::query()->where('project_id', $projectId)->where('name', $row->worker_name)->value('default_rate_per_hour') ?? 0);
+            $gross = round($hours * $rate, 2);
+
+            Payroll::query()->create([
+                'user_id' => $payrollUser->id,
+                'cutoff_id' => $cutoff->id,
+                'worker_name' => $row->worker_name,
+                'role' => $row->worker_role ?: 'Labor',
+                'hours' => $hours,
+                'rate_per_hour' => $rate,
+                'gross' => $gross,
+                'deductions' => 0,
+                'net' => $gross,
+                'status' => 'ready',
+                'week_start' => self::PAYROLL_WEEK_START,
+            ]);
+        }
+
+        $deductions = [
+            'Ramon Castillo' => [
+                ['type' => 'cash_advance', 'amount' => 750.00, 'note' => 'Cash advance for family medical support.'],
+            ],
+            'Alex Manuel' => [
+                ['type' => 'loan', 'amount' => 1200.00, 'note' => 'Tools payment installment.'],
+                ['type' => 'other', 'amount' => 250.00, 'note' => 'Safety PPE replacement charge.'],
+            ],
+            'Fortress Demo Co-Foreman' => [
+                ['type' => 'other', 'amount' => 500.00, 'note' => 'Site communication allowance offset.'],
+            ],
+        ];
+
+        foreach ($deductions as $workerName => $items) {
+            $payroll = Payroll::query()->where('cutoff_id', $cutoff->id)->where('worker_name', $workerName)->first();
+
+            if (!$payroll) {
+                continue;
+            }
+
+            foreach ($items as $item) {
+                PayrollDeduction::query()->create([
+                    'payroll_id' => $payroll->id,
+                    'type' => $item['type'],
+                    'amount' => $item['amount'],
+                    'note' => $item['note'],
+                ]);
+            }
+
+            $deductionTotal = round((float) PayrollDeduction::query()->where('payroll_id', $payroll->id)->sum('amount'), 2);
+            $payroll->update([
+                'deductions' => $deductionTotal,
+                'net' => round((float) $payroll->gross - $deductionTotal, 2),
+            ]);
+        }
+
+        $cutoff->update(['status' => 'generated']);
+    }
+
+    private function hoursBetween(string $timeIn, string $timeOut): float
+    {
+        $start = Carbon::createFromFormat('H:i', $timeIn);
+        $end = Carbon::createFromFormat('H:i', $timeOut);
+
+        if ($end->lessThan($start)) {
+            $end->addDay();
+        }
+
+        return round($start->diffInMinutes($end) / 60, 1);
+    }
+
+    private function prepareAssets(): array
+    {
+        $baseUrl = rtrim((string) config('app.url', 'http://127.0.0.1:8000'), '/');
+        $guidePath = self::ASSET_ROOT . '/Fortress-Building-Flow-Guide.txt';
+
+        Storage::disk('public')->put($guidePath, implode(PHP_EOL, [
+            'Fortress Building demo flow guide',
+            '',
+            'Project:',
+            '- Name: Fortress Building',
+            '- Client: Fortress Property Holdings, Inc.',
+            '- Phase: Construction',
+            '- Status: Ongoing',
+            '',
+            'Logins:',
+            '- Head Admin: headadmin@buildbooks.com / password',
+            '- Demo Foreman: ' . self::PRIMARY_FOREMAN_EMAIL . ' / password',
+            '- Demo Co-Foreman: ' . self::CO_FOREMAN_EMAIL . ' / password',
+            '',
+            'Public links:',
+            '- Main Jotform flow: ' . $baseUrl . '/progress-submit/' . self::PRIMARY_TOKEN,
+            '- Main receipt: ' . $baseUrl . '/progress-receipt/' . self::PRIMARY_TOKEN,
+            '- Co-foreman flow: ' . $baseUrl . '/progress-submit/' . self::CO_TOKEN,
+            '- Co-foreman receipt: ' . $baseUrl . '/progress-receipt/' . self::CO_TOKEN,
+            '',
+            'What is seeded:',
+            '- Design and build financial records',
+            '- Project scopes with scope photos',
+            '- Foreman assignments and workers',
+            '- Worker and foreman attendance across two weeks',
+            '- Weekly accomplishments, material requests, issues, deliveries, and progress photos',
+            '- Payroll cutoff and deduction items for the active week',
+        ]));
+
+        return [
+            'guide' => $guidePath,
+            'primary_profile' => $this->copySampleImage('profiles/fortress-demo-foreman', ['20260129_213145.jpg', '20260129_213145 (1).jpg'], 0),
+            'co_profile' => $this->copySampleImage('profiles/fortress-demo-co-foreman', ['20260129_213532.jpg', '20260129_213532 (1).jpg'], 1),
+            'scope_site_1' => $this->copySampleImage('scopes/site-preparation-1', ['20251018_073117.jpg', '20251018_073117 (1).jpg'], 2),
+            'scope_foundation_1' => $this->copySampleImage('scopes/foundation-1', ['20251018_073153.jpg', '20251018_073153 (1).jpg'], 3),
+            'scope_foundation_2' => $this->copySampleImage('scopes/foundation-2', ['20251222_194419.jpg'], 4),
+            'scope_structure_1' => $this->copySampleImage('scopes/structure-1', ['20260129_213145.jpg', '20260129_213145 (1).jpg'], 5),
+            'scope_walling_1' => $this->copySampleImage('scopes/walling-1', ['20260129_213532.jpg', '20260129_213532 (1).jpg'], 6),
+            'scope_roofing_1' => $this->copySampleImage('scopes/roofing-1', ['20251018_073117.jpg', '20251018_073117 (1).jpg'], 7),
+            'scope_mep_1' => $this->copySampleImage('scopes/mep-1', ['20251018_073153.jpg', '20251018_073153 (1).jpg'], 8),
+            'material_request_1' => $this->copySampleImage('requests/material-cement', ['20251222_194419.jpg'], 4),
+            'material_request_2' => $this->copySampleImage('requests/material-rebar', ['20260129_213145.jpg', '20260129_213145 (1).jpg'], 5),
+            'material_request_3' => $this->copySampleImage('requests/material-pvc', ['20260129_213532.jpg', '20260129_213532 (1).jpg'], 6),
+            'material_request_4' => $this->copySampleImage('requests/material-wire', ['20251018_073153.jpg', '20251018_073153 (1).jpg'], 8),
+            'issue_1' => $this->copySampleImage('issues/formwork-alignment', ['20260129_213145.jpg', '20260129_213145 (1).jpg'], 5),
+            'issue_2' => $this->copySampleImage('issues/ponding', ['20251018_073117.jpg', '20251018_073117 (1).jpg'], 2),
+            'issue_3' => $this->copySampleImage('issues/power-panel', ['20251018_073153.jpg', '20251018_073153 (1).jpg'], 3),
+            'delivery_1' => $this->copySampleImage('deliveries/cement', ['20251222_194419.jpg'], 4),
+            'delivery_2' => $this->copySampleImage('deliveries/rebar', ['20260129_213145.jpg', '20260129_213145 (1).jpg'], 5),
+            'delivery_3' => $this->copySampleImage('deliveries/pvc', ['20260129_213532.jpg', '20260129_213532 (1).jpg'], 6),
+            'progress_1' => $this->copySampleImage('progress/general-1', ['20260129_213145.jpg', '20260129_213145 (1).jpg'], 5),
+            'progress_2' => $this->copySampleImage('progress/general-2', ['20260129_213532.jpg', '20260129_213532 (1).jpg'], 6),
+            'progress_3' => $this->copySampleImage('progress/general-3', ['20251018_073153.jpg', '20251018_073153 (1).jpg'], 3),
+            'progress_4' => $this->copySampleImage('progress/general-4', ['20251018_073117.jpg', '20251018_073117 (1).jpg'], 2),
+        ];
+    }
+
+    private function copySampleImage(string $relativeTargetBase, array $preferredNames = [], ?int $fallbackIndex = null): ?string
+    {
+        $sourcePath = $this->resolveSampleImage($preferredNames, $fallbackIndex);
+
+        if (!$sourcePath || !File::exists($sourcePath)) {
+            return null;
+        }
+
+        $extension = strtolower((string) pathinfo($sourcePath, PATHINFO_EXTENSION));
+        $destination = trim(self::ASSET_ROOT . '/' . $relativeTargetBase . '.' . $extension, '/');
+        $targetPath = storage_path('app/public/' . $destination);
+
+        File::ensureDirectoryExists(dirname($targetPath));
+        File::copy($sourcePath, $targetPath);
+
+        return $destination;
+    }
+
+    private function resolveSampleImage(array $preferredNames = [], ?int $fallbackIndex = null): ?string
+    {
+        $availableImages = $this->availableDownloadImages();
+
+        if ($availableImages === []) {
+            return null;
+        }
+
+        $imagesByName = collect($availableImages)->mapWithKeys(fn (string $path) => [
+            strtolower(basename($path)) => $path,
+        ]);
+
+        foreach ($preferredNames as $name) {
+            $resolved = $imagesByName->get(strtolower($name));
+            if ($resolved) {
+                return $resolved;
+            }
+        }
+
+        if ($fallbackIndex !== null && isset($availableImages[$fallbackIndex])) {
+            return $availableImages[$fallbackIndex];
+        }
+
+        return $availableImages[0];
+    }
+
+    private function availableDownloadImages(): array
+    {
+        if ($this->downloadImagesCache !== null) {
+            return $this->downloadImagesCache;
+        }
+
+        $downloadsDirectory = $this->downloadsDirectory();
+
+        if (!File::isDirectory($downloadsDirectory)) {
+            return $this->downloadImagesCache = [];
+        }
+
+        $this->downloadImagesCache = collect(File::files($downloadsDirectory))
+            ->filter(function (\SplFileInfo $file): bool {
+                return in_array(strtolower($file->getExtension()), ['jpg', 'jpeg', 'png'], true);
+            })
+            ->sortBy(fn (\SplFileInfo $file) => strtolower($file->getFilename()))
+            ->map(fn (\SplFileInfo $file) => $file->getPathname())
+            ->values()
+            ->all();
+
+        return $this->downloadImagesCache;
+    }
+
+    private function downloadsDirectory(): string
+    {
+        $userProfile = (string) env('USERPROFILE', '');
+
+        if ($userProfile === '') {
+            $userProfile = (string) getenv('USERPROFILE');
+        }
+
+        return rtrim($userProfile, '\\/') . DIRECTORY_SEPARATOR . 'Downloads';
+    }
+}

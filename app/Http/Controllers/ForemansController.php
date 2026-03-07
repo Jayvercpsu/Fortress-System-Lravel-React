@@ -210,7 +210,7 @@ class ForemansController extends Controller
         ]);
 
         return $this->foremanActionRedirect($request)
-            ->with('success', 'Foreman time-in recorded.');
+            ->with('success', 'Foreman time-in recorded successfully.');
     }
 
     public function timeOutAttendance(Request $request)
@@ -257,7 +257,7 @@ class ForemansController extends Controller
         ]);
 
         return $this->foremanActionRedirect($request)
-            ->with('success', 'Foreman time-out recorded.');
+            ->with('success', 'Foreman time-out recorded successfully.');
     }
 
     public function updateAttendance(Request $request, Attendance $attendance)
@@ -294,7 +294,7 @@ class ForemansController extends Controller
 
         return redirect()
             ->route('foreman.attendance.index', $this->attendanceTableQueryParams($request))
-            ->with('success', 'Attendance log updated.');
+            ->with('success', 'Attendance log updated successfully.');
     }
 
     public function storeAttendance(Request $request)
@@ -334,7 +334,7 @@ class ForemansController extends Controller
 
         return redirect()
             ->route('foreman.attendance.index', $query)
-            ->with('success', 'Attendance submitted.');
+            ->with('success', 'Attendance submitted successfully.');
     }
 
     public function submitAll(Request $request)
@@ -521,7 +521,7 @@ class ForemansController extends Controller
             ]);
         }
 
-        return back()->with('success', 'Photo uploaded.');
+        return back()->with('success', 'Photo uploaded successfully.');
     }
 
     private function createAttendanceEntries(array $entries, int $foremanId): void

@@ -25,7 +25,7 @@ class ScopePhotoController extends Controller
 
         return redirect()
             ->route('monitoring.show', ['project' => $scope->project_id])
-            ->with('success', 'Scope photo uploaded.');
+            ->with('success', 'Scope photo uploaded successfully.');
     }
 
     private function authorizeRole(Request $request): void

@@ -34,7 +34,7 @@ const input = {
 const DRAG_AUTO_SCROLL_EDGE = 72;
 const DRAG_AUTO_SCROLL_STEP = 22;
 const KANBAN_CARD_HEIGHT = 365;
-const KANBAN_BOARD_HEIGHT = 'clamp(860px, calc(100vh - 190px), 1040px)';
+const KANBAN_BOARD_HEIGHT = 'calc(100dvh - 190px)';
 
 const singleLineClampStyle = {
     minWidth: 0,
@@ -59,6 +59,7 @@ export default function ProjectsKanbanPage({
 
     const [search, setSearch] = useState(projectBoard.search ?? '');
     const [projectToDelete, setProjectToDelete] = useState(null);
+    const [deletingProject, setDeletingProject] = useState(false);
     const [draggingProject, setDraggingProject] = useState(null);
     const [dropKey, setDropKey] = useState('');
     const [updatingId, setUpdatingId] = useState(null);
@@ -114,7 +115,7 @@ export default function ProjectsKanbanPage({
             preserveState: true,
             preserveScroll: true,
             replace: true,
-            onSuccess: () => toast.success(`Moved "${project.name}" to ${nextPhase}.`),
+            onSuccess: () => toast.success(`Moved "${project.name}" to ${nextPhase} successfully.`),
             onError: () => toast.error('Unable to update project phase.'),
             onFinish: () => {
                 setUpdatingId(null);
@@ -126,11 +127,15 @@ export default function ProjectsKanbanPage({
 
     const deleteProject = () => {
         if (!projectToDelete) return;
+        setDeletingProject(true);
         router.delete(`/projects/${projectToDelete.id}${buildQueryString()}`, {
             preserveScroll: true,
-            onSuccess: () => toast.success('Project deleted.'),
+            onSuccess: () => toast.success('Project deleted successfully.'),
             onError: () => toast.error('Unable to delete project.'),
-            onFinish: () => setProjectToDelete(null),
+            onFinish: () => {
+                setDeletingProject(false);
+                setProjectToDelete(null);
+            },
         });
     };
 
@@ -196,10 +201,6 @@ export default function ProjectsKanbanPage({
                 </div>
             </div>
 
-            <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
-                Drag a card to move phases, or change the phase from the dropdown in each project card. While dragging, move near the board edge to auto-scroll.
-            </div>
-
             <div
                 ref={boardScrollRef}
                 onDragOver={autoScrollBoardWhileDragging}
@@ -207,7 +208,6 @@ export default function ProjectsKanbanPage({
                     ...panel,
                     padding: 12,
                     height: KANBAN_BOARD_HEIGHT,
-                    minHeight: 0,
                     overflow: 'auto',
                 }}
             >
@@ -267,6 +267,7 @@ export default function ProjectsKanbanPage({
                                     {Array.isArray(column.projects) && column.projects.length > 0 ? column.projects.map((project) => (
                                         <div
                                             key={project.id}
+                                            className="kanban-project-card"
                                             style={{
                                                 background: 'var(--surface-2)',
                                                 border: '1px solid var(--border-color)',
@@ -296,26 +297,7 @@ export default function ProjectsKanbanPage({
                                                         >
                                                             {project.name}
                                                         </div>
-                                                        {project.is_new_today ? (
-                                                            <span
-                                                                style={{
-                                                                    display: 'inline-flex',
-                                                                    alignItems: 'center',
-                                                                    borderRadius: 999,
-                                                                    padding: '2px 8px',
-                                                                    fontSize: 10,
-                                                                    fontWeight: 800,
-                                                                    letterSpacing: 0.3,
-                                                                    textTransform: 'uppercase',
-                                                                    color: '#166534',
-                                                                    background: 'rgba(34,197,94,0.16)',
-                                                                    border: '1px solid rgba(34,197,94,0.32)',
-                                                                    flexShrink: 0,
-                                                                }}
-                                                            >
-                                                                New
-                                                            </span>
-                                                        ) : null}
+                                                        {null}
                                                     </div>
                                                     <div
                                                         title={project.client || 'No client'}
@@ -397,9 +379,40 @@ export default function ProjectsKanbanPage({
                                                 </div>
                                             </div>
 
-                                            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                                                <ActionButton href={`/projects/${project.id}`} variant="view" style={{ padding: '6px 10px' }}>Manage</ActionButton>
-                                                {canDelete && <ActionButton type="button" variant="danger" onClick={() => setProjectToDelete({ id: project.id, name: project.name })} style={{ padding: '6px 10px' }}>Delete</ActionButton>}
+                                            <div style={{ display: 'flex', gap: 8, flexWrap: 'nowrap', alignItems: 'center' }}>
+                                                <ActionButton href={`/projects/${project.id}`} variant="view" style={{ padding: '6px 10px', minHeight: 30 }}>Manage</ActionButton>
+                                                {canDelete && (
+                                                    <ActionButton
+                                                        type="button"
+                                                        variant="danger"
+                                                        onClick={() => setProjectToDelete({ id: project.id, name: project.name })}
+                                                        disabled={deletingProject}
+                                                        loading={deletingProject && projectToDelete?.id === project.id}
+                                                        style={{ padding: '6px 10px', minHeight: 30 }}
+                                                    >
+                                                        {deletingProject && projectToDelete?.id === project.id ? 'Deleting...' : 'Delete'}
+                                                    </ActionButton>
+                                                )}
+                                                {project.is_new_today ? (
+                                                    <span
+                                                        style={{
+                                                            display: 'inline-flex',
+                                                            alignItems: 'center',
+                                                            borderRadius: 999,
+                                                            padding: '2px 8px',
+                                                            fontSize: 10,
+                                                            fontWeight: 800,
+                                                            letterSpacing: 0.3,
+                                                            textTransform: 'uppercase',
+                                                            color: '#166534',
+                                                            background: 'rgba(34,197,94,0.16)',
+                                                            border: '1px solid rgba(34,197,94,0.32)',
+                                                            marginLeft: 'auto',
+                                                        }}
+                                                    >
+                                                        New
+                                                    </span>
+                                                ) : null}
                                             </div>
                                         </div>
                                     )) : (
@@ -416,9 +429,7 @@ export default function ProjectsKanbanPage({
                                         display: 'flex',
                                         justifyContent: 'center',
                                         background: 'var(--surface-1)',
-                                        position: 'sticky',
-                                        bottom: 0,
-                                        zIndex: 1,
+                                        marginTop: 'auto',
                                     }}
                                 >
                                     {column.has_more ? (
@@ -440,15 +451,19 @@ export default function ProjectsKanbanPage({
             </div>
 
             {canDelete && (
-                <Modal open={Boolean(projectToDelete)} onClose={() => setProjectToDelete(null)} title="Delete Project" maxWidth={520}>
+                <Modal open={Boolean(projectToDelete)} onClose={() => (deletingProject ? null : setProjectToDelete(null))} title="Delete Project" maxWidth={520}>
                     <div style={{ display: 'grid', gap: 12 }}>
                         <div style={{ fontSize: 13 }}>Delete project <strong>{projectToDelete?.name}</strong>?</div>
                         <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
                             This also removes related design/build trackers, expenses, files, and updates.
                         </div>
                         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
-                            <ActionButton type="button" onClick={() => setProjectToDelete(null)} style={{ padding: '8px 12px' }}>Cancel</ActionButton>
-                            <ActionButton type="button" variant="danger" onClick={deleteProject} style={{ padding: '8px 12px' }}>Delete Project</ActionButton>
+                            <ActionButton type="button" onClick={() => setProjectToDelete(null)} disabled={deletingProject} style={{ padding: '8px 12px' }}>
+                                Cancel
+                            </ActionButton>
+                            <ActionButton type="button" variant="danger" onClick={deleteProject} disabled={deletingProject} loading={deletingProject} style={{ padding: '8px 12px' }}>
+                                {deletingProject ? 'Deleting...' : 'Delete Project'}
+                            </ActionButton>
                         </div>
                     </div>
                 </Modal>

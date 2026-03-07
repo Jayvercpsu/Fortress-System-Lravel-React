@@ -73,7 +73,7 @@ class MaterialController extends Controller
 
         return redirect()
             ->route('materials.index', $this->tableQueryParams($request))
-            ->with('success', 'Material added.');
+            ->with('success', 'Material added successfully.');
     }
 
     public function update(Request $request, Material $material)
@@ -89,7 +89,7 @@ class MaterialController extends Controller
 
         return redirect()
             ->route('materials.index', $this->tableQueryParams($request))
-            ->with('success', 'Material updated.');
+            ->with('success', 'Material updated successfully.');
     }
 
     public function destroy(Request $request, Material $material)
@@ -100,7 +100,7 @@ class MaterialController extends Controller
 
         return redirect()
             ->route('materials.index', $this->tableQueryParams($request))
-            ->with('success', 'Material deleted.');
+            ->with('success', 'Material deleted successfully.');
     }
 
     private function tableQueryParams(Request $request): array

@@ -93,7 +93,7 @@ class DesignController extends Controller
 
         return redirect()
             ->route('design.show', ['project' => $project])
-            ->with('success', 'Design tracker updated.');
+            ->with('success', 'Design tracker updated successfully.');
     }
 
     private function updateProjectPhaseToForBuild(string $project): void

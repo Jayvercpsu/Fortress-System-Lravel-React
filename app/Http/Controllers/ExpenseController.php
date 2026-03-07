@@ -62,7 +62,7 @@ class ExpenseController extends Controller
                 'tab' => 'expenses',
                 ...$this->expenseTableQueryParams($request),
             ])
-            ->with('success', 'Expense added.');
+            ->with('success', 'Expense added successfully.');
     }
 
     public function update(Request $request, Expense $expense)
@@ -86,7 +86,7 @@ class ExpenseController extends Controller
                 'tab' => 'expenses',
                 ...$this->expenseTableQueryParams($request),
             ])
-            ->with('success', 'Expense updated.');
+            ->with('success', 'Expense updated successfully.');
     }
 
     public function destroy(Request $request, Expense $expense)
@@ -103,7 +103,7 @@ class ExpenseController extends Controller
                 'tab' => 'expenses',
                 ...$this->expenseTableQueryParams($request),
             ])
-            ->with('success', 'Expense deleted.');
+            ->with('success', 'Expense deleted successfully.');
     }
 
     private function ensureAuthorized(Request $request): void

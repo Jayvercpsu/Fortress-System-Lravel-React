@@ -4,11 +4,13 @@ namespace App\Http\Controllers;
 
 use App\Models\Project;
 use App\Models\ProjectAssignment;
+use App\Models\Attendance;
 use App\Models\Worker;
 use App\Models\User;
 use Illuminate\Support\Collection;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 
 class ForemanWorkerController extends Controller
@@ -35,6 +37,7 @@ class ForemanWorkerController extends Controller
             $query->where(function ($builder) use ($search) {
                 $builder
                     ->where('name', 'like', "%{$search}%")
+                    ->orWhere('job_type', 'like', "%{$search}%")
                     ->orWhere('place_of_birth', 'like', "%{$search}%")
                     ->orWhere('sex', 'like', "%{$search}%")
                     ->orWhere('phone', 'like', "%{$search}%")
@@ -51,6 +54,7 @@ class ForemanWorkerController extends Controller
         $workers = collect($paginator->items())->map(fn (Worker $worker) => [
             'id' => $worker->id,
             'name' => $worker->name,
+            'job_type' => $worker->job_type,
             'project_id' => $worker->project_id,
             'project_name' => $worker->project?->name,
             'birth_date' => optional($worker->birth_date)?->toDateString(),
@@ -89,6 +93,7 @@ class ForemanWorkerController extends Controller
             ->all();
 
         $validated = $request->validate($this->rules($foreman->id, $assignedProjectIds));
+        $this->assertUniqueWorkerName($foreman->id, $validated['name'] ?? '');
 
         Worker::create([
             'foreman_id' => $foreman->id,
@@ -97,7 +102,7 @@ class ForemanWorkerController extends Controller
 
         return redirect()
             ->route('foreman.workers.index', $this->tableQueryParams($request))
-            ->with('success', 'Worker added.');
+            ->with('success', 'Worker added successfully.');
     }
 
     public function update(Request $request, Worker $worker)
@@ -105,6 +110,7 @@ class ForemanWorkerController extends Controller
         $foreman = $request->user();
         abort_unless($foreman->role === 'foreman' && (int) $worker->foreman_id === (int) $foreman->id, 403);
 
+        $originalName = (string) $worker->name;
         $assignedProjectIds = $this->foremanAssignedProjects($foreman)
             ->pluck('id')
             ->map(fn ($id) => (int) $id)
@@ -112,12 +118,24 @@ class ForemanWorkerController extends Controller
             ->all();
 
         $validated = $request->validate($this->rules($foreman->id, $assignedProjectIds, $worker->id));
+        $this->assertUniqueWorkerName($foreman->id, $validated['name'] ?? '', $worker->id);
 
         $worker->update($validated);
+        $updatedName = (string) $worker->name;
+        $updatedRole = trim((string) ($worker->job_type ?: 'Worker')) ?: 'Worker';
+
+        Attendance::query()
+            ->where('foreman_id', $foreman->id)
+            ->when($worker->project_id, fn ($query) => $query->where('project_id', $worker->project_id))
+            ->where('worker_name', $originalName)
+            ->update([
+                'worker_name' => $updatedName,
+                'worker_role' => $updatedRole,
+            ]);
 
         return redirect()
             ->route('foreman.workers.index', $this->tableQueryParams($request))
-            ->with('success', 'Worker updated.');
+            ->with('success', 'Worker updated successfully.');
     }
 
     public function destroy(Request $request, Worker $worker)
@@ -129,7 +147,7 @@ class ForemanWorkerController extends Controller
 
         return redirect()
             ->route('foreman.workers.index', $this->tableQueryParams($request))
-            ->with('success', 'Worker deleted.');
+            ->with('success', 'Worker deleted successfully.');
     }
 
     private function rules(int $foremanId, array $allowedProjectIds, ?int $workerId = null): array
@@ -144,6 +162,7 @@ class ForemanWorkerController extends Controller
                     ->where(fn ($query) => $query->where('foreman_id', $foremanId))
                     ->ignore($workerId),
             ],
+            'job_type' => ['nullable', Rule::in(['Worker', 'Skilled Worker', 'Laborer'])],
             'birth_date' => 'nullable|date|before_or_equal:today',
             'place_of_birth' => 'nullable|string|max:255',
             'sex' => 'nullable|in:male,female,other',
@@ -209,5 +228,25 @@ class ForemanWorkerController extends Controller
             'per_page' => $request->query('per_page'),
             'page' => $request->query('page'),
         ], fn ($value) => $value !== null && $value !== '');
+    }
+
+    private function assertUniqueWorkerName(int $foremanId, string $name, ?int $ignoreId = null): void
+    {
+        $normalized = trim($name);
+        if ($normalized === '') {
+            return;
+        }
+
+        $exists = Worker::query()
+            ->where('foreman_id', $foremanId)
+            ->whereRaw('LOWER(name) = ?', [mb_strtolower($normalized)])
+            ->when($ignoreId, fn ($query) => $query->where('id', '!=', $ignoreId))
+            ->exists();
+
+        if ($exists) {
+            throw ValidationException::withMessages([
+                'name' => 'Worker name already exists.',
+            ]);
+        }
     }
 }

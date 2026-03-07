@@ -1,8 +1,13 @@
 import Layout from './Layout';
 import ActionButton from './ActionButton';
 import Modal from './Modal';
+import EditModal from './EditModal';
 import SearchableDropdown from './SearchableDropdown';
-import { Head, Link, router, useForm, usePage } from '@inertiajs/react';
+import DatePickerInput from './DatePickerInput';
+import TextInput from './TextInput';
+import SelectInput from './SelectInput';
+import TextareaInput from './TextareaInput';
+import { Head, router, useForm, usePage } from '@inertiajs/react';
 import { useEffect, useMemo, useState } from 'react';
 import toast from 'react-hot-toast';
 import { ArrowLeft } from 'lucide-react';
@@ -27,41 +32,14 @@ const inputStyle = {
 const STATUS_OPTIONS = ['NOT_STARTED', 'IN_PROGRESS', 'HOLD', 'COMPLETED'];
 const money = (value) =>
     `P ${Number(value || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-const normalizeAssignedPersonnelNames = (value) => {
-    const rawNames = Array.isArray(value)
-        ? value
-        : String(value ?? '').split(/[;,]+/);
-    const seen = new Set();
-
-    return rawNames
-        .map((name) => String(name ?? '').trim())
-        .filter((name) => {
-            if (!name) return false;
-            const key = name.toLowerCase();
-            if (seen.has(key)) return false;
-            seen.add(key);
-            return true;
-        });
-};
-
-const removeAssignedPersonnelName = (names, toRemove) => {
-    const needle = String(toRemove ?? '').trim().toLowerCase();
-    if (!needle) return normalizeAssignedPersonnelNames(names);
-
-    return normalizeAssignedPersonnelNames(names).filter((name) => name.toLowerCase() !== needle);
-};
-
-const joinAssignedPersonnelNames = (names) => normalizeAssignedPersonnelNames(names).join(', ');
 
 export default function MonitoringBoardPage({ project, scopes = [], foreman_options: foremanOptions = [] }) {
     const { flash } = usePage().props;
-    const [editingScopeId, setEditingScopeId] = useState(null);
+    const [editScope, setEditScope] = useState(null);
     const [scopeToDelete, setScopeToDelete] = useState(null);
     const [deleting, setDeleting] = useState(false);
     const [uploadScopeId, setUploadScopeId] = useState(null);
     const [photoInputKey, setPhotoInputKey] = useState(0);
-    const [createAssignedPersonnelNames, setCreateAssignedPersonnelNames] = useState([]);
-    const [editAssignedPersonnelNames, setEditAssignedPersonnelNames] = useState([]);
     const [scopePreview, setScopePreview] = useState(null);
     const assignedPersonnelOptions = useMemo(() => {
         const rows = Array.isArray(foremanOptions) ? foremanOptions : [];
@@ -103,6 +81,7 @@ export default function MonitoringBoardPage({ project, scopes = [], foreman_opti
         patch,
         processing: updating,
         errors: editErrors,
+        clearErrors: clearEditErrors,
     } = useForm({
     scope_name: '',
     assigned_personnel: '',
@@ -138,7 +117,6 @@ export default function MonitoringBoardPage({ project, scopes = [], foreman_opti
             preserveScroll: true,
             onSuccess: () => {
                 resetCreateData();
-                setCreateAssignedPersonnelNames([]);
                 setCreateData('progress_percent', 0);
                 setCreateData('status', STATUS_OPTIONS[0]);
                 setCreateData('contract_amount', '');
@@ -151,8 +129,8 @@ export default function MonitoringBoardPage({ project, scopes = [], foreman_opti
     };
 
     const startEdit = (scope) => {
-        setEditingScopeId(scope.id);
-        setEditAssignedPersonnelNames(normalizeAssignedPersonnelNames(scope.assigned_personnel ?? ''));
+        setEditScope(scope);
+        if (clearEditErrors) clearEditErrors();
         setEditData({
             scope_name: scope.scope_name ?? '',
             assigned_personnel: scope.assigned_personnel ?? '',
@@ -166,13 +144,19 @@ export default function MonitoringBoardPage({ project, scopes = [], foreman_opti
         });
     };
 
-    const saveEdit = (event, scopeId) => {
+    const closeEdit = () => {
+        if (updating) return;
+        setEditScope(null);
+        if (clearEditErrors) clearEditErrors();
+    };
+
+    const saveEdit = (event) => {
         event.preventDefault();
-        patch(`/scopes/${scopeId}`, {
+        if (!editScope) return;
+        patch(`/scopes/${editScope.id}`, {
             preserveScroll: true,
             onSuccess: () => {
-                setEditingScopeId(null);
-                setEditAssignedPersonnelNames([]);
+                setEditScope(null);
             },
             onError: () => toast.error('Unable to update scope.'),
         });
@@ -228,37 +212,6 @@ export default function MonitoringBoardPage({ project, scopes = [], foreman_opti
         });
     };
 
-    const updateCreateAssignedPersonnelNames = (updater) => {
-        setCreateAssignedPersonnelNames((prev) => {
-            const current = normalizeAssignedPersonnelNames(prev);
-            const nextRaw = typeof updater === 'function' ? updater(current) : updater;
-            const next = normalizeAssignedPersonnelNames(nextRaw);
-            setCreateData('assigned_personnel', joinAssignedPersonnelNames(next));
-            return next;
-        });
-    };
-
-    const updateEditAssignedPersonnelNames = (updater) => {
-        setEditAssignedPersonnelNames((prev) => {
-            const current = normalizeAssignedPersonnelNames(prev);
-            const nextRaw = typeof updater === 'function' ? updater(current) : updater;
-            const next = normalizeAssignedPersonnelNames(nextRaw);
-            setEditData('assigned_personnel', joinAssignedPersonnelNames(next));
-            return next;
-        });
-    };
-
-    const personnelChipStyle = {
-        display: 'inline-flex',
-        alignItems: 'center',
-        gap: 6,
-        padding: '4px 8px',
-        borderRadius: 999,
-        border: '1px solid var(--border-color)',
-        background: 'var(--surface-2)',
-        fontSize: 12,
-    };
-
     return (
         <>
             <Head title={`Monitoring Board #${project.id}`} />
@@ -291,7 +244,7 @@ export default function MonitoringBoardPage({ project, scopes = [], foreman_opti
                 <form onSubmit={submitCreate} style={{ ...cardStyle, display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 12, marginBottom: 16 }}>
                     <label>
                         <div style={{ fontSize: 12, marginBottom: 6 }}>Scope Name</div>
-                        <input
+                        <TextInput
                             value={createData.scope_name}
                             onChange={(event) => setCreateData('scope_name', event.target.value)}
                             style={inputStyle}
@@ -302,51 +255,19 @@ export default function MonitoringBoardPage({ project, scopes = [], foreman_opti
                     <label>
                         <div style={{ fontSize: 12, marginBottom: 6 }}>Assigned Personnel</div>
                         {assignedPersonnelOptions.length > 0 ? (
-                            <div style={{ display: 'grid', gap: 6 }}>
-                                <SearchableDropdown
-                                    options={assignedPersonnelOptions}
-                                    value=""
-                                    onChange={(value) => {
-                                        if (!value) return;
-                                        updateCreateAssignedPersonnelNames((prev) => [...prev, value]);
-                                    }}
-                                    placeholder="Add foreman"
-                                    searchPlaceholder="Search foreman..."
-                                    emptyMessage="No foreman found"
-                                    getOptionValue={(option) => option.value}
-                                    getOptionLabel={(option) => option.label}
-                                    style={{ ...inputStyle, minHeight: 40, padding: '8px 10px' }}
-                                />
-                                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                                    {createAssignedPersonnelNames.length === 0 ? (
-                                        <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>No foreman selected.</span>
-                                    ) : (
-                                        createAssignedPersonnelNames.map((name) => (
-                                            <span key={`create-assign-${name}`} style={personnelChipStyle}>
-                                                <span>{name}</span>
-                                                <button
-                                                    type="button"
-                                                    onClick={() => updateCreateAssignedPersonnelNames((prev) => removeAssignedPersonnelName(prev, name))}
-                                                    style={{
-                                                        border: 'none',
-                                                        background: 'transparent',
-                                                        color: 'var(--text-muted)',
-                                                        cursor: 'pointer',
-                                                        fontSize: 12,
-                                                        padding: 0,
-                                                        lineHeight: 1,
-                                                    }}
-                                                    aria-label={`Remove ${name}`}
-                                                >
-                                                    x
-                                                </button>
-                                            </span>
-                                        ))
-                                    )}
-                                </div>
-                            </div>
+                            <SearchableDropdown
+                                options={assignedPersonnelOptions}
+                                value={createData.assigned_personnel}
+                                onChange={(value) => setCreateData('assigned_personnel', value || '')}
+                                placeholder="Select foreman"
+                                searchPlaceholder="Search foreman..."
+                                emptyMessage="No foreman found"
+                                getOptionValue={(option) => option.value}
+                                getOptionLabel={(option) => option.label}
+                                style={{ ...inputStyle, minHeight: 40, padding: '8px 10px' }}
+                            />
                         ) : (
-                            <input
+                            <TextInput
                                 value={createData.assigned_personnel}
                                 onChange={(event) => setCreateData('assigned_personnel', event.target.value)}
                                 style={inputStyle}
@@ -357,7 +278,7 @@ export default function MonitoringBoardPage({ project, scopes = [], foreman_opti
 
                     <label>
                         <div style={{ fontSize: 12, marginBottom: 6 }}>Progress (%)</div>
-                        <input
+                        <TextInput
                             type="number"
                             min="0"
                             max="100"
@@ -370,7 +291,7 @@ export default function MonitoringBoardPage({ project, scopes = [], foreman_opti
 
                     <label>
                         <div style={{ fontSize: 12, marginBottom: 6 }}>Status</div>
-                        <select
+                        <SelectInput
                             value={createData.status}
                             onChange={(event) => setCreateData('status', event.target.value)}
                             style={inputStyle}
@@ -380,13 +301,13 @@ export default function MonitoringBoardPage({ project, scopes = [], foreman_opti
                                     {status}
                                 </option>
                             ))}
-                        </select>
+                        </SelectInput>
                         {createErrors.status && <div style={{ color: '#f87171', fontSize: 12, marginTop: 4 }}>{createErrors.status}</div>}
                     </label>
 
                     <label>
                         <div style={{ fontSize: 12, marginBottom: 6 }}>Contract Amount</div>
-                        <input
+                        <TextInput
                             type="number"
                             min="0"
                             step="0.01"
@@ -399,7 +320,7 @@ export default function MonitoringBoardPage({ project, scopes = [], foreman_opti
 
                     <label>
                         <div style={{ fontSize: 12, marginBottom: 6 }}>Weight %</div>
-                        <input
+                        <TextInput
                             type="number"
                             min="0"
                             max="100"
@@ -413,29 +334,19 @@ export default function MonitoringBoardPage({ project, scopes = [], foreman_opti
 
                     <label>
                         <div style={{ fontSize: 12, marginBottom: 6 }}>Start Date</div>
-                        <input
-                            type="date"
-                            value={createData.start_date}
-                            onChange={(event) => setCreateData('start_date', event.target.value)}
-                            style={inputStyle}
-                        />
+                        <DatePickerInput value={createData.start_date} onChange={(value) => setCreateData('start_date', value)} style={inputStyle} />
                         {createErrors.start_date && <div style={{ color: '#f87171', fontSize: 12, marginTop: 4 }}>{createErrors.start_date}</div>}
                     </label>
 
                     <label>
                         <div style={{ fontSize: 12, marginBottom: 6 }}>Target Completion</div>
-                        <input
-                            type="date"
-                            value={createData.target_completion}
-                            onChange={(event) => setCreateData('target_completion', event.target.value)}
-                            style={inputStyle}
-                        />
+                        <DatePickerInput value={createData.target_completion} onChange={(value) => setCreateData('target_completion', value)} style={inputStyle} />
                         {createErrors.target_completion && <div style={{ color: '#f87171', fontSize: 12, marginTop: 4 }}>{createErrors.target_completion}</div>}
                     </label>
 
                     <label style={{ gridColumn: '1 / -1' }}>
                         <div style={{ fontSize: 12, marginBottom: 6 }}>Remarks</div>
-                        <textarea
+                        <TextareaInput
                             value={createData.remarks}
                             onChange={(event) => setCreateData('remarks', event.target.value)}
                             style={{ ...inputStyle, minHeight: 90 }}
@@ -479,178 +390,35 @@ export default function MonitoringBoardPage({ project, scopes = [], foreman_opti
                                     </td>
                                 </tr>
                             )}
-                            {scopes.map((scope) => {
-                                const isEditing = editingScopeId === scope.id;
-
-                                return (
-                                    <tr key={scope.id}>
-                                        <td style={{ padding: '10px 8px', borderBottom: '1px solid var(--border-color)' }}>
-                                            {isEditing ? (
-                                                <input
-                                                    value={editData.scope_name}
-                                                    onChange={(event) => setEditData('scope_name', event.target.value)}
-                                                    style={inputStyle}
-                                                />
-                                            ) : (
-                                                scope.scope_name
-                                            )}
-                                        </td>
-                                        <td style={{ padding: '10px 8px', borderBottom: '1px solid var(--border-color)' }}>
-                                            {isEditing ? (
-                                                <input
-                                                    type="number"
-                                                    min="0"
-                                                    step="0.01"
-                                                    value={editData.contract_amount}
-                                                    onChange={(event) => setEditData('contract_amount', event.target.value)}
-                                                    style={inputStyle}
-                                                />
-                                            ) : scope.contract_amount ? (
-                                                money(scope.contract_amount)
-                                            ) : (
-                                                '-'
-                                            )}
-                                        </td>
-                                        <td style={{ padding: '10px 8px', borderBottom: '1px solid var(--border-color)', whiteSpace: 'nowrap' }}>
-                                            {isEditing ? (
-                                                <input
-                                                    type="number"
-                                                    min="0"
-                                                    max="100"
-                                                    step="0.01"
-                                                    value={editData.weight_percent}
-                                                    onChange={(event) => setEditData('weight_percent', event.target.value)}
-                                                    style={inputStyle}
-                                                />
-                                            ) : scope.weight_percent ? (
-                                                `${Number(scope.weight_percent).toFixed(2)}%`
-                                            ) : (
-                                                '-'
-                                            )}
-                                        </td>
-                                        <td style={{ padding: '10px 8px', borderBottom: '1px solid var(--border-color)' }}>
-                                            {isEditing ? (
-                                                <input
-                                                    type="date"
-                                                    value={editData.start_date}
-                                                    onChange={(event) => setEditData('start_date', event.target.value)}
-                                                    style={inputStyle}
-                                                />
-                                            ) : (
-                                                scope.start_date || '-'
-                                            )}
-                                        </td>
-                                        <td style={{ padding: '10px 8px', borderBottom: '1px solid var(--border-color)' }}>
-                                            {isEditing ? (
-                                                <input
-                                                    type="date"
-                                                    value={editData.target_completion}
-                                                    onChange={(event) => setEditData('target_completion', event.target.value)}
-                                                    style={inputStyle}
-                                                />
-                                            ) : (
-                                                scope.target_completion || '-'
-                                            )}
-                                        </td>
-                                        <td style={{ padding: '10px 8px', borderBottom: '1px solid var(--border-color)' }}>
-                                            {isEditing ? (
-                                                assignedPersonnelOptions.length > 0 ? (
-                                                    <div style={{ display: 'grid', gap: 6 }}>
-                                                        <SearchableDropdown
-                                                            options={assignedPersonnelOptions}
-                                                            value=""
-                                                            onChange={(value) => {
-                                                                if (!value) return;
-                                                                updateEditAssignedPersonnelNames((prev) => [...prev, value]);
-                                                            }}
-                                                            placeholder="Add foreman"
-                                                            searchPlaceholder="Search foreman..."
-                                                            emptyMessage="No foreman found"
-                                                            getOptionValue={(option) => option.value}
-                                                            getOptionLabel={(option) => option.label}
-                                                            style={{ ...inputStyle, minHeight: 40, padding: '8px 10px' }}
-                                                        />
-                                                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                                                            {editAssignedPersonnelNames.length === 0 ? (
-                                                                <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>No foreman selected.</span>
-                                                            ) : (
-                                                                editAssignedPersonnelNames.map((name) => (
-                                                                    <span key={`edit-assign-${scope.id}-${name}`} style={personnelChipStyle}>
-                                                                        <span>{name}</span>
-                                                                        <button
-                                                                            type="button"
-                                                                            onClick={() => updateEditAssignedPersonnelNames((prev) => removeAssignedPersonnelName(prev, name))}
-                                                                            style={{
-                                                                                border: 'none',
-                                                                                background: 'transparent',
-                                                                                color: 'var(--text-muted)',
-                                                                                cursor: 'pointer',
-                                                                                fontSize: 12,
-                                                                                padding: 0,
-                                                                                lineHeight: 1,
-                                                                            }}
-                                                                            aria-label={`Remove ${name}`}
-                                                                        >
-                                                                            x
-                                                                        </button>
-                                                                    </span>
-                                                                ))
-                                                            )}
-                                                        </div>
-                                                    </div>
-                                                ) : (
-                                                    <input
-                                                        value={editData.assigned_personnel}
-                                                        onChange={(event) => setEditData('assigned_personnel', event.target.value)}
-                                                        style={inputStyle}
-                                                    />
-                                                )
-                                            ) : (
-                                                scope.assigned_personnel || '-'
-                                            )}
-                                        </td>
-                                        <td style={{ padding: '10px 8px', borderBottom: '1px solid var(--border-color)', whiteSpace: 'nowrap' }}>
-                                            {isEditing ? (
-                                                <input
-                                                    type="number"
-                                                    min="0"
-                                                    max="100"
-                                                    value={editData.progress_percent}
-                                                    onChange={(event) => setEditData('progress_percent', event.target.value)}
-                                                    style={inputStyle}
-                                                />
-                                            ) : (
-                                                `${scope.progress_percent}%`
-                                            )}
-                                        </td>
-                                        <td style={{ padding: '10px 8px', borderBottom: '1px solid var(--border-color)', whiteSpace: 'nowrap' }}>
-                                            {isEditing ? (
-                                                <select
-                                                    value={editData.status}
-                                                    onChange={(event) => setEditData('status', event.target.value)}
-                                                    style={inputStyle}
-                                                >
-                                                    {STATUS_OPTIONS.map((status) => (
-                                                        <option key={status} value={status}>
-                                                            {status}
-                                                        </option>
-                                                    ))}
-                                                </select>
-                                            ) : (
-                                                scope.status
-                                            )}
-                                        </td>
-                                        <td style={{ padding: '10px 8px', borderBottom: '1px solid var(--border-color)' }}>
-                                            {isEditing ? (
-                                                <textarea
-                                                    value={editData.remarks}
-                                                    onChange={(event) => setEditData('remarks', event.target.value)}
-                                                    style={{ ...inputStyle, minHeight: 60 }}
-                                                />
-                                            ) : (
-                                                scope.remarks || '-'
-                                            )}
-                                        </td>
+                            {scopes.map((scope) => (
+                                <tr key={scope.id}>
+                                    <td style={{ padding: '10px 8px', borderBottom: '1px solid var(--border-color)' }}>
+                                        {scope.scope_name}
+                                    </td>
+                                    <td style={{ padding: '10px 8px', borderBottom: '1px solid var(--border-color)' }}>
+                                        {scope.contract_amount ? money(scope.contract_amount) : '-'}
+                                    </td>
+                                    <td style={{ padding: '10px 8px', borderBottom: '1px solid var(--border-color)', whiteSpace: 'nowrap' }}>
+                                        {scope.weight_percent ? `${Number(scope.weight_percent).toFixed(2)}%` : '-'}
+                                    </td>
+                                    <td style={{ padding: '10px 8px', borderBottom: '1px solid var(--border-color)' }}>
+                                        {scope.start_date || '-'}
+                                    </td>
+                                    <td style={{ padding: '10px 8px', borderBottom: '1px solid var(--border-color)' }}>
+                                        {scope.target_completion || '-'}
+                                    </td>
+                                    <td style={{ padding: '10px 8px', borderBottom: '1px solid var(--border-color)' }}>
+                                        {scope.assigned_personnel || '-'}
+                                    </td>
+                                    <td style={{ padding: '10px 8px', borderBottom: '1px solid var(--border-color)', whiteSpace: 'nowrap' }}>
+                                        {`${scope.progress_percent}%`}
+                                    </td>
+                                    <td style={{ padding: '10px 8px', borderBottom: '1px solid var(--border-color)', whiteSpace: 'nowrap' }}>
+                                        {scope.status}
+                                    </td>
+                                    <td style={{ padding: '10px 8px', borderBottom: '1px solid var(--border-color)' }}>
+                                        {scope.remarks || '-'}
+                                    </td>
                                         <td style={{ padding: '10px 8px', borderBottom: '1px solid var(--border-color)' }}>
                                             <div style={{ display: 'grid', gap: 8, minWidth: 280 }}>
                                                 {scope.photos?.length > 0 ? (
@@ -714,13 +482,13 @@ export default function MonitoringBoardPage({ project, scopes = [], foreman_opti
                                                             background: 'var(--surface-2)',
                                                         }}
                                                     >
-                                                        <input
+                                                        <TextInput
                                                             key={`photo-input-${scope.id}-${photoInputKey}`}
                                                             type="file"
                                                             accept="image/*"
                                                             onChange={(event) => setPhotoData('photo', event.target.files?.[0] ?? null)}
                                                         />
-                                                        <input
+                                                        <TextInput
                                                             value={photoData.caption}
                                                             onChange={(event) => setPhotoData('caption', event.target.value)}
                                                             placeholder="Caption (optional)"
@@ -749,78 +517,149 @@ export default function MonitoringBoardPage({ project, scopes = [], foreman_opti
                                             {scope.updated_at || '-'}
                                         </td>
                                         <td style={{ padding: '10px 8px', borderBottom: '1px solid var(--border-color)' }}>
-                                            {isEditing ? (
-                                                <div style={{ display: 'inline-flex', gap: 8 }}>
-                                                    <ActionButton
-                                                        type="button"
-                                                        onClick={() => {
-                                                            setEditingScopeId(null);
-                                                            setEditAssignedPersonnelNames([]);
-                                                        }}
-                                                        style={{
-                                                            background: 'var(--button-bg)',
-                                                            color: 'var(--text-main)',
-                                                            border: '1px solid var(--border-color)',
-                                                            borderRadius: 8,
-                                                            padding: '8px 10px',
-                                                            cursor: 'pointer',
-                                                        }}
-                                                    >
-                                                        Cancel
-                                                    </ActionButton>
-                                                    <ActionButton
-                                                        type="button"
-                                                        variant='success'
-                                                        disabled={updating}
-                                                        onClick={(event) => saveEdit(event, scope.id)}
-                                                        style={{
-                                                            background: 'var(--success)',
-                                                            color: '#fff',
-                                                            border: 'none',
-                                                            borderRadius: 8,
-                                                            padding: '8px 10px',
-                                                            cursor: updating ? 'not-allowed' : 'pointer',
-                                                            opacity: updating ? 0.7 : 1,
-                                                        }}
-                                                    >
-                                                        Save
-                                                    </ActionButton>
-                                                </div>
-                                            ) : (
-                                                <div style={{ display: 'inline-flex', gap: 8 }}>
-                                                    <ActionButton type="button" variant="edit" onClick={() => startEdit(scope)} style={{ padding: '8px 10px' }}>Edit</ActionButton>
-                                                    <ActionButton type="button" variant="danger" onClick={() => requestDeleteScope(scope)} style={{ padding: '8px 10px' }}>Delete</ActionButton>
-                                                </div>
-                                            )}
+                                            <div style={{ display: 'inline-flex', gap: 8 }}>
+                                                <ActionButton type="button" variant="edit" onClick={() => startEdit(scope)} style={{ padding: '8px 10px' }}>Edit</ActionButton>
+                                                <ActionButton
+                                                    type="button"
+                                                    variant="danger"
+                                                    onClick={() => requestDeleteScope(scope)}
+                                                    disabled={deleting}
+                                                    loading={deleting && scopeToDelete?.id === scope.id}
+                                                    style={{ padding: '8px 10px' }}
+                                                >
+                                                    {deleting && scopeToDelete?.id === scope.id ? 'Deleting...' : 'Delete'}
+                                                </ActionButton>
+                                            </div>
                                         </td>
-                                    </tr>
-                                );
-                            })}
+                                </tr>
+                            ))}
                         </tbody>
                     </table>
-
-                    {(editErrors.scope_name ||
-                        editErrors.progress_percent ||
-                        editErrors.status ||
-                        editErrors.assigned_personnel ||
-                        editErrors.remarks ||
-                        editErrors.contract_amount ||
-                        editErrors.weight_percent ||
-                        editErrors.start_date ||
-                        editErrors.target_completion) && (
-                        <div style={{ color: '#f87171', fontSize: 12, marginTop: 10 }}>
-                            {editErrors.scope_name ||
-                                editErrors.progress_percent ||
-                                editErrors.status ||
-                                editErrors.assigned_personnel ||
-                                editErrors.remarks ||
-                                editErrors.contract_amount ||
-                                editErrors.weight_percent ||
-                                editErrors.start_date ||
-                                editErrors.target_completion}
-                        </div>
-                    )}
                 </div>
+
+                <EditModal
+                    open={!!editScope}
+                    onClose={closeEdit}
+                    onSubmit={saveEdit}
+                    title={editScope ? `Edit Scope - ${editScope.scope_name}` : 'Edit Scope'}
+                    submitLabel="Save Changes"
+                    processing={updating}
+                    maxWidth={860}
+                >
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 12 }}>
+                        <label>
+                            <div style={{ fontSize: 12, marginBottom: 6 }}>Scope Name</div>
+                            <TextInput
+                                value={editData.scope_name}
+                                onChange={(event) => setEditData('scope_name', event.target.value)}
+                                style={inputStyle}
+                            />
+                            {editErrors.scope_name && <div style={{ color: '#f87171', fontSize: 12, marginTop: 4 }}>{editErrors.scope_name}</div>}
+                        </label>
+
+                        <label>
+                            <div style={{ fontSize: 12, marginBottom: 6 }}>Assigned Personnel</div>
+                            {assignedPersonnelOptions.length > 0 ? (
+                                <SearchableDropdown
+                                    options={assignedPersonnelOptions}
+                                    value={editData.assigned_personnel}
+                                    onChange={(value) => setEditData('assigned_personnel', value || '')}
+                                    placeholder="Select foreman"
+                                    searchPlaceholder="Search foreman..."
+                                    emptyMessage="No foreman found"
+                                    getOptionValue={(option) => option.value}
+                                    getOptionLabel={(option) => option.label}
+                                    style={{ ...inputStyle, minHeight: 40, padding: '8px 10px' }}
+                                />
+                            ) : (
+                                <TextInput
+                                    value={editData.assigned_personnel}
+                                    onChange={(event) => setEditData('assigned_personnel', event.target.value)}
+                                    style={inputStyle}
+                                />
+                            )}
+                            {editErrors.assigned_personnel && <div style={{ color: '#f87171', fontSize: 12, marginTop: 4 }}>{editErrors.assigned_personnel}</div>}
+                        </label>
+
+                        <label>
+                            <div style={{ fontSize: 12, marginBottom: 6 }}>Progress (%)</div>
+                            <TextInput
+                                type="number"
+                                min="0"
+                                max="100"
+                                value={editData.progress_percent}
+                                onChange={(event) => setEditData('progress_percent', event.target.value)}
+                                style={inputStyle}
+                            />
+                            {editErrors.progress_percent && <div style={{ color: '#f87171', fontSize: 12, marginTop: 4 }}>{editErrors.progress_percent}</div>}
+                        </label>
+
+                        <label>
+                            <div style={{ fontSize: 12, marginBottom: 6 }}>Status</div>
+                            <SelectInput
+                                value={editData.status}
+                                onChange={(event) => setEditData('status', event.target.value)}
+                                style={inputStyle}
+                            >
+                                {STATUS_OPTIONS.map((status) => (
+                                    <option key={status} value={status}>
+                                        {status}
+                                    </option>
+                                ))}
+                            </SelectInput>
+                            {editErrors.status && <div style={{ color: '#f87171', fontSize: 12, marginTop: 4 }}>{editErrors.status}</div>}
+                        </label>
+
+                        <label>
+                            <div style={{ fontSize: 12, marginBottom: 6 }}>Contract Amount</div>
+                            <TextInput
+                                type="number"
+                                min="0"
+                                step="0.01"
+                                value={editData.contract_amount}
+                                onChange={(event) => setEditData('contract_amount', event.target.value)}
+                                style={inputStyle}
+                            />
+                            {editErrors.contract_amount && <div style={{ color: '#f87171', fontSize: 12, marginTop: 4 }}>{editErrors.contract_amount}</div>}
+                        </label>
+
+                        <label>
+                            <div style={{ fontSize: 12, marginBottom: 6 }}>Weight %</div>
+                            <TextInput
+                                type="number"
+                                min="0"
+                                max="100"
+                                step="0.01"
+                                value={editData.weight_percent}
+                                onChange={(event) => setEditData('weight_percent', event.target.value)}
+                                style={inputStyle}
+                            />
+                            {editErrors.weight_percent && <div style={{ color: '#f87171', fontSize: 12, marginTop: 4 }}>{editErrors.weight_percent}</div>}
+                        </label>
+
+                        <label>
+                            <div style={{ fontSize: 12, marginBottom: 6 }}>Start Date</div>
+                            <DatePickerInput value={editData.start_date} onChange={(value) => setEditData('start_date', value)} style={inputStyle} />
+                            {editErrors.start_date && <div style={{ color: '#f87171', fontSize: 12, marginTop: 4 }}>{editErrors.start_date}</div>}
+                        </label>
+
+                        <label>
+                            <div style={{ fontSize: 12, marginBottom: 6 }}>Target Completion</div>
+                            <DatePickerInput value={editData.target_completion} onChange={(value) => setEditData('target_completion', value)} style={inputStyle} />
+                            {editErrors.target_completion && <div style={{ color: '#f87171', fontSize: 12, marginTop: 4 }}>{editErrors.target_completion}</div>}
+                        </label>
+
+                        <label style={{ gridColumn: '1 / -1' }}>
+                            <div style={{ fontSize: 12, marginBottom: 6 }}>Remarks</div>
+                            <TextareaInput
+                                value={editData.remarks}
+                                onChange={(event) => setEditData('remarks', event.target.value)}
+                                style={{ ...inputStyle, minHeight: 90 }}
+                            />
+                            {editErrors.remarks && <div style={{ color: '#f87171', fontSize: 12, marginTop: 4 }}>{editErrors.remarks}</div>}
+                        </label>
+                    </div>
+                </EditModal>
 
                 <Modal
                     open={!!scopeToDelete}

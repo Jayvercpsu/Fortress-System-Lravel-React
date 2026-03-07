@@ -195,6 +195,7 @@ const humanize = (value) => {
         .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
         .join(' ');
 };
+const isForemanRole = (role) => String(role || '').trim().toLowerCase() === 'foreman';
 
 export default function ProgressSubmit({ submitToken }) {
     const { flash, errors = {} } = usePage().props;
@@ -258,6 +259,7 @@ export default function ProgressSubmit({ submitToken }) {
         workers.forEach((worker) => {
             const name = String(worker?.name || '').trim();
             const role = String(worker?.role || 'Worker').trim() || 'Worker';
+            if (isForemanRole(role)) return;
             const id = workerIdentity(name, role);
             if (!id) return;
             if (!pool.has(id)) pool.set(id, { name, role });
@@ -266,6 +268,7 @@ export default function ProgressSubmit({ submitToken }) {
             (rows || []).forEach((row) => {
                 const name = String(row?.worker_name || '').trim();
                 const role = String(row?.worker_role || 'Worker').trim() || 'Worker';
+                if (isForemanRole(role)) return;
                 const id = workerIdentity(name, role);
                 if (!id) return;
                 if (!pool.has(id)) pool.set(id, { name, role });
@@ -275,6 +278,7 @@ export default function ProgressSubmit({ submitToken }) {
             (rows || []).forEach((row) => {
                 const name = String(row?.worker_name || '').trim();
                 const role = String(row?.worker_role || 'Worker').trim() || 'Worker';
+                if (isForemanRole(role)) return;
                 const id = workerIdentity(name, role);
                 if (!id) return;
                 if (!pool.has(id)) pool.set(id, { name, role });
@@ -300,7 +304,8 @@ export default function ProgressSubmit({ submitToken }) {
     const attendanceLocked = attendanceWeekKey < currentWeekStart && attendanceWeekHasSavedData;
     const weeklyLocked = weeklyWeekKey < currentWeekStart && weeklyWeekHasSavedData;
     const attendanceRows = useMemo(() => {
-        const currentRows = cloneAttendanceRows(attendanceWeekDrafts[attendanceWeekKey] ?? defaultAttendanceRows);
+        const currentRows = cloneAttendanceRows(attendanceWeekDrafts[attendanceWeekKey] ?? defaultAttendanceRows)
+            .filter((row) => !isForemanRole(row.worker_role));
         const existing = new Set(
             currentRows
                 .map((row) => workerIdentity(row.worker_name, row.worker_role))
@@ -384,6 +389,7 @@ export default function ProgressSubmit({ submitToken }) {
 
     const submitAll = () => {
         const attendanceEntries = attendanceRows
+            .filter((row) => !isForemanRole(row.worker_role))
             .map((row) => ({
                 worker_name: String(row.worker_name || '').trim(),
                 worker_role: String(row.worker_role || '').trim(),
@@ -486,44 +492,47 @@ export default function ProgressSubmit({ submitToken }) {
             <div className="jf-note" style={{ marginBottom: 8, lineHeight: 1.45 }}>
                 <strong>Attendance Codes:</strong> {ATTENDANCE_LEGEND.join(' | ')}
             </div>
-            <div className="jf-table-wrap">
-                <table className="jf-table">
-                    <thead>
-                        <tr>
-                            <th>Full Name</th>
-                            <th>Job</th>
-                            {DAYS.map((d) => <th key={d.key}>{d.label}</th>)}
-                            <th>Total</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {attendanceRows.map((row, i) => (
-                            <tr key={row.row_key || i}>
-                                <td><input disabled className="jf-input" value={row.worker_name} readOnly /></td>
-                                <td><input disabled className="jf-input" value={row.worker_role} readOnly /></td>
-                                {DAYS.map((d) => (
-                                    <td key={d.key}>
-                                        <select disabled={attendanceLocked} className="jf-input" value={row.days[d.key] || ''} onChange={(e) => setCurrentAttendanceRows((prev) => prev.map((r, idx) => idx === i ? { ...r, days: { ...r.days, [d.key]: e.target.value } } : r))}>
-                                            {STATUS.map((s) => <option key={s || 'x'} value={s}>{s || '-'}</option>)}
-                                        </select>
-                                    </td>
-                                ))}
-                                <td style={{ fontWeight: 700, textAlign: 'center' }}>{rowTotal(row).toFixed(1)}</td>
+            {attendanceWorkerPool.length === 0 ? (
+                <div className="jf-note" style={{ marginTop: 6 }}>
+                    No workers found. Add workers in the Foreman &#8594; Workers page.
+                </div>
+            ) : (
+                <div className="jf-table-wrap">
+                    <table className="jf-table">
+                        <thead>
+                            <tr>
+                                <th>Full Name</th>
+                                <th>Job</th>
+                                {DAYS.map((d) => <th key={d.key}>{d.label}</th>)}
+                                <th>Total</th>
                             </tr>
-                        ))}
-                    </tbody>
-                    <tfoot>
-                        <tr>
-                            <td colSpan={2} style={{ fontWeight: 700 }}>Totals</td>
-                            {DAYS.map((d) => <td key={d.key} style={{ textAlign: 'center', fontWeight: 700 }}>{dayTotal(d.key).toFixed(1)}</td>)}
-                            <td style={{ textAlign: 'center', fontWeight: 700 }}>{DAYS.reduce((sum, d) => sum + dayTotal(d.key), 0).toFixed(1)}</td>
-                        </tr>
-                    </tfoot>
-                </table>
-            </div>
-            <div className="jf-actions">
-                <button type="button" className="jf-btn jf-btn-light" disabled={attendanceLocked} onClick={() => setCurrentAttendanceRows((prev) => [...prev, blankRow()])}><Plus size={15} /> Add Worker</button>
-            </div>
+                        </thead>
+                        <tbody>
+                            {attendanceRows.map((row, i) => (
+                                <tr key={row.row_key || i}>
+                                    <td><input disabled className="jf-input" value={row.worker_name} readOnly /></td>
+                                    <td><input disabled className="jf-input" value={row.worker_role} readOnly /></td>
+                                    {DAYS.map((d) => (
+                                        <td key={d.key}>
+                                            <select disabled={attendanceLocked} className="jf-input" value={row.days[d.key] || ''} onChange={(e) => setCurrentAttendanceRows((prev) => prev.map((r, idx) => idx === i ? { ...r, days: { ...r.days, [d.key]: e.target.value } } : r))}>
+                                                {STATUS.map((s) => <option key={s || 'x'} value={s}>{s || '-'}</option>)}
+                                            </select>
+                                        </td>
+                                    ))}
+                                    <td style={{ fontWeight: 700, textAlign: 'center' }}>{rowTotal(row).toFixed(1)}</td>
+                                </tr>
+                            ))}
+                        </tbody>
+                        <tfoot>
+                            <tr>
+                                <td colSpan={2} style={{ fontWeight: 700 }}>Totals</td>
+                                {DAYS.map((d) => <td key={d.key} style={{ textAlign: 'center', fontWeight: 700 }}>{dayTotal(d.key).toFixed(1)}</td>)}
+                                <td style={{ textAlign: 'center', fontWeight: 700 }}>{DAYS.reduce((sum, d) => sum + dayTotal(d.key), 0).toFixed(1)}</td>
+                            </tr>
+                        </tfoot>
+                    </table>
+                </div>
+            )}
         </>
     );
 

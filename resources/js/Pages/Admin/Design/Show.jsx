@@ -65,7 +65,7 @@ export default function AdminDesignShow({ projectId, design }) {
         e.preventDefault();
         patch(`/projects/${projectId}/design`, {
             preserveScroll: true,
-            onSuccess: () => toast.success('Design tracker updated.'),
+            onSuccess: () => toast.success('Design tracker updated successfully.'),
             onError: () => toast.error('Please fix the highlighted fields and try again.'),
         });
     };

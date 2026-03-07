@@ -3,20 +3,27 @@
 namespace App\Http\Controllers;
 
 use App\Models\BuildProject;
+use App\Models\Attendance;
 use App\Models\DesignProject;
+use App\Models\DeliveryConfirmation;
 use App\Models\Expense;
+use App\Models\IssueReport;
+use App\Models\MaterialRequest;
 use App\Models\Payment;
+use App\Models\ProgressPhoto;
 use App\Models\Project;
 use App\Models\ProjectAssignment;
+use App\Models\ProjectScope;
 use App\Models\ProjectWorker;
 use App\Models\ProgressSubmitToken;
+use App\Models\ScopePhoto;
 use App\Models\User;
+use App\Models\WeeklyAccomplishment;
 use App\Models\Worker;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Inertia\Inertia;
@@ -147,7 +154,7 @@ class ProjectController extends Controller
 
         return redirect()
             ->route('projects.show', ['project' => $project->id])
-            ->with('success', 'Project created.');
+            ->with('success', 'Project created successfully.');
     }
 
     public function show(Request $request, Project $project)
@@ -309,7 +316,7 @@ class ProjectController extends Controller
 
         return redirect()
             ->route('projects.show', ['project' => $project->id])
-            ->with('success', 'Project updated.');
+            ->with('success', 'Project updated successfully.');
     }
 
     public function projectReceipt(Request $request, Project $project)
@@ -366,7 +373,7 @@ class ProjectController extends Controller
 
         return redirect()
             ->route('projects.index', $this->projectIndexQueryParams($request))
-            ->with('success', 'Project phase updated.');
+            ->with('success', 'Project phase updated successfully.');
     }
 
     public function updateAssignedForemen(Request $request, Project $project)
@@ -405,33 +412,47 @@ class ProjectController extends Controller
 
         return redirect()
             ->route('projects.show', ['project' => $project->id] + $this->projectShowQueryParams($request))
-            ->with('success', 'Assigned foremen updated.');
+            ->with('success', 'Assigned foremen updated successfully.');
     }
 
     public function destroy(Request $request, Project $project)
     {
         abort_unless($request->user()->role === 'head_admin', 403);
 
-        $projectId = (string) $project->id;
-        $filePaths = $project->files()->pluck('file_path')->filter()->values()->all();
+        $projectId = (int) $project->id;
 
         DB::transaction(function () use ($project, $projectId) {
-            DesignProject::where('project_id', $projectId)->delete();
-            BuildProject::where('project_id', $projectId)->delete();
-            Expense::where('project_id', $projectId)->delete();
+            $scopeIds = ProjectScope::query()
+                ->where('project_id', $projectId)
+                ->pluck('id');
+
+            if ($scopeIds->isNotEmpty()) {
+                ScopePhoto::query()->whereIn('project_scope_id', $scopeIds->all())->delete();
+            }
+
+            ProjectScope::query()->where('project_id', $projectId)->delete();
+            ProgressSubmitToken::query()->where('project_id', $projectId)->delete();
+            Payment::query()->where('project_id', $projectId)->delete();
+            ProjectAssignment::query()->where('project_id', $projectId)->delete();
+            ProjectWorker::query()->where('project_id', $projectId)->delete();
+            Attendance::query()->where('project_id', $projectId)->delete();
+            WeeklyAccomplishment::query()->where('project_id', $projectId)->delete();
+            MaterialRequest::query()->where('project_id', $projectId)->delete();
+            IssueReport::query()->where('project_id', $projectId)->delete();
+            DeliveryConfirmation::query()->where('project_id', $projectId)->delete();
+            ProgressPhoto::query()->where('project_id', $projectId)->delete();
+            Worker::query()->where('project_id', $projectId)->delete();
+            DesignProject::query()->where('project_id', $projectId)->delete();
+            BuildProject::query()->where('project_id', $projectId)->delete();
+            Expense::query()->where('project_id', $projectId)->delete();
             $project->files()->delete();
             $project->updates()->delete();
             $project->delete();
         });
 
-        foreach ($filePaths as $filePath) {
-            Storage::disk('public')->delete($filePath);
-        }
-        Storage::disk('public')->deleteDirectory('project-files/' . $projectId);
-
         return redirect()
             ->route('projects.index', $this->projectIndexQueryParams($request))
-            ->with('success', 'Project deleted.');
+            ->with('success', 'Project deleted successfully.');
     }
 
     public function editFinancials(Request $request, Project $project)
@@ -466,12 +487,12 @@ class ProjectController extends Controller
         if ((string) $request->query('return') === 'financials') {
             return redirect()
                 ->route('projects.financials.edit', ['project' => $project->id])
-                ->with('success', 'Project financials updated.');
+                ->with('success', 'Project financials updated successfully.');
         }
 
         return redirect()
             ->route('projects.show', ['project' => $project->id])
-            ->with('success', 'Project financials updated.');
+            ->with('success', 'Project financials updated successfully.');
     }
 
     public function storeTeamMember(Request $request, Project $project)
@@ -536,7 +557,7 @@ class ProjectController extends Controller
 
         return redirect()
             ->route('projects.show', ['project' => $project->id] + $this->projectShowQueryParams($request))
-            ->with('success', 'Assigned team updated.');
+            ->with('success', 'Assigned team updated successfully.');
     }
 
     public function destroyTeamMember(Request $request, ProjectWorker $projectWorker)
@@ -548,7 +569,7 @@ class ProjectController extends Controller
 
         return redirect()
             ->route('projects.show', ['project' => $projectId] + $this->projectShowQueryParams($request))
-            ->with('success', 'Team member removed.');
+            ->with('success', 'Team member removed successfully.');
     }
 
     private function projectRules(): array

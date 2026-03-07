@@ -137,14 +137,14 @@ class MaterialRequestController extends Controller
         ]);
 
         if ((string) $materialRequest->status === (string) $validated['status']) {
-            return redirect()->back()->with('success', 'Status already ' . $validated['status'] . '.');
+            return redirect()->back()->with('success', 'Status already ' . $validated['status'] . ' successfully.');
         }
 
         $materialRequest->update([
             'status' => $validated['status'],
         ]);
 
-        return redirect()->back()->with('success', 'Material request marked as ' . $validated['status'] . '.');
+        return redirect()->back()->with('success', 'Material request marked as ' . $validated['status'] . ' successfully.');
     }
 
     private function tableMeta($paginator, string $search, string $status = ''): array

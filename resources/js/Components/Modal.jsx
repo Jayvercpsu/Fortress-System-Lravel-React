@@ -22,7 +22,7 @@ export default function Modal({ open, onClose, title, children, maxWidth = 960 }
 
     return (
         <div
-            onMouseDown={onClose}
+            onClick={onClose}
             style={{
                 position: 'fixed',
                 inset: 0,
@@ -35,7 +35,7 @@ export default function Modal({ open, onClose, title, children, maxWidth = 960 }
             }}
         >
             <div
-                onMouseDown={(e) => e.stopPropagation()}
+                onClick={(e) => e.stopPropagation()}
                 style={{
                     width: '100%',
                     maxWidth,

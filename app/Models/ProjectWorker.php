@@ -3,9 +3,12 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\SoftDeletes;
 
 class ProjectWorker extends Model
 {
+    use SoftDeletes;
+
     protected $fillable = [
         'project_id',
         'user_id',
@@ -27,4 +30,3 @@ class ProjectWorker extends Model
         return $this->belongsTo(User::class);
     }
 }
-

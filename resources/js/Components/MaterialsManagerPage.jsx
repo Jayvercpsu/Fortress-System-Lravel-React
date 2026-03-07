@@ -1,6 +1,8 @@
 import Layout from './Layout';
 import ActionButton from './ActionButton';
 import DataTable from './DataTable';
+import EditModal from './EditModal';
+import TextInput from './TextInput';
 import { Head, router, useForm } from '@inertiajs/react';
 import { useState } from 'react';
 import toast from 'react-hot-toast';
@@ -23,7 +25,8 @@ const inputStyle = {
 };
 
 export default function MaterialsManagerPage({ materials = [], materialTable = {} }) {
-    const [editingId, setEditingId] = useState(null);
+    const [editTarget, setEditTarget] = useState(null);
+    const [deletingId, setDeletingId] = useState(null);
 
     const table = {
         search: materialTable?.search ?? '',
@@ -53,6 +56,7 @@ export default function MaterialsManagerPage({ materials = [], materialTable = {
         patch,
         processing: updating,
         errors: editErrors,
+        clearErrors: clearEditErrors,
     } = useForm({
         name: '',
         description: '',
@@ -88,37 +92,47 @@ export default function MaterialsManagerPage({ materials = [], materialTable = {
             preserveScroll: true,
             onSuccess: () => {
                 resetCreate();
-                toast.success('Material added.');
+                toast.success('Material added successfully.');
             },
             onError: () => toast.error('Unable to add material.'),
         });
     };
 
     const startEdit = (material) => {
-        setEditingId(material.id);
+        setEditTarget(material);
+        if (clearEditErrors) clearEditErrors();
         setEditData({
             name: material.name ?? '',
             description: material.description ?? '',
         });
     };
 
-    const submitEdit = (e, materialId) => {
+    const closeEdit = () => {
+        if (updating) return;
+        setEditTarget(null);
+        if (clearEditErrors) clearEditErrors();
+    };
+
+    const submitEdit = (e) => {
         e.preventDefault();
-        patch(`/materials/${materialId}${queryString()}`, {
+        if (!editTarget) return;
+        patch(`/materials/${editTarget.id}${queryString()}`, {
             preserveScroll: true,
             onSuccess: () => {
-                setEditingId(null);
-                toast.success('Material updated.');
+                setEditTarget(null);
+                toast.success('Material updated successfully.');
             },
             onError: () => toast.error('Unable to update material.'),
         });
     };
 
     const deleteMaterial = (materialId) => {
+        setDeletingId(materialId);
         router.delete(`/materials/${materialId}${queryString()}`, {
             preserveScroll: true,
-            onSuccess: () => toast.success('Material deleted.'),
+            onSuccess: () => toast.success('Material deleted successfully.'),
             onError: () => toast.error('Unable to delete material.'),
+            onFinish: () => setDeletingId(null),
         });
     };
 
@@ -126,30 +140,13 @@ export default function MaterialsManagerPage({ materials = [], materialTable = {
         {
             key: 'name',
             label: 'Material',
-            render: (row) =>
-                editingId === row.id ? (
-                    <input value={editData.name} onChange={(e) => setEditData('name', e.target.value)} style={inputStyle} />
-                ) : (
-                    <div style={{ fontWeight: 600 }}>{row.name}</div>
-                ),
+            render: (row) => <div style={{ fontWeight: 600 }}>{row.name}</div>,
             searchAccessor: (row) => row.name,
         },
         {
             key: 'description',
             label: 'Description',
-            render: (row) =>
-                editingId === row.id ? (
-                    <div style={{ display: 'grid', gap: 6 }}>
-                        <input value={editData.description} onChange={(e) => setEditData('description', e.target.value)} style={inputStyle} />
-                        {(editErrors.name || editErrors.description) && (
-                            <div style={{ color: '#f87171', fontSize: 12 }}>
-                                {editErrors.name || editErrors.description}
-                            </div>
-                        )}
-                    </div>
-                ) : (
-                    <div style={{ color: row.description ? 'var(--text-main)' : 'var(--text-muted)' }}>{row.description || '-'}</div>
-                ),
+            render: (row) => <div style={{ color: row.description ? 'var(--text-main)' : 'var(--text-muted)' }}>{row.description || '-'}</div>,
             searchAccessor: (row) => row.description,
         },
         {
@@ -157,27 +154,19 @@ export default function MaterialsManagerPage({ materials = [], materialTable = {
             label: 'Actions',
             align: 'right',
             render: (row) =>
-                editingId === row.id ? (
-                    <div style={{ display: 'inline-flex', gap: 8 }}>
-                        <ActionButton type="button" variant="neutral" onClick={() => setEditingId(null)}>
-                            Cancel
-                        </ActionButton>
-                        <ActionButton
-                            type="button"
-                            variant="success"
-                            onClick={(e) => submitEdit(e, row.id)}
-                            disabled={updating}
-                        >
-                            Save
-                        </ActionButton>
-                    </div>
-                ) : (
+                (
                     <div style={{ display: 'inline-flex', gap: 8 }}>
                         <ActionButton type="button" variant="edit" onClick={() => startEdit(row)}>
                             Edit
                         </ActionButton>
-                        <ActionButton type="button" variant="danger" onClick={() => deleteMaterial(row.id)}>
-                            Delete
+                        <ActionButton
+                            type="button"
+                            variant="danger"
+                            onClick={() => deleteMaterial(row.id)}
+                            disabled={deletingId === row.id}
+                            loading={deletingId === row.id}
+                        >
+                            {deletingId === row.id ? 'Deleting...' : 'Delete'}
                         </ActionButton>
                     </div>
                 ),
@@ -192,13 +181,13 @@ export default function MaterialsManagerPage({ materials = [], materialTable = {
                     <form onSubmit={submitCreate} style={{ ...cardStyle, display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 14 }}>
                         <label>
                             <div style={{ fontSize: 12, marginBottom: 6 }}>Material Name</div>
-                            <input value={createData.name} onChange={(e) => setCreateData('name', e.target.value)} style={inputStyle} placeholder="e.g. Cement" />
+                            <TextInput value={createData.name} onChange={(e) => setCreateData('name', e.target.value)} style={inputStyle} placeholder="e.g. Cement" />
                             {createErrors.name && <div style={{ color: '#f87171', fontSize: 12, marginTop: 4 }}>{createErrors.name}</div>}
                         </label>
 
                         <label>
                             <div style={{ fontSize: 12, marginBottom: 6 }}>Description (optional)</div>
-                            <input value={createData.description} onChange={(e) => setCreateData('description', e.target.value)} style={inputStyle} placeholder="Category / notes" />
+                            <TextInput value={createData.description} onChange={(e) => setCreateData('description', e.target.value)} style={inputStyle} placeholder="Category / notes" />
                             {createErrors.description && <div style={{ color: '#f87171', fontSize: 12, marginTop: 4 }}>{createErrors.description}</div>}
                         </label>
 
@@ -230,6 +219,28 @@ export default function MaterialsManagerPage({ materials = [], materialTable = {
                         />
                     </div>
                 </div>
+                <EditModal
+                    open={!!editTarget}
+                    onClose={closeEdit}
+                    onSubmit={submitEdit}
+                    title={editTarget ? `Edit Material - ${editTarget.name}` : 'Edit Material'}
+                    submitLabel="Save Changes"
+                    processing={updating}
+                    maxWidth={560}
+                >
+                    <div style={{ display: 'grid', gap: 12 }}>
+                        <label>
+                            <div style={{ fontSize: 12, marginBottom: 6 }}>Material Name</div>
+                            <TextInput value={editData.name} onChange={(e) => setEditData('name', e.target.value)} style={inputStyle} />
+                            {editErrors.name && <div style={{ color: '#f87171', fontSize: 12, marginTop: 4 }}>{editErrors.name}</div>}
+                        </label>
+                        <label>
+                            <div style={{ fontSize: 12, marginBottom: 6 }}>Description (optional)</div>
+                            <TextInput value={editData.description} onChange={(e) => setEditData('description', e.target.value)} style={inputStyle} />
+                            {editErrors.description && <div style={{ color: '#f87171', fontSize: 12, marginTop: 4 }}>{editErrors.description}</div>}
+                        </label>
+                    </div>
+                </EditModal>
             </Layout>
         </>
     );

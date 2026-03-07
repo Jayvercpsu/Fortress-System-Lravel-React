@@ -263,16 +263,11 @@ export default function ForemanDashboard({
                                     padding: 12,
                                     background: 'var(--surface-2)',
                                     display: 'grid',
-                                    gridTemplateColumns: 'minmax(160px, 1fr) minmax(220px, 1.4fr) repeat(3, minmax(90px, auto)) auto auto',
+                                    gridTemplateColumns: 'minmax(220px, 1.4fr) repeat(3, minmax(90px, auto)) auto auto',
                                     gap: 8,
                                     alignItems: 'center',
                                 }}
                             >
-                                <div>
-                                    <div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Foreman</div>
-                                    <div style={{ fontWeight: 700 }}>{user?.fullname || '-'}</div>
-                                </div>
-
                                 <div>
                                     <div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: 4 }}>Project</div>
                                     {foremanAttendanceToday ? (

@@ -1,4 +1,4 @@
-import { forwardRef, useMemo } from 'react';
+import { forwardRef, useEffect, useMemo, useRef, useState } from 'react';
 import { Calendar, ChevronLeft, ChevronRight } from 'lucide-react';
 import ReactDatePicker from 'react-datepicker';
 
@@ -65,11 +65,15 @@ const buildYearOptions = (selected, minDate, maxDate) => {
 };
 
 const DateTextInput = forwardRef(function DateTextInput(
-    { value, onClick, onChange, placeholder, style, disabled, name, onBlur },
+    { value, onClick, onChange, placeholder, style, disabled, name, onBlur, wrapperRef },
     ref
 ) {
     return (
-        <div className={`bb-date-input-wrap${disabled ? ' is-disabled' : ''}`} onClick={disabled ? undefined : onClick}>
+        <div
+            ref={wrapperRef}
+            className={`bb-date-input-wrap${disabled ? ' is-disabled' : ''}`}
+            onClick={disabled ? undefined : onClick}
+        >
             <span className="bb-date-input-icon" aria-hidden="true">
                 <Calendar size={15} strokeWidth={2} />
             </span>
@@ -109,11 +113,35 @@ export default function DatePickerInput({
         () => buildYearOptions(selected, parsedMinDate, parsedMaxDate),
         [selected, parsedMinDate, parsedMaxDate]
     );
+    const wrapperRef = useRef(null);
+    const [isOpen, setIsOpen] = useState(false);
+
+    useEffect(() => {
+        if (!isOpen) return;
+
+        const handlePointerDown = (event) => {
+            const target = event.target;
+            if (!(target instanceof Element)) return;
+            if (wrapperRef.current?.contains(target)) return;
+            if (target.closest('.react-datepicker-popper')) return;
+            if (target.closest('.bb-datepicker-popper')) return;
+            setIsOpen(false);
+        };
+
+        document.addEventListener('mousedown', handlePointerDown, true);
+        document.addEventListener('touchstart', handlePointerDown, true);
+
+        return () => {
+            document.removeEventListener('mousedown', handlePointerDown, true);
+            document.removeEventListener('touchstart', handlePointerDown, true);
+        };
+    }, [isOpen]);
 
     return (
         <ReactDatePicker
             selected={selected}
             onChange={(date) => onChange?.(toYmd(date))}
+            onSelect={() => setIsOpen(false)}
             dateFormat="yyyy-MM-dd"
             showPopperArrow={false}
             fixedHeight
@@ -126,6 +154,10 @@ export default function DatePickerInput({
             popperPlacement="bottom-start"
             calendarClassName="bb-datepicker"
             popperClassName="bb-datepicker-popper"
+            open={isOpen}
+            onInputClick={() => setIsOpen(true)}
+            onClickOutside={() => setIsOpen(false)}
+            onCalendarClose={() => setIsOpen(false)}
             formatWeekDay={(nameOfDay) => nameOfDay.slice(0, 2).toUpperCase()}
             renderCustomHeader={({
                 date,
@@ -184,7 +216,7 @@ export default function DatePickerInput({
                     </button>
                 </div>
             )}
-            customInput={<DateTextInput style={style} />}
+            customInput={<DateTextInput style={style} wrapperRef={wrapperRef} />}
         />
     );
 }

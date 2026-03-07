@@ -13,6 +13,7 @@ use App\Models\ProjectFile;
 use App\Models\ProjectScope;
 use App\Models\ProjectUpdate;
 use App\Models\ScopePhoto;
+use App\Models\User;
 use App\Models\WeeklyAccomplishment;
 use App\Models\Worker;
 use Illuminate\Http\UploadedFile;
@@ -76,17 +77,25 @@ class PublicProgressController extends Controller
     public function show(string $token)
     {
         $submitToken = $this->resolveActiveToken($token);
-        $workers = Worker::query()
+        $workerRows = Worker::query()
             ->where('foreman_id', $submitToken->foreman_id)
             ->where(function ($query) use ($submitToken) {
                 $query->whereNull('project_id')->orWhere('project_id', $submitToken->project_id);
             })
             ->orderBy('name')
-            ->get(['id', 'name'])
+            ->get(['id', 'name', 'job_type']);
+
+        $workerRoleLookup = $workerRows
+            ->mapWithKeys(fn (Worker $worker) => [
+                Str::lower(trim((string) $worker->name)) => trim((string) ($worker->job_type ?: 'Worker')) ?: 'Worker',
+            ])
+            ->all();
+
+        $workers = $workerRows
             ->map(fn (Worker $worker) => [
                 'id' => $worker->id,
                 'name' => $worker->name,
-                'role' => 'Worker',
+                'role' => trim((string) ($worker->job_type ?: 'Worker')) ?: 'Worker',
             ])
             ->values();
 
@@ -169,7 +178,7 @@ class PublicProgressController extends Controller
             ->groupBy(function (Attendance $attendance) {
                 return Carbon::parse($attendance->date)->startOfWeek(Carbon::MONDAY)->toDateString();
             })
-            ->map(function ($weekRows) {
+            ->map(function ($weekRows) use ($workerRoleLookup) {
                 $workers = [];
                 foreach ($weekRows as $row) {
                     $workerName = trim((string) $row->worker_name);
@@ -179,6 +188,13 @@ class PublicProgressController extends Controller
 
                     $workerRole = trim((string) ($row->worker_role ?? 'Worker'));
                     $workerRole = $workerRole !== '' ? $workerRole : 'Worker';
+                    $lookupKey = Str::lower($workerName);
+                    if (isset($workerRoleLookup[$lookupKey])) {
+                        $workerRole = $workerRoleLookup[$lookupKey];
+                    }
+                    if ($this->isForemanRole($workerRole)) {
+                        continue;
+                    }
                     $workerKey = Str::lower($workerName . '|' . $workerRole);
 
                     if (!isset($workers[$workerKey])) {
@@ -352,12 +368,42 @@ class PublicProgressController extends Controller
             ->orderBy('scope_name')
             ->get();
 
-        $scopeRows = $scopes->map(function (ProjectScope $scope) {
+        $assigneeNames = $scopes
+            ->flatMap(fn (ProjectScope $scope) => preg_split('/[,;|]+/', (string) ($scope->assigned_personnel ?? '')))
+            ->map(fn ($name) => trim((string) $name))
+            ->filter(fn (string $name) => $name !== '')
+            ->unique(fn (string $name) => Str::lower($name))
+            ->values();
+
+        $assigneePhotoMap = $assigneeNames->isEmpty()
+            ? []
+            : User::query()
+                ->with('detail:id,user_id,profile_photo_path')
+                ->whereIn('fullname', $assigneeNames->all())
+                ->get(['id', 'fullname'])
+                ->mapWithKeys(function (User $user) {
+                    $photoPath = optional($user->detail)->profile_photo_path;
+
+                    return [Str::lower($user->fullname) => $photoPath ?: null];
+                })
+                ->all();
+
+        $scopeRows = $scopes->map(function (ProjectScope $scope) use ($assigneePhotoMap) {
             $progress = (float) ($scope->progress_percent ?? 0);
             $weight = (float) ($scope->weight_percent ?? 0);
             $contract = (float) ($scope->contract_amount ?? 0);
             $computedPercent = round($weight * $progress / 100, 2);
             $amountToDate = round($contract * min(100, $progress) / 100, 2);
+
+            $assignees = collect(preg_split('/[,;|]+/', (string) ($scope->assigned_personnel ?? '')))
+                ->map(fn ($name) => trim((string) $name))
+                ->filter(fn (string $name) => $name !== '')
+                ->map(fn (string $name) => [
+                    'name' => $name,
+                    'photo_path' => $assigneePhotoMap[Str::lower($name)] ?? null,
+                ])
+                ->values()
+                ->all();
 
             return [
                 'id' => $scope->id,
@@ -370,6 +416,7 @@ class PublicProgressController extends Controller
                 'start_date' => optional($scope->start_date)?->toDateString(),
                 'target_completion' => optional($scope->target_completion)?->toDateString(),
                 'assigned_personnel' => $scope->assigned_personnel,
+                'assignees' => $assignees,
                 'photos' => $scope->photos->map(fn ($photo) => [
                     'id' => $photo->id,
                     'photo_path' => $photo->photo_path,
@@ -516,6 +563,7 @@ class PublicProgressController extends Controller
                     'days' => $days,
                 ];
             })
+            ->filter(fn (array $row) => !$this->isForemanRole($row['worker_role']))
             ->filter(fn (array $row) => $row['worker_name'] !== '' && collect($row['days'])->contains(fn ($status) => $status !== ''))
             ->values();
 
@@ -871,16 +919,20 @@ class PublicProgressController extends Controller
 
         $validated = $request->validate($rules);
         $weekStart = Carbon::parse($validated['week_start'])->startOfWeek(Carbon::MONDAY);
-        $entries = collect($validated['entries']);
+        $entries = collect($validated['entries'])
+            ->filter(fn ($entry) => !$this->isForemanRole($entry['worker_role'] ?? ''));
         $this->syncWorkersFromAttendanceEntries($submitToken, $entries);
 
-        foreach ($validated['entries'] as $entry) {
+        foreach ($entries as $entry) {
             $workerName = trim((string) $entry['worker_name']);
             if ($workerName === '') {
                 continue;
             }
 
             $workerRole = trim((string) ($entry['worker_role'] ?? 'Worker'));
+            if ($this->isForemanRole($workerRole)) {
+                continue;
+            }
             foreach (self::ATTENDANCE_DAY_KEYS as $dayKey) {
                 $status = strtoupper(trim((string) ($entry['days'][$dayKey] ?? '')));
                 if ($status === '') {
@@ -913,7 +965,7 @@ class PublicProgressController extends Controller
 
         return redirect()
             ->route('public.progress-submit.show', ['token' => $token])
-            ->with('success', 'Attendance submitted.');
+            ->with('success', 'Attendance submitted successfully.');
     }
 
     public function storeDelivery(Request $request, string $token)
@@ -969,7 +1021,7 @@ class PublicProgressController extends Controller
 
         return redirect()
             ->route('public.progress-submit.show', ['token' => $token])
-            ->with('success', 'Delivery confirmation submitted.');
+            ->with('success', 'Delivery confirmation submitted successfully.');
     }
 
     public function storeMaterialRequest(Request $request, string $token)
@@ -1019,7 +1071,7 @@ class PublicProgressController extends Controller
 
         return redirect()
             ->route('public.progress-submit.show', ['token' => $token])
-            ->with('success', 'Material request submitted.');
+            ->with('success', 'Material request submitted successfully.');
     }
 
     public function storeWeeklyProgress(Request $request, string $token)
@@ -1075,7 +1127,7 @@ class PublicProgressController extends Controller
 
         return redirect()
             ->route('public.progress-submit.show', ['token' => $token])
-            ->with('success', 'Weekly progress submitted.');
+            ->with('success', 'Weekly progress submitted successfully.');
     }
 
     public function storePhoto(Request $request, string $token)
@@ -1111,7 +1163,7 @@ class PublicProgressController extends Controller
 
         return redirect()
             ->route('public.progress-submit.show', ['token' => $token])
-            ->with('success', 'Photo uploaded.');
+            ->with('success', 'Photo uploaded successfully.');
     }
 
     public function storeIssueReport(Request $request, string $token)
@@ -1157,7 +1209,7 @@ class PublicProgressController extends Controller
 
         return redirect()
             ->route('public.progress-submit.show', ['token' => $token])
-            ->with('success', 'Issue report submitted.');
+            ->with('success', 'Issue report submitted successfully.');
     }
 
     private function resolveActiveToken(string $token): ProgressSubmitToken
@@ -1180,6 +1232,26 @@ class PublicProgressController extends Controller
             ->with(['photos' => fn ($query) => $query->latest('id')])
             ->orderBy('id')
             ->get();
+
+        $assigneeNames = $scopes
+            ->flatMap(fn (ProjectScope $scope) => preg_split('/[,;|]+/', (string) ($scope->assigned_personnel ?? '')))
+            ->map(fn ($name) => trim((string) $name))
+            ->filter(fn (string $name) => $name !== '')
+            ->unique(fn (string $name) => Str::lower($name))
+            ->values();
+
+        $assigneePhotoMap = $assigneeNames->isEmpty()
+            ? []
+            : User::query()
+                ->with('detail:id,user_id,profile_photo_path')
+                ->whereIn('fullname', $assigneeNames->all())
+                ->get(['id', 'fullname'])
+                ->mapWithKeys(function (User $user) {
+                    $photoPath = optional($user->detail)->profile_photo_path;
+
+                    return [Str::lower($user->fullname) => $photoPath ?: null];
+                })
+                ->all();
 
         $weights = $this->receiptWeightDistribution($scopes->count());
         $contractAmount = (float) ($project?->contract_amount ?? 0);
@@ -1211,6 +1283,15 @@ class PublicProgressController extends Controller
                 'target_date' => optional($project?->target)?->toDateString(),
                 'status' => $scope->status,
                 'assignee' => $scope->assigned_personnel,
+                'assignees' => collect(preg_split('/[,;|]+/', (string) ($scope->assigned_personnel ?? '')))
+                    ->map(fn ($name) => trim((string) $name))
+                    ->filter(fn (string $name) => $name !== '')
+                    ->map(fn (string $name) => [
+                        'name' => $name,
+                        'photo_path' => $assigneePhotoMap[Str::lower($name)] ?? null,
+                    ])
+                    ->values()
+                    ->all(),
                 'remarks' => $scope->remarks,
                 'photos' => $scope->photos
                     ->take(4)
@@ -1314,9 +1395,15 @@ class PublicProgressController extends Controller
         return 'A';
     }
 
+    private function isForemanRole(?string $role): bool
+    {
+        return Str::lower(trim((string) $role)) === 'foreman';
+    }
+
     private function syncWorkersFromAttendanceEntries(ProgressSubmitToken $submitToken, iterable $attendanceEntries): void
     {
         $normalizedNames = collect($attendanceEntries)
+            ->filter(fn ($entry) => !$this->isForemanRole($entry['worker_role'] ?? ''))
             ->map(fn ($entry) => trim((string) (($entry['worker_name'] ?? ''))))
             ->filter(fn (string $name) => $name !== '')
             ->unique(fn (string $name) => Str::lower($name))

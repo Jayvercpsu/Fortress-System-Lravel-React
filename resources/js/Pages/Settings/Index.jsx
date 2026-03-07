@@ -107,7 +107,7 @@ export default function SettingsIndex({ account }) {
 
     useEffect(() => {
         if (wasSuccessful) {
-            toast.success('Settings updated.');
+            toast.success('Settings updated successfully.');
         }
     }, [wasSuccessful]);
 

@@ -59,13 +59,15 @@ export default function ActionButton({
     children,
     type = 'button',
     disabled = false,
+    loading = false,
     ...rest
 }) {
+    const isDisabled = disabled || loading;
     const resolvedStyle = {
         ...baseStyle,
         ...(variantStyle[variant] || variantStyle.neutral),
         ...(active ? activeStyle : {}),
-        ...(disabled
+        ...(isDisabled
             ? {
                   opacity: 0.6,
                   cursor: 'not-allowed',
@@ -74,11 +76,49 @@ export default function ActionButton({
         ...style,
     };
 
+    const spinner = (
+        <svg
+            viewBox="0 0 24 24"
+            width="14"
+            height="14"
+            style={{ display: 'block' }}
+            aria-hidden="true"
+        >
+            <circle
+                cx="12"
+                cy="12"
+                r="9"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2.5"
+                strokeLinecap="round"
+                strokeDasharray="56"
+                strokeDashoffset="20"
+            >
+                <animateTransform
+                    attributeName="transform"
+                    type="rotate"
+                    from="0 12 12"
+                    to="360 12 12"
+                    dur="0.8s"
+                    repeatCount="indefinite"
+                />
+            </circle>
+        </svg>
+    );
+
+    const content = (
+        <>
+            {loading ? <span style={{ display: 'inline-flex' }}>{spinner}</span> : null}
+            <span>{children}</span>
+        </>
+    );
+
     if (href) {
-        if (disabled) {
+        if (isDisabled) {
             return (
-                <span aria-disabled="true" style={resolvedStyle}>
-                    {children}
+                <span aria-disabled="true" aria-busy={loading || undefined} style={resolvedStyle}>
+                    {content}
                 </span>
             );
         }
@@ -92,14 +132,14 @@ export default function ActionButton({
                     rel="noreferrer noopener"
                     {...rest}
                 >
-                    {children}
+                    {content}
                 </a>
             );
         }
 
         return (
-            <Link href={href} style={resolvedStyle} {...rest}>
-                {children}
+            <Link href={href} style={resolvedStyle} aria-busy={loading || undefined} {...rest}>
+                {content}
             </Link>
         );
     }
@@ -107,11 +147,12 @@ export default function ActionButton({
     return (
         <button
             type={type}
-            disabled={disabled}
+            disabled={isDisabled}
             style={resolvedStyle}
+            aria-busy={loading || undefined}
             {...rest}
         >
-            {children}
+            {content}
         </button>
     );
 }

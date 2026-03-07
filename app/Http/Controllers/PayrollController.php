@@ -56,7 +56,7 @@ class PayrollController extends Controller
 
         $this->syncWorkerDefaultRate((string) $request->worker_name, (float) $request->rate_per_hour);
 
-        return back()->with('success', 'Payroll entry added.');
+        return back()->with('success', 'Payroll entry added successfully.');
     }
 
     public function updateStatus(Request $request, Payroll $payroll)
@@ -69,7 +69,7 @@ class PayrollController extends Controller
             'status' => $request->status
         ]);
 
-        return back()->with('success', 'Status updated.');
+        return back()->with('success', 'Status updated successfully.');
     }
 
     public function update(Request $request, Payroll $payroll)
@@ -102,7 +102,7 @@ class PayrollController extends Controller
 
         $this->syncWorkerDefaultRate((string) $validated['worker_name'], (float) $validated['rate_per_hour']);
 
-        return back()->with('success', 'Payroll entry updated.');
+        return back()->with('success', 'Payroll entry updated successfully.');
     }
 
     public function run(Request $request)
@@ -265,7 +265,7 @@ class PayrollController extends Controller
 
         return redirect()
             ->route('payroll.worker_rates', $this->tableQueryParams($request))
-            ->with('success', 'Worker rate updated.');
+            ->with('success', 'Worker rate updated successfully.');
     }
 
     public function updateForemanRate(Request $request, User $user)
@@ -282,7 +282,7 @@ class PayrollController extends Controller
 
         return redirect()
             ->route('payroll.worker_rates', $this->tableQueryParams($request))
-            ->with('success', 'Foreman rate updated.');
+            ->with('success', 'Foreman rate updated successfully.');
     }
 
     public function generateFromAttendance(Request $request)

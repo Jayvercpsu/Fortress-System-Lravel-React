@@ -2,6 +2,7 @@ import Layout from '../../../Components/Layout';
 import ActionButton from '../../../Components/ActionButton';
 import DataTable from '../../../Components/DataTable';
 import Modal from '../../../Components/Modal';
+import ConfirmationModal from '../../../Components/ConfirmationModal';
 import ProjectComputationsPanel from '../../../Components/ProjectComputationsPanel';
 import SearchableDropdown from '../../../Components/SearchableDropdown';
 import { Head, router, useForm, usePage } from '@inertiajs/react';
@@ -102,6 +103,8 @@ export default function HeadAdminProjectsShow({
     const [assignedForemenDraft, setAssignedForemenDraft] = useState(() => parseAssignedForemen(project?.assigned ?? ''));
     const [savingAssignedForemen, setSavingAssignedForemen] = useState(false);
     const [clientFileError, setClientFileError] = useState('');
+    const [fileToDelete, setFileToDelete] = useState(null);
+    const [deletingFile, setDeletingFile] = useState(false);
 
     const {
         data: fileData,
@@ -249,8 +252,14 @@ export default function HeadAdminProjectsShow({
     };
 
     const deleteFile = (id) => {
+        setDeletingFile(true);
         router.delete(`/project-files/${id}${projectShowQueryString({ tab: 'files' })}`, {
             onError: () => toast.error('Unable to delete file.'),
+            onSuccess: () => toast.success('File deleted successfully.'),
+            onFinish: () => {
+                setDeletingFile(false);
+                setFileToDelete(null);
+            },
         });
     };
 
@@ -331,8 +340,14 @@ export default function HeadAdminProjectsShow({
                     >
                         Download
                     </ActionButton>
-                    <ActionButton type="button" variant="danger" onClick={() => deleteFile(file.id)}>
-                        Delete
+                    <ActionButton
+                        type="button"
+                        variant="danger"
+                        onClick={() => setFileToDelete(file)}
+                        disabled={deletingFile}
+                        loading={deletingFile && fileToDelete?.id === file.id}
+                    >
+                        {deletingFile && fileToDelete?.id === file.id ? 'Deleting...' : 'Delete'}
                     </ActionButton>
                 </div>
             ),
@@ -818,6 +833,16 @@ export default function HeadAdminProjectsShow({
                         </div>
                     )}
                 </Modal>
+                <ConfirmationModal
+                    open={!!fileToDelete}
+                    onClose={() => (deletingFile ? null : setFileToDelete(null))}
+                    onConfirm={() => (fileToDelete ? deleteFile(fileToDelete.id) : null)}
+                    title="Delete File"
+                    message={fileToDelete ? `Delete "${fileToDelete.original_name}" from this project?` : 'Delete this file?'}
+                    confirmLabel={deletingFile ? 'Deleting...' : 'Delete'}
+                    processing={deletingFile}
+                    danger
+                />
             </Layout>
         </>
     );

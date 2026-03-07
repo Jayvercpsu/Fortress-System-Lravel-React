@@ -135,14 +135,14 @@ class IssueReportController extends Controller
         ]);
 
         if ((string) $issueReport->status === (string) $validated['status']) {
-            return redirect()->back()->with('success', 'Status already ' . $validated['status'] . '.');
+            return redirect()->back()->with('success', 'Status already ' . $validated['status'] . ' successfully.');
         }
 
         $issueReport->update([
             'status' => $validated['status'],
         ]);
 
-        return redirect()->back()->with('success', 'Issue marked as ' . $validated['status'] . '.');
+        return redirect()->back()->with('success', 'Issue marked as ' . $validated['status'] . ' successfully.');
     }
 
     private function tableMeta($paginator, string $search, string $status = ''): array

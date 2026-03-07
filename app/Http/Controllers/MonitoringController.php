@@ -68,7 +68,7 @@ class MonitoringController extends Controller
 
         return redirect()
             ->route('monitoring.show', ['project' => $project->id])
-            ->with('success', 'Scope added.');
+            ->with('success', 'Scope added successfully.');
     }
 
     public function update(Request $request, ProjectScope $scope)
@@ -80,7 +80,7 @@ class MonitoringController extends Controller
 
         return redirect()
             ->route('monitoring.show', ['project' => $scope->project_id])
-            ->with('success', 'Scope updated.');
+            ->with('success', 'Scope updated successfully.');
     }
 
     public function destroy(Request $request, ProjectScope $scope)
@@ -93,7 +93,7 @@ class MonitoringController extends Controller
 
         return redirect()
             ->route('monitoring.show', ['project' => $project->id])
-            ->with('success', 'Scope deleted.');
+            ->with('success', 'Scope deleted successfully.');
     }
 
     private function ensureAuthorized(Request $request): void
@@ -103,9 +103,39 @@ class MonitoringController extends Controller
 
     private function validatedScope(Request $request): array
     {
-        return $request->validate([
+        $project = $request->route('project');
+        if (!$project instanceof Project) {
+            $scope = $request->route('scope');
+            $project = $scope instanceof ProjectScope ? $scope->project : null;
+        }
+
+        $foremanNames = $project instanceof Project
+            ? collect($this->projectForemanOptions($project))
+                ->pluck('fullname')
+                ->map(fn ($name) => trim((string) $name))
+                ->filter()
+                ->values()
+                ->all()
+            : [];
+
+        $validated = $request->validate([
             'scope_name' => ['required', 'string', 'max:255'],
-            'assigned_personnel' => ['nullable', 'string', 'max:255'],
+            'assigned_personnel' => [
+                'nullable',
+                'string',
+                'max:255',
+                'regex:/^[^,;|]+$/',
+                function (string $attribute, mixed $value, \Closure $fail) use ($foremanNames) {
+                    $name = trim((string) $value);
+                    if ($name === '' || $foremanNames === []) {
+                        return;
+                    }
+
+                    if (!in_array($name, $foremanNames, true)) {
+                        $fail('Assigned personnel must be one assigned foreman.');
+                    }
+                },
+            ],
             'progress_percent' => ['required', 'integer', 'min:0', 'max:100'],
             'status' => ['required', 'string', 'max:50'],
             'remarks' => ['nullable', 'string', 'max:2000'],
@@ -114,6 +144,13 @@ class MonitoringController extends Controller
             'start_date' => ['nullable', 'date'],
             'target_completion' => ['nullable', 'date'],
         ]);
+
+        $validated['assigned_personnel'] = trim((string) ($validated['assigned_personnel'] ?? ''));
+        if ($validated['assigned_personnel'] === '') {
+            $validated['assigned_personnel'] = null;
+        }
+
+        return $validated;
     }
 
     private function recomputeOverallProgress(Project $project): void

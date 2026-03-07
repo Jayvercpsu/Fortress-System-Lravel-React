@@ -1,11 +1,16 @@
 import Layout from '../../../Components/Layout';
 import DataTable from '../../../Components/DataTable';
 import ActionButton from '../../../Components/ActionButton';
+import ConfirmationModal from '../../../Components/ConfirmationModal';
 import { Head, router } from '@inertiajs/react';
+import { useState } from 'react';
 
 const roleColor = { admin: '#60a5fa', hr: '#fbbf24', foreman: '#4ade80' };
 
 export default function UsersIndex({ users = [], userTable = {} }) {
+    const [deleteTarget, setDeleteTarget] = useState(null);
+    const [deleting, setDeleting] = useState(false);
+
     const table = {
         search: userTable?.search ?? '',
         perPage: Number(userTable?.per_page ?? 10),
@@ -42,10 +47,13 @@ export default function UsersIndex({ users = [], userTable = {} }) {
     };
 
     const deleteUser = (id) => {
-        if (!confirm('Delete this user?')) return;
-
+        setDeleting(true);
         router.delete(`/users/${id}${listQueryString()}`, {
             preserveScroll: true,
+            onFinish: () => {
+                setDeleting(false);
+                setDeleteTarget(null);
+            },
         });
     };
 
@@ -112,10 +120,12 @@ export default function UsersIndex({ users = [], userTable = {} }) {
                     <ActionButton
                         type="button"
                         variant="danger"
-                        onClick={() => deleteUser(user.id)}
+                        onClick={() => setDeleteTarget(user)}
                         style={{ padding: '5px 12px' }}
+                        disabled={deleting}
+                        loading={deleting && deleteTarget?.id === user.id}
                     >
-                        Delete
+                        {deleting && deleteTarget?.id === user.id ? 'Deleting...' : 'Delete'}
                     </ActionButton>
                 </div>
             ),
@@ -163,6 +173,16 @@ export default function UsersIndex({ users = [], userTable = {} }) {
                         onServerPageChange={(value) => navigateTable({ page: value })}
                     />
                 </div>
+                <ConfirmationModal
+                    open={!!deleteTarget}
+                    onClose={() => (deleting ? null : setDeleteTarget(null))}
+                    onConfirm={() => (deleteTarget ? deleteUser(deleteTarget.id) : null)}
+                    title="Delete User"
+                    message={deleteTarget ? `Are you sure you want to delete "${deleteTarget.fullname}"?` : 'Are you sure you want to delete this user?'}
+                    confirmLabel={deleting ? 'Deleting...' : 'Delete'}
+                    processing={deleting}
+                    danger
+                />
             </Layout>
         </>
     );

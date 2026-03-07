@@ -1,8 +1,11 @@
 <?php
 namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\SoftDeletes;
 
 class WeeklyAccomplishment extends Model {
+    use SoftDeletes;
+
     protected $fillable = ['foreman_id','project_id','scope_of_work','percent_completed','week_start'];
 
     protected $casts = [

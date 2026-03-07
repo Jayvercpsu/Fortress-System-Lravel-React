@@ -56,7 +56,7 @@ export default function UserFormPage({ mode = 'create', user = {} }) {
             const qs = window.location.search || '';
             patch(`/users/${user.id}${qs}`, {
                 preserveScroll: true,
-                onSuccess: () => toast.success('User updated.'),
+                onSuccess: () => toast.success('User updated successfully.'),
                 onError: () => toast.error('Unable to update user. Check the form fields.'),
             });
             return;

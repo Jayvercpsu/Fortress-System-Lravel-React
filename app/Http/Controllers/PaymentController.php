@@ -95,7 +95,7 @@ class PaymentController extends Controller
                 'project' => $project->id,
                 ...$this->tableQueryParams($request),
             ])
-            ->with('success', 'Payment saved.');
+            ->with('success', 'Payment saved successfully.');
     }
 
     public function destroy(Request $request, Payment $payment)
@@ -111,7 +111,7 @@ class PaymentController extends Controller
                 'project' => $project->id,
                 ...$this->tableQueryParams($request),
             ])
-            ->with('success', 'Payment deleted.');
+            ->with('success', 'Payment deleted successfully.');
     }
 
     private function authorizeRole(Request $request): void

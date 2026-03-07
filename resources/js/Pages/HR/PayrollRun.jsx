@@ -4,6 +4,7 @@ import DatePickerInput from '../../Components/DatePickerInput';
 import SearchableDropdown from '../../Components/SearchableDropdown';
 import Modal from '../../Components/Modal';
 import ActionButton from '../../Components/ActionButton';
+import ConfirmationModal from '../../Components/ConfirmationModal';
 import { Head, router, useForm } from '@inertiajs/react';
 import { useEffect, useMemo, useState } from 'react';
 import toast from 'react-hot-toast';
@@ -61,6 +62,8 @@ export default function PayrollRun({
     const [selectedPayrollId, setSelectedPayrollId] = useState(null);
     const [showDeductionsModal, setShowDeductionsModal] = useState(false);
     const [showMarkPaidModal, setShowMarkPaidModal] = useState(false);
+    const [deductionToDelete, setDeductionToDelete] = useState(null);
+    const [deletingDeduction, setDeletingDeduction] = useState(false);
 
     const table = {
         search: payrollTable?.search ?? '',
@@ -142,7 +145,7 @@ export default function PayrollRun({
         e.preventDefault();
         generateForm.post('/payroll/run/generate', {
             preserveScroll: true,
-            onSuccess: () => toast.success('Payroll generated from attendance.'),
+            onSuccess: () => toast.success('Payroll generated from attendance successfully.'),
             onError: () => toast.error('Unable to generate payroll. Check cutoff dates and attendance records.'),
         });
     };
@@ -164,7 +167,7 @@ export default function PayrollRun({
             onSuccess: () => {
                 deductionForm.reset();
                 deductionForm.setData({ type: 'cash_advance', amount: '', note: '' });
-                toast.success('Deduction added.');
+                toast.success('Deduction added successfully.');
             },
             onError: () => toast.error('Unable to add deduction.'),
         });
@@ -173,11 +176,16 @@ export default function PayrollRun({
     const deleteDeduction = (deductionId) => {
         if (!selectedPayroll) return;
 
+        setDeletingDeduction(true);
         router.delete(`/payroll-deductions/${deductionId}${queryString()}`, {
             preserveScroll: true,
             preserveState: true,
-            onSuccess: () => toast.success('Deduction removed.'),
+            onSuccess: () => toast.success('Deduction removed successfully.'),
             onError: () => toast.error('Unable to remove deduction.'),
+            onFinish: () => {
+                setDeletingDeduction(false);
+                setDeductionToDelete(null);
+            },
         });
     };
 
@@ -190,7 +198,7 @@ export default function PayrollRun({
             preserveState: true,
             onSuccess: () => {
                 setShowMarkPaidModal(false);
-                toast.success('Payroll cutoff marked as paid.');
+                toast.success('Payroll cutoff marked as paid successfully.');
             },
             onError: () => toast.error('Unable to mark cutoff as paid.'),
         });
@@ -487,10 +495,11 @@ export default function PayrollRun({
                                                 <ActionButton
                                                     type="button"
                                                     variant="danger"
-                                                    disabled={!selectedPayroll.can_edit_deductions}
-                                                    onClick={() => deleteDeduction(item.id)}
+                                                    disabled={!selectedPayroll.can_edit_deductions || deletingDeduction}
+                                                    loading={deletingDeduction && deductionToDelete?.id === item.id}
+                                                    onClick={() => setDeductionToDelete(item)}
                                                 >
-                                                    Delete
+                                                    {deletingDeduction && deductionToDelete?.id === item.id ? 'Deleting...' : 'Delete'}
                                                 </ActionButton>
                                             </div>
                                         ))}
@@ -557,6 +566,20 @@ export default function PayrollRun({
                         </form>
                     )}
                 </Modal>
+                <ConfirmationModal
+                    open={!!deductionToDelete}
+                    onClose={() => (deletingDeduction ? null : setDeductionToDelete(null))}
+                    onConfirm={() => (deductionToDelete ? deleteDeduction(deductionToDelete.id) : null)}
+                    title="Delete Deduction"
+                    message={
+                        deductionToDelete
+                            ? `Delete this ${String(deductionToDelete.type || 'deduction').replace('_', ' ')} deduction (${money(deductionToDelete.amount)})?`
+                            : 'Delete this deduction?'
+                    }
+                    confirmLabel={deletingDeduction ? 'Deleting...' : 'Delete'}
+                    processing={deletingDeduction}
+                    danger
+                />
             </Layout>
         </>
     );

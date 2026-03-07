@@ -36,7 +36,7 @@ class ProjectUpdateController extends Controller
                 'project' => $project->id,
                 ...$this->projectShowQueryParams($request),
             ])
-            ->with('success', 'Project update added.');
+            ->with('success', 'Project update added successfully.');
     }
 
     private function authorizeRole(Request $request): void

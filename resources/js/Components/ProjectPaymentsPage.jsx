@@ -31,6 +31,7 @@ const money = (value) =>
 export default function ProjectPaymentsPage({ project, payments = [], paymentTable = {} }) {
     const { auth, flash } = usePage().props;
     const [paymentToDelete, setPaymentToDelete] = useState(null);
+    const [deletingPaymentId, setDeletingPaymentId] = useState(null);
 
     const {
         data,
@@ -98,11 +99,15 @@ export default function ProjectPaymentsPage({ project, payments = [], paymentTab
     const deletePayment = () => {
         if (!paymentToDelete) return;
 
+        setDeletingPaymentId(paymentToDelete.id);
         router.delete(`/payments/${paymentToDelete.id}${queryString()}`, {
             preserveScroll: true,
             onSuccess: () => setPaymentToDelete(null),
             onError: () => toast.error('Unable to delete payment.'),
-            onFinish: () => setPaymentToDelete(null),
+            onFinish: () => {
+                setDeletingPaymentId(null);
+                setPaymentToDelete(null);
+            },
         });
     };
 
@@ -147,9 +152,11 @@ export default function ProjectPaymentsPage({ project, payments = [], paymentTab
                     type="button"
                     variant="danger"
                     onClick={() => setPaymentToDelete(payment)}
+                    disabled={deletingPaymentId === payment.id}
+                    loading={deletingPaymentId === payment.id}
                     style={{ padding: '6px 10px' }}
                 >
-                    Delete
+                    {deletingPaymentId === payment.id ? 'Deleting...' : 'Delete'}
                 </ActionButton>
             ),
         },
@@ -265,7 +272,7 @@ export default function ProjectPaymentsPage({ project, payments = [], paymentTab
 
                 <Modal
                     open={Boolean(paymentToDelete)}
-                    onClose={() => setPaymentToDelete(null)}
+                    onClose={() => (deletingPaymentId ? null : setPaymentToDelete(null))}
                     title="Delete Payment"
                     maxWidth={500}
                 >
@@ -277,6 +284,7 @@ export default function ProjectPaymentsPage({ project, payments = [], paymentTab
                             <ActionButton
                                 type="button"
                                 onClick={() => setPaymentToDelete(null)}
+                                disabled={!!deletingPaymentId}
                                 style={{ padding: '8px 12px' }}
                             >
                                 Cancel
@@ -285,9 +293,11 @@ export default function ProjectPaymentsPage({ project, payments = [], paymentTab
                                 type="button"
                                 variant="danger"
                                 onClick={deletePayment}
+                                disabled={!!deletingPaymentId}
+                                loading={!!deletingPaymentId}
                                 style={{ padding: '8px 12px' }}
                             >
-                                Delete
+                                {deletingPaymentId ? 'Deleting...' : 'Delete'}
                             </ActionButton>
                         </div>
                     </div>
