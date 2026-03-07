@@ -448,6 +448,7 @@ class PublicProgressController extends Controller
                 'client' => $project->client,
                 'phase' => $project->phase,
                 'status' => $project->status,
+                'location' => $project->location,
             ],
             'foreman_name' => $submitToken->foreman->fullname ?? '',
             'scopes' => $scopeRows,
@@ -458,6 +459,89 @@ class PublicProgressController extends Controller
             ],
             'token' => $submitToken->token,
             'expires_at' => optional($submitToken->expires_at)?->toDateTimeString(),
+        ]);
+    }
+
+    public function exportReceipt(Request $request, string $token)
+    {
+        $submitToken = $this->resolveActiveToken($token);
+        $submitToken->load(['project']);
+        $project = $submitToken->project;
+
+        $scopes = $project->scopes()
+            ->with(['photos' => fn ($query) => $query->latest('id')->limit(4)])
+            ->orderBy('scope_name')
+            ->get();
+
+        $scopeRows = $scopes->map(function (ProjectScope $scope) {
+            $progress = (float) ($scope->progress_percent ?? 0);
+            $weight = (float) ($scope->weight_percent ?? 0);
+            $contract = (float) ($scope->contract_amount ?? 0);
+            $computedPercent = round($weight * $progress / 100, 2);
+            $amountToDate = round($contract * min(100, $progress) / 100, 2);
+
+            $assigneeLabel = collect(preg_split('/[,;|]+/', (string) ($scope->assigned_personnel ?? '')))
+                ->map(fn ($name) => trim((string) $name))
+                ->filter(fn (string $name) => $name !== '')
+                ->unique(fn (string $name) => Str::lower($name))
+                ->implode(', ');
+
+            return [
+                'scope_name' => $scope->scope_name,
+                'contract_amount' => $contract,
+                'weight_percent' => $weight,
+                'progress_percent' => (float) $scope->progress_percent,
+                'computed_percent' => $computedPercent,
+                'amount_to_date' => $amountToDate,
+                'start_date' => optional($scope->start_date)?->toDateString(),
+                'target_completion' => optional($scope->target_completion)?->toDateString(),
+                'assignee_label' => $assigneeLabel !== '' ? $assigneeLabel : 'Unassigned',
+                'photo_count' => $scope->photos->count(),
+            ];
+        })->values();
+
+        $subject = 'Weight Percentage';
+        $submittedDate = optional($submitToken->updated_at ?? $submitToken->created_at)?->toDateString();
+
+        $rows = [
+            ['Owner', $project->client ?? ''],
+            ['Project', $project->name ?? ''],
+            ['Location', $project->location ?? ''],
+            ['Subject', $subject],
+            ['Date', $submittedDate ?? ''],
+            [],
+            [
+                'Scope of Works and Materials',
+                'Contract Amount',
+                'WT %',
+                '% Accomp',
+                'Amount',
+                'WT %',
+            ],
+        ];
+
+        foreach ($scopeRows as $row) {
+            $rows[] = [
+                $row['scope_name'],
+                number_format($row['contract_amount'], 2, '.', ''),
+                number_format($row['weight_percent'], 2, '.', ''),
+                number_format($row['amount_to_date'], 2, '.', ''),
+                number_format($row['progress_percent'], 0, '.', ''),
+                number_format($row['computed_percent'], 2, '.', ''),
+            ];
+        }
+
+        $filename = Str::slug($project->name ?: 'progress-receipt') . '-receipt.csv';
+
+        return response()->streamDownload(function () use ($rows) {
+            $handle = fopen('php://output', 'w');
+            fprintf($handle, "\xEF\xBB\xBF");
+            foreach ($rows as $row) {
+                fputcsv($handle, $row);
+            }
+            fclose($handle);
+        }, $filename, [
+            'Content-Type' => 'text/csv; charset=UTF-8',
         ]);
     }
 

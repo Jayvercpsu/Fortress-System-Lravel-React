@@ -3,6 +3,7 @@ import {
     AlertTriangle,
     CalendarDays,
     CheckCircle2,
+    Download,
     FolderKanban,
     ImageIcon,
     Link2,
@@ -153,6 +154,8 @@ export default function ProgressReceipt({
     const clientName = project?.client || receipt?.client_name || 'Client unavailable';
     const projectPhase = project?.phase || receipt?.project_phase || 'Phase TBD';
     const projectStatus = project?.status || receipt?.project_status || 'Status TBD';
+    const projectLocation = project?.location || receipt?.project_location || 'Location unavailable';
+    const submittedDate = receipt?.submitted_at ? formatDate(receipt.submitted_at) : '-';
     const scopeRowsSource =
         Array.isArray(scopes) && scopes.length > 0
             ? scopes
@@ -194,6 +197,8 @@ export default function ProgressReceipt({
                         font-family:'DM Sans', sans-serif;
                     }
                     .receipt-shell{max-width:1380px;margin:0 auto}
+                    .receipt-screen{display:block}
+                    .receipt-print-layout{display:none}
                     .receipt-hero{
                         display:grid;
                         grid-template-columns:minmax(0, 1.75fr) minmax(300px, 1fr);
@@ -509,12 +514,52 @@ export default function ProgressReceipt({
                         gap:14px;
                         padding:18px 22px 24px;
                     }
+                    .receipt-footer-actions{
+                        display:flex;
+                        align-items:center;
+                        gap:12px;
+                        flex-wrap:wrap;
+                    }
                     .receipt-footer-note{
                         display:flex;
                         flex-wrap:wrap;
                         gap:14px;
                         color:var(--text-muted);
                         font-size:12px;
+                    }
+                    .receipt-print,
+                    .receipt-download{
+                        border-radius:999px;
+                        padding:10px 18px;
+                        font-size:13px;
+                        font-weight:700;
+                        gap:8px;
+                        border:1px solid rgba(35, 73, 50, 0.18);
+                        background:linear-gradient(180deg, #f6efe1 0%, #efe3d1 100%);
+                        color:#234932;
+                        box-shadow:0 10px 22px rgba(95, 77, 49, 0.12);
+                        transition:transform 160ms ease, box-shadow 160ms ease, background 160ms ease;
+                        white-space:nowrap;
+                    }
+                    .receipt-print span,
+                    .receipt-download span{
+                        display:inline-flex;
+                        align-items:center;
+                        gap:8px;
+                        white-space:nowrap;
+                    }
+                    .receipt-print svg,
+                    .receipt-download svg{flex:0 0 auto}
+                    .receipt-print:hover,
+                    .receipt-download:hover{
+                        background:linear-gradient(180deg, #f1e6d4 0%, #eadbca 100%);
+                        box-shadow:0 14px 28px rgba(95, 77, 49, 0.16);
+                        transform:translateY(-1px);
+                    }
+                    .receipt-print:active,
+                    .receipt-download:active{
+                        transform:translateY(0);
+                        box-shadow:0 8px 18px rgba(95, 77, 49, 0.12);
                     }
                     .receipt-modal-image{
                         width:100%;
@@ -540,6 +585,56 @@ export default function ProgressReceipt({
                     @media print{
                         .receipt-page{padding:0;background:#fff}
                         .receipt-shell{max-width:none}
+                        .receipt-screen{display:none}
+                        .receipt-print-layout{
+                            display:block;
+                            padding:8px 12px 0;
+                            color:#000;
+                            font-family:'Arial', sans-serif;
+                        }
+                        .receipt-print-meta{
+                            display:grid;
+                            grid-template-columns:90px 1fr;
+                            gap:4px 12px;
+                            font-size:11px;
+                            margin-bottom:10px;
+                        }
+                        .receipt-print-meta-label{font-weight:700;text-transform:uppercase}
+                        .receipt-print-title{
+                            margin:0 0 6px;
+                            font-size:12px;
+                            font-weight:700;
+                            text-transform:uppercase;
+                        }
+                        .receipt-print-table{
+                            width:100%;
+                            border-collapse:collapse;
+                            font-size:10px;
+                        }
+                        .receipt-print-table th,
+                        .receipt-print-table td{
+                            border:1px solid #000;
+                            padding:4px 6px;
+                            vertical-align:top;
+                        }
+                        .receipt-print-table thead th{
+                            font-weight:700;
+                            text-transform:uppercase;
+                            text-align:center;
+                        }
+                        .receipt-print-table thead tr:first-child th{
+                            border-bottom:2px solid #000;
+                        }
+                        .receipt-print-table tbody td{
+                            text-align:right;
+                        }
+                        .receipt-print-table tbody td:first-child{
+                            text-align:left;
+                        }
+                        .receipt-print-table tbody tr{
+                            break-inside:avoid;
+                            page-break-inside:avoid;
+                        }
                         .receipt-hero,
                         .receipt-kpi,
                         .receipt-board{
@@ -547,9 +642,48 @@ export default function ProgressReceipt({
                             background:#fff;
                         }
                         .receipt-print{display:none !important}
+                        .receipt-download{display:none !important}
+                        .receipt-table-wrap{overflow:visible}
+                        .receipt-table{min-width:0;width:100%;table-layout:fixed}
+                        .receipt-table th,
+                        .receipt-table td{
+                            padding:6px 4px;
+                            font-size:9px;
+                            word-break:break-word;
+                        }
+                        .receipt-table th{letter-spacing:0.06em}
+                        .receipt-table thead{display:table-header-group}
+                        .receipt-table tfoot{display:table-footer-group}
+                        .receipt-table tbody tr{break-inside:avoid;page-break-inside:avoid}
+                        .receipt-scope-cell{grid-template-columns:22px 1fr}
+                        .receipt-scope-index{min-width:22px;height:22px;font-size:9px}
+                        .receipt-scope-name{font-size:11px}
+                        .receipt-pill,
+                        .receipt-progress-pill,
+                        .receipt-issue-pill,
+                        .receipt-assignee{
+                            font-size:9px;
+                            padding:2px 6px;
+                        }
+                        .receipt-assignee{max-width:100%}
+                        .receipt-assignee span:last-child{
+                            display:inline-block;
+                            max-width:90px;
+                            overflow:hidden;
+                            text-overflow:ellipsis;
+                            white-space:nowrap;
+                        }
+                        .receipt-assignee-avatar{width:18px;height:18px;font-size:8px}
+                        .receipt-photo-thumb{width:26px;height:26px;border-radius:6px}
+                        .receipt-progress-cell{min-width:90px}
+                        .receipt-page{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+                    }
+                    @page{
+                        margin:8mm;
                     }
                 `}</style>
                 <div className="receipt-shell">
+                    <div className="receipt-screen">
                     <section className="receipt-hero">
                         <div>
                             <div className="receipt-eyebrow">
@@ -775,22 +909,71 @@ export default function ProgressReceipt({
                                 {receipt?.submitted_at ? <span>Last submitted: {formatDateTime(receipt.submitted_at)}</span> : null}
                                 <span>{scopeRows.length} scope row(s)</span>
                             </div>
-                            <ActionButton
-                                type="button"
-                                variant="success"
-                                onClick={() => window.print()}
-                                style={{
-                                    padding: '11px 18px',
-                                    fontSize: 14,
-                                    borderRadius: 14,
-                                }}
-                                className="receipt-print"
-                            >
-                                <Printer size={16} />
-                                Print Receipt
-                            </ActionButton>
+                            <div className="receipt-footer-actions">
+                                <ActionButton
+                                    href={`/progress-receipt/${token}/export`}
+                                    external
+                                    variant="neutral"
+                                    className="receipt-download"
+                                >
+                                    <Download size={16} />
+                                    Download Excel
+                                </ActionButton>
+                                <ActionButton
+                                    type="button"
+                                    variant="neutral"
+                                    onClick={() => window.print()}
+                                    className="receipt-print"
+                                >
+                                    <Printer size={16} />
+                                    Print Receipt
+                                </ActionButton>
+                            </div>
                         </div>
                     </section>
+                    </div>
+                    <div className="receipt-print-layout">
+                        <div className="receipt-print-title">Progress Billing Statement</div>
+                        <div className="receipt-print-meta">
+                            <div className="receipt-print-meta-label">Owner</div>
+                            <div>{clientName}</div>
+                            <div className="receipt-print-meta-label">Project</div>
+                            <div>{projectName}</div>
+                            <div className="receipt-print-meta-label">Location</div>
+                            <div>{projectLocation}</div>
+                            <div className="receipt-print-meta-label">Subject</div>
+                            <div>Weight Percentage</div>
+                            <div className="receipt-print-meta-label">Date</div>
+                            <div>{submittedDate}</div>
+                        </div>
+                        <table className="receipt-print-table">
+                            <thead>
+                                <tr>
+                                    <th rowSpan={2}>Scope of Works and Materials</th>
+                                    <th rowSpan={2}>Contract Amount</th>
+                                    <th rowSpan={2}>WT %</th>
+                                    <th colSpan={3}>Accomplishment to Date</th>
+                                </tr>
+                                <tr>
+                                    <th>% Accomp</th>
+                                    <th>Amount</th>
+                                    <th>WT %</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {scopeRows.map((scope, index) => (
+                                    <tr key={`print-${scope.id}`}>
+                                        <td>{`${index + 1}. ${scope.scopeName}`}</td>
+                                        <td>{formatMoney(scope.contractAmount)}</td>
+                                        <td>{formatPercent(scope.weightPercent, 2)}</td>
+                                        <td>{formatPercent(scope.progressPercent, 0)}</td>
+                                        <td>{formatMoney(scope.amountToDate)}</td>
+                                        <td>{formatPercent(scope.computedPercent, 2)}</td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
                 <Modal
                     open={!!previewPhoto}
