@@ -1,6 +1,6 @@
 import ActionButton from './ActionButton';
 import Modal from './Modal';
-import { router } from '@inertiajs/react';
+import { Link, router } from '@inertiajs/react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import toast from 'react-hot-toast';
 
