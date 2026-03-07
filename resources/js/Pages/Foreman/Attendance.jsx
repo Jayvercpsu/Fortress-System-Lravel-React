@@ -5,7 +5,7 @@ import SearchableDropdown from '../../Components/SearchableDropdown';
 import Modal from '../../Components/Modal';
 import DatePickerInput from '../../Components/DatePickerInput';
 import TimePickerInput from '../../Components/TimePickerInput';
-import { Head, router, usePage } from '@inertiajs/react';
+import { Head, router } from '@inertiajs/react';
 import { useEffect, useMemo, useState } from 'react';
 import toast from 'react-hot-toast';
 
@@ -85,7 +85,6 @@ export default function ForemanAttendance({
     attendanceTable = {},
     stats = {},
 }) {
-    const { flash } = usePage().props;
     const [editingId, setEditingId] = useState(null);
     const [editRow, setEditRow] = useState({
         worker_name: '',
@@ -154,11 +153,6 @@ export default function ForemanAttendance({
         () => ['Skilled', 'Labor'].map((role) => ({ id: role, name: role })),
         []
     );
-
-    useEffect(() => {
-        if (flash?.success) toast.success(flash.success);
-        if (flash?.error) toast.error(flash.error);
-    }, [flash?.success, flash?.error]);
 
     const computeHours = (entry) => {
         if (!entry?.time_in || !entry?.time_out) return null;
@@ -239,6 +233,7 @@ export default function ForemanAttendance({
                 onError: () => toast.error('Unable to submit attendance. Check the form fields.'),
                 onSuccess: () => {
                     setRows([{ worker_name: '', worker_role: 'Labor', project_id: '', time_in: '', time_out: '', hours: 0 }]);
+                    toast.success('Attendance submitted successfully.');
                 },
             }
         );
@@ -280,7 +275,10 @@ export default function ForemanAttendance({
             },
             {
                 preserveScroll: true,
-                onSuccess: () => setEditingId(null),
+                onSuccess: () => {
+                    setEditingId(null);
+                    toast.success('Attendance log updated successfully.');
+                },
                 onError: () => toast.error('Unable to update attendance log.'),
             }
         );

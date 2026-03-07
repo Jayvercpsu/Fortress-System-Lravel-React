@@ -2,7 +2,7 @@ import Layout from '../../Components/Layout';
 import ActionButton from '../../Components/ActionButton';
 import InlinePagination from '../../Components/InlinePagination';
 import Modal from '../../Components/Modal';
-import { Head, usePage } from '@inertiajs/react';
+import { Head } from '@inertiajs/react';
 import { useEffect, useMemo, useState } from 'react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import toast from 'react-hot-toast';
@@ -122,7 +122,6 @@ export default function ForemanSubmissions({
     recentIssueReports = emptyPaginated,
     recentDeliveries = emptyPaginated,
 }) {
-    const { flash } = usePage().props;
     const [previewPhoto, setPreviewPhoto] = useState(null);
 
     const progressPhotosPager = asPaginated(progressPhotos);
@@ -182,11 +181,6 @@ export default function ForemanSubmissions({
     const canPreviewPrev = isProgressPreview && currentPreviewIndex > 0;
     const canPreviewNext =
         isProgressPreview && currentPreviewIndex >= 0 && currentPreviewIndex < progressPhotosPager.data.length - 1;
-
-    useEffect(() => {
-        if (flash?.success) toast.success(flash.success);
-        if (flash?.error) toast.error(flash.error);
-    }, [flash?.success, flash?.error]);
 
     useEffect(() => {
         if (!previewPhoto) return;

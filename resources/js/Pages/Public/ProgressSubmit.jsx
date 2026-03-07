@@ -198,7 +198,7 @@ const humanize = (value) => {
 const isForemanRole = (role) => String(role || '').trim().toLowerCase() === 'foreman';
 
 export default function ProgressSubmit({ submitToken }) {
-    const { flash, errors = {} } = usePage().props;
+    const { errors = {} } = usePage().props;
     const base = typeof window === 'undefined' ? `/progress-submit/${submitToken?.token || ''}` : window.location.pathname.replace(/\/$/, '');
     const receiptUrl = String(submitToken?.receipt_url || '').trim() || `/progress-receipt/${submitToken?.token || ''}`;
     const workers = Array.isArray(submitToken?.workers) ? submitToken.workers : [];
@@ -322,11 +322,6 @@ export default function ProgressSubmit({ submitToken }) {
         return [...currentRows, ...missingWorkers];
     }, [attendanceWeekDrafts, attendanceWeekKey, defaultAttendanceRows, attendanceWorkerPool]);
     const weeklyRows = weeklyWeekDrafts[weeklyWeekKey] ?? defaultWeeklyRows;
-
-    useEffect(() => {
-        if (flash?.success) toast.success(flash.success);
-        if (flash?.error) toast.error(flash.error);
-    }, [flash?.success, flash?.error]);
 
     const firstError = useMemo(() => {
         const values = Object.values(errors || {});
@@ -462,7 +457,9 @@ export default function ProgressSubmit({ submitToken }) {
                 setMaterialKey((k) => k + 1);
                 setPhotoKey((k) => k + 1);
                 setIssueKey((k) => k + 1);
+                toast.success('Jotform submitted successfully.');
             },
+            onError: () => toast.error('Unable to submit. Please review the form and try again.'),
             onFinish: () => setSubmitting(false),
         });
     };

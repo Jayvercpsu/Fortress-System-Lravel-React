@@ -27,7 +27,7 @@ const money = (value) =>
     `P ${Number(value || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
 export default function ProjectFinancialsPage({ project }) {
-    const { auth, flash } = usePage().props;
+    const { auth } = usePage().props;
     const role = auth?.user?.role;
 
     const { data, setData, patch, processing, errors } = useForm({
@@ -36,11 +36,6 @@ export default function ProjectFinancialsPage({ project }) {
         construction_cost: String(project?.construction_cost ?? 0),
         total_client_payment: String(project?.total_client_payment ?? 0),
     });
-
-    useEffect(() => {
-        if (flash?.success) toast.success(flash.success);
-        if (flash?.error) toast.error(flash.error);
-    }, [flash?.success, flash?.error]);
 
     useEffect(() => {
         setData(() => ({
@@ -61,6 +56,7 @@ export default function ProjectFinancialsPage({ project }) {
 
         patch(`/projects/${project.id}/financials?return=financials`, {
             preserveScroll: true,
+            onSuccess: () => toast.success('Project financials updated successfully.'),
             onError: () => toast.error('Unable to update financials. Check the form fields.'),
         });
     };

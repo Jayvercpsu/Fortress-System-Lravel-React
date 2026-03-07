@@ -7,8 +7,8 @@ import DatePickerInput from './DatePickerInput';
 import TextInput from './TextInput';
 import SelectInput from './SelectInput';
 import TextareaInput from './TextareaInput';
-import { Head, router, useForm, usePage } from '@inertiajs/react';
-import { useEffect, useMemo, useState } from 'react';
+import { Head, router, useForm } from '@inertiajs/react';
+import { useMemo, useState } from 'react';
 import toast from 'react-hot-toast';
 import { ArrowLeft } from 'lucide-react';
 
@@ -34,7 +34,6 @@ const money = (value) =>
     `P ${Number(value || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
 export default function MonitoringBoardPage({ project, scopes = [], foreman_options: foremanOptions = [] }) {
-    const { flash } = usePage().props;
     const [editScope, setEditScope] = useState(null);
     const [scopeToDelete, setScopeToDelete] = useState(null);
     const [deleting, setDeleting] = useState(false);
@@ -106,11 +105,6 @@ export default function MonitoringBoardPage({ project, scopes = [], foreman_opti
         caption: '',
     });
 
-    useEffect(() => {
-        if (flash?.success) toast.success(flash.success);
-        if (flash?.error) toast.error(flash.error);
-    }, [flash?.success, flash?.error]);
-
     const submitCreate = (event) => {
         event.preventDefault();
         post(`/projects/${project.id}/scopes`, {
@@ -123,6 +117,7 @@ export default function MonitoringBoardPage({ project, scopes = [], foreman_opti
                 setCreateData('weight_percent', '');
                 setCreateData('start_date', '');
                 setCreateData('target_completion', '');
+                toast.success('Scope added successfully.');
             },
             onError: () => toast.error('Unable to add scope.'),
         });
@@ -157,6 +152,7 @@ export default function MonitoringBoardPage({ project, scopes = [], foreman_opti
             preserveScroll: true,
             onSuccess: () => {
                 setEditScope(null);
+                toast.success('Scope updated successfully.');
             },
             onError: () => toast.error('Unable to update scope.'),
         });
@@ -177,7 +173,10 @@ export default function MonitoringBoardPage({ project, scopes = [], foreman_opti
         setDeleting(true);
         router.delete(`/scopes/${scopeToDelete.id}`, {
             preserveScroll: true,
-            onSuccess: () => setScopeToDelete(null),
+            onSuccess: () => {
+                setScopeToDelete(null);
+                toast.success('Scope deleted successfully.');
+            },
             onError: () => toast.error('Unable to delete scope.'),
             onFinish: () => setDeleting(false),
         });
@@ -207,6 +206,7 @@ export default function MonitoringBoardPage({ project, scopes = [], foreman_opti
                 setUploadScopeId(null);
                 resetPhotoData();
                 setPhotoInputKey((value) => value + 1);
+                toast.success('Scope photo uploaded successfully.');
             },
             onError: () => toast.error('Unable to upload scope photo.'),
         });

@@ -2,8 +2,8 @@ import Layout from '../../Components/Layout';
 import DataTable from '../../Components/DataTable';
 import ActionButton from '../../Components/ActionButton';
 import Modal from '../../Components/Modal';
-import { Head, router, useForm, usePage } from '@inertiajs/react';
-import { useEffect, useMemo, useState } from 'react';
+import { Head, router, useForm } from '@inertiajs/react';
+import { useMemo, useState } from 'react';
 import toast from 'react-hot-toast';
 import { ArrowLeft } from 'lucide-react';
 
@@ -33,13 +33,7 @@ const money = (value) =>
         : `P ${Number(value).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
 export default function WorkerRates({ workerRates = [], workerRateTable = {} }) {
-    const { flash } = usePage().props;
     const [editingRow, setEditingRow] = useState(null);
-
-    useEffect(() => {
-        if (flash?.success) toast.success(flash.success);
-        if (flash?.error) toast.error(flash.error);
-    }, [flash?.success, flash?.error]);
 
     const table = {
         search: workerRateTable?.search ?? '',
@@ -102,7 +96,10 @@ export default function WorkerRates({ workerRates = [], workerRateTable = {} }) 
         form.patch(`${basePath}${queryString()}`, {
             preserveScroll: true,
             preserveState: true,
-            onSuccess: () => closeEdit(),
+            onSuccess: () => {
+                closeEdit();
+                toast.success('Worker rate updated successfully.');
+            },
             onError: () => toast.error('Unable to update worker rate.'),
         });
     };

@@ -1,7 +1,6 @@
 import Layout from '../../../Components/Layout';
 import ActionButton from '../../../Components/ActionButton';
-import { Head, useForm, usePage } from '@inertiajs/react';
-import { useEffect } from 'react';
+import { Head, useForm } from '@inertiajs/react';
 import toast from 'react-hot-toast';
 import { ArrowLeft } from 'lucide-react';
 
@@ -37,7 +36,6 @@ const computeAutomaticDesignProgress = ({ designContractAmount, totalReceived, c
 };
 
 export default function AdminDesignShow({ projectId, design }) {
-    const { flash } = usePage().props;
 
     const { data, setData, patch, processing, errors } = useForm({
         design_contract_amount: design.design_contract_amount ?? 0,
@@ -54,12 +52,6 @@ export default function AdminDesignShow({ projectId, design }) {
         totalReceived: data.total_received,
         clientApprovalStatus: data.client_approval_status,
     });
-
-    useEffect(() => {
-        if (flash?.error) {
-            toast.error(flash.error);
-        }
-    }, [flash?.error]);
 
     const submit = (e) => {
         e.preventDefault();

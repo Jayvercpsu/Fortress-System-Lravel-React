@@ -8,7 +8,7 @@ import SearchableDropdown from '../../../Components/SearchableDropdown';
 import TextInput from '../../../Components/TextInput';
 import SelectInput from '../../../Components/SelectInput';
 import TextareaInput from '../../../Components/TextareaInput';
-import { Head, router, useForm, usePage } from '@inertiajs/react';
+import { Head, router, useForm } from '@inertiajs/react';
 import { useEffect, useMemo, useState } from 'react';
 import toast from 'react-hot-toast';
 
@@ -31,7 +31,6 @@ const inputStyle = {
 };
 
 export default function ForemanWorkersIndex({ workers = [], workerTable = {}, assignedProjects = [] }) {
-    const { flash } = usePage().props;
     const [editTarget, setEditTarget] = useState(null);
     const [deleteTarget, setDeleteTarget] = useState(null);
     const [deleting, setDeleting] = useState(false);
@@ -40,11 +39,6 @@ export default function ForemanWorkersIndex({ workers = [], workerTable = {}, as
         [assignedProjects]
     );
     const defaultProjectId = projectOptions[0]?.id ?? '';
-
-    useEffect(() => {
-        if (flash?.success) toast.success(flash.success);
-        if (flash?.error) toast.error(flash.error);
-    }, [flash?.success, flash?.error]);
 
     const table = {
         search: workerTable?.search ?? '',
@@ -126,7 +120,7 @@ export default function ForemanWorkersIndex({ workers = [], workerTable = {}, as
         }
         createForm.post(`/foreman/workers${queryString({ page: 1 })}`, {
             preserveScroll: true,
-            onSuccess: () =>
+            onSuccess: () => {
                 createForm.setData({
                     project_id: createForm.data.project_id || defaultProjectId,
                     name: '',
@@ -137,7 +131,9 @@ export default function ForemanWorkersIndex({ workers = [], workerTable = {}, as
                     civil_status: '',
                     phone: '',
                     address: '',
-                }),
+                });
+                toast.success('Worker added successfully.');
+            },
             onError: () => toast.error('Unable to add worker. Check the form fields.'),
         });
     };
@@ -174,7 +170,10 @@ export default function ForemanWorkersIndex({ workers = [], workerTable = {}, as
         }
         editForm.patch(`/foreman/workers/${editTarget.id}${queryString()}`, {
             preserveScroll: true,
-            onSuccess: () => setEditTarget(null),
+            onSuccess: () => {
+                setEditTarget(null);
+                toast.success('Worker updated successfully.');
+            },
             onError: () => toast.error('Unable to update worker.'),
         });
     };
@@ -184,6 +183,7 @@ export default function ForemanWorkersIndex({ workers = [], workerTable = {}, as
         router.delete(`/foreman/workers/${workerId}${queryString()}`, {
             preserveScroll: true,
             onError: () => toast.error('Unable to delete worker.'),
+            onSuccess: () => toast.success('Worker deleted successfully.'),
             onFinish: () => {
                 setDeleting(false);
                 setDeleteTarget(null);

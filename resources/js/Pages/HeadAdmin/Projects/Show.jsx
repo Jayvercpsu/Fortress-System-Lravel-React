@@ -92,7 +92,7 @@ export default function HeadAdminProjectsShow({
     updates = [],
     updateTable = {},
 }) {
-    const { flash, errors: pageErrors } = usePage().props;
+    const { errors: pageErrors } = usePage().props;
     const [tab, setTab] = useState(() => {
         const active = new URLSearchParams(window.location.search).get('tab');
         return ['overview', 'files', 'updates'].includes(active) ? active : 'overview';
@@ -122,11 +122,6 @@ export default function HeadAdminProjectsShow({
         errors: updateErrors,
         reset: resetUpdate,
     } = useForm({ note: '' });
-
-    useEffect(() => {
-        if (flash?.success) toast.success(flash.success);
-        if (flash?.error) toast.error(flash.error);
-    }, [flash?.success, flash?.error]);
 
     useEffect(() => {
         const url = new URL(window.location.href);
@@ -221,6 +216,7 @@ export default function HeadAdminProjectsShow({
 
         postFile(`/projects/${project.id}/files${projectShowQueryString({ tab: 'files', files_page: 1 })}`, {
             forceFormData: true,
+            onSuccess: () => toast.success('Project file uploaded successfully.'),
             onError: () => toast.error('Upload failed.'),
         });
     };
@@ -246,6 +242,7 @@ export default function HeadAdminProjectsShow({
         postUpdate(`/projects/${project.id}/updates${projectShowQueryString({ tab: 'updates', updates_page: 1 })}`, {
             onSuccess: () => {
                 resetUpdate('note');
+                toast.success('Project update added successfully.');
             },
             onError: () => toast.error('Unable to add update.'),
         });
@@ -291,6 +288,7 @@ export default function HeadAdminProjectsShow({
             { foreman_names: assignedForemenDraft },
             {
                 preserveScroll: true,
+                onSuccess: () => toast.success('Assigned foremen updated successfully.'),
                 onError: () => toast.error('Unable to update assigned foremen.'),
                 onFinish: () => setSavingAssignedForemen(false),
             }

@@ -4,7 +4,7 @@ import DataTable from './DataTable';
 import Modal from './Modal';
 import DatePickerInput from './DatePickerInput';
 import { Head, router, useForm, usePage } from '@inertiajs/react';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import toast from 'react-hot-toast';
 import { ArrowLeft } from 'lucide-react';
 
@@ -29,7 +29,7 @@ const money = (value) =>
     `P ${Number(value || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
 export default function ProjectPaymentsPage({ project, payments = [], paymentTable = {} }) {
-    const { auth, flash } = usePage().props;
+    const { auth } = usePage().props;
     const [paymentToDelete, setPaymentToDelete] = useState(null);
     const [deletingPaymentId, setDeletingPaymentId] = useState(null);
 
@@ -46,11 +46,6 @@ export default function ProjectPaymentsPage({ project, payments = [], paymentTab
         reference: '',
         note: '',
     });
-
-    useEffect(() => {
-        if (flash?.success) toast.success(flash.success);
-        if (flash?.error) toast.error(flash.error);
-    }, [flash?.success, flash?.error]);
 
     const table = {
         search: paymentTable?.search ?? '',
@@ -91,7 +86,10 @@ export default function ProjectPaymentsPage({ project, payments = [], paymentTab
         event.preventDefault();
         post(`/projects/${project.id}/payments${queryString({ page: 1 })}`, {
             preserveScroll: true,
-            onSuccess: () => reset(),
+            onSuccess: () => {
+                reset();
+                toast.success('Payment saved successfully.');
+            },
             onError: () => toast.error('Unable to save payment.'),
         });
     };
@@ -102,7 +100,10 @@ export default function ProjectPaymentsPage({ project, payments = [], paymentTab
         setDeletingPaymentId(paymentToDelete.id);
         router.delete(`/payments/${paymentToDelete.id}${queryString()}`, {
             preserveScroll: true,
-            onSuccess: () => setPaymentToDelete(null),
+            onSuccess: () => {
+                setPaymentToDelete(null);
+                toast.success('Payment deleted successfully.');
+            },
             onError: () => toast.error('Unable to delete payment.'),
             onFinish: () => {
                 setDeletingPaymentId(null);

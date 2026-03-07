@@ -4,7 +4,7 @@ import SearchableDropdown from '../../Components/SearchableDropdown';
 import DatePickerInput from '../../Components/DatePickerInput';
 import ActionButton from '../../Components/ActionButton';
 import Modal from '../../Components/Modal';
-import { Head, Link, router, usePage } from '@inertiajs/react';
+import { Head, Link, router } from '@inertiajs/react';
 import { Fragment, useEffect, useMemo, useState } from 'react';
 import toast from 'react-hot-toast';
 
@@ -87,8 +87,6 @@ export default function ForemanDashboard({
     progressPhotos = [],
     weeklyAccomplishmentsByProjectFilters = null,
 }) {
-    const page = usePage();
-    const { flash } = page.props;
     const [foremanProjectId, setForemanProjectId] = useState(
         foremanAttendanceToday?.project_id ? String(foremanAttendanceToday.project_id) : ''
     );
@@ -112,11 +110,6 @@ export default function ForemanDashboard({
     const [weeklyProjectWeek, setWeeklyProjectWeek] = useState(
         String(weeklyAccomplishmentsByProjectFilters?.latest_week_start || '')
     );
-
-    useEffect(() => {
-        if (flash?.success) toast.success(flash.success);
-        if (flash?.error) toast.error(flash.error);
-    }, [flash?.success, flash?.error]);
 
     useEffect(() => {
         setForemanProjectId(foremanAttendanceToday?.project_id ? String(foremanAttendanceToday.project_id) : '');
@@ -226,11 +219,23 @@ export default function ForemanDashboard({
             toast.error('Select a project before time in.');
             return;
         }
-        router.post('/foreman/attendance/time-in', { project_id: foremanProjectId }, { preserveScroll: true });
+        router.post(
+            '/foreman/attendance/time-in',
+            { project_id: foremanProjectId },
+            {
+                preserveScroll: true,
+                onSuccess: () => toast.success('Time in recorded successfully.'),
+                onError: () => toast.error('Unable to record time in.'),
+            }
+        );
     };
 
     const submitForemanTimeOut = () => {
-        router.post('/foreman/attendance/time-out', {}, { preserveScroll: true });
+        router.post('/foreman/attendance/time-out', {}, {
+            preserveScroll: true,
+            onSuccess: () => toast.success('Time out recorded successfully.'),
+            onError: () => toast.error('Unable to record time out.'),
+        });
     };
 
     const pendingMaterials = materialRequests.filter((item) => String(item.status).toLowerCase() === 'pending').length;
