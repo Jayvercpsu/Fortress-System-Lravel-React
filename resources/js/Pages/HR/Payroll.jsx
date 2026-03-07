@@ -4,7 +4,7 @@ import SearchableDropdown from '../../Components/SearchableDropdown';
 import ActionButton from '../../Components/ActionButton';
 import Modal from '../../Components/Modal';
 import DatePickerInput from '../../Components/DatePickerInput';
-import { Head, Link, router, useForm } from '@inertiajs/react';
+import { Head, router, useForm } from '@inertiajs/react';
 import { useMemo, useState } from 'react';
 import { ArrowLeft } from 'lucide-react';
 
@@ -293,24 +293,13 @@ export default function Payroll({ payrolls = [], totalPayable = 0, workerOptions
             <Head title="Payroll" />
             <Layout title="Payroll Management">
                 <div style={{ marginBottom: 12 }}>
-                    <Link
+                    <ActionButton
                         href="/payroll/run"
-                        style={{
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            gap: 8,
-                            color: 'var(--text-main)',
-                            textDecoration: 'none',
-                            border: '1px solid var(--border-color)',
-                            background: 'var(--button-bg)',
-                            borderRadius: 8,
-                            padding: '8px 12px',
-                            fontSize: 13,
-                        }}
+                        style={{ padding: '8px 12px', fontSize: 13 }}
                     >
                         <ArrowLeft size={16} />
                         Back to Payroll Run
-                    </Link>
+                    </ActionButton>
                 </div>
 
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 16, marginBottom: 24 }}>
@@ -334,21 +323,17 @@ export default function Payroll({ payrolls = [], totalPayable = 0, workerOptions
                             flexWrap: 'wrap',
                         }}
                     >
-                        <button
+                        <ActionButton
                             onClick={() => setShowForm((v) => !v)}
+                            variant={showForm ? 'neutral' : 'success'}
                             style={{
-                                background: showForm ? 'var(--button-bg)' : 'var(--success)',
-                                color: showForm ? 'var(--text-muted)' : '#fff',
-                                border: showForm ? '1px solid var(--border-color)' : 'none',
-                                borderRadius: 8,
                                 padding: '9px 20px',
                                 fontSize: 13,
-                                fontWeight: 600,
-                                cursor: 'pointer',
+                                color: showForm ? 'var(--text-muted)' : undefined,
                             }}
                         >
                             {showForm ? 'Cancel' : '+ Add Payroll Entry'}
-                        </button>
+                        </ActionButton>
                     </div>
                 </div>
 
@@ -402,23 +387,14 @@ export default function Payroll({ payrolls = [], totalPayable = 0, workerOptions
                                 ))}
                             </div>
 
-                            <button
+                            <ActionButton
                                 type="submit"
+                                variant="success"
                                 disabled={processing}
-                                style={{
-                                    background: 'var(--success)',
-                                    color: '#fff',
-                                    border: 'none',
-                                    borderRadius: 8,
-                                    padding: '9px 24px',
-                                    fontSize: 13,
-                                    fontWeight: 600,
-                                    cursor: 'pointer',
-                                    opacity: processing ? 0.7 : 1,
-                                }}
+                                style={{ padding: '9px 24px', fontSize: 13 }}
                             >
                                 {processing ? 'Saving...' : 'Save Entry'}
-                            </button>
+                            </ActionButton>
                         </form>
                     </div>
                 )}

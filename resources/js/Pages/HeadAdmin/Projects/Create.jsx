@@ -1,6 +1,7 @@
 import Layout from '../../../Components/Layout';
 import DatePickerInput from '../../../Components/DatePickerInput';
 import SearchableDropdown from '../../../Components/SearchableDropdown';
+import ActionButton from '../../../Components/ActionButton';
 import { Head, useForm } from '@inertiajs/react';
 import { useState } from 'react';
 import toast from 'react-hot-toast';
@@ -238,25 +239,14 @@ export default function HeadAdminProjectsCreate({ foremen = [] }) {
                                 placeholder="Enter name"
                                 style={inputStyle}
                             />
-                            <button
+                            <ActionButton
                                 type="button"
                                 onClick={addAssignedRole}
                                 disabled={!pendingAssignedRole || !String(pendingAssignedRoleName || '').trim()}
-                                style={{
-                                    background: 'var(--button-bg)',
-                                    color: 'var(--text-main)',
-                                    border: '1px solid var(--border-color)',
-                                    borderRadius: 8,
-                                    padding: '10px 12px',
-                                    cursor: !pendingAssignedRole || !String(pendingAssignedRoleName || '').trim() ? 'not-allowed' : 'pointer',
-                                    opacity: !pendingAssignedRole || !String(pendingAssignedRoleName || '').trim() ? 0.65 : 1,
-                                    fontSize: 12,
-                                    fontWeight: 700,
-                                    whiteSpace: 'nowrap',
-                                }}
+                                style={{ padding: '10px 12px' }}
                             >
                                 Add
-                            </button>
+                            </ActionButton>
                         </div>
                         <div style={{ color: 'var(--text-muted)', fontSize: 12 }}>
                             Add role + name. Multiple entries are allowed, including multiple Engineers.
@@ -319,25 +309,14 @@ export default function HeadAdminProjectsCreate({ foremen = [] }) {
                                 style={{ ...inputStyle, minHeight: 40, padding: '8px 10px' }}
                                 dropdownWidth={340}
                             />
-                            <button
+                            <ActionButton
                                 type="button"
                                 onClick={addAssignedForeman}
                                 disabled={!pendingAssignedForeman}
-                                style={{
-                                    background: 'var(--button-bg)',
-                                    color: 'var(--text-main)',
-                                    border: '1px solid var(--border-color)',
-                                    borderRadius: 8,
-                                    padding: '10px 12px',
-                                    cursor: !pendingAssignedForeman ? 'not-allowed' : 'pointer',
-                                    opacity: !pendingAssignedForeman ? 0.65 : 1,
-                                    fontSize: 12,
-                                    fontWeight: 700,
-                                    whiteSpace: 'nowrap',
-                                }}
+                                style={{ padding: '10px 12px' }}
                             >
                                 Add Foreman
-                            </button>
+                            </ActionButton>
                         </div>
                         <div style={{ color: 'var(--text-muted)', fontSize: 12 }}>
                             One project can have multiple foremen.
@@ -415,9 +394,9 @@ export default function HeadAdminProjectsCreate({ foremen = [] }) {
                     </label>
 
                     <div style={{ gridColumn: '1 / -1', display: 'flex', justifyContent: 'flex-end' }}>
-                        <button type="submit" disabled={processing} style={{ background: 'var(--success)', color: '#fff', border: 'none', borderRadius: 8, padding: '10px 16px', cursor: processing ? 'not-allowed' : 'pointer', opacity: processing ? 0.7 : 1 }}>
+                        <ActionButton type="submit" variant="success" disabled={processing} style={{ padding: '10px 16px', fontSize: 13 }}>
                             {processing ? 'Saving...' : 'Create Project'}
-                        </button>
+                        </ActionButton>
                     </div>
                 </form>
             </Layout>

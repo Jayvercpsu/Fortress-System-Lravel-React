@@ -1,5 +1,6 @@
 import Layout from '../../../Components/Layout';
-import { Head, Link, useForm, usePage } from '@inertiajs/react';
+import ActionButton from '../../../Components/ActionButton';
+import { Head, useForm, usePage } from '@inertiajs/react';
 import { useEffect } from 'react';
 import toast from 'react-hot-toast';
 import { ArrowLeft } from 'lucide-react';
@@ -74,24 +75,13 @@ export default function HeadAdminDesignShow({ projectId, design }) {
             <Head title={`Design Tracker #${projectId}`} />
             <Layout title={`Design Tracker - Project #${projectId}`}>
                 <div style={{ marginBottom: 12 }}>
-                    <Link
+                    <ActionButton
                         href={`/projects/${projectId}`}
-                        style={{
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            gap: 8,
-                            color: 'var(--text-main)',
-                            textDecoration: 'none',
-                            border: '1px solid var(--border-color)',
-                            background: 'var(--button-bg)',
-                            borderRadius: 8,
-                            padding: '8px 12px',
-                            fontSize: 13,
-                        }}
+                        style={{ padding: '8px 12px', fontSize: 13 }}
                     >
                         <ArrowLeft size={16} />
                         Back to Project
-                    </Link>
+                    </ActionButton>
                 </div>
 
                 <form onSubmit={submit} style={{ display: 'grid', gap: 16 }}>
@@ -158,23 +148,14 @@ export default function HeadAdminDesignShow({ projectId, design }) {
                     </div>
 
                     <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-                        <button
+                        <ActionButton
                             type="submit"
+                            variant="success"
                             disabled={processing}
-                            style={{
-                                background: 'var(--success)',
-                                color: '#fff',
-                                border: 'none',
-                                borderRadius: 8,
-                                padding: '10px 16px',
-                                fontSize: 13,
-                                fontWeight: 600,
-                                cursor: processing ? 'not-allowed' : 'pointer',
-                                opacity: processing ? 0.7 : 1,
-                            }}
+                            style={{ padding: '10px 16px', fontSize: 13 }}
                         >
                             {processing ? 'Saving...' : 'Save Design Tracker'}
-                        </button>
+                        </ActionButton>
                     </div>
                 </form>
             </Layout>

@@ -1,4 +1,5 @@
 import Layout from './Layout';
+import ActionButton from './ActionButton';
 import Modal from './Modal';
 import SearchableDropdown from './SearchableDropdown';
 import { Head, Link, router, useForm, usePage } from '@inertiajs/react';
@@ -263,24 +264,13 @@ export default function MonitoringBoardPage({ project, scopes = [], foreman_opti
             <Head title={`Monitoring Board #${project.id}`} />
             <Layout title={`Monitoring Board - Project #${project.id}`}>
                 <div style={{ marginBottom: 12 }}>
-                    <Link
+                    <ActionButton
                         href={`/projects/${project.id}`}
-                        style={{
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            gap: 8,
-                            color: 'var(--text-main)',
-                            textDecoration: 'none',
-                            border: '1px solid var(--border-color)',
-                            background: 'var(--button-bg)',
-                            borderRadius: 8,
-                            padding: '8px 12px',
-                            fontSize: 13,
-                        }}
+                        style={{ padding: '8px 12px', fontSize: 13 }}
                     >
                         <ArrowLeft size={16} />
                         Back to Project
-                    </Link>
+                    </ActionButton>
                 </div>
 
                 <div style={{ ...cardStyle, display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12, marginBottom: 16 }}>
@@ -454,23 +444,9 @@ export default function MonitoringBoardPage({ project, scopes = [], foreman_opti
                     </label>
 
                     <div style={{ gridColumn: '1 / -1', display: 'flex', justifyContent: 'flex-end' }}>
-                        <button
-                            type="submit"
-                            disabled={creating}
-                            style={{
-                                background: 'var(--success)',
-                                color: '#fff',
-                                border: 'none',
-                                borderRadius: 8,
-                                padding: '10px 16px',
-                                fontSize: 13,
-                                fontWeight: 600,
-                                cursor: creating ? 'not-allowed' : 'pointer',
-                                opacity: creating ? 0.7 : 1,
-                            }}
-                        >
+                        <ActionButton type="submit" variant="success" disabled={creating} style={{ padding: '10px 16px', fontSize: 13 }}>
                             {creating ? 'Adding...' : 'Add Scope'}
-                        </button>
+                        </ActionButton>
                     </div>
                 </form>
 
@@ -756,54 +732,16 @@ export default function MonitoringBoardPage({ project, scopes = [], foreman_opti
                                                             </div>
                                                         )}
                                                         <div style={{ display: 'inline-flex', gap: 8 }}>
-                                                            <button
-                                                                type="button"
-                                                                onClick={cancelPhotoUpload}
-                                                                disabled={uploadingPhoto}
-                                                                style={{
-                                                                    background: 'var(--button-bg)',
-                                                                    color: 'var(--text-main)',
-                                                                    border: '1px solid var(--border-color)',
-                                                                    borderRadius: 8,
-                                                                    padding: '8px 10px',
-                                                                    cursor: uploadingPhoto ? 'not-allowed' : 'pointer',
-                                                                }}
-                                                            >
-                                                                Cancel
-                                                            </button>
-                                                            <button
-                                                                type="submit"
-                                                                disabled={uploadingPhoto}
-                                                                style={{
-                                                                    background: 'var(--success)',
-                                                                    color: '#fff',
-                                                                    border: 'none',
-                                                                    borderRadius: 8,
-                                                                    padding: '8px 10px',
-                                                                    cursor: uploadingPhoto ? 'not-allowed' : 'pointer',
-                                                                    opacity: uploadingPhoto ? 0.7 : 1,
-                                                                }}
-                                                            >
+                                                            <ActionButton type="button" onClick={cancelPhotoUpload} disabled={uploadingPhoto} style={{ padding: '8px 10px' }}>Cancel</ActionButton>
+                                                            <ActionButton type="submit" variant="success" disabled={uploadingPhoto} style={{ padding: '8px 10px' }}>
                                                                 {uploadingPhoto ? 'Uploading...' : 'Upload Photo'}
-                                                            </button>
+                                                            </ActionButton>
                                                         </div>
                                                     </form>
                                                 ) : (
-                                                    <button
-                                                        type="button"
-                                                        onClick={() => openPhotoUploader(scope.id)}
-                                                        style={{
-                                                            background: 'var(--button-bg)',
-                                                            color: 'var(--text-main)',
-                                                            border: '1px solid var(--border-color)',
-                                                            borderRadius: 8,
-                                                            padding: '8px 10px',
-                                                            cursor: 'pointer',
-                                                            width: 'fit-content',
-                                                        }}
-                                                    >
+                                                    <ActionButton type="button" onClick={() => openPhotoUploader(scope.id)} style={{ padding: '8px 10px', width: 'fit-content' }}>
                                                         Add Photo
-                                                    </button>
+                                                    </ActionButton>
                                                 )}
                                             </div>
                                         </td>
@@ -813,7 +751,7 @@ export default function MonitoringBoardPage({ project, scopes = [], foreman_opti
                                         <td style={{ padding: '10px 8px', borderBottom: '1px solid var(--border-color)' }}>
                                             {isEditing ? (
                                                 <div style={{ display: 'inline-flex', gap: 8 }}>
-                                                    <button
+                                                    <ActionButton
                                                         type="button"
                                                         onClick={() => {
                                                             setEditingScopeId(null);
@@ -829,9 +767,10 @@ export default function MonitoringBoardPage({ project, scopes = [], foreman_opti
                                                         }}
                                                     >
                                                         Cancel
-                                                    </button>
-                                                    <button
+                                                    </ActionButton>
+                                                    <ActionButton
                                                         type="button"
+                                                        variant='success'
                                                         disabled={updating}
                                                         onClick={(event) => saveEdit(event, scope.id)}
                                                         style={{
@@ -845,38 +784,12 @@ export default function MonitoringBoardPage({ project, scopes = [], foreman_opti
                                                         }}
                                                     >
                                                         Save
-                                                    </button>
+                                                    </ActionButton>
                                                 </div>
                                             ) : (
                                                 <div style={{ display: 'inline-flex', gap: 8 }}>
-                                                    <button
-                                                        type="button"
-                                                        onClick={() => startEdit(scope)}
-                                                        style={{
-                                                            background: 'var(--button-bg)',
-                                                            color: 'var(--text-main)',
-                                                            border: '1px solid var(--border-color)',
-                                                            borderRadius: 8,
-                                                            padding: '8px 10px',
-                                                            cursor: 'pointer',
-                                                        }}
-                                                    >
-                                                        Edit
-                                                    </button>
-                                                    <button
-                                                        type="button"
-                                                        onClick={() => requestDeleteScope(scope)}
-                                                        style={{
-                                                            background: '#ef4444',
-                                                            color: '#fff',
-                                                            border: 'none',
-                                                            borderRadius: 8,
-                                                            padding: '8px 10px',
-                                                            cursor: 'pointer',
-                                                        }}
-                                                    >
-                                                        Delete
-                                                    </button>
+                                                    <ActionButton type="button" variant="edit" onClick={() => startEdit(scope)} style={{ padding: '8px 10px' }}>Edit</ActionButton>
+                                                    <ActionButton type="button" variant="danger" onClick={() => requestDeleteScope(scope)} style={{ padding: '8px 10px' }}>Delete</ActionButton>
                                                 </div>
                                             )}
                                         </td>
@@ -932,38 +845,10 @@ export default function MonitoringBoardPage({ project, scopes = [], foreman_opti
                         </div>
 
                         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
-                            <button
-                                type="button"
-                                onClick={closeDeleteModal}
-                                disabled={deleting}
-                                style={{
-                                    background: 'var(--button-bg)',
-                                    color: 'var(--text-main)',
-                                    border: '1px solid var(--border-color)',
-                                    borderRadius: 8,
-                                    padding: '8px 12px',
-                                    cursor: deleting ? 'not-allowed' : 'pointer',
-                                    opacity: deleting ? 0.7 : 1,
-                                }}
-                            >
-                                Cancel
-                            </button>
-                            <button
-                                type="button"
-                                onClick={confirmDeleteScope}
-                                disabled={deleting}
-                                style={{
-                                    background: '#ef4444',
-                                    color: '#fff',
-                                    border: 'none',
-                                    borderRadius: 8,
-                                    padding: '8px 12px',
-                                    cursor: deleting ? 'not-allowed' : 'pointer',
-                                    opacity: deleting ? 0.7 : 1,
-                                }}
-                            >
+                            <ActionButton type="button" onClick={closeDeleteModal} disabled={deleting} style={{ padding: '8px 12px' }}>Cancel</ActionButton>
+                            <ActionButton type="button" variant="danger" onClick={confirmDeleteScope} disabled={deleting} style={{ padding: '8px 12px' }}>
                                 {deleting ? 'Deleting...' : 'Confirm Delete'}
-                            </button>
+                            </ActionButton>
                         </div>
                     </div>
                 </Modal>

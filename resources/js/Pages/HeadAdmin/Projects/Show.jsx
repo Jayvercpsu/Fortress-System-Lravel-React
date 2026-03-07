@@ -4,7 +4,7 @@ import DataTable from '../../../Components/DataTable';
 import Modal from '../../../Components/Modal';
 import ProjectComputationsPanel from '../../../Components/ProjectComputationsPanel';
 import SearchableDropdown from '../../../Components/SearchableDropdown';
-import { Head, Link, router, useForm, usePage } from '@inertiajs/react';
+import { Head, router, useForm, usePage } from '@inertiajs/react';
 import { useEffect, useState } from 'react';
 import toast from 'react-hot-toast';
 
@@ -40,19 +40,6 @@ const shortcutSectionStyle = {
     gap: 8,
     alignContent: 'start',
     background: 'var(--surface-2)',
-};
-
-const shortcutLinkStyle = {
-    border: '1px solid var(--border-color)',
-    background: 'var(--button-bg)',
-    color: 'var(--text-main)',
-    borderRadius: 8,
-    padding: '8px 12px',
-    textDecoration: 'none',
-    fontSize: 13,
-    display: 'inline-flex',
-    alignItems: 'center',
-    justifyContent: 'center',
 };
 
 const money = (value) =>
@@ -454,9 +441,9 @@ export default function HeadAdminProjectsShow({
                             <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: 0.3 }}>
                                 Design
                             </div>
-                            <Link href={`/projects/${project.id}/design`} style={shortcutLinkStyle}>
+                            <ActionButton href={`/projects/${project.id}/design`} style={{ padding: '8px 12px', fontSize: 13 }}>
                                 Open Design Tracker
-                            </Link>
+                            </ActionButton>
                         </div>
 
                         <div style={shortcutSectionStyle}>
@@ -464,10 +451,10 @@ export default function HeadAdminProjectsShow({
                                 Build
                             </div>
                             <div style={{ display: 'grid', gap: 8 }}>
-                                <Link href={`/projects/${project.id}/build`} style={shortcutLinkStyle}>
+                                <ActionButton href={`/projects/${project.id}/build`} style={{ padding: '8px 12px', fontSize: 13 }}>
                                     Open Build Tracker
-                                </Link>
-                                <Link href={`/projects/${project.id}/monitoring`} style={shortcutLinkStyle}>
+                                </ActionButton>
+                                <ActionButton href={`/projects/${project.id}/monitoring`} style={{ padding: '8px 12px', fontSize: 13 }}>
                                     Open Monitoring Board
                                 </Link>
                                 <a
@@ -481,7 +468,7 @@ export default function HeadAdminProjectsShow({
                                 </a>
                                 <Link href={`/projects/${project.id}/expenses`} style={shortcutLinkStyle}>
                                     Open Expenses
-                                </Link>
+                                </ActionButton>
                             </div>
                         </div>
 
@@ -490,12 +477,12 @@ export default function HeadAdminProjectsShow({
                                 Finance
                             </div>
                             <div style={{ display: 'grid', gap: 8 }}>
-                                <Link href={`/projects/${project.id}/payments`} style={shortcutLinkStyle}>
+                                <ActionButton href={`/projects/${project.id}/payments`} style={{ padding: '8px 12px', fontSize: 13 }}>
                                     Open Payments
-                                </Link>
-                                <Link href={`/projects/${project.id}/financials`} style={shortcutLinkStyle}>
+                                </ActionButton>
+                                <ActionButton href={`/projects/${project.id}/financials`} style={{ padding: '8px 12px', fontSize: 13 }}>
                                     Open Financials
-                                </Link>
+                                </ActionButton>
                             </div>
                         </div>
 
@@ -503,9 +490,9 @@ export default function HeadAdminProjectsShow({
                             <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: 0.3 }}>
                                 Project Admin
                             </div>
-                            <Link href={`/projects/${project.id}/edit`} style={shortcutLinkStyle}>
+                            <ActionButton href={`/projects/${project.id}/edit`} style={{ padding: '8px 12px', fontSize: 13 }}>
                                 Edit Project
-                            </Link>
+                            </ActionButton>
                         </div>
                     </div>
                 </div>
@@ -572,25 +559,14 @@ export default function HeadAdminProjectsShow({
                                     style={{ ...inputStyle, minHeight: 40, padding: '8px 10px' }}
                                     dropdownWidth={340}
                                 />
-                                <button
+                                <ActionButton
                                     type="button"
                                     onClick={addAssignedForeman}
                                     disabled={!pendingAssignedForeman}
-                                    style={{
-                                        background: 'var(--button-bg)',
-                                        color: 'var(--text-main)',
-                                        border: '1px solid var(--border-color)',
-                                        borderRadius: 8,
-                                        padding: '10px 12px',
-                                        cursor: !pendingAssignedForeman ? 'not-allowed' : 'pointer',
-                                        opacity: !pendingAssignedForeman ? 0.65 : 1,
-                                        fontSize: 12,
-                                        fontWeight: 700,
-                                        whiteSpace: 'nowrap',
-                                    }}
+                                    style={{ padding: '10px 12px' }}
                                 >
                                     Add Foreman
-                                </button>
+                                </ActionButton>
                             </div>
 
                             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
@@ -639,40 +615,22 @@ export default function HeadAdminProjectsShow({
                             )}
 
                             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
-                                <button
+                                <ActionButton
                                     type="button"
                                     onClick={resetAssignedForemenDraft}
-                                    style={{
-                                        background: 'var(--button-bg)',
-                                        color: 'var(--text-main)',
-                                        border: '1px solid var(--border-color)',
-                                        borderRadius: 8,
-                                        padding: '8px 12px',
-                                        cursor: 'pointer',
-                                        fontSize: 12,
-                                        fontWeight: 700,
-                                    }}
+                                    style={{ padding: '8px 12px' }}
                                 >
                                     Reset
-                                </button>
-                                <button
+                                </ActionButton>
+                                <ActionButton
                                     type="button"
                                     onClick={saveAssignedForemen}
+                                    variant="success"
                                     disabled={savingAssignedForemen}
-                                    style={{
-                                        background: 'var(--success)',
-                                        color: '#fff',
-                                        border: 'none',
-                                        borderRadius: 8,
-                                        padding: '8px 12px',
-                                        cursor: savingAssignedForemen ? 'not-allowed' : 'pointer',
-                                        opacity: savingAssignedForemen ? 0.8 : 1,
-                                        fontSize: 12,
-                                        fontWeight: 700,
-                                    }}
+                                    style={{ padding: '8px 12px' }}
                                 >
                                     {savingAssignedForemen ? 'Saving...' : 'Save Assigned Foremen'}
-                                </button>
+                                </ActionButton>
                             </div>
                         </div>
 
@@ -712,9 +670,9 @@ export default function HeadAdminProjectsShow({
                             {clientFileError && <div style={{ color: '#f87171', fontSize: 12 }}>{clientFileError}</div>}
                             {fileErrors.file && <div style={{ color: '#f87171', fontSize: 12 }}>{fileErrors.file}</div>}
                             <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-                                <button type="submit" disabled={uploading} style={{ background: 'var(--success)', color: '#fff', border: 'none', borderRadius: 8, padding: '8px 12px' }}>
+                                <ActionButton type="submit" variant="success" disabled={uploading} style={{ padding: '8px 12px' }}>
                                     {uploading ? 'Uploading...' : 'Upload'}
-                                </button>
+                                </ActionButton>
                             </div>
                         </form>
 
@@ -748,9 +706,9 @@ export default function HeadAdminProjectsShow({
                             <textarea value={updateData.note} onChange={(e) => setUpdateData('note', e.target.value)} style={{ ...inputStyle, minHeight: 90 }} />
                             {updateErrors.note && <div style={{ color: '#f87171', fontSize: 12 }}>{updateErrors.note}</div>}
                             <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-                                <button type="submit" disabled={postingUpdate} style={{ background: 'var(--success)', color: '#fff', border: 'none', borderRadius: 8, padding: '8px 12px' }}>
+                                <ActionButton type="submit" variant="success" disabled={postingUpdate} style={{ padding: '8px 12px' }}>
                                     {postingUpdate ? 'Posting...' : 'Post Update'}
-                                </button>
+                                </ActionButton>
                             </div>
                         </form>
 

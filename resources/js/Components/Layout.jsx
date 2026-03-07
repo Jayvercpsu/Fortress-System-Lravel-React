@@ -1,6 +1,6 @@
 import { Link, router, usePage } from '@inertiajs/react';
 import { useEffect, useState } from 'react';
-import { Moon, Sun } from 'lucide-react';
+import { LoaderCircle, Moon, Sun } from 'lucide-react';
 import BrandIcon from './BrandIcon';
 
 const navByRole = {
@@ -63,6 +63,7 @@ export default function Layout({ children, title }) {
             : '/';
 
     const [showLogoutModal, setShowLogoutModal] = useState(false);
+    const [isLoggingOut, setIsLoggingOut] = useState(false);
 
     // ✅ Theme state (persisted)
     const [theme, setTheme] = useState(() => localStorage.getItem('bb_theme') || 'dark');
@@ -75,11 +76,24 @@ export default function Layout({ children, title }) {
     }, [theme]);
 
     const confirmLogout = () => {
-        router.post('/logout');
+        if (isLoggingOut) return;
+
+        setIsLoggingOut(true);
+        router.post('/logout', {}, {
+            preserveScroll: true,
+            onError: () => setIsLoggingOut(false),
+            onFinish: () => setIsLoggingOut(false),
+        });
     };
 
     return (
         <>
+            <style>{`
+                @keyframes bb-spin {
+                    from { transform: rotate(0deg); }
+                    to { transform: rotate(360deg); }
+                }
+            `}</style>
             <div
                 style={{
                     fontFamily: "'DM Sans', sans-serif",
@@ -201,6 +215,7 @@ export default function Layout({ children, title }) {
 
                         <button
                             onClick={() => setShowLogoutModal(true)}
+                            disabled={isLoggingOut}
                             style={{
                                 background: 'var(--button-bg)',
                                 border: '1px solid var(--border-color)',
@@ -208,7 +223,8 @@ export default function Layout({ children, title }) {
                                 borderRadius: 6,
                                 padding: '6px 12px',
                                 fontSize: 12,
-                                cursor: 'pointer',
+                                cursor: isLoggingOut ? 'not-allowed' : 'pointer',
+                                opacity: isLoggingOut ? 0.7 : 1,
                                 width: '100%',
                             }}
                         >
@@ -292,6 +308,7 @@ export default function Layout({ children, title }) {
                         <div style={{ display: 'flex', gap: 10 }}>
                             <button
                                 onClick={() => setShowLogoutModal(false)}
+                                disabled={isLoggingOut}
                                 style={{
                                     flex: 1,
                                     padding: '8px',
@@ -299,7 +316,8 @@ export default function Layout({ children, title }) {
                                     border: '1px solid var(--border-color)',
                                     background: 'var(--button-bg)',
                                     color: 'var(--text-muted)',
-                                    cursor: 'pointer',
+                                    cursor: isLoggingOut ? 'not-allowed' : 'pointer',
+                                    opacity: isLoggingOut ? 0.7 : 1,
                                 }}
                             >
                                 Cancel
@@ -307,6 +325,7 @@ export default function Layout({ children, title }) {
 
                             <button
                                 onClick={confirmLogout}
+                                disabled={isLoggingOut}
                                 style={{
                                     flex: 1,
                                     padding: '8px',
@@ -314,10 +333,22 @@ export default function Layout({ children, title }) {
                                     border: 'none',
                                     background: '#ef4444',
                                     color: '#fff',
-                                    cursor: 'pointer',
+                                    cursor: isLoggingOut ? 'not-allowed' : 'pointer',
+                                    opacity: isLoggingOut ? 0.85 : 1,
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    gap: 8,
                                 }}
                             >
-                                Logout
+                                {isLoggingOut ? (
+                                    <>
+                                        <LoaderCircle size={16} style={{ animation: 'bb-spin 0.9s linear infinite' }} />
+                                        Logging out...
+                                    </>
+                                ) : (
+                                    'Logout'
+                                )}
                             </button>
                         </div>
                     </div>

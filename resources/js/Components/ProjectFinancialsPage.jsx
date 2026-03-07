@@ -1,5 +1,6 @@
 import Layout from './Layout';
-import { Head, Link, useForm, usePage } from '@inertiajs/react';
+import ActionButton from './ActionButton';
+import { Head, useForm, usePage } from '@inertiajs/react';
 import { ArrowLeft } from 'lucide-react';
 import { useEffect } from 'react';
 import toast from 'react-hot-toast';
@@ -70,24 +71,13 @@ export default function ProjectFinancialsPage({ project }) {
             <Layout title={`Project Financials - ${project?.name || 'Project'}`}>
                 <div style={{ display: 'grid', gap: 16 }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
-                        <Link
+                        <ActionButton
                             href={backHref}
-                            style={{
-                                display: 'inline-flex',
-                                alignItems: 'center',
-                                gap: 8,
-                                color: 'var(--text-main)',
-                                textDecoration: 'none',
-                                border: '1px solid var(--border-color)',
-                                background: 'var(--button-bg)',
-                                borderRadius: 8,
-                                padding: '8px 12px',
-                                fontSize: 13,
-                            }}
+                            style={{ padding: '8px 12px', fontSize: 13 }}
                         >
                             <ArrowLeft size={16} />
                             Back
-                        </Link>
+                        </ActionButton>
                         <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
                             Only Head Admin and HR can update project financial fields.
                         </div>
@@ -177,37 +167,20 @@ export default function ProjectFinancialsPage({ project }) {
                         </div>
 
                         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, flexWrap: 'wrap' }}>
-                            <Link
+                            <ActionButton
                                 href={`/projects/${project.id}/payments`}
-                                style={{
-                                    background: 'var(--button-bg)',
-                                    color: 'var(--text-main)',
-                                    border: '1px solid var(--border-color)',
-                                    borderRadius: 8,
-                                    padding: '9px 12px',
-                                    fontSize: 13,
-                                    textDecoration: 'none',
-                                }}
+                                style={{ padding: '9px 12px', fontSize: 13 }}
                             >
                                 Open Payments
-                            </Link>
-                            <button
+                            </ActionButton>
+                            <ActionButton
                                 type="submit"
+                                variant="success"
                                 disabled={processing}
-                                style={{
-                                    background: 'var(--success)',
-                                    color: '#fff',
-                                    border: 'none',
-                                    borderRadius: 8,
-                                    padding: '9px 14px',
-                                    fontSize: 13,
-                                    fontWeight: 700,
-                                    cursor: processing ? 'not-allowed' : 'pointer',
-                                    opacity: processing ? 0.7 : 1,
-                                }}
+                                style={{ padding: '9px 14px', fontSize: 13 }}
                             >
                                 {processing ? 'Saving...' : 'Save Financials'}
-                            </button>
+                            </ActionButton>
                         </div>
                     </form>
                 </div>

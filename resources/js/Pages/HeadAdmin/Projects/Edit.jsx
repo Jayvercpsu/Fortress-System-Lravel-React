@@ -1,7 +1,8 @@
 import Layout from '../../../Components/Layout';
 import DatePickerInput from '../../../Components/DatePickerInput';
 import SearchableDropdown from '../../../Components/SearchableDropdown';
-import { Head, Link, useForm } from '@inertiajs/react';
+import ActionButton from '../../../Components/ActionButton';
+import { Head, useForm } from '@inertiajs/react';
 import { ArrowLeft } from 'lucide-react';
 import { useState } from 'react';
 import toast from 'react-hot-toast';
@@ -201,25 +202,14 @@ export default function HeadAdminProjectsEdit({ project, foremen = [] }) {
             <Head title={`Edit Project #${project.id}`} />
             <Layout title={`Edit Project - ${project.name}`}>
                 <div style={{ marginBottom: 12 }}>
-                    <Link
+                    <ActionButton
                         href={`/projects/${project.id}`}
                         onClick={handleBackToProject}
-                        style={{
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            gap: 8,
-                            color: 'var(--text-main)',
-                            textDecoration: 'none',
-                            border: '1px solid var(--border-color)',
-                            background: 'var(--button-bg)',
-                            borderRadius: 8,
-                            padding: '8px 12px',
-                            fontSize: 13,
-                        }}
+                        style={{ padding: '8px 12px', fontSize: 13 }}
                     >
                         <ArrowLeft size={16} />
                         Back to Project
-                    </Link>
+                    </ActionButton>
                 </div>
 
                 <form onSubmit={submit} style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 14, background: 'var(--surface-1)', border: '1px solid var(--border-color)', borderRadius: 12, padding: 16, marginBottom: 16 }}>
@@ -280,25 +270,14 @@ export default function HeadAdminProjectsEdit({ project, foremen = [] }) {
                                 placeholder="Enter name"
                                 style={inputStyle}
                             />
-                            <button
+                            <ActionButton
                                 type="button"
                                 onClick={addAssignedRole}
                                 disabled={!pendingAssignedRole || !String(pendingAssignedRoleName || '').trim()}
-                                style={{
-                                    background: 'var(--button-bg)',
-                                    color: 'var(--text-main)',
-                                    border: '1px solid var(--border-color)',
-                                    borderRadius: 8,
-                                    padding: '10px 12px',
-                                    cursor: !pendingAssignedRole || !String(pendingAssignedRoleName || '').trim() ? 'not-allowed' : 'pointer',
-                                    opacity: !pendingAssignedRole || !String(pendingAssignedRoleName || '').trim() ? 0.65 : 1,
-                                    fontSize: 12,
-                                    fontWeight: 700,
-                                    whiteSpace: 'nowrap',
-                                }}
+                                style={{ padding: '10px 12px' }}
                             >
                                 Add
-                            </button>
+                            </ActionButton>
                         </div>
                         <div style={{ color: 'var(--text-muted)', fontSize: 12 }}>
                             Add role + name. Multiple entries are allowed, including multiple Engineers.
@@ -361,25 +340,14 @@ export default function HeadAdminProjectsEdit({ project, foremen = [] }) {
                                 style={{ ...inputStyle, minHeight: 40, padding: '8px 10px' }}
                                 dropdownWidth={340}
                             />
-                            <button
+                            <ActionButton
                                 type="button"
                                 onClick={addAssignedForeman}
                                 disabled={!pendingAssignedForeman}
-                                style={{
-                                    background: 'var(--button-bg)',
-                                    color: 'var(--text-main)',
-                                    border: '1px solid var(--border-color)',
-                                    borderRadius: 8,
-                                    padding: '10px 12px',
-                                    cursor: !pendingAssignedForeman ? 'not-allowed' : 'pointer',
-                                    opacity: !pendingAssignedForeman ? 0.65 : 1,
-                                    fontSize: 12,
-                                    fontWeight: 700,
-                                    whiteSpace: 'nowrap',
-                                }}
+                                style={{ padding: '10px 12px' }}
                             >
                                 Add Foreman
-                            </button>
+                            </ActionButton>
                         </div>
                         <div style={{ color: 'var(--text-muted)', fontSize: 12 }}>
                             One project can have multiple foremen.
@@ -454,9 +422,9 @@ export default function HeadAdminProjectsEdit({ project, foremen = [] }) {
                         {errors.phase && <div style={{ color: '#f87171', fontSize: 12, marginTop: 4 }}>{errors.phase}</div>}
                     </label>
                     <div style={{ gridColumn: '1 / -1', display: 'flex', justifyContent: 'flex-end' }}>
-                        <button type="submit" disabled={processing} style={{ background: 'var(--success)', color: '#fff', border: 'none', borderRadius: 8, padding: '10px 16px' }}>
+                        <ActionButton type="submit" variant="success" disabled={processing} style={{ padding: '10px 16px', fontSize: 13 }}>
                             {processing ? 'Saving...' : 'Save Project'}
-                        </button>
+                        </ActionButton>
                     </div>
                 </form>
 

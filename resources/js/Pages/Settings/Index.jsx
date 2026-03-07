@@ -1,5 +1,6 @@
 import Layout from '../../Components/Layout';
 import DatePickerInput from '../../Components/DatePickerInput';
+import ActionButton from '../../Components/ActionButton';
 import { Head, useForm } from '@inertiajs/react';
 import { useEffect, useRef, useState } from 'react';
 import toast from 'react-hot-toast';
@@ -371,23 +372,14 @@ export default function SettingsIndex({ account }) {
                         </div>
 
                         <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-                            <button
+                            <ActionButton
                                 type="submit"
+                                variant="success"
                                 disabled={processing}
-                                style={{
-                                    background: 'var(--success)',
-                                    color: '#fff',
-                                    border: 'none',
-                                    borderRadius: 8,
-                                    padding: '10px 16px',
-                                    fontSize: 13,
-                                    fontWeight: 600,
-                                    cursor: processing ? 'not-allowed' : 'pointer',
-                                    opacity: processing ? 0.7 : 1,
-                                }}
+                                style={{ padding: '10px 16px', fontSize: 13 }}
                             >
                                 {processing ? 'Saving...' : 'Save Settings'}
-                            </button>
+                            </ActionButton>
                         </div>
                     </form>
                 </div>

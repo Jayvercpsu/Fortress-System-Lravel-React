@@ -326,6 +326,7 @@ class PublicProgressController extends Controller
                 'project_name' => $submitToken->project->name,
                 'foreman_name' => $submitToken->foreman->fullname,
                 'expires_at' => optional($submitToken->expires_at)?->toDateTimeString(),
+                'receipt_url' => route('public.progress-receipt.show', ['token' => $submitToken->token]),
                 'workers' => $workers,
                 'weekly_scope_of_works' => $weeklyScopeOfWorks,
                 'weekly_scope_photo_map' => $weeklyScopePhotoMap,
@@ -343,6 +344,7 @@ class PublicProgressController extends Controller
     public function receipt(Request $request, string $token)
     {
         $submitToken = $this->resolveActiveToken($token);
+        $submitToken->load(['project', 'foreman:id,fullname']);
         $project = $submitToken->project;
 
         $scopes = $project->scopes()
@@ -392,6 +394,7 @@ class PublicProgressController extends Controller
         ];
 
         return Inertia::render('Public/ProgressReceipt', [
+            'receipt' => $this->buildReceiptPayload($submitToken),
             'project' => [
                 'id' => $project->id,
                 'name' => $project->name,
@@ -1160,13 +1163,113 @@ class PublicProgressController extends Controller
     private function resolveActiveToken(string $token): ProgressSubmitToken
     {
         $submitToken = ProgressSubmitToken::query()
-            ->with(['project:id,name', 'foreman:id,fullname'])
+            ->with(['project', 'foreman:id,fullname'])
             ->where('token', $token)
             ->firstOrFail();
 
         abort_unless($submitToken->isActive(), 404);
 
         return $submitToken;
+    }
+
+    private function buildReceiptPayload(ProgressSubmitToken $submitToken): array
+    {
+        $project = $submitToken->project;
+        $scopes = ProjectScope::query()
+            ->where('project_id', $submitToken->project_id)
+            ->with(['photos' => fn ($query) => $query->latest('id')])
+            ->orderBy('id')
+            ->get();
+
+        $weights = $this->receiptWeightDistribution($scopes->count());
+        $contractAmount = (float) ($project?->contract_amount ?? 0);
+        $rows = [];
+        $totalWeightPercent = 0.0;
+        $weightedProgressPercent = 0.0;
+        $computedAmount = 0.0;
+
+        foreach ($scopes->values() as $index => $scope) {
+            $weightPercent = (float) ($weights[$index] ?? 0);
+            $progressPercent = (float) ($scope->progress_percent ?? 0);
+            $scopeContractAmount = round(($contractAmount * $weightPercent) / 100, 2);
+            $computedPercent = round(($weightPercent * $progressPercent) / 100, 2);
+            $scopeComputedAmount = round(($contractAmount * $computedPercent) / 100, 2);
+
+            $totalWeightPercent += $weightPercent;
+            $weightedProgressPercent += $computedPercent;
+            $computedAmount += $scopeComputedAmount;
+
+            $rows[] = [
+                'id' => $scope->id,
+                'scope_name' => $scope->scope_name,
+                'contract_amount' => $scopeContractAmount,
+                'weight_percent' => $weightPercent,
+                'progress_percent' => $progressPercent,
+                'computed_percent' => $computedPercent,
+                'computed_amount' => $scopeComputedAmount,
+                'start_date' => optional($scope->created_at)?->toDateString(),
+                'target_date' => optional($project?->target)?->toDateString(),
+                'status' => $scope->status,
+                'assignee' => $scope->assigned_personnel,
+                'remarks' => $scope->remarks,
+                'photos' => $scope->photos
+                    ->take(4)
+                    ->map(fn ($photo) => [
+                        'id' => $photo->id,
+                        'photo_path' => $photo->photo_path,
+                        'caption' => $photo->caption,
+                    ])
+                    ->values()
+                    ->all(),
+                'issues' => [
+                    'open' => 0,
+                    'resolved' => 0,
+                ],
+            ];
+        }
+
+        return [
+            'token' => $submitToken->token,
+            'project_name' => $project?->name,
+            'project_client' => $project?->client,
+            'project_phase' => $project?->phase,
+            'project_status' => $project?->status,
+            'project_target' => optional($project?->target)?->toDateString(),
+            'foreman_name' => $submitToken->foreman?->fullname,
+            'access_link' => route('public.progress-submit.show', ['token' => $submitToken->token]),
+            'expires_at' => optional($submitToken->expires_at)?->toDateTimeString(),
+            'submitted_at' => optional($submitToken->last_submitted_at)?->toDateTimeString(),
+            'submission_count' => (int) ($submitToken->submission_count ?? 0),
+            'total_contract_amount' => round($contractAmount, 2),
+            'total_weight_percent' => round($totalWeightPercent, 2),
+            'weighted_progress_percent' => round($weightedProgressPercent, 2),
+            'computed_amount' => round($computedAmount, 2),
+            'scopes' => $rows,
+        ];
+    }
+
+    private function receiptWeightDistribution(int $count): array
+    {
+        if ($count <= 0) {
+            return [];
+        }
+
+        $weights = [];
+        $remaining = 100.0;
+
+        for ($index = 0; $index < $count; $index++) {
+            if ($index === $count - 1) {
+                $weights[] = round($remaining, 2);
+                continue;
+            }
+
+            $slotsLeft = $count - $index;
+            $weight = round($remaining / $slotsLeft, 2);
+            $weights[] = $weight;
+            $remaining = round($remaining - $weight, 2);
+        }
+
+        return $weights;
     }
 
     private function formattedProgressNote(string $foremanName, string $progressNote, string $caption): string
