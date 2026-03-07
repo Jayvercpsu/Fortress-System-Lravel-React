@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import ActionButton from './ActionButton';
 
 const controlStyle = {
     background: 'var(--surface-2)',
@@ -209,7 +210,7 @@ export default function DataTable({
                 </div>
 
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <button
+                    <ActionButton
                         type="button"
                         onClick={() =>
                             serverSide
@@ -217,18 +218,14 @@ export default function DataTable({
                                 : setPage((p) => Math.max(1, p - 1))
                         }
                         disabled={serverSide ? serverPage <= 1 : page <= 1}
-                        style={{
-                            ...controlStyle,
-                            cursor: (serverSide ? serverPage <= 1 : page <= 1) ? 'not-allowed' : 'pointer',
-                            opacity: (serverSide ? serverPage <= 1 : page <= 1) ? 0.6 : 1,
-                        }}
+                        style={controlStyle}
                     >
                         Prev
-                    </button>
+                    </ActionButton>
                     <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
                         Page {serverSide ? serverPage : page} of {totalPages}
                     </div>
-                    <button
+                    <ActionButton
                         type="button"
                         onClick={() =>
                             serverSide
@@ -236,14 +233,10 @@ export default function DataTable({
                                 : setPage((p) => Math.min(totalPages, p + 1))
                         }
                         disabled={serverSide ? serverPage >= totalPages : page >= totalPages}
-                        style={{
-                            ...controlStyle,
-                            cursor: (serverSide ? serverPage >= totalPages : page >= totalPages) ? 'not-allowed' : 'pointer',
-                            opacity: (serverSide ? serverPage >= totalPages : page >= totalPages) ? 0.6 : 1,
-                        }}
+                        style={controlStyle}
                     >
                         Next
-                    </button>
+                    </ActionButton>
                 </div>
             </div>
         </div>

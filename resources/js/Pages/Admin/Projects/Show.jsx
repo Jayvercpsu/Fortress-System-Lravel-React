@@ -42,6 +42,11 @@ const shortcutSectionStyle = {
     background: 'var(--surface-2)',
 };
 
+const shortcutButtonStyle = {
+    padding: '8px 12px',
+    fontSize: 13,
+};
+
 const money = (value) =>
     `P ${Number(value || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
@@ -410,21 +415,15 @@ export default function AdminProjectsShow({
             <Layout title={`Project - ${project.name}`}>
                 <div style={{ display: 'flex', gap: 8, marginBottom: 14 }}>
                     {['overview', 'files', 'updates'].map((t) => (
-                        <button
+                        <ActionButton
                             key={t}
                             type="button"
                             onClick={() => setTab(t)}
-                            style={{
-                                border: '1px solid var(--border-color)',
-                                background: tab === t ? 'var(--active-bg)' : 'var(--button-bg)',
-                                color: tab === t ? 'var(--active-text)' : 'var(--text-main)',
-                                borderRadius: 8,
-                                padding: '8px 12px',
-                                cursor: 'pointer',
-                            }}
+                            active={tab === t}
+                            style={{ padding: '8px 12px' }}
                         >
                             {t.charAt(0).toUpperCase() + t.slice(1)}
-                        </button>
+                        </ActionButton>
                     ))}
                 </div>
 
@@ -437,7 +436,7 @@ export default function AdminProjectsShow({
                             <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: 0.3 }}>
                                 Design
                             </div>
-                            <ActionButton href={`/projects/${project.id}/design`} style={{ padding: '8px 12px', fontSize: 13 }}>
+                            <ActionButton href={`/projects/${project.id}/design`} style={shortcutButtonStyle}>
                                 Open Design Tracker
                             </ActionButton>
                         </div>
@@ -447,21 +446,20 @@ export default function AdminProjectsShow({
                                 Build
                             </div>
                             <div style={{ display: 'grid', gap: 8 }}>
-                                <ActionButton href={`/projects/${project.id}/build`} style={{ padding: '8px 12px', fontSize: 13 }}>
+                                <ActionButton href={`/projects/${project.id}/build`} style={shortcutButtonStyle}>
                                     Open Build Tracker
                                 </ActionButton>
-                                <ActionButton href={`/projects/${project.id}/monitoring`} style={{ padding: '8px 12px', fontSize: 13 }}>
+                                <ActionButton href={`/projects/${project.id}/monitoring`} style={shortcutButtonStyle}>
                                     Open Monitoring Board
                                 </ActionButton>
-                                <a
+                                <ActionButton
                                     href={`/projects/${project.id}/client-receipt`}
-                                    style={shortcutLinkStyle}
-                                    target="_blank"
-                                    rel="noreferrer noopener"
+                                    style={shortcutButtonStyle}
+                                    external
                                     data-inertia="false"
                                 >
                                     View Client Receipt
-                                </a>
+                                </ActionButton>
                             </div>
                         </div>
                     </div>

@@ -1,17 +1,5 @@
 import { router } from '@inertiajs/react';
-
-const pagerBtn = (enabled) => ({
-    border: '1px solid var(--border-color)',
-    borderRadius: 8,
-    padding: '6px 10px',
-    fontSize: 11,
-    fontWeight: 700,
-    lineHeight: 1,
-    cursor: enabled ? 'pointer' : 'not-allowed',
-    background: 'var(--button-bg)',
-    color: 'var(--text-main)',
-    opacity: enabled ? 1 : 0.55,
-});
+import ActionButton from './ActionButton';
 
 export default function InlinePagination({
     pager,
@@ -48,26 +36,26 @@ export default function InlinePagination({
                 Showing {from}-{to} of {totalItems}
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                <button
+                <ActionButton
                     type="button"
                     onClick={() => goTo(pager.prev_page_url)}
                     disabled={!pager?.prev_page_url}
-                    style={pagerBtn(Boolean(pager?.prev_page_url))}
+                    style={{ padding: '6px 10px', fontSize: 11, fontWeight: 700, lineHeight: 1 }}
                 >
                     Prev
-                </button>
+                </ActionButton>
                 <div style={{ minWidth: 62, textAlign: 'center', fontSize: 11, color: 'var(--text-muted)' }}>
                     {currentPage} / {totalPages}
                     {pageLabelSuffix ? ` ${pageLabelSuffix}` : ''}
                 </div>
-                <button
+                <ActionButton
                     type="button"
                     onClick={() => goTo(pager.next_page_url)}
                     disabled={!pager?.next_page_url}
-                    style={pagerBtn(Boolean(pager?.next_page_url))}
+                    style={{ padding: '6px 10px', fontSize: 11, fontWeight: 700, lineHeight: 1 }}
                 >
                     Next
-                </button>
+                </ActionButton>
             </div>
         </div>
     );

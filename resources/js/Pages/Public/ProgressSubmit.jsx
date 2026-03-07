@@ -199,6 +199,7 @@ const humanize = (value) => {
 export default function ProgressSubmit({ submitToken }) {
     const { flash, errors = {} } = usePage().props;
     const base = typeof window === 'undefined' ? `/progress-submit/${submitToken?.token || ''}` : window.location.pathname.replace(/\/$/, '');
+    const receiptUrl = String(submitToken?.receipt_url || '').trim() || `/progress-receipt/${submitToken?.token || ''}`;
     const workers = Array.isArray(submitToken?.workers) ? submitToken.workers : [];
     const scopes = Array.isArray(submitToken?.weekly_scope_of_works) && submitToken.weekly_scope_of_works.length ? submitToken.weekly_scope_of_works : SCOPES;
     const weeklyScopePhotoMap = submitToken?.weekly_scope_photo_map && typeof submitToken.weekly_scope_photo_map === 'object'

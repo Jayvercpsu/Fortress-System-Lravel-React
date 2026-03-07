@@ -1,6 +1,6 @@
 import ActionButton from './ActionButton';
 import Modal from './Modal';
-import { Link, router } from '@inertiajs/react';
+import { router } from '@inertiajs/react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import toast from 'react-hot-toast';
 
@@ -179,15 +179,19 @@ export default function ProjectsKanbanPage({
                             placeholder="Search projects..."
                             style={{ ...input, minWidth: 320, flex: '1 1 100%', maxWidth: 640 }}
                         />
-                    <ActionButton type="submit" style={{ background: 'var(--success)', color: '#fff', border: 'none', borderRadius: 8, padding: '9px 14px', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>Search</ActionButton>
-                    <ActionButton type="button" onClick={clearSearch} style={{ background: 'var(--button-bg)', color: 'var(--text-main)', border: '1px solid var(--border-color)', borderRadius: 8, padding: '9px 14px', fontSize: 13, cursor: 'pointer' }}>Clear</ActionButton>
+                        <ActionButton type="submit" variant="success" style={{ padding: '9px 14px', fontSize: 13 }}>
+                            Search
+                        </ActionButton>
+                        <ActionButton type="button" onClick={clearSearch} style={{ padding: '9px 14px', fontSize: 13 }}>
+                            Clear
+                        </ActionButton>
                 </form>
 
                 <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
                     {canCreate && (
-                        <Link href="/projects/create" style={{ background: 'var(--success)', color: '#fff', borderRadius: 8, padding: '9px 14px', textDecoration: 'none', fontSize: 13, fontWeight: 600 }}>
+                        <ActionButton href="/projects/create" variant="success" style={{ padding: '9px 14px', fontSize: 13 }}>
                             + Create Project
-                        </Link>
+                        </ActionButton>
                     )}
                 </div>
             </div>
@@ -324,7 +328,7 @@ export default function ProjectsKanbanPage({
                                                         {project.client || 'No client'}
                                                     </div>
                                                 </div>
-                                                <button
+                                                <ActionButton
                                                     type="button"
                                                     draggable
                                                     onDragStart={(e) => {
@@ -336,10 +340,10 @@ export default function ProjectsKanbanPage({
                                                         setDropKey('');
                                                     }}
                                                     title="Drag to another phase"
-                                                    style={{ border: '1px solid var(--border-color)', background: 'var(--button-bg)', color: 'var(--text-muted)', borderRadius: 8, padding: '6px 8px', fontSize: 11, cursor: 'grab' }}
+                                                    style={{ color: 'var(--text-muted)', padding: '6px 8px', fontSize: 11, cursor: 'grab' }}
                                                 >
                                                     Drag
-                                                </button>
+                                                </ActionButton>
                                             </div>
 
                                             <label style={{ display: 'grid', gap: 4 }}>

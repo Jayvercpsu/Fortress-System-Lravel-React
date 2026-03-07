@@ -390,9 +390,9 @@ export default function ForemanDashboard({
                         <div style={cardStyle}>
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
                                 <div style={{ fontWeight: 700 }}>Assigned Projects</div>
-                                <Link href="/foreman/submissions" style={{ fontSize: 12, color: 'var(--active-text)', textDecoration: 'none' }}>
+                                <ActionButton href="/foreman/submissions" variant="view" style={{ padding: '6px 10px' }}>
                                     Go to Submissions
-                                </Link>
+                                </ActionButton>
                             </div>
 
                             {assignedProjects.length === 0 ? (
@@ -634,38 +634,20 @@ export default function ForemanDashboard({
                                 </label>
                             </div>
                             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                                <button
+                                <ActionButton
                                     type="button"
                                     onClick={applyWeeklyProjectFilters}
-                                    style={{
-                                        border: '1px solid var(--border-color)',
-                                        borderRadius: 8,
-                                        padding: '7px 12px',
-                                        fontSize: 12,
-                                        fontWeight: 700,
-                                        background: 'var(--button-bg)',
-                                        color: 'var(--text-main)',
-                                        cursor: 'pointer',
-                                    }}
+                                    style={{ padding: '7px 12px', fontSize: 12, fontWeight: 700 }}
                                 >
                                     Apply Filter
-                                </button>
-                                <button
+                                </ActionButton>
+                                <ActionButton
                                     type="button"
                                     onClick={resetWeeklyProjectFilters}
-                                    style={{
-                                        border: '1px solid var(--border-color)',
-                                        borderRadius: 8,
-                                        padding: '7px 12px',
-                                        fontSize: 12,
-                                        fontWeight: 700,
-                                        background: 'transparent',
-                                        color: 'var(--text-main)',
-                                        cursor: 'pointer',
-                                    }}
+                                    style={{ padding: '7px 12px', fontSize: 12, fontWeight: 700 }}
                                 >
                                     Reset
-                                </button>
+                                </ActionButton>
                             </div>
                         </div>
 
@@ -793,23 +775,13 @@ export default function ForemanDashboard({
                                 <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{dashboardPreviewPhoto.meta}</div>
                             ) : null}
                             <div style={{ textAlign: 'right' }}>
-                                <a
+                                <ActionButton
                                     href={`/storage/${dashboardPreviewPhoto.photo_path}`}
-                                    target="_blank"
-                                    rel="noreferrer"
-                                    style={{
-                                        border: '1px solid var(--border-color)',
-                                        borderRadius: 8,
-                                        padding: '6px 12px',
-                                        fontSize: 12,
-                                        fontWeight: 700,
-                                        textDecoration: 'none',
-                                        color: 'var(--text-main)',
-                                        background: 'var(--button-bg)',
-                                    }}
+                                    external
+                                    style={{ padding: '6px 12px', fontSize: 12, fontWeight: 700 }}
                                 >
                                     Open in new tab
-                                </a>
+                                </ActionButton>
                             </div>
                         </div>
                     )}

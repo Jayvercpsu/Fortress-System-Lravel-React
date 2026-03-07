@@ -1,7 +1,8 @@
 import Layout from '../../Components/Layout';
+import ActionButton from '../../Components/ActionButton';
 import InlinePagination from '../../Components/InlinePagination';
 import Modal from '../../Components/Modal';
-import { Head, Link, usePage } from '@inertiajs/react';
+import { Head, usePage } from '@inertiajs/react';
 import { useEffect, useMemo, useState } from 'react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import toast from 'react-hot-toast';
@@ -12,17 +13,6 @@ const card = {
     borderRadius: 12,
     padding: 16,
 };
-
-const btn = (primary = false) => ({
-    border: primary ? 'none' : '1px solid var(--border-color)',
-    borderRadius: 8,
-    padding: '8px 12px',
-    fontSize: 12,
-    fontWeight: 700,
-    cursor: 'pointer',
-    background: primary ? 'var(--success)' : 'var(--button-bg)',
-    color: primary ? '#fff' : 'var(--text-main)',
-});
 
 const previewArrowBtn = (enabled, side) => ({
     position: 'absolute',
@@ -235,9 +225,9 @@ export default function ForemanSubmissions({
                                 </div>
                             </div>
                             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                                <Link href="/foreman" style={{ ...btn(false), textDecoration: 'none' }}>Dashboard</Link>
-                                <Link href="/foreman/attendance" style={{ ...btn(false), textDecoration: 'none' }}>Attendance</Link>
-                                <Link href="/foreman/workers" style={{ ...btn(false), textDecoration: 'none' }}>Workers</Link>
+                                <ActionButton href="/foreman" style={{ padding: '8px 12px' }}>Dashboard</ActionButton>
+                                <ActionButton href="/foreman/attendance" style={{ padding: '8px 12px' }}>Attendance</ActionButton>
+                                <ActionButton href="/foreman/workers" style={{ padding: '8px 12px' }}>Workers</ActionButton>
                             </div>
                         </div>
                     </div>
@@ -268,14 +258,14 @@ export default function ForemanSubmissions({
                                                 {project.client || '-'} | {project.phase || '-'} | {project.status || '-'}
                                             </div>
                                         </div>
-                                        <a
+                                        <ActionButton
                                             href={project.public_submit_url}
-                                            target="_blank"
-                                            rel="noreferrer"
-                                            style={{ ...btn(true), textDecoration: 'none' }}
+                                            external
+                                            variant="success"
+                                            style={{ padding: '8px 12px' }}
                                         >
                                             Open Jotform
-                                        </a>
+                                        </ActionButton>
                                     </div>
                                 ))}
                             </div>
@@ -657,14 +647,13 @@ export default function ForemanSubmissions({
                                 <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
                                     {currentPreviewIndex >= 0 ? `${currentPreviewIndex + 1} / ${progressPhotosPager.data.length} (this page)` : '-'}
                                 </div>
-                                <a
+                                <ActionButton
                                     href={`/storage/${previewPhoto.photo_path}`}
-                                    target="_blank"
-                                    rel="noreferrer"
-                                    style={{ ...btn(false), textDecoration: 'none' }}
+                                    external
+                                    style={{ padding: '8px 12px' }}
                                 >
                                     Open in new tab
-                                </a>
+                                </ActionButton>
                             </div>
                         </div>
                     )}

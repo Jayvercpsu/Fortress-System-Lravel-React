@@ -14,6 +14,8 @@ const baseStyle = {
     whiteSpace: 'nowrap',
     border: '1px solid var(--border-color)',
     background: 'var(--button-bg)',
+    boxSizing: 'border-box',
+    cursor: 'pointer',
 };
 
 const variantStyle = {
@@ -42,10 +44,17 @@ const variantStyle = {
     },
 };
 
+const activeStyle = {
+    color: 'var(--active-text)',
+    border: '1px solid color-mix(in srgb, var(--active-text) 25%, var(--border-color))',
+    background: 'var(--active-bg)',
+};
+
 export default function ActionButton({
     href,
     external = false,
     variant = 'neutral',
+    active = false,
     style,
     children,
     type = 'button',
@@ -55,6 +64,7 @@ export default function ActionButton({
     const resolvedStyle = {
         ...baseStyle,
         ...(variantStyle[variant] || variantStyle.neutral),
+        ...(active ? activeStyle : {}),
         ...(disabled
             ? {
                   opacity: 0.6,
@@ -65,6 +75,14 @@ export default function ActionButton({
     };
 
     if (href) {
+        if (disabled) {
+            return (
+                <span aria-disabled="true" style={resolvedStyle}>
+                    {children}
+                </span>
+            );
+        }
+
         if (external) {
             return (
                 <a
@@ -90,10 +108,7 @@ export default function ActionButton({
         <button
             type={type}
             disabled={disabled}
-            style={{
-                ...resolvedStyle,
-                cursor: disabled ? 'not-allowed' : 'pointer',
-            }}
+            style={resolvedStyle}
             {...rest}
         >
             {children}

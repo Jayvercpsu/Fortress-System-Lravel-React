@@ -650,7 +650,6 @@ class ProjectController extends Controller
             'assigned_role' => $this->normalizeProjectAssignedRoleList($project->assigned_role ?? null),
             'assigned' => $project->assigned,
             'target' => optional($project->target)->toDateString(),
-            'status' => $this->normalizeProjectStatus($project->status),
             'phase' => $this->normalizeProjectPhase($project->phase),
             'overall_progress' => (int) ($project->overall_progress ?? 0),
             'contract_amount' => (float) ($project->contract_amount ?? 0),

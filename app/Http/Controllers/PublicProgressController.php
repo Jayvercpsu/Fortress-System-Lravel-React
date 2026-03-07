@@ -326,7 +326,7 @@ class PublicProgressController extends Controller
                 'project_name' => $submitToken->project->name,
                 'foreman_name' => $submitToken->foreman->fullname,
                 'expires_at' => optional($submitToken->expires_at)?->toDateTimeString(),
-                'receipt_url' => route('public.progress-receipt.show', ['token' => $submitToken->token]),
+                'receipt_url' => route('public.progress-receipt', ['token' => $submitToken->token]),
                 'workers' => $workers,
                 'weekly_scope_of_works' => $weeklyScopeOfWorks,
                 'weekly_scope_photo_map' => $weeklyScopePhotoMap,

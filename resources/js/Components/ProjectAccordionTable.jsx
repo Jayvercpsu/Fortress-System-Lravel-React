@@ -1,5 +1,6 @@
 import { router } from '@inertiajs/react';
 import { useEffect, useMemo, useState } from 'react';
+import ActionButton from './ActionButton';
 
 const controlStyle = {
     background: 'var(--surface-2)',
@@ -342,25 +343,25 @@ export default function ProjectAccordionTable({
                                                     {Math.min(startIndex + groupPageSize, group.rows.length)} of {group.rows.length}
                                                 </div>
                                                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                                                    <button
+                                                    <ActionButton
                                                         type="button"
                                                         style={controlStyle}
                                                         onClick={() => setGroupPageByKey((prev) => ({ ...prev, [group.key]: Math.max(1, safeGroupPage - 1) }))}
                                                         disabled={safeGroupPage <= 1}
                                                     >
                                                         Prev
-                                                    </button>
+                                                    </ActionButton>
                                                     <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
                                                         Page {safeGroupPage} of {groupLastPage}
                                                     </div>
-                                                    <button
+                                                    <ActionButton
                                                         type="button"
                                                         style={controlStyle}
                                                         onClick={() => setGroupPageByKey((prev) => ({ ...prev, [group.key]: Math.min(groupLastPage, safeGroupPage + 1) }))}
                                                         disabled={safeGroupPage >= groupLastPage}
                                                     >
                                                         Next
-                                                    </button>
+                                                    </ActionButton>
                                                 </div>
                                             </div>
                                         ) : null}
@@ -379,33 +380,25 @@ export default function ProjectAccordionTable({
                 </div>
 
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <button
+                    <ActionButton
                         type="button"
                         onClick={() => applyTablePage(Math.max(1, tableState.page - 1))}
                         disabled={tableState.page <= 1}
-                        style={{
-                            ...controlStyle,
-                            cursor: tableState.page <= 1 ? 'not-allowed' : 'pointer',
-                            opacity: tableState.page <= 1 ? 0.6 : 1,
-                        }}
+                        style={controlStyle}
                     >
                         Prev
-                    </button>
+                    </ActionButton>
                     <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
                         Page {tableState.page} of {totalPages}
                     </div>
-                    <button
+                    <ActionButton
                         type="button"
                         onClick={() => applyTablePage(Math.min(totalPages, tableState.page + 1))}
                         disabled={tableState.page >= totalPages}
-                        style={{
-                            ...controlStyle,
-                            cursor: tableState.page >= totalPages ? 'not-allowed' : 'pointer',
-                            opacity: tableState.page >= totalPages ? 0.6 : 1,
-                        }}
+                        style={controlStyle}
                     >
                         Next
-                    </button>
+                    </ActionButton>
                 </div>
             </div>
         </div>

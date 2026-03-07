@@ -339,6 +339,7 @@ export default function Layout({ children, title }) {
                                     alignItems: 'center',
                                     justifyContent: 'center',
                                     gap: 8,
+                                    whiteSpace: 'nowrap',
                                 }}
                             >
                                 {isLoggingOut ? (

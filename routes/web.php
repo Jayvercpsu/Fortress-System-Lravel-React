@@ -31,7 +31,7 @@ Route::get('/login', [AuthController::class, 'showLogin'])->name('login');
 Route::post('/login', [AuthController::class, 'login']);
 Route::post('/logout', [AuthController::class, 'logout'])->name('logout');
 Route::get('/progress-submit/{token}', [PublicProgressController::class, 'show'])->name('public.progress-submit.show');
-Route::get('/progress-receipt/{token}', [PublicProgressController::class, 'receipt'])->name('public.progress-receipt.show');
+Route::get('/progress-receipt/{token}', [PublicProgressController::class, 'receipt'])->name('public.progress-receipt');
 Route::post('/progress-submit/{token}', [PublicProgressController::class, 'store'])->name('public.progress-submit.store');
 Route::post('/progress-submit/{token}/submit-all', [PublicProgressController::class, 'storeAll'])->name('public.progress-submit.submit_all');
 Route::post('/progress-submit/{token}/attendance', [PublicProgressController::class, 'storeAttendance'])->name('public.progress-submit.attendance');
@@ -40,7 +40,6 @@ Route::post('/progress-submit/{token}/material-request', [PublicProgressControll
 Route::post('/progress-submit/{token}/weekly-progress', [PublicProgressController::class, 'storeWeeklyProgress'])->name('public.progress-submit.weekly');
 Route::post('/progress-submit/{token}/photo', [PublicProgressController::class, 'storePhoto'])->name('public.progress-submit.photo');
 Route::post('/progress-submit/{token}/issue-report', [PublicProgressController::class, 'storeIssueReport'])->name('public.progress-submit.issue');
-Route::get('/progress-receipt/{token}', [PublicProgressController::class, 'receipt'])->name('public.progress-receipt');
 
 Route::middleware(['auth', 'role:head_admin,admin,hr,foreman'])->group(function () {
     Route::get('/settings', [SettingsController::class, 'index'])->name('settings.index');
