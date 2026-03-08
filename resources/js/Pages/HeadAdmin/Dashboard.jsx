@@ -16,13 +16,27 @@ const money = (value) =>
 const countMap = (items = []) =>
     Object.fromEntries((items || []).map((item) => [item.label, Number(item.count || 0)]));
 
+const toStatTestId = (label) =>
+    String(label || '')
+        .trim()
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/^-+|-+$/g, '');
+
 function StatCard({ label, value, color = 'var(--text-main)' }) {
+    const statId = toStatTestId(label);
+
     return (
-        <div style={cardStyle}>
+        <div data-testid={`stat-card-${statId}`} style={cardStyle}>
             <div style={{ fontSize: 12, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: 8 }}>
                 {label}
             </div>
-            <div style={{ fontWeight: 700, fontSize: 24, color, fontFamily: "'DM Mono', monospace" }}>{value}</div>
+            <div
+                data-testid={`stat-value-${statId}`}
+                style={{ fontWeight: 700, fontSize: 24, color, fontFamily: "'DM Mono', monospace" }}
+            >
+                {value}
+            </div>
         </div>
     );
 }
@@ -59,10 +73,17 @@ function CountBreakdown({ title, items = [] }) {
 }
 
 function SummaryRow({ label, value, strong = false }) {
+    const summaryId = toStatTestId(label);
+
     return (
-        <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, fontSize: 13 }}>
+        <div data-testid={`summary-row-${summaryId}`} style={{ display: 'flex', justifyContent: 'space-between', gap: 10, fontSize: 13 }}>
             <span>{label}</span>
-            <span style={{ fontFamily: "'DM Mono', monospace", fontWeight: strong ? 700 : 600 }}>{value}</span>
+            <span
+                data-testid={`summary-value-${summaryId}`}
+                style={{ fontFamily: "'DM Mono', monospace", fontWeight: strong ? 700 : 600 }}
+            >
+                {value}
+            </span>
         </div>
     );
 }

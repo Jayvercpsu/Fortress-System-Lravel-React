@@ -4,9 +4,13 @@
     "type": "module",
     "scripts": {
         "build": "vite build",
-        "dev": "vite"
+        "dev": "vite",
+        "e2e": "playwright test",
+        "e2e:headed": "playwright test --headed",
+        "e2e:ui": "playwright test --ui"
     },
     "devDependencies": {
+        "@playwright/test": "^1.58.2",
         "@vitejs/plugin-react": "^5.1.4",
         "autoprefixer": "^10.4.24",
         "axios": "^1.11.0",

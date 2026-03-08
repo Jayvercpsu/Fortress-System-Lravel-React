@@ -229,6 +229,7 @@ export default function ProjectsKanbanPage({
                         return (
                             <div
                                 key={column.key}
+                                data-testid={`kanban-column-${column.key}`}
                                 onDragOver={(e) => {
                                     if (!draggingProject) return;
                                     e.preventDefault();
@@ -268,6 +269,8 @@ export default function ProjectsKanbanPage({
                                         <div
                                             key={project.id}
                                             className="kanban-project-card"
+                                            data-testid="kanban-card"
+                                            data-project-id={project.id}
                                             style={{
                                                 background: 'var(--surface-2)',
                                                 border: '1px solid var(--border-color)',
@@ -313,6 +316,7 @@ export default function ProjectsKanbanPage({
                                                 <ActionButton
                                                     type="button"
                                                     draggable
+                                                    data-testid={`kanban-drag-${project.id}`}
                                                     onDragStart={(e) => {
                                                         setDraggingProject({ id: project.id, name: project.name, phase: project.phase });
                                                         e.dataTransfer.effectAllowed = 'move';
@@ -334,6 +338,7 @@ export default function ProjectsKanbanPage({
                                                     value={project.phase}
                                                     onChange={(e) => updatePhase(project, e.target.value)}
                                                     disabled={updatingId === project.id}
+                                                    data-testid={`kanban-phase-${project.id}`}
                                                     style={{ ...input, padding: '7px 10px', fontSize: 12 }}
                                                 >
                                                     {phaseOptions.map((phase) => <option key={phase} value={phase}>{phase}</option>)}

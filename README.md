@@ -47,4 +47,18 @@ pass jayjay@gmail.com123
 | HR         | Dashboard, Payroll | Add payroll entries, update status                                |
 | Foreman    | Dashboard          | Submit attendance, accomplishments, materials, issues, deliveries |
 
+UI AUTOMATION (PLAYWRIGHT)
+
+Install browser runtime:
+`npx playwright install chromium`
+
+Run tests:
+`npm run e2e`
+
+Run headed:
+`npm run e2e:headed`
+
+Open Playwright UI:
+`npm run e2e:ui`
+
  

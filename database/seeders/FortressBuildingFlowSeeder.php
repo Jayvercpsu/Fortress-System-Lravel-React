@@ -107,7 +107,13 @@ class FortressBuildingFlowSeeder extends Seeder
 
         $seedAdmin = User::query()
             ->whereIn('email', ['headadmin@buildbooks.com', 'admin@buildbooks.com'])
-            ->orderByRaw("FIELD(email, 'headadmin@buildbooks.com', 'admin@buildbooks.com')")
+            ->orderByRaw("
+                case
+                    when email = 'headadmin@buildbooks.com' then 0
+                    when email = 'admin@buildbooks.com' then 1
+                    else 2
+                end
+            ")
             ->first()
             ?: User::query()->updateOrCreate(
                 ['email' => 'fortress.seed.admin@buildbooks.com'],

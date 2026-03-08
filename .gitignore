@@ -16,6 +16,10 @@
 /public/build
 /public/hot
 /public/storage
+/playwright-report
+/test-results
+/blob-report
+/database/playwright.sqlite
 /storage/*.key
 /storage/pail
 /vendor

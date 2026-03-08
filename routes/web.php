@@ -125,6 +125,10 @@ Route::middleware(['auth', 'role:head_admin,admin'])->group(function () {
     Route::delete('/project-team/{projectWorker}', [ProjectController::class, 'destroyTeamMember'])->name('projects.team.destroy');
     Route::get('/projects/{project}/build', [BuildController::class, 'show'])->name('build.show');
     Route::patch('/projects/{project}/build', [BuildController::class, 'update'])->name('build.update');
+    Route::get('/projects/{project}/expenses', [ExpenseController::class, 'index'])->name('expenses.index');
+    Route::post('/projects/{project}/expenses', [ExpenseController::class, 'store'])->name('expenses.store');
+    Route::patch('/expenses/{expense}', [ExpenseController::class, 'update'])->name('expenses.update');
+    Route::delete('/expenses/{expense}', [ExpenseController::class, 'destroy'])->name('expenses.destroy');
 
     Route::get('/projects/{project}/monitoring', [MonitoringController::class, 'show'])->name('monitoring.show');
     Route::post('/projects/{project}/scopes', [MonitoringController::class, 'store'])->name('scopes.store');
@@ -133,22 +137,16 @@ Route::middleware(['auth', 'role:head_admin,admin'])->group(function () {
     Route::post('/scopes/{scope}/photos', [ScopePhotoController::class, 'store'])->name('scope-photos.store');
     Route::delete('/scope-photos/{photo}', [ScopePhotoController::class, 'destroy'])->name('scope-photos.destroy');
     Route::get('/progress-photos', [ProgressPhotoController::class, 'index'])->name('progress-photos.index');
+    Route::get('/projects/{project}/files', [ProjectFileController::class, 'index'])->name('project-files.index');
+    Route::post('/projects/{project}/files', [ProjectFileController::class, 'store'])->name('project-files.store');
+    Route::delete('/project-files/{projectFile}', [ProjectFileController::class, 'destroy'])->name('project-files.destroy');
+    Route::get('/projects/{project}/updates', [ProjectUpdateController::class, 'index'])->name('project-updates.index');
+    Route::post('/projects/{project}/updates', [ProjectUpdateController::class, 'store'])->name('project-updates.store');
     Route::get('/projects/{project}/client-receipt', [ProjectController::class, 'projectReceipt'])->name('projects.client_receipt');
     Route::get('/projects/{project}', [ProjectController::class, 'show'])->name('projects.show');
 });
 
 Route::middleware(['auth', 'role:head_admin'])->group(function () {
-    Route::get('/projects/{project}/expenses', [ExpenseController::class, 'index'])->name('expenses.index');
-    Route::post('/projects/{project}/expenses', [ExpenseController::class, 'store'])->name('expenses.store');
-    Route::patch('/expenses/{expense}', [ExpenseController::class, 'update'])->name('expenses.update');
-    Route::delete('/expenses/{expense}', [ExpenseController::class, 'destroy'])->name('expenses.destroy');
-
-    Route::get('/projects/{project}/files', [ProjectFileController::class, 'index'])->name('project-files.index');
-    Route::post('/projects/{project}/files', [ProjectFileController::class, 'store'])->name('project-files.store');
-    Route::delete('/project-files/{projectFile}', [ProjectFileController::class, 'destroy'])->name('project-files.destroy');
-
-    Route::get('/projects/{project}/updates', [ProjectUpdateController::class, 'index'])->name('project-updates.index');
-    Route::post('/projects/{project}/updates', [ProjectUpdateController::class, 'store'])->name('project-updates.store');
 });
 
 Route::middleware(['auth', 'role:head_admin,hr'])->group(function () {

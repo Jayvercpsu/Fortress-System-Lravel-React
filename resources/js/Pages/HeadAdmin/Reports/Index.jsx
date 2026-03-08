@@ -18,13 +18,27 @@ const receiptLinkStyle = {
 const money = (value) =>
     `P ${Number(value || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
+const toStatTestId = (label) =>
+    String(label || '')
+        .trim()
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/^-+|-+$/g, '');
+
 function StatCard({ label, value, color = 'var(--text-main)' }) {
+    const statId = toStatTestId(label);
+
     return (
-        <div style={cardStyle}>
+        <div data-testid={`stat-card-${statId}`} style={cardStyle}>
             <div style={{ fontSize: 12, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: 8 }}>
                 {label}
             </div>
-            <div style={{ fontSize: 24, fontWeight: 700, color, fontFamily: "'DM Mono', monospace" }}>{value}</div>
+            <div
+                data-testid={`stat-value-${statId}`}
+                style={{ fontSize: 24, fontWeight: 700, color, fontFamily: "'DM Mono', monospace" }}
+            >
+                {value}
+            </div>
         </div>
     );
 }
