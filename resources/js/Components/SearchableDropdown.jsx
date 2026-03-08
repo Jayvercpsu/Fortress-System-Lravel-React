@@ -26,6 +26,8 @@ export default function SearchableDropdown({
     emptyMessage = 'No options found',
     disabled = false,
     clearable = false,
+    pageSize,
+    loadMoreLabel = 'Load more',
     style = {},
     dropdownWidth,
     getOptionLabel = (option) => option?.label ?? option?.name ?? String(option ?? ''),
@@ -36,6 +38,9 @@ export default function SearchableDropdown({
     const [open, setOpen] = useState(false);
     const [query, setQuery] = useState('');
     const [hoveredValue, setHoveredValue] = useState(null);
+    const normalizedPageSize = Number(pageSize);
+    const hasPagination = Number.isFinite(normalizedPageSize) && normalizedPageSize > 0;
+    const [visibleCount, setVisibleCount] = useState(hasPagination ? normalizedPageSize : options.length);
 
     const selectedOption = useMemo(
         () => options.find((option) => String(getOptionValue(option)) === String(value)),
@@ -47,6 +52,13 @@ export default function SearchableDropdown({
         if (!needle) return options;
         return options.filter((option) => String(getOptionLabel(option)).toLowerCase().includes(needle));
     }, [options, query, getOptionLabel]);
+
+    const visibleOptions = useMemo(() => {
+        if (!hasPagination) return filteredOptions;
+        return filteredOptions.slice(0, visibleCount);
+    }, [filteredOptions, hasPagination, visibleCount]);
+
+    const canLoadMore = hasPagination && visibleOptions.length < filteredOptions.length;
 
     useEffect(() => {
         if (!open) return;
@@ -86,6 +98,10 @@ export default function SearchableDropdown({
         setQuery('');
         setHoveredValue(null);
     }, [open]);
+
+    useEffect(() => {
+        setVisibleCount(hasPagination ? normalizedPageSize : filteredOptions.length);
+    }, [hasPagination, normalizedPageSize, query, filteredOptions.length, open]);
 
     const selectOption = (option) => {
         onChange?.(String(getOptionValue(option)), option);
@@ -214,7 +230,7 @@ export default function SearchableDropdown({
                         {filteredOptions.length === 0 ? (
                             <div style={{ padding: '10px 10px', fontSize: 12, color: 'var(--text-muted)' }}>{emptyMessage}</div>
                         ) : (
-                            filteredOptions.map((option) => {
+                            visibleOptions.map((option) => {
                                 const optionValue = String(getOptionValue(option));
                                 const selected = String(value) === optionValue;
                                 const hovered = hoveredValue === optionValue;
@@ -256,6 +272,27 @@ export default function SearchableDropdown({
                                 );
                             })
                         )}
+
+                        {canLoadMore ? (
+                            <div style={{ padding: '6px 4px 2px' }}>
+                                <button
+                                    type="button"
+                                    onClick={() => setVisibleCount((prev) => prev + normalizedPageSize)}
+                                    style={{
+                                        width: '100%',
+                                        border: '1px solid var(--border-color)',
+                                        background: 'var(--surface-2)',
+                                        color: 'var(--text-main)',
+                                        borderRadius: 8,
+                                        padding: '8px 10px',
+                                        fontSize: 12,
+                                        cursor: 'pointer',
+                                    }}
+                                >
+                                    {loadMoreLabel}
+                                </button>
+                            </div>
+                        ) : null}
                     </div>
                 </div>
             )}

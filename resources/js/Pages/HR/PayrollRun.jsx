@@ -245,6 +245,8 @@ export default function PayrollRun({
                     placeholder="Select cutoff"
                     searchPlaceholder="Search cutoffs..."
                     emptyMessage="No cutoffs found"
+                    pageSize={5}
+                    loadMoreLabel="Load more"
                 />
             </div>
         </div>
