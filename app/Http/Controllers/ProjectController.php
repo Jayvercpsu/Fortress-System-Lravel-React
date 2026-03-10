@@ -25,6 +25,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use Illuminate\Validation\ValidationException;
 use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 
@@ -32,9 +33,7 @@ class ProjectController extends Controller
 {
     private const PROJECT_PHASES = [
         'Design',
-        'ForBuild',
         'Construction',
-        'Turnover',
         'Completed',
     ];
 
@@ -76,6 +75,8 @@ class ProjectController extends Controller
             $total = (clone $phaseQuery)->count();
 
             $items = $phaseQuery
+                ->with(['designTracker:id,project_id,design_progress,client_approval_status'])
+                ->withCount('transferredProjects')
                 ->orderByDesc('created_at')
                 ->orderByDesc('id')
                 ->limit($visibleLimit)
@@ -376,6 +377,61 @@ class ProjectController extends Controller
             ->with('success', 'Project phase updated successfully.');
     }
 
+    public function transferToConstruction(Request $request, Project $project)
+    {
+        abort_unless(in_array($request->user()->role, ['head_admin', 'admin'], true), 403);
+
+        if ($project->source_project_id !== null || $this->normalizeProjectPhase($project->phase) !== 'Design') {
+            throw ValidationException::withMessages([
+                'transfer' => 'Only Design projects can be transferred to Construction.',
+            ]);
+        }
+
+        $approvalStatus = strtolower(trim((string) ($project->designTracker?->client_approval_status ?? 'pending')));
+        if ($approvalStatus !== 'approved') {
+            throw ValidationException::withMessages([
+                'transfer' => 'Design project must be Approved before transfer to Construction.',
+            ]);
+        }
+
+        $alreadyTransferred = Project::withTrashed()
+            ->where('source_project_id', $project->id)
+            ->exists();
+
+        if ($alreadyTransferred) {
+            throw ValidationException::withMessages([
+                'transfer' => 'Project was already transferred to Construction.',
+            ]);
+        }
+
+        $this->createConstructionDuplicate($project);
+
+        return redirect()
+            ->route('projects.index', $this->projectIndexQueryParams($request))
+            ->with('success', 'Project transferred to Construction successfully.');
+    }
+
+    public function transferToCompleted(Request $request, Project $project)
+    {
+        abort_unless(in_array($request->user()->role, ['head_admin', 'admin'], true), 403);
+
+        if ($this->normalizeProjectPhase($project->phase) !== 'Construction') {
+            throw ValidationException::withMessages([
+                'transfer' => 'Only Construction projects can be transferred to Completed.',
+            ]);
+        }
+
+        $project->update([
+            'phase' => 'Completed',
+            'status' => (string) config('fortress.project_status_completed', 'COMPLETED'),
+            'overall_progress' => 100,
+        ]);
+
+        return redirect()
+            ->route('projects.index', $this->projectIndexQueryParams($request))
+            ->with('success', 'Project transferred to Completed successfully.');
+    }
+
     public function updateAssignedForemen(Request $request, Project $project)
     {
         abort_unless(in_array($request->user()->role, ['head_admin', 'admin'], true), 403);
@@ -602,6 +658,44 @@ class ProjectController extends Controller
         ];
     }
 
+    private function createConstructionDuplicate(Project $source): Project
+    {
+        return DB::transaction(function () use ($source) {
+            $duplicate = Project::create([
+                'source_project_id' => $source->id,
+                'name' => $source->name,
+                'client' => $source->client,
+                'type' => $source->type,
+                'location' => $source->location,
+                'assigned_role' => $source->assigned_role,
+                'assigned' => $source->assigned,
+                'target' => $source->target,
+                'status' => 'PLANNING',
+                'phase' => 'Construction',
+                'overall_progress' => 0,
+                'contract_amount' => 0,
+                'design_fee' => 0,
+                'construction_cost' => 0,
+                'total_client_payment' => 0,
+                'remaining_balance' => 0,
+                'last_paid_date' => null,
+            ]);
+
+            BuildProject::firstOrCreate(
+                ['project_id' => $duplicate->id],
+                [
+                    'construction_contract' => 0,
+                    'total_client_payment' => 0,
+                    'materials_cost' => 0,
+                    'labor_cost' => 0,
+                    'equipment_cost' => 0,
+                ]
+            );
+
+            return $duplicate;
+        });
+    }
+
     private function projectShowQueryParams(Request $request): array
     {
         return array_filter([
@@ -784,8 +878,21 @@ class ProjectController extends Controller
 
     private function projectIndexCardPayload(Project $project): array
     {
+        $phase = $this->normalizeProjectPhase($project->phase);
+        $designProgress = (int) max(0, min(100, (int) ($project->designTracker?->design_progress ?? 0)));
+        $designApprovalStatus = $this->normalizeDesignApprovalStatus($project->designTracker?->client_approval_status);
+        $constructionProgress = (int) max(0, min(100, (int) ($project->overall_progress ?? 0)));
+        $kanbanProgress = $phase === 'Design' ? $designProgress : $constructionProgress;
+        $hasTransferredConstruction = $phase === 'Design' && (int) ($project->transferred_projects_count ?? 0) > 0;
+        $canTransferToConstruction = $phase === 'Design'
+            && $project->source_project_id === null
+            && !$hasTransferredConstruction
+            && $designApprovalStatus === 'Approved';
+        $canTransferToCompleted = $phase === 'Construction';
+
         return [
             'id' => $project->id,
+            'source_project_id' => $project->source_project_id !== null ? (int) $project->source_project_id : null,
             'name' => $project->name,
             'client' => $project->client,
             'type' => $project->type,
@@ -794,13 +901,30 @@ class ProjectController extends Controller
             'assigned' => $project->assigned,
             'target' => optional($project->target)->toDateString(),
             'status' => $this->normalizeProjectStatus($project->status),
-            'phase' => $this->normalizeProjectPhase($project->phase),
-            'overall_progress' => (int) ($project->overall_progress ?? 0),
+            'phase' => $phase,
+            'overall_progress' => $kanbanProgress,
+            'design_progress' => $designProgress,
+            'design_approval_status' => $designApprovalStatus,
+            'construction_progress' => $constructionProgress,
+            'can_transfer_to_construction' => $canTransferToConstruction,
+            'transfer_to_construction_used' => $hasTransferredConstruction,
+            'can_transfer_to_completed' => $canTransferToCompleted,
             'contract_amount' => (float) ($project->contract_amount ?? 0),
             'total_client_payment' => (float) ($project->total_client_payment ?? 0),
             'remaining_balance' => (float) ($project->remaining_balance ?? 0),
             'is_new_today' => (bool) optional($project->created_at)->isToday(),
         ];
+    }
+
+    private function normalizeDesignApprovalStatus(?string $status): string
+    {
+        $normalized = strtolower(trim((string) $status));
+
+        return match ($normalized) {
+            'approved' => 'Approved',
+            'rejected' => 'Rejected',
+            default => 'Pending',
+        };
     }
 
     private function applyProjectSearchFilter($query, string $search): void
@@ -823,10 +947,17 @@ class ProjectController extends Controller
 
     private function applyProjectPhaseFilter($query, string $phase): void
     {
-        $query->whereRaw(
-            "LOWER(REPLACE(REPLACE(REPLACE(COALESCE(phase, ''), '-', ''), ' ', ''), '_', '')) = ?",
-            [$this->projectPhaseMatchKey($phase)]
-        );
+        $keys = $this->projectPhaseMatchKeys($phase);
+
+        $query->where(function ($builder) use ($keys) {
+            foreach ($keys as $index => $key) {
+                $method = $index === 0 ? 'whereRaw' : 'orWhereRaw';
+                $builder->{$method}(
+                    "LOWER(REPLACE(REPLACE(REPLACE(COALESCE(phase, ''), '-', ''), ' ', ''), '_', '')) = ?",
+                    [$key]
+                );
+            }
+        });
     }
 
     private function projectPhasePageParam(string $phase): string
@@ -852,16 +983,25 @@ class ProjectController extends Controller
         return strtolower((string) preg_replace('/[^a-z0-9]+/i', '', $this->normalizeProjectPhase($phase)));
     }
 
+    private function projectPhaseMatchKeys(string $phase): array
+    {
+        $key = $this->projectPhaseMatchKey($phase);
+
+        return match ($key) {
+            'construction' => ['construction', 'forbuild'],
+            'completed' => ['completed', 'turnover'],
+            default => [$key],
+        };
+    }
+
     private function normalizeProjectPhase(?string $phase): string
     {
         $key = strtolower((string) preg_replace('/[^a-z0-9]+/i', '', trim((string) $phase)));
 
         return match ($key) {
             'design' => 'Design',
-            'forbuild' => 'ForBuild',
-            'construction' => 'Construction',
-            'turnover' => 'Turnover',
-            'completed' => 'Completed',
+            'forbuild', 'construction' => 'Construction',
+            'turnover', 'completed' => 'Completed',
             default => 'Design',
         };
     }

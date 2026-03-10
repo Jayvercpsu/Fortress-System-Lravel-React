@@ -22,6 +22,7 @@ use App\Http\Controllers\PublicProgressController;
 use App\Http\Controllers\ReportsController;
 use App\Http\Controllers\ScopePhotoController;
 use App\Http\Controllers\MonitoringController;
+use App\Http\Controllers\MonitoringBoardController;
 use App\Http\Controllers\ProjectUpdateController;
 use App\Http\Controllers\SettingsController;
 use Illuminate\Support\Facades\Route;
@@ -108,6 +109,13 @@ Route::middleware(['auth', 'role:foreman'])->group(function () {
 });
 
 Route::middleware(['auth', 'role:head_admin,admin'])->group(function () {
+    Route::get('/monitoring-board', [MonitoringBoardController::class, 'index'])->name('monitoring-board.index');
+    Route::post('/monitoring-board', [MonitoringBoardController::class, 'store'])->name('monitoring-board.store');
+    Route::patch('/monitoring-board/{item}', [MonitoringBoardController::class, 'update'])->name('monitoring-board.update');
+    Route::delete('/monitoring-board/{item}', [MonitoringBoardController::class, 'destroy'])->name('monitoring-board.destroy');
+    Route::post('/monitoring-board/{item}/files', [MonitoringBoardController::class, 'storeFile'])->name('monitoring-board.files.store');
+    Route::delete('/monitoring-board-files/{file}', [MonitoringBoardController::class, 'destroyFile'])->name('monitoring-board.files.destroy');
+
     Route::get('/attendance/summary', [AttendanceController::class, 'summary'])->name('attendance.summary');
     Route::get('/attendance', [AttendanceController::class, 'index'])->name('attendance.index');
     Route::get('/reports', [ReportsController::class, 'index'])->name('reports.index');
@@ -124,6 +132,8 @@ Route::middleware(['auth', 'role:head_admin,admin'])->group(function () {
     Route::get('/projects/{project}/edit', [ProjectController::class, 'edit'])->name('projects.edit');
     Route::patch('/projects/{project}/assigned-foremen', [ProjectController::class, 'updateAssignedForemen'])->name('projects.assigned_foremen.update');
     Route::patch('/projects/{project}/phase', [ProjectController::class, 'updatePhase'])->name('projects.phase.update');
+    Route::patch('/projects/{project}/transfer-to-construction', [ProjectController::class, 'transferToConstruction'])->name('projects.transfer.construction');
+    Route::patch('/projects/{project}/transfer-to-completed', [ProjectController::class, 'transferToCompleted'])->name('projects.transfer.completed');
     Route::patch('/projects/{project}', [ProjectController::class, 'update'])->name('projects.update');
 
     Route::get('/projects/{project}/design', [DesignController::class, 'show'])->name('design.show');

@@ -299,6 +299,9 @@ export default function HeadAdminProjectsShow({
     const previewExt = (previewFile?.original_name || '').split('.').pop()?.toLowerCase() || '';
     const isImagePreview = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'svg'].includes(previewExt);
     const isPdfPreview = previewExt === 'pdf';
+    const phaseKey = String(project?.phase || '').trim().toLowerCase();
+    const disableDesignSection = phaseKey === 'construction';
+    const disableBuildSection = phaseKey === 'design';
 
     const fileColumns = [
         {
@@ -449,24 +452,29 @@ export default function HeadAdminProjectsShow({
                         Project shortcuts grouped by department
                     </div>
                     <div style={{ display: 'grid', gap: 10, gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))' }}>
-                        <div style={shortcutSectionStyle}>
+                        <div style={{ ...shortcutSectionStyle, opacity: disableDesignSection ? 0.65 : 1 }}>
                             <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: 0.3 }}>
                                 Design
                             </div>
-                            <ActionButton href={`/projects/${project.id}/design`} style={shortcutButtonStyle}>
+                            <ActionButton href={`/projects/${project.id}/design`} style={shortcutButtonStyle} disabled={disableDesignSection}>
                                 Open Design Tracker
                             </ActionButton>
+                            {disableDesignSection && (
+                                <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+                                    Disabled while project phase is Construction.
+                                </div>
+                            )}
                         </div>
 
-                        <div style={shortcutSectionStyle}>
+                        <div style={{ ...shortcutSectionStyle, opacity: disableBuildSection ? 0.65 : 1 }}>
                             <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: 0.3 }}>
                                 Build
                             </div>
                             <div style={{ display: 'grid', gap: 8 }}>
-                                <ActionButton href={`/projects/${project.id}/build`} style={shortcutButtonStyle}>
+                                <ActionButton href={`/projects/${project.id}/build`} style={shortcutButtonStyle} disabled={disableBuildSection}>
                                     Open Build Tracker
                                 </ActionButton>
-                                <ActionButton href={`/projects/${project.id}/monitoring`} style={shortcutButtonStyle}>
+                                <ActionButton href={`/projects/${project.id}/monitoring`} style={shortcutButtonStyle} disabled={disableBuildSection}>
                                     Open Monitoring Board
                                 </ActionButton>
                                 <ActionButton
@@ -474,13 +482,19 @@ export default function HeadAdminProjectsShow({
                                     style={shortcutButtonStyle}
                                     external
                                     data-inertia="false"
+                                    disabled={disableBuildSection}
                                 >
                                     View Client Receipt
                                 </ActionButton>
-                                <ActionButton href={`/projects/${project.id}/expenses`} style={shortcutButtonStyle}>
+                                <ActionButton href={`/projects/${project.id}/expenses`} style={shortcutButtonStyle} disabled={disableBuildSection}>
                                     Open Expenses
                                 </ActionButton>
                             </div>
+                            {disableBuildSection && (
+                                <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+                                    Disabled while project phase is Design.
+                                </div>
+                            )}
                         </div>
 
                         <div style={shortcutSectionStyle}>

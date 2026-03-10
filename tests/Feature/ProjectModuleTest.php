@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\DesignProject;
 use App\Models\Project;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -27,8 +28,7 @@ class ProjectModuleTest extends TestCase
             'assigned' => 'Team 1',
             'target' => '2026-12-31',
             'status' => 'PLANNING',
-            'phase' => 'DESIGN',
-            'overall_progress' => 0,
+            'phase' => 'Design',
         ])->assertRedirect();
 
         $project = Project::where('name', 'Project A')->firstOrFail();
@@ -44,8 +44,7 @@ class ProjectModuleTest extends TestCase
             'assigned' => 'Team 1',
             'target' => '2026-12-31',
             'status' => 'ACTIVE',
-            'phase' => 'DESIGN',
-            'overall_progress' => 10,
+            'phase' => 'Design',
         ])->assertRedirect("/projects/{$project->id}");
 
         $this->assertDatabaseHas('projects', [
@@ -146,6 +145,97 @@ class ProjectModuleTest extends TestCase
         $this->assertSame('COMPLETED', $project->status);
         $this->assertGreaterThan(0, $head->notifications()->count());
         $this->assertGreaterThan(0, $hr->notifications()->count());
+    }
+
+    public function test_admin_can_transfer_approved_design_project_to_construction(): void
+    {
+        $admin = $this->makeUser('admin');
+
+        $project = Project::create([
+            'name' => 'Design Transfer Project',
+            'client' => 'Client',
+            'type' => 'Residential',
+            'location' => 'City',
+            'assigned' => null,
+            'target' => null,
+            'status' => 'PLANNING',
+            'phase' => 'Design',
+            'overall_progress' => 0,
+        ]);
+
+        DesignProject::query()
+            ->where('project_id', $project->id)
+            ->update([
+                'design_contract_amount' => 100000,
+                'total_received' => 100000,
+                'design_progress' => 100,
+                'client_approval_status' => 'approved',
+            ]);
+
+        $this->actingAs($admin)
+            ->patch("/projects/{$project->id}/transfer-to-construction")
+            ->assertRedirect('/projects');
+
+        $duplicate = Project::query()->where('source_project_id', $project->id)->first();
+
+        $this->assertNotNull($duplicate, 'Expected a construction duplicate to be created.');
+        $this->assertSame('Construction', $duplicate->phase);
+        $this->assertDatabaseHas('build_projects', ['project_id' => $duplicate->id]);
+    }
+
+    public function test_design_transfer_to_construction_requires_approved_status(): void
+    {
+        $admin = $this->makeUser('admin');
+
+        $project = Project::create([
+            'name' => 'Pending Design Transfer',
+            'client' => 'Client',
+            'type' => 'Residential',
+            'location' => 'City',
+            'assigned' => null,
+            'target' => null,
+            'status' => 'PLANNING',
+            'phase' => 'Design',
+            'overall_progress' => 0,
+        ]);
+
+        DesignProject::query()
+            ->where('project_id', $project->id)
+            ->update(['client_approval_status' => 'pending']);
+
+        $this->actingAs($admin)
+            ->from('/projects')
+            ->patch("/projects/{$project->id}/transfer-to-construction")
+            ->assertRedirect('/projects');
+
+        $this->assertDatabaseMissing('projects', ['source_project_id' => $project->id]);
+    }
+
+    public function test_admin_can_transfer_construction_project_to_completed(): void
+    {
+        $admin = $this->makeUser('admin');
+
+        $project = Project::create([
+            'name' => 'Construction Transfer Project',
+            'client' => 'Client',
+            'type' => 'Residential',
+            'location' => 'City',
+            'assigned' => null,
+            'target' => null,
+            'status' => 'ACTIVE',
+            'phase' => 'Construction',
+            'overall_progress' => 12,
+        ]);
+
+        $this->actingAs($admin)
+            ->patch("/projects/{$project->id}/transfer-to-completed")
+            ->assertRedirect('/projects');
+
+        $project->refresh();
+
+        $this->assertSame('Completed', $project->phase);
+        $this->assertSame('COMPLETED', $project->status);
+        $this->assertSame(100, (int) $project->overall_progress);
     }
 
     private function makeUser(string $role): User

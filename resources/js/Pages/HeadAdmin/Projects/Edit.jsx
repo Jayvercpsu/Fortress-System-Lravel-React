@@ -17,7 +17,7 @@ const inputStyle = {
     fontSize: 13,
 };
 
-const PROJECT_PHASES = ['Design', 'ForBuild', 'Construction', 'Turnover', 'Completed'];
+const PROJECT_PHASES = ['Design', 'Construction', 'Completed'];
 const PROJECT_STATUS_OPTIONS = ['PLANNING', 'ACTIVE', 'ONGOING', 'ON_HOLD', 'DELAYED', 'COMPLETED', 'CANCELLED'];
 const PROJECT_ASSIGNED_ROLE_OPTIONS = ['Architect', 'Engineer', 'PM'];
 const PROJECT_TYPE_OPTIONS = ['2Storey', '3Storey', 'w/ Roofdeck', 'Bungalow', 'Commercial', 'Renovation'];

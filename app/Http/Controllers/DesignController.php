@@ -8,8 +8,6 @@ use App\Models\Expense;
 use App\Models\Payment;
 use App\Models\Project;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Schema;
 use Inertia\Inertia;
 
 class DesignController extends Controller
@@ -87,26 +85,9 @@ class DesignController extends Controller
 
         $this->syncProjectFinancials($project);
 
-        if ($validated['client_approval_status'] === 'approved') {
-            $this->updateProjectPhaseToForBuild($project);
-        }
-
         return redirect()
             ->route('design.show', ['project' => $project])
             ->with('success', 'Design tracker updated successfully.');
-    }
-
-    private function updateProjectPhaseToForBuild(string $project): void
-    {
-        if (!Schema::hasTable('projects') || !Schema::hasColumn('projects', 'phase')) {
-            return;
-        }
-
-        DB::table('projects')
-            ->where('id', $project)
-            ->update([
-                'phase' => (string) config('fortress.project_phase_for_build', 'FOR_BUILD'),
-            ]);
     }
 
     private function syncProjectFinancials(string $projectId): void

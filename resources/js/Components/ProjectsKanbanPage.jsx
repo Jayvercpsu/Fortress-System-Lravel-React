@@ -1,16 +1,12 @@
 import ActionButton from './ActionButton';
 import Modal from './Modal';
 import { router } from '@inertiajs/react';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import toast from 'react-hot-toast';
-
-const PHASES = ['Design', 'ForBuild', 'Construction', 'Turnover', 'Completed'];
 
 const phaseAccent = {
     Design: '#60a5fa',
-    ForBuild: '#f59e0b',
     Construction: '#22c55e',
-    Turnover: '#a78bfa',
     Completed: '#10b981',
 };
 
@@ -31,8 +27,6 @@ const input = {
     boxSizing: 'border-box',
 };
 
-const DRAG_AUTO_SCROLL_EDGE = 72;
-const DRAG_AUTO_SCROLL_STEP = 22;
 const KANBAN_CARD_HEIGHT = 365;
 const KANBAN_BOARD_HEIGHT = 'calc(100dvh - 190px)';
 
@@ -45,25 +39,24 @@ const singleLineClampStyle = {
 
 const money = (value) => `P ${Number(value || 0).toLocaleString(undefined, { maximumFractionDigits: 0 })}`;
 const pct = (value) => `${Math.max(0, Math.min(100, Number(value || 0)))}%`;
+const approvalStatusTone = (status) => {
+    const normalized = String(status || '').trim().toLowerCase();
+    if (normalized === 'approved') return '#22c55e';
+    if (normalized === 'rejected') return '#f87171';
+    return 'var(--text-main)';
+};
 
 export default function ProjectsKanbanPage({
     projectBoard = {},
     canCreate = false,
-    canEdit = false,
     canDelete = false,
 }) {
     const columns = Array.isArray(projectBoard.columns) ? projectBoard.columns : [];
-    const phaseOptions = Array.isArray(projectBoard.phase_order) && projectBoard.phase_order.length
-        ? projectBoard.phase_order
-        : PHASES;
 
     const [search, setSearch] = useState(projectBoard.search ?? '');
     const [projectToDelete, setProjectToDelete] = useState(null);
     const [deletingProject, setDeletingProject] = useState(false);
-    const [draggingProject, setDraggingProject] = useState(null);
-    const [dropKey, setDropKey] = useState('');
-    const [updatingId, setUpdatingId] = useState(null);
-    const boardScrollRef = useRef(null);
+    const [transferringId, setTransferringId] = useState(null);
 
     useEffect(() => {
         setSearch(projectBoard.search ?? '');
@@ -107,24 +100,6 @@ export default function ProjectsKanbanPage({
         reloadBoard({ search: '', ...resetPages() });
     };
 
-    const updatePhase = (project, nextPhase) => {
-        if (!project || !nextPhase || String(project.phase) === String(nextPhase)) return;
-
-        setUpdatingId(project.id);
-        router.patch(`/projects/${project.id}/phase${buildQueryString()}`, { phase: nextPhase }, {
-            preserveState: true,
-            preserveScroll: true,
-            replace: true,
-            onSuccess: () => toast.success(`Moved "${project.name}" to ${nextPhase} successfully.`),
-            onError: () => toast.error('Unable to update project phase.'),
-            onFinish: () => {
-                setUpdatingId(null);
-                setDraggingProject(null);
-                setDropKey('');
-            },
-        });
-    };
-
     const deleteProject = () => {
         if (!projectToDelete) return;
         setDeletingProject(true);
@@ -139,39 +114,23 @@ export default function ProjectsKanbanPage({
         });
     };
 
-    const autoScrollBoardWhileDragging = (event) => {
-        if (!draggingProject) return;
-        event.preventDefault();
+    const transferProject = (project, target) => {
+        if (!project) return;
 
-        const container = boardScrollRef.current;
-        if (!container) return;
+        const endpoint = target === 'completed'
+            ? `/projects/${project.id}/transfer-to-completed`
+            : `/projects/${project.id}/transfer-to-construction`;
+        const targetLabel = target === 'completed' ? 'Completed' : 'Construction';
 
-        const rect = container.getBoundingClientRect();
-        let scrollTopDelta = 0;
-        let scrollLeftDelta = 0;
-
-        if (event.clientY < rect.top + DRAG_AUTO_SCROLL_EDGE) {
-            const ratio = (rect.top + DRAG_AUTO_SCROLL_EDGE - event.clientY) / DRAG_AUTO_SCROLL_EDGE;
-            scrollTopDelta = -Math.ceil(DRAG_AUTO_SCROLL_STEP * Math.max(0, Math.min(1, ratio)));
-        } else if (event.clientY > rect.bottom - DRAG_AUTO_SCROLL_EDGE) {
-            const ratio = (event.clientY - (rect.bottom - DRAG_AUTO_SCROLL_EDGE)) / DRAG_AUTO_SCROLL_EDGE;
-            scrollTopDelta = Math.ceil(DRAG_AUTO_SCROLL_STEP * Math.max(0, Math.min(1, ratio)));
-        }
-
-        if (event.clientX < rect.left + DRAG_AUTO_SCROLL_EDGE) {
-            const ratio = (rect.left + DRAG_AUTO_SCROLL_EDGE - event.clientX) / DRAG_AUTO_SCROLL_EDGE;
-            scrollLeftDelta = -Math.ceil(DRAG_AUTO_SCROLL_STEP * Math.max(0, Math.min(1, ratio)));
-        } else if (event.clientX > rect.right - DRAG_AUTO_SCROLL_EDGE) {
-            const ratio = (event.clientX - (rect.right - DRAG_AUTO_SCROLL_EDGE)) / DRAG_AUTO_SCROLL_EDGE;
-            scrollLeftDelta = Math.ceil(DRAG_AUTO_SCROLL_STEP * Math.max(0, Math.min(1, ratio)));
-        }
-
-        if (scrollTopDelta !== 0) {
-            container.scrollTop += scrollTopDelta;
-        }
-        if (scrollLeftDelta !== 0) {
-            container.scrollLeft += scrollLeftDelta;
-        }
+        setTransferringId(project.id);
+        router.patch(`${endpoint}${buildQueryString()}`, {}, {
+            preserveState: true,
+            preserveScroll: true,
+            replace: true,
+            onSuccess: () => toast.success(`Project transferred to ${targetLabel}.`),
+            onError: (errors) => toast.error(errors.transfer || `Unable to transfer project to ${targetLabel}.`),
+            onFinish: () => setTransferringId(null),
+        });
     };
 
     return (
@@ -202,8 +161,6 @@ export default function ProjectsKanbanPage({
             </div>
 
             <div
-                ref={boardScrollRef}
-                onDragOver={autoScrollBoardWhileDragging}
                 style={{
                     ...panel,
                     padding: 12,
@@ -224,31 +181,17 @@ export default function ProjectsKanbanPage({
                 >
                     {columns.map((column) => {
                         const accent = phaseAccent[column.value] || '#94a3b8';
-                        const isDropTarget = dropKey === column.key && !!draggingProject;
 
                         return (
                             <div
                                 key={column.key}
                                 data-testid={`kanban-column-${column.key}`}
-                                onDragOver={(e) => {
-                                    if (!draggingProject) return;
-                                    e.preventDefault();
-                                    setDropKey(column.key);
-                                }}
-                                onDrop={(e) => {
-                                    e.preventDefault();
-                                    if (!draggingProject) return;
-                                    updatePhase(draggingProject, column.value);
-                                }}
-                                onDragLeave={() => setDropKey((prev) => (prev === column.key ? '' : prev))}
                                 style={{
                                     ...panel,
                                     display: 'grid',
                                     gridTemplateRows: 'auto 1fr auto',
                                     height: '100%',
                                     minHeight: 0,
-                                    borderColor: isDropTarget ? `${accent}88` : 'var(--border-color)',
-                                    boxShadow: isDropTarget ? `0 0 0 2px ${accent}33 inset` : 'none',
                                 }}
                             >
                                 <div style={{ padding: 12, borderBottom: '1px solid var(--border-color)' }}>
@@ -281,8 +224,31 @@ export default function ProjectsKanbanPage({
                                                 height: KANBAN_CARD_HEIGHT,
                                                 gridTemplateRows: 'auto auto auto auto minmax(0, 1fr) auto',
                                                 overflow: 'hidden',
+                                                position: 'relative',
                                             }}
                                         >
+                                            {project.is_new_today ? (
+                                                <span
+                                                    style={{
+                                                        position: 'absolute',
+                                                        top: 10,
+                                                        right: 10,
+                                                        display: 'inline-flex',
+                                                        alignItems: 'center',
+                                                        borderRadius: 999,
+                                                        padding: '2px 8px',
+                                                        fontSize: 10,
+                                                        fontWeight: 800,
+                                                        letterSpacing: 0.3,
+                                                        textTransform: 'uppercase',
+                                                        color: '#166534',
+                                                        background: 'rgba(34,197,94,0.16)',
+                                                        border: '1px solid rgba(34,197,94,0.32)',
+                                                    }}
+                                                >
+                                                    New
+                                                </span>
+                                            ) : null}
                                             <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, alignItems: 'start', minWidth: 0 }}>
                                                 <div style={{ minWidth: 0, flex: 1 }}>
                                                     <div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0, width: '100%' }}>
@@ -313,41 +279,16 @@ export default function ProjectsKanbanPage({
                                                         {project.client || 'No client'}
                                                     </div>
                                                 </div>
-                                                <ActionButton
-                                                    type="button"
-                                                    draggable
-                                                    data-testid={`kanban-drag-${project.id}`}
-                                                    onDragStart={(e) => {
-                                                        setDraggingProject({ id: project.id, name: project.name, phase: project.phase });
-                                                        e.dataTransfer.effectAllowed = 'move';
-                                                    }}
-                                                    onDragEnd={() => {
-                                                        setDraggingProject(null);
-                                                        setDropKey('');
-                                                    }}
-                                                    title="Drag to another phase"
-                                                    style={{ color: 'var(--text-muted)', padding: '6px 8px', fontSize: 11, cursor: 'grab' }}
-                                                >
-                                                    Drag
-                                                </ActionButton>
                                             </div>
 
-                                            <label style={{ display: 'grid', gap: 4 }}>
+                                            <div style={{ display: 'grid', gap: 4 }}>
                                                 <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>Phase</div>
-                                                <select
-                                                    value={project.phase}
-                                                    onChange={(e) => updatePhase(project, e.target.value)}
-                                                    disabled={updatingId === project.id}
-                                                    data-testid={`kanban-phase-${project.id}`}
-                                                    style={{ ...input, padding: '7px 10px', fontSize: 12 }}
-                                                >
-                                                    {phaseOptions.map((phase) => <option key={phase} value={phase}>{phase}</option>)}
-                                                </select>
-                                            </label>
+                                                <div style={{ ...input, padding: '7px 10px', fontSize: 12 }}>{project.phase || '-'}</div>
+                                            </div>
 
                                             <div style={{ display: 'grid', gap: 5 }}>
                                                 <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: 'var(--text-muted)' }}>
-                                                    <span>Progress</span>
+                                                    <span>{project.phase === 'Design' ? 'Design Progress' : 'Progress'}</span>
                                                     <span>{pct(project.overall_progress)}</span>
                                                 </div>
                                                 <div style={{ height: 7, background: 'rgba(148,163,184,0.2)', borderRadius: 999, overflow: 'hidden' }}>
@@ -375,6 +316,19 @@ export default function ProjectsKanbanPage({
                                                     <span title={project.assigned || '-'} style={{ textAlign: 'right', ...singleLineClampStyle }}>{project.assigned || '-'}</span>
                                                 </div>
                                                 <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, minWidth: 0 }}>
+                                                    <span style={{ color: 'var(--text-muted)' }}>Client Approval</span>
+                                                    <span
+                                                        title={project.design_approval_status || 'Pending'}
+                                                        style={{
+                                                            textAlign: 'right',
+                                                            color: approvalStatusTone(project.design_approval_status),
+                                                            ...singleLineClampStyle,
+                                                        }}
+                                                    >
+                                                        {project.design_approval_status || 'Pending'}
+                                                    </span>
+                                                </div>
+                                                <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, minWidth: 0 }}>
                                                     <span style={{ color: 'var(--text-muted)' }}>Contract</span>
                                                     <span title={money(project.contract_amount)} style={{ textAlign: 'right', ...singleLineClampStyle }}>{money(project.contract_amount)}</span>
                                                 </div>
@@ -398,26 +352,41 @@ export default function ProjectsKanbanPage({
                                                         {deletingProject && projectToDelete?.id === project.id ? 'Deleting...' : 'Delete'}
                                                     </ActionButton>
                                                 )}
-                                                {project.is_new_today ? (
-                                                    <span
-                                                        style={{
-                                                            display: 'inline-flex',
-                                                            alignItems: 'center',
-                                                            borderRadius: 999,
-                                                            padding: '2px 8px',
-                                                            fontSize: 10,
-                                                            fontWeight: 800,
-                                                            letterSpacing: 0.3,
-                                                            textTransform: 'uppercase',
-                                                            color: '#166534',
-                                                            background: 'rgba(34,197,94,0.16)',
-                                                            border: '1px solid rgba(34,197,94,0.32)',
-                                                            marginLeft: 'auto',
-                                                        }}
+                                                {project.phase === 'Design' && (
+                                                    <ActionButton
+                                                        type="button"
+                                                        variant={project.transfer_to_construction_used ? 'neutral' : 'success'}
+                                                        onClick={() => transferProject(project, 'construction')}
+                                                        disabled={
+                                                            transferringId === project.id
+                                                            || project.transfer_to_construction_used
+                                                            || !project.can_transfer_to_construction
+                                                        }
+                                                        loading={transferringId === project.id}
+                                                        style={{ padding: '6px 10px', minHeight: 30, marginLeft: 'auto' }}
+                                                        title={
+                                                            project.transfer_to_construction_used
+                                                                ? 'Already transferred to construction.'
+                                                                : (project.can_transfer_to_construction
+                                                                    ? 'Transfer this approved design project to construction.'
+                                                                    : 'Client approval must be Approved before transfer.')
+                                                        }
                                                     >
-                                                        New
-                                                    </span>
-                                                ) : null}
+                                                        {project.transfer_to_construction_used ? 'Transferred' : 'Transfer to Construction'}
+                                                    </ActionButton>
+                                                )}
+                                                {project.phase === 'Construction' && (
+                                                    <ActionButton
+                                                        type="button"
+                                                        variant="success"
+                                                        onClick={() => transferProject(project, 'completed')}
+                                                        disabled={transferringId === project.id || !project.can_transfer_to_completed}
+                                                        loading={transferringId === project.id}
+                                                        style={{ padding: '6px 10px', minHeight: 30, marginLeft: 'auto' }}
+                                                    >
+                                                        Transfer to Completed
+                                                    </ActionButton>
+                                                )}
                                             </div>
                                         </div>
                                     )) : (

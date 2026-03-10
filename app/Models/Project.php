@@ -10,6 +10,7 @@ class Project extends Model
     use SoftDeletes;
 
     protected $fillable = [
+        'source_project_id',
         'name',
         'client',
         'type',
@@ -29,6 +30,7 @@ class Project extends Model
     ];
 
     protected $casts = [
+        'source_project_id' => 'integer',
         'target' => 'date',
         'overall_progress' => 'integer',
         'contract_amount' => 'decimal:2',
@@ -67,5 +69,20 @@ class Project extends Model
     public function teamMembers()
     {
         return $this->hasMany(ProjectWorker::class);
+    }
+
+    public function designTracker()
+    {
+        return $this->hasOne(DesignProject::class);
+    }
+
+    public function sourceProject()
+    {
+        return $this->belongsTo(Project::class, 'source_project_id');
+    }
+
+    public function transferredProjects()
+    {
+        return $this->hasMany(Project::class, 'source_project_id')->withTrashed();
     }
 }

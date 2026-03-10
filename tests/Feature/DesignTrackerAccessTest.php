@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\DesignProject;
+use App\Models\Project;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
@@ -162,12 +163,9 @@ class DesignTrackerAccessTest extends TestCase
         ]);
     }
 
-    public function test_approved_design_updates_project_phase_to_for_build(): void
+    public function test_approved_design_does_not_auto_duplicate_project_to_construction(): void
     {
-        config(['fortress.project_phase_for_build' => 'FOR_BUILD']);
-
-        \DB::table('projects')->insert([
-            'id' => 30,
+        $project = Project::create([
             'name' => 'Project 30',
             'client' => 'Client 30',
             'type' => '2Storey',
@@ -181,23 +179,25 @@ class DesignTrackerAccessTest extends TestCase
             'design_fee' => 0,
             'construction_cost' => 0,
             'total_client_payment' => 0,
-            'created_at' => now(),
-            'updated_at' => now(),
         ]);
 
         $this->actingAs($this->makeUser('admin'))
-            ->patch('/projects/30/design', [
+            ->patch("/projects/{$project->id}/design", [
                 'design_contract_amount' => 100000,
                 'downpayment' => 10000,
                 'total_received' => 10000,
                 'office_payroll_deduction' => 500,
                 'client_approval_status' => 'approved',
             ])
-            ->assertRedirect('/projects/30/design');
+            ->assertRedirect("/projects/{$project->id}/design");
 
         $this->assertDatabaseHas('projects', [
-            'id' => 30,
-            'phase' => 'FOR_BUILD',
+            'id' => $project->id,
+            'phase' => 'DESIGN',
+        ]);
+
+        $this->assertDatabaseMissing('projects', [
+            'source_project_id' => $project->id,
         ]);
     }
 
@@ -236,6 +236,52 @@ class DesignTrackerAccessTest extends TestCase
             'id' => 31,
             'phase' => 'DESIGN',
         ]);
+
+        $this->assertDatabaseMissing('projects', [
+            'source_project_id' => 31,
+            'phase' => 'Construction',
+        ]);
+    }
+
+    public function test_repeated_approved_design_updates_do_not_auto_create_construction_duplicates(): void
+    {
+        $project = Project::create([
+            'name' => 'Project 32',
+            'client' => 'Client 32',
+            'type' => '2Storey',
+            'location' => 'Sample',
+            'assigned' => null,
+            'target' => null,
+            'status' => 'PLANNING',
+            'phase' => 'DESIGN',
+            'overall_progress' => 0,
+            'contract_amount' => 0,
+            'design_fee' => 0,
+            'construction_cost' => 0,
+            'total_client_payment' => 0,
+        ]);
+
+        $payload = [
+            'design_contract_amount' => 100000,
+            'downpayment' => 10000,
+            'total_received' => 10000,
+            'office_payroll_deduction' => 500,
+            'client_approval_status' => 'approved',
+        ];
+
+        $this->actingAs($this->makeUser('admin'))
+            ->patch("/projects/{$project->id}/design", $payload)
+            ->assertRedirect("/projects/{$project->id}/design");
+
+        $this->actingAs($this->makeUser('admin'))
+            ->patch("/projects/{$project->id}/design", $payload)
+            ->assertRedirect("/projects/{$project->id}/design");
+
+        $this->assertSame(
+            0,
+            Project::query()->where('source_project_id', $project->id)->count(),
+            'Design save should not auto-create construction duplicates.'
+        );
     }
 
     private function makeUser(string $role): User
