@@ -213,7 +213,7 @@ export default function HeadAdminDashboard({
                 </div>
 
                 <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: 12, marginBottom: 16 }}>
-                    <div style={{ ...cardStyle, overflow: 'hidden' }}>
+                    <div data-testid="recent-projects-section" style={{ ...cardStyle, overflow: 'hidden' }}>
                         <div style={{ fontWeight: 700, marginBottom: 10 }}>Recent Projects</div>
                         <div style={{ display: 'grid', gap: 8 }}>
                             {recentProjectsRows.length === 0 ? (
@@ -222,6 +222,7 @@ export default function HeadAdminDashboard({
                                 recentProjectsRows.map((project) => (
                                     <div
                                         key={project.id}
+                                        data-testid="recent-project-row"
                                         style={{
                                             border: '1px solid var(--border-color)',
                                             borderRadius: 8,
@@ -258,7 +259,7 @@ export default function HeadAdminDashboard({
                         <InlinePagination pager={recentProjectsPager} />
                     </div>
 
-                    <div style={{ ...cardStyle, overflow: 'hidden' }}>
+                    <div data-testid="recent-payroll-section" style={{ ...cardStyle, overflow: 'hidden' }}>
                         <div style={{ fontWeight: 700, marginBottom: 10 }}>Recent Payroll</div>
                         <div style={{ display: 'grid', gap: 8 }}>
                             {recentPayrollRows.length === 0 ? (
@@ -267,6 +268,7 @@ export default function HeadAdminDashboard({
                                 recentPayrollRows.map((payroll) => (
                                     <div
                                         key={payroll.id}
+                                        data-testid="recent-payroll-row"
                                         style={{
                                             border: '1px solid var(--border-color)',
                                             borderRadius: 8,

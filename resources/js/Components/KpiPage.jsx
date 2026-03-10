@@ -81,9 +81,9 @@ function StatCard({ label, value, helper, color = 'var(--text-main)' }) {
     );
 }
 
-function TopList({ title, rows = [], type = 'worker', scoreBadgeStyle, promotionLabel }) {
+function TopList({ title, rows = [], type = 'worker', scoreBadgeStyle, promotionLabel, testId, rowTestId }) {
     return (
-        <div style={cardStyle}>
+        <div style={cardStyle} data-testid={testId}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
                 <div style={{ fontWeight: 700 }}>{title}</div>
                 <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{rows.length} listed</div>
@@ -95,6 +95,7 @@ function TopList({ title, rows = [], type = 'worker', scoreBadgeStyle, promotion
                     {rows.map((row, index) => (
                         <div
                             key={`${type}-${row.worker_name || row.foreman_name || index}`}
+                            data-testid={rowTestId}
                             style={{
                                 display: 'flex',
                                 alignItems: 'center',
@@ -300,6 +301,7 @@ export default function KpiPage({
                             <ActionButton
                                 href={exportHref}
                                 external
+                                data-testid="kpi-export"
                                 style={{ padding: '8px 12px', fontSize: 13 }}
                             >
                                 Export CSV
@@ -308,6 +310,7 @@ export default function KpiPage({
                                 href={printHref}
                                 external
                                 variant="view"
+                                data-testid="kpi-print"
                                 style={{ padding: '8px 12px', fontSize: 13 }}
                             >
                                 Print View
@@ -315,13 +318,13 @@ export default function KpiPage({
                         </div>
                     </div>
 
-                    <div style={cardStyle}>
+                    <div style={cardStyle} data-testid="kpi-filters">
                         <div style={{ display: 'grid', gap: 14 }}>
                             <div style={{ fontWeight: 700 }}>Filters</div>
                             <div>
                                 <div style={labelStyle}>Filters</div>
                                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))', gap: 12 }}>
-                                    <div>
+                                    <div data-testid="kpi-date-from">
                                         <div style={labelStyle}>Date From</div>
                                         <DatePickerInput
                                             value={draftFilters.date_from}
@@ -329,7 +332,7 @@ export default function KpiPage({
                                             style={inputStyle}
                                         />
                                     </div>
-                                    <div>
+                                    <div data-testid="kpi-date-to">
                                         <div style={labelStyle}>Date To</div>
                                         <DatePickerInput
                                             value={draftFilters.date_to}
@@ -342,6 +345,7 @@ export default function KpiPage({
                                         <SelectInput
                                             value={draftFilters.project_id}
                                             onChange={(e) => setDraftFilters((prev) => ({ ...prev, project_id: e.target.value }))}
+                                            data-testid="kpi-project-select"
                                             style={inputStyle}
                                         >
                                             <option value="">All projects</option>
@@ -357,6 +361,7 @@ export default function KpiPage({
                                         <SelectInput
                                             value={draftFilters.delivery_date_basis}
                                             onChange={(e) => setDraftFilters((prev) => ({ ...prev, delivery_date_basis: e.target.value }))}
+                                            data-testid="kpi-delivery-basis-select"
                                             style={inputStyle}
                                         >
                                             <option value="created_at">Uploaded At</option>
@@ -369,6 +374,7 @@ export default function KpiPage({
                                             value={searchQuery}
                                             onChange={(e) => setSearchQuery(e.target.value)}
                                             placeholder="Search workers or foremen"
+                                            data-testid="kpi-search-input"
                                             style={inputStyle}
                                         />
                                     </div>
@@ -386,6 +392,7 @@ export default function KpiPage({
                                             max="100"
                                             value={draftThresholds.promotion_ready}
                                             onChange={(e) => setDraftThresholds((prev) => ({ ...prev, promotion_ready: e.target.value }))}
+                                            data-testid="kpi-promotion-ready"
                                             style={inputStyle}
                                         />
                                     </div>
@@ -397,6 +404,7 @@ export default function KpiPage({
                                             max="100"
                                             value={draftThresholds.promotion_track}
                                             onChange={(e) => setDraftThresholds((prev) => ({ ...prev, promotion_track: e.target.value }))}
+                                            data-testid="kpi-promotion-track"
                                             style={inputStyle}
                                         />
                                     </div>
@@ -421,6 +429,7 @@ export default function KpiPage({
                                             ...defaultThresholdInputs,
                                         });
                                     }}
+                                    data-testid="kpi-reset"
                                     style={{ padding: '8px 12px', fontSize: 13 }}
                                 >
                                     Reset Defaults
@@ -428,6 +437,7 @@ export default function KpiPage({
                                 <ActionButton
                                     variant="success"
                                     onClick={() => navigate()}
+                                    data-testid="kpi-apply"
                                     style={{ padding: '8px 12px', fontSize: 13 }}
                                 >
                                     Apply Filters
@@ -443,6 +453,8 @@ export default function KpiPage({
                             type="worker"
                             scoreBadgeStyle={scoreBadgeStyle}
                             promotionLabel={promotionLabel}
+                            testId="kpi-top-workers"
+                            rowTestId="kpi-top-worker-row"
                         />
                         <TopList
                             title="Top Foremen"
@@ -450,10 +462,12 @@ export default function KpiPage({
                             type="foreman"
                             scoreBadgeStyle={scoreBadgeStyle}
                             promotionLabel={promotionLabel}
+                            testId="kpi-top-foremen"
+                            rowTestId="kpi-top-foreman-row"
                         />
                     </div>
 
-                    <div style={cardStyle}>
+                    <div style={cardStyle} data-testid="kpi-worker-table">
                         <div style={{ fontWeight: 700, marginBottom: 10 }}>Worker KPI Table</div>
                         <div style={{ overflowX: 'auto', border: '1px solid var(--border-color)', borderRadius: 10, maxWidth: '100%' }}>
                             <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 960 }}>
@@ -485,7 +499,7 @@ export default function KpiPage({
                                         </tr>
                                     ) : (
                                         filteredWorkers.map((row, index) => (
-                                            <tr key={`${row.worker_name}-${index}`}>
+                                            <tr key={`${row.worker_name}-${index}`} data-testid="kpi-worker-row">
                                                 <td style={{ padding: '10px 12px', fontWeight: 700 }}>{row.worker_name || 'Unnamed'}</td>
                                                 <td style={{ padding: '10px 12px', fontSize: 12, color: 'var(--text-muted)' }}>
                                                     {row.worker_role || 'Worker'}
@@ -527,7 +541,7 @@ export default function KpiPage({
                         </div>
                     </div>
 
-                    <div style={cardStyle}>
+                    <div style={cardStyle} data-testid="kpi-foreman-table">
                         <div style={{ fontWeight: 700, marginBottom: 10 }}>Foreman KPI Table</div>
                         <div style={{ overflowX: 'auto', border: '1px solid var(--border-color)', borderRadius: 10, maxWidth: '100%' }}>
                             <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 1360 }}>
@@ -571,7 +585,7 @@ export default function KpiPage({
                                         </tr>
                                     ) : (
                                         filteredForemen.map((row, index) => (
-                                            <tr key={`${row.foreman_name}-${index}`}>
+                                            <tr key={`${row.foreman_name}-${index}`} data-testid="kpi-foreman-row">
                                                 <td style={{ padding: '10px 12px', fontWeight: 700 }}>{row.foreman_name || 'Unnamed'}</td>
                                                 <td style={{ padding: '10px 12px', textAlign: 'right', fontFamily: "'DM Mono', monospace" }}>
                                                     {formatInt(row.projects_count)}
