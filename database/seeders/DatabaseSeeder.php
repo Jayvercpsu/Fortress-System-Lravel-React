@@ -7,13 +7,14 @@ use Illuminate\Support\Facades\Hash;
 
 class DatabaseSeeder extends Seeder {
     public function run(): void {
-        User::create([
-            'fullname' => 'Head Administrator',
+        User::updateOrCreate([
             'email'    => 'headadmin@buildbooks.com',
+        ], [
+            'fullname' => 'Head Administrator',
             'password' => Hash::make('password'),
             'role'     => 'head_admin',
         ]);
 
-        $this->call(ProjectSeeder::class);
+        $this->call(FortressBuildingFlowSeeder::class);
     }
 }

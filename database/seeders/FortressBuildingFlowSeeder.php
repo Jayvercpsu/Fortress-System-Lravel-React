@@ -10,6 +10,8 @@ use App\Models\Expense;
 use App\Models\IssueReport;
 use App\Models\Material;
 use App\Models\MaterialRequest;
+use App\Models\MonitoringBoardFile;
+use App\Models\MonitoringBoardItem;
 use App\Models\Payroll;
 use App\Models\PayrollCutoff;
 use App\Models\PayrollDeduction;
@@ -31,11 +33,15 @@ use Illuminate\Database\Seeder;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\File;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
 
 class FortressBuildingFlowSeeder extends Seeder
 {
     private const PROJECT_NAME = 'Fortress Building';
+    private const ELIGIBLE_DESIGN_PROJECT_NAME = 'Fortress Civic Center';
+    private const PENDING_DESIGN_PROJECT_NAME = 'Fortress Experience Hub';
+    private const COMPLETED_PROJECT_NAME = 'Fortress Warehouse Annex';
     private const ASSET_ROOT = 'demo/fortress-building';
     private const PRIMARY_FOREMAN_EMAIL = 'fortress.foreman@buildbooks.com';
     private const CO_FOREMAN_EMAIL = 'fortress.coforeman@buildbooks.com';
@@ -55,6 +61,7 @@ class FortressBuildingFlowSeeder extends Seeder
 
     public function run(): void
     {
+        $this->cleanupDatabaseExceptUsersAndUserDetails();
         $this->ensureMaterialCategories();
 
         $primaryForeman = User::query()->updateOrCreate(
@@ -78,8 +85,6 @@ class FortressBuildingFlowSeeder extends Seeder
         );
 
         $workerSeedRows = $this->workerSeedRows($primaryForeman, $coForeman);
-
-        $this->cleanupExistingProject($primaryForeman, $coForeman, collect($workerSeedRows)->pluck('name')->all());
 
         $assets = $this->prepareAssets();
 
@@ -125,22 +130,49 @@ class FortressBuildingFlowSeeder extends Seeder
             );
 
         DB::transaction(function () use ($assets, $primaryForeman, $coForeman, $seedAdmin, $workerSeedRows): void {
-            $project = Project::query()->create($this->projectAttributes($primaryForeman, $coForeman));
+            $designSourceProject = $this->createProjectRecord($this->designSourceProjectAttributes($primaryForeman, $coForeman));
+            $eligibleDesignProject = $this->createProjectRecord($this->eligibleDesignProjectAttributes($primaryForeman, $coForeman));
+            $pendingDesignProject = $this->createProjectRecord($this->pendingDesignProjectAttributes($primaryForeman, $coForeman));
+            $constructionProject = $this->createProjectRecord(array_merge(
+                $this->projectAttributes($primaryForeman, $coForeman),
+                ['source_project_id' => $designSourceProject->id]
+            ));
+            $completedProject = $this->createProjectRecord($this->completedProjectAttributes($primaryForeman, $coForeman));
 
             DesignProject::query()->updateOrCreate(
-                ['project_id' => $project->id],
-                $this->designProjectAttributes($project)
+                ['project_id' => $designSourceProject->id],
+                $this->designProjectAttributes($designSourceProject)
+            );
+            DesignProject::query()->updateOrCreate(
+                ['project_id' => $eligibleDesignProject->id],
+                $this->eligibleDesignTrackerAttributes()
+            );
+            DesignProject::query()->updateOrCreate(
+                ['project_id' => $pendingDesignProject->id],
+                $this->pendingDesignTrackerAttributes()
+            );
+            DesignProject::query()->updateOrCreate(
+                ['project_id' => $completedProject->id],
+                $this->completedDesignProjectAttributes($completedProject)
             );
 
             BuildProject::query()->updateOrCreate(
-                ['project_id' => $project->id],
-                $this->buildProjectAttributes($project)
+                ['project_id' => $constructionProject->id],
+                $this->buildProjectAttributes($constructionProject)
+            );
+            BuildProject::query()->updateOrCreate(
+                ['project_id' => $completedProject->id],
+                $this->completedBuildProjectAttributes($completedProject)
             );
 
-            ProjectAssignment::query()->insert($this->projectAssignmentRows($project, $primaryForeman, $coForeman));
+            ProjectAssignment::query()->insert($this->projectAssignmentRows($designSourceProject, $primaryForeman, $coForeman));
+            ProjectAssignment::query()->insert($this->projectAssignmentRows($eligibleDesignProject, $primaryForeman, $coForeman));
+            ProjectAssignment::query()->insert($this->projectAssignmentRows($pendingDesignProject, $primaryForeman, $coForeman));
+            ProjectAssignment::query()->insert($this->projectAssignmentRows($constructionProject, $primaryForeman, $coForeman));
+            ProjectAssignment::query()->insert($this->projectAssignmentRows($completedProject, $primaryForeman, $coForeman));
 
-            $scopesByName = collect($this->scopeSeedRows($primaryForeman, $coForeman))->mapWithKeys(function (array $scopeRow) use ($project) {
-                $scope = ProjectScope::query()->create(array_merge($scopeRow, ['project_id' => $project->id]));
+            $scopesByName = collect($this->scopeSeedRows($primaryForeman, $coForeman))->mapWithKeys(function (array $scopeRow) use ($constructionProject) {
+                $scope = ProjectScope::query()->create(array_merge($scopeRow, ['project_id' => $constructionProject->id]));
                 return [$scopeRow['scope_name'] => $scope];
             });
 
@@ -157,29 +189,404 @@ class FortressBuildingFlowSeeder extends Seeder
             }
 
             foreach ($workerSeedRows as $workerData) {
-                Worker::query()->create(array_merge($workerData, ['project_id' => $project->id]));
+                Worker::query()->create(array_merge($workerData, ['project_id' => $constructionProject->id]));
             }
 
-            ProjectWorker::query()->insert($this->projectWorkerRows($project));
-            Attendance::query()->insert($this->buildAttendanceRows($project->id, $primaryForeman, $coForeman, $workerSeedRows));
-            WeeklyAccomplishment::query()->insert($this->weeklyAccomplishmentRows($project, $primaryForeman, $coForeman));
-            MaterialRequest::query()->insert($this->materialRequestRows($project, $primaryForeman, $coForeman, $assets));
-            IssueReport::query()->insert($this->issueRows($project, $primaryForeman, $coForeman, $assets));
-            DeliveryConfirmation::query()->insert($this->deliveryRows($project, $primaryForeman, $coForeman, $assets));
-            ProgressPhoto::query()->insert($this->progressPhotoRows($project, $primaryForeman, $coForeman, $assets));
-            ProjectUpdate::query()->insert($this->projectUpdateRows($project, $seedAdmin, $primaryForeman, $coForeman));
+            ProjectWorker::query()->insert($this->projectWorkerRows($constructionProject));
+            Attendance::query()->insert($this->buildAttendanceRows($constructionProject->id, $primaryForeman, $coForeman, $workerSeedRows));
+            WeeklyAccomplishment::query()->insert($this->weeklyAccomplishmentRows($constructionProject, $primaryForeman, $coForeman));
+            MaterialRequest::query()->insert($this->materialRequestRows($constructionProject, $primaryForeman, $coForeman, $assets));
+            IssueReport::query()->insert($this->issueRows($constructionProject, $primaryForeman, $coForeman, $assets));
+            DeliveryConfirmation::query()->insert($this->deliveryRows($constructionProject, $primaryForeman, $coForeman, $assets));
+            ProgressPhoto::query()->insert($this->progressPhotoRows($constructionProject, $primaryForeman, $coForeman, $assets));
+            ProjectUpdate::query()->insert($this->projectUpdateRows($constructionProject, $seedAdmin, $primaryForeman, $coForeman));
+            ProjectUpdate::query()->insert([
+                [
+                    'project_id' => $designSourceProject->id,
+                    'note' => 'Monitoring Board entry reached 100%, client approved the design package, and the design record is now retained as the source for the transferred construction duplicate.',
+                    'created_by' => $seedAdmin->id,
+                    'created_at' => '2026-01-28 17:00:00',
+                    'updated_at' => '2026-01-28 17:00:00',
+                ],
+                [
+                    'project_id' => $eligibleDesignProject->id,
+                    'note' => 'Client already approved the concept package. This design card stays in the Design column so the Transfer to Construction button can be tested manually.',
+                    'created_by' => $seedAdmin->id,
+                    'created_at' => '2026-03-05 16:40:00',
+                    'updated_at' => '2026-03-05 16:40:00',
+                ],
+                [
+                    'project_id' => $pendingDesignProject->id,
+                    'note' => 'Design team is still revising the experiential layout and MEP coordination package. Client approval remains pending, so transfer should stay unavailable.',
+                    'created_by' => $seedAdmin->id,
+                    'created_at' => '2026-03-09 18:15:00',
+                    'updated_at' => '2026-03-09 18:15:00',
+                ],
+                [
+                    'project_id' => $completedProject->id,
+                    'note' => 'Final handover, completion billing, and closeout documentation were completed for this project to keep the Completed column populated.',
+                    'created_by' => $seedAdmin->id,
+                    'created_at' => '2026-02-14 17:30:00',
+                    'updated_at' => '2026-02-14 17:30:00',
+                ],
+            ]);
 
-            $projectFiles = $this->projectFileRows($project, $seedAdmin, $assets);
+            $projectFiles = $this->projectFileRows($constructionProject, $seedAdmin, $assets);
             if ($projectFiles !== []) {
                 ProjectFile::query()->insert($projectFiles);
             }
 
-            Payment::query()->insert($this->paymentRows($project));
-            Expense::query()->insert($this->expenseRows($project));
-            ProgressSubmitToken::query()->insert($this->tokenRows($project, $primaryForeman, $coForeman));
+            $supportingFiles = array_merge(
+                $this->supplementalProjectFileRows($designSourceProject, $seedAdmin, [
+                    ['file_path' => $assets['guide'] ?? null, 'original_name' => 'Fortress-System-Flow-Guide.txt'],
+                    ['file_path' => $assets['scope_site_1'] ?? null, 'original_name' => 'Fortress-Building-Design-Brief.jpg'],
+                ], '2026-01-28 17:10:00'),
+                $this->supplementalProjectFileRows($eligibleDesignProject, $seedAdmin, [
+                    ['file_path' => $assets['scope_walling_1'] ?? null, 'original_name' => 'Fortress-Civic-Center-Concept-Revision.jpg'],
+                ], '2026-03-05 16:45:00'),
+                $this->supplementalProjectFileRows($pendingDesignProject, $seedAdmin, [
+                    ['file_path' => $assets['scope_mep_1'] ?? null, 'original_name' => 'Fortress-Experience-Hub-MEP-Notes.jpg'],
+                ], '2026-03-09 18:20:00'),
+                $this->supplementalProjectFileRows($completedProject, $seedAdmin, [
+                    ['file_path' => $assets['progress_4'] ?? null, 'original_name' => 'Fortress-Warehouse-Annex-Turnover.jpg'],
+                ], '2026-02-14 17:40:00')
+            );
+            if ($supportingFiles !== []) {
+                ProjectFile::query()->insert($supportingFiles);
+            }
 
-            $this->seedPayrollFlow($project->id, $seedAdmin);
+            Payment::query()->insert($this->designPaymentRows($designSourceProject));
+            Payment::query()->insert($this->eligibleDesignPaymentRows($eligibleDesignProject));
+            Payment::query()->insert($this->pendingDesignPaymentRows($pendingDesignProject));
+            Payment::query()->insert($this->paymentRows($constructionProject));
+            Payment::query()->insert($this->completedPaymentRows($completedProject));
+
+            Expense::query()->insert($this->expenseRows($constructionProject));
+            Expense::query()->insert($this->completedExpenseRows($completedProject));
+            ProgressSubmitToken::query()->insert($this->tokenRows($constructionProject, $primaryForeman, $coForeman));
+
+            $this->seedMonitoringBoardFlow($seedAdmin, $assets, $designSourceProject, $eligibleDesignProject);
+            $this->seedPayrollFlow($constructionProject->id, $seedAdmin);
         });
+    }
+
+    private function createProjectRecord(array $attributes): Project
+    {
+        return Project::unguarded(fn () => Project::query()->create($attributes));
+    }
+
+    private function createMonitoringBoardItemRecord(array $attributes): MonitoringBoardItem
+    {
+        return MonitoringBoardItem::unguarded(fn () => MonitoringBoardItem::query()->create($attributes));
+    }
+
+    private function designSourceProjectAttributes(User $primaryForeman, User $coForeman): array
+    {
+        return [
+            'name' => self::PROJECT_NAME,
+            'client' => 'Fortress Property Holdings, Inc.',
+            'type' => 'Commercial',
+            'location' => 'Cebu City',
+            'assigned_role' => 'Architect: Maria Santos; Engineer: Carlo Dizon; PM: Luis Mendoza',
+            'assigned' => $primaryForeman->fullname . ', ' . $coForeman->fullname,
+            'target' => '2026-06-30',
+            'status' => 'PLANNING',
+            'phase' => 'Design',
+            'overall_progress' => 0,
+            'contract_amount' => 280000.00,
+            'design_fee' => 280000.00,
+            'construction_cost' => 0,
+            'total_client_payment' => 180000.00,
+            'remaining_balance' => 100000.00,
+            'last_paid_date' => '2026-01-27',
+            'created_at' => '2026-01-08 08:30:00',
+            'updated_at' => '2026-01-28 17:00:00',
+        ];
+    }
+
+    private function eligibleDesignProjectAttributes(User $primaryForeman, User $coForeman): array
+    {
+        return [
+            'name' => self::ELIGIBLE_DESIGN_PROJECT_NAME,
+            'client' => 'Civic Prime Developments, Inc.',
+            'type' => 'Institutional',
+            'location' => 'Mandaue City',
+            'assigned_role' => 'Architect: Maria Santos; Engineer: Carlo Dizon; PM: Luis Mendoza',
+            'assigned' => $primaryForeman->fullname . ', ' . $coForeman->fullname,
+            'target' => '2026-08-15',
+            'status' => 'PLANNING',
+            'phase' => 'Design',
+            'overall_progress' => 0,
+            'contract_amount' => 320000.00,
+            'design_fee' => 320000.00,
+            'construction_cost' => 0,
+            'total_client_payment' => 250000.00,
+            'remaining_balance' => 70000.00,
+            'last_paid_date' => '2026-03-05',
+            'created_at' => '2026-02-20 10:00:00',
+            'updated_at' => '2026-03-05 16:40:00',
+        ];
+    }
+
+    private function pendingDesignProjectAttributes(User $primaryForeman, User $coForeman): array
+    {
+        return [
+            'name' => self::PENDING_DESIGN_PROJECT_NAME,
+            'client' => 'Experience Ventures Group',
+            'type' => 'Retail Interior',
+            'location' => 'Lapu-Lapu City',
+            'assigned_role' => 'Architect: Maria Santos; Engineer: Carlo Dizon; PM: Luis Mendoza',
+            'assigned' => $primaryForeman->fullname . ', ' . $coForeman->fullname,
+            'target' => '2026-09-30',
+            'status' => 'PLANNING',
+            'phase' => 'Design',
+            'overall_progress' => 0,
+            'contract_amount' => 260000.00,
+            'design_fee' => 260000.00,
+            'construction_cost' => 0,
+            'total_client_payment' => 160000.00,
+            'remaining_balance' => 100000.00,
+            'last_paid_date' => '2026-03-01',
+            'created_at' => '2026-03-01 09:45:00',
+            'updated_at' => '2026-03-09 18:15:00',
+        ];
+    }
+
+    private function completedProjectAttributes(User $primaryForeman, User $coForeman): array
+    {
+        return [
+            'name' => self::COMPLETED_PROJECT_NAME,
+            'client' => 'Warehouse Holdings Cebu',
+            'type' => 'Warehouse Fit-Out',
+            'location' => 'Talisay City',
+            'assigned_role' => 'Architect: Maria Santos; Engineer: Carlo Dizon; PM: Luis Mendoza',
+            'assigned' => $primaryForeman->fullname . ', ' . $coForeman->fullname,
+            'target' => '2026-02-14',
+            'status' => 'COMPLETED',
+            'phase' => 'Completed',
+            'overall_progress' => 100,
+            'contract_amount' => 980000.00,
+            'design_fee' => 150000.00,
+            'construction_cost' => 720000.00,
+            'total_client_payment' => 980000.00,
+            'remaining_balance' => 0.00,
+            'last_paid_date' => '2026-02-14',
+            'created_at' => '2025-11-10 08:00:00',
+            'updated_at' => '2026-02-14 17:30:00',
+        ];
+    }
+
+    private function eligibleDesignTrackerAttributes(): array
+    {
+        return [
+            'design_contract_amount' => 320000.00,
+            'downpayment' => 120000.00,
+            'total_received' => 250000.00,
+            'office_payroll_deduction' => 18000.00,
+            'design_progress' => 100,
+            'client_approval_status' => 'approved',
+        ];
+    }
+
+    private function pendingDesignTrackerAttributes(): array
+    {
+        return [
+            'design_contract_amount' => 260000.00,
+            'downpayment' => 100000.00,
+            'total_received' => 160000.00,
+            'office_payroll_deduction' => 12000.00,
+            'design_progress' => 62,
+            'client_approval_status' => 'pending',
+        ];
+    }
+
+    private function completedDesignProjectAttributes(Project $project): array
+    {
+        return [
+            'project_id' => $project->id,
+            'design_contract_amount' => 150000.00,
+            'downpayment' => 50000.00,
+            'total_received' => 150000.00,
+            'office_payroll_deduction' => 12000.00,
+            'design_progress' => 100,
+            'client_approval_status' => 'approved',
+        ];
+    }
+
+    private function completedBuildProjectAttributes(Project $project): array
+    {
+        return [
+            'project_id' => $project->id,
+            'construction_contract' => 830000.00,
+            'total_client_payment' => 830000.00,
+            'materials_cost' => 470000.00,
+            'labor_cost' => 185000.00,
+            'equipment_cost' => 65000.00,
+        ];
+    }
+
+    private function supplementalProjectFileRows(Project $project, User $uploadedBy, array $files, string $timestamp): array
+    {
+        return collect($files)
+            ->filter(fn (array $row) => !empty($row['file_path']))
+            ->map(fn (array $row) => [
+                'project_id' => $project->id,
+                'file_path' => $row['file_path'],
+                'original_name' => $row['original_name'],
+                'uploaded_by' => $uploadedBy->id,
+                'created_at' => $timestamp,
+                'updated_at' => $timestamp,
+            ])
+            ->values()
+            ->all();
+    }
+
+    private function seedMonitoringBoardFlow(User $seedAdmin, array $assets, Project $designSourceProject, Project $eligibleDesignProject): void
+    {
+        $definitions = [
+            [
+                'attributes' => [
+                    'department' => 'Autocad',
+                    'client_name' => 'Fortress Property Holdings, Inc.',
+                    'project_name' => self::PROJECT_NAME,
+                    'project_type' => 'Commercial',
+                    'location' => 'Cebu City',
+                    'assigned_to' => 'Maria Santos, Carlo Dizon',
+                    'status' => 'DONE',
+                    'start_date' => '2026-01-05',
+                    'timeline' => '4 weeks',
+                    'due_date' => '2026-01-28',
+                    'date_paid' => '2026-01-27',
+                    'progress_percent' => 100,
+                    'remarks' => 'Proposal-stage deliverables are complete. This item already converted into the Design project and has an active transferred Construction duplicate.',
+                    'project_id' => $designSourceProject->id,
+                    'converted_at' => '2026-01-28 16:55:00',
+                    'created_by' => $seedAdmin->id,
+                    'created_at' => '2026-01-05 09:00:00',
+                    'updated_at' => '2026-01-28 16:55:00',
+                ],
+                'files' => [
+                    ['file_path' => $assets['guide'] ?? null, 'original_name' => 'Fortress-System-Flow-Guide.txt', 'mime_type' => 'text/plain'],
+                    ['file_path' => $assets['scope_site_1'] ?? null, 'original_name' => 'Fortress-Building-Site-Layout.jpg', 'mime_type' => 'image/jpeg'],
+                ],
+            ],
+            [
+                'attributes' => [
+                    'department' => 'Architecture',
+                    'client_name' => 'Civic Prime Developments, Inc.',
+                    'project_name' => self::ELIGIBLE_DESIGN_PROJECT_NAME,
+                    'project_type' => 'Institutional',
+                    'location' => 'Mandaue City',
+                    'assigned_to' => 'Maria Santos, Carlo Dizon',
+                    'status' => 'DONE',
+                    'start_date' => '2026-02-18',
+                    'timeline' => '3 weeks',
+                    'due_date' => '2026-03-05',
+                    'date_paid' => '2026-03-05',
+                    'progress_percent' => 100,
+                    'remarks' => 'Converted from Monitoring Board to Design. Client approval is already Approved, but transfer to Construction has not been triggered yet.',
+                    'project_id' => $eligibleDesignProject->id,
+                    'converted_at' => '2026-03-05 16:35:00',
+                    'created_by' => $seedAdmin->id,
+                    'created_at' => '2026-02-18 09:15:00',
+                    'updated_at' => '2026-03-05 16:35:00',
+                ],
+                'files' => [
+                    ['file_path' => $assets['scope_structure_1'] ?? null, 'original_name' => 'Fortress-Civic-Center-Concept.jpg', 'mime_type' => 'image/jpeg'],
+                ],
+            ],
+            [
+                'attributes' => [
+                    'department' => 'Architecture',
+                    'client_name' => 'Harbor View Holdings',
+                    'project_name' => 'Harbor View Dormitory',
+                    'project_type' => 'Residential',
+                    'location' => 'Lapu-Lapu City',
+                    'assigned_to' => 'Maria Santos',
+                    'status' => 'IN_REVIEW',
+                    'start_date' => '2026-03-01',
+                    'timeline' => '2 weeks',
+                    'due_date' => '2026-03-16',
+                    'date_paid' => null,
+                    'progress_percent' => 65,
+                    'remarks' => 'Client comments on room mix, fire exit alignment, and facade options are under review.',
+                    'created_by' => $seedAdmin->id,
+                    'created_at' => '2026-03-01 10:40:00',
+                    'updated_at' => '2026-03-07 14:10:00',
+                ],
+                'files' => [
+                    ['file_path' => $assets['progress_2'] ?? null, 'original_name' => 'Harbor-View-Dormitory-Elevation.jpg', 'mime_type' => 'image/jpeg'],
+                ],
+            ],
+            [
+                'attributes' => [
+                    'department' => 'Engineering',
+                    'client_name' => 'Cebu Retail Group',
+                    'project_name' => 'Cebu Retail Arcade',
+                    'project_type' => 'Commercial',
+                    'location' => 'Cebu City',
+                    'assigned_to' => 'Carlo Dizon',
+                    'status' => 'PROPOSAL',
+                    'start_date' => '2026-03-08',
+                    'timeline' => '10 days',
+                    'due_date' => '2026-03-18',
+                    'date_paid' => null,
+                    'progress_percent' => 25,
+                    'remarks' => 'Initial site data and concept zoning have been collected, but the proposal package is still being assembled.',
+                    'created_by' => $seedAdmin->id,
+                    'created_at' => '2026-03-08 11:20:00',
+                    'updated_at' => '2026-03-08 11:20:00',
+                ],
+                'files' => [
+                    ['file_path' => $assets['scope_foundation_1'] ?? null, 'original_name' => 'Cebu-Retail-Arcade-Site-Reference.jpg', 'mime_type' => 'image/jpeg'],
+                ],
+            ],
+            [
+                'attributes' => [
+                    'department' => 'Planning',
+                    'client_name' => 'Northpoint Logistics Corp.',
+                    'project_name' => 'Northpoint Logistics Hub',
+                    'project_type' => 'Industrial',
+                    'location' => 'Minglanilla',
+                    'assigned_to' => 'Luis Mendoza',
+                    'status' => 'APPROVED',
+                    'start_date' => '2026-02-25',
+                    'timeline' => '18 days',
+                    'due_date' => '2026-03-20',
+                    'date_paid' => '2026-03-03',
+                    'progress_percent' => 90,
+                    'remarks' => 'Commercial approval is already in place and the board record is close to conversion, but final mobilization details are still pending.',
+                    'created_by' => $seedAdmin->id,
+                    'created_at' => '2026-02-25 13:00:00',
+                    'updated_at' => '2026-03-06 15:20:00',
+                ],
+                'files' => [
+                    ['file_path' => $assets['scope_roofing_1'] ?? null, 'original_name' => 'Northpoint-Logistics-Hub-Reference.jpg', 'mime_type' => 'image/jpeg'],
+                ],
+            ],
+        ];
+
+        foreach ($definitions as $definition) {
+            $item = $this->createMonitoringBoardItemRecord($definition['attributes']);
+
+            $files = collect($definition['files'])
+                ->filter(fn (array $file) => !empty($file['file_path']))
+                ->map(fn (array $file) => [
+                    'monitoring_board_item_id' => $item->id,
+                    'file_path' => $file['file_path'],
+                    'original_name' => $file['original_name'],
+                    'mime_type' => $file['mime_type'] ?? null,
+                    'uploaded_by' => $seedAdmin->id,
+                    'created_at' => $definition['attributes']['updated_at'],
+                    'updated_at' => $definition['attributes']['updated_at'],
+                ])
+                ->values()
+                ->all();
+
+            if ($files !== []) {
+                MonitoringBoardFile::query()->insert($files);
+            }
+        }
     }
 
     private function projectAttributes(User $primaryForeman, User $coForeman): array
@@ -195,12 +602,14 @@ class FortressBuildingFlowSeeder extends Seeder
             'status' => 'ONGOING',
             'phase' => 'Construction',
             'overall_progress' => 62,
-            'contract_amount' => 1800000.00,
-            'design_fee' => 280000.00,
+            'contract_amount' => 1520000.00,
+            'design_fee' => 0.00,
             'construction_cost' => 435500.00,
-            'total_client_payment' => 620000.00,
-            'remaining_balance' => 1180000.00,
+            'total_client_payment' => 440000.00,
+            'remaining_balance' => 1080000.00,
             'last_paid_date' => '2026-03-04',
+            'created_at' => '2026-01-29 08:00:00',
+            'updated_at' => '2026-03-08 18:30:00',
         ];
     }
 
@@ -508,7 +917,7 @@ class FortressBuildingFlowSeeder extends Seeder
     private function projectFileRows(Project $project, User $seedAdmin, array $assets): array
     {
         return collect([
-            ['file_path' => $assets['guide'] ?? null, 'original_name' => 'Fortress-Building-Flow-Guide.txt'],
+            ['file_path' => $assets['guide'] ?? null, 'original_name' => 'Fortress-System-Flow-Guide.txt'],
             ['file_path' => $assets['scope_structure_1'] ?? null, 'original_name' => 'Fortress-Building-Structural-Progress.jpg'],
             ['file_path' => $assets['scope_roofing_1'] ?? null, 'original_name' => 'Fortress-Building-Roofing-Progress.jpg'],
             ['file_path' => $assets['scope_mep_1'] ?? null, 'original_name' => 'Fortress-Building-MEP-Progress.jpg'],
@@ -526,12 +935,45 @@ class FortressBuildingFlowSeeder extends Seeder
             ->all();
     }
 
+    private function designPaymentRows(Project $project): array
+    {
+        return [
+            ['project_id' => $project->id, 'amount' => 80000.00, 'date_paid' => '2026-01-10', 'reference' => 'FPH-DES-260110', 'note' => 'Design mobilization downpayment for schematic package work.', 'created_at' => '2026-01-10 11:00:00', 'updated_at' => '2026-01-10 11:00:00'],
+            ['project_id' => $project->id, 'amount' => 100000.00, 'date_paid' => '2026-01-27', 'reference' => 'FPH-DES-260127', 'note' => 'Additional design billing after approved proposal and coordinated drawing issuance.', 'created_at' => '2026-01-27 15:30:00', 'updated_at' => '2026-01-27 15:30:00'],
+        ];
+    }
+
+    private function eligibleDesignPaymentRows(Project $project): array
+    {
+        return [
+            ['project_id' => $project->id, 'amount' => 120000.00, 'date_paid' => '2026-02-22', 'reference' => 'CIV-DES-260222', 'note' => 'Approved concept retainer and planning package release.', 'created_at' => '2026-02-22 13:20:00', 'updated_at' => '2026-02-22 13:20:00'],
+            ['project_id' => $project->id, 'amount' => 130000.00, 'date_paid' => '2026-03-05', 'reference' => 'CIV-DES-260305', 'note' => 'Second design billing after client approval of the final scheme.', 'created_at' => '2026-03-05 15:50:00', 'updated_at' => '2026-03-05 15:50:00'],
+        ];
+    }
+
+    private function pendingDesignPaymentRows(Project $project): array
+    {
+        return [
+            ['project_id' => $project->id, 'amount' => 100000.00, 'date_paid' => '2026-03-01', 'reference' => 'EXP-DES-260301', 'note' => 'Initial design retainer for mood boards, space planning, and MEP coordination.', 'created_at' => '2026-03-01 14:00:00', 'updated_at' => '2026-03-01 14:00:00'],
+            ['project_id' => $project->id, 'amount' => 60000.00, 'date_paid' => '2026-03-08', 'reference' => 'EXP-DES-260308', 'note' => 'Interim design billing while waiting for final client approval.', 'created_at' => '2026-03-08 16:30:00', 'updated_at' => '2026-03-08 16:30:00'],
+        ];
+    }
+
     private function paymentRows(Project $project): array
     {
         return [
-            ['project_id' => $project->id, 'amount' => 180000.00, 'date_paid' => '2026-01-10', 'reference' => 'FPH-DEP-260110', 'note' => 'Mobilization and initial design retention release.', 'created_at' => '2026-01-10 11:00:00', 'updated_at' => '2026-01-10 11:00:00'],
-            ['project_id' => $project->id, 'amount' => 220000.00, 'date_paid' => '2026-02-18', 'reference' => 'FPH-PROG-260218', 'note' => 'Progress billing tied to footing and initial framing accomplishments.', 'created_at' => '2026-02-18 15:00:00', 'updated_at' => '2026-02-18 15:00:00'],
-            ['project_id' => $project->id, 'amount' => 220000.00, 'date_paid' => '2026-03-04', 'reference' => 'FPH-PROG-260304', 'note' => 'March progress billing covering structural works and masonry start.', 'created_at' => '2026-03-04 16:20:00', 'updated_at' => '2026-03-04 16:20:00'],
+            ['project_id' => $project->id, 'amount' => 120000.00, 'date_paid' => '2026-01-31', 'reference' => 'FPH-CON-260131', 'note' => 'Construction mobilization for footing excavation, fencing, and temporary facilities.', 'created_at' => '2026-01-31 10:45:00', 'updated_at' => '2026-01-31 10:45:00'],
+            ['project_id' => $project->id, 'amount' => 140000.00, 'date_paid' => '2026-02-18', 'reference' => 'FPH-CON-260218', 'note' => 'Progress billing tied to footing completion and initial framing accomplishments.', 'created_at' => '2026-02-18 15:00:00', 'updated_at' => '2026-02-18 15:00:00'],
+            ['project_id' => $project->id, 'amount' => 180000.00, 'date_paid' => '2026-03-04', 'reference' => 'FPH-CON-260304', 'note' => 'March progress billing covering structural works, masonry, and roofing preparation.', 'created_at' => '2026-03-04 16:20:00', 'updated_at' => '2026-03-04 16:20:00'],
+        ];
+    }
+
+    private function completedPaymentRows(Project $project): array
+    {
+        return [
+            ['project_id' => $project->id, 'amount' => 250000.00, 'date_paid' => '2025-12-05', 'reference' => 'WHA-DEP-251205', 'note' => 'Design approval and mobilization billing.', 'created_at' => '2025-12-05 11:20:00', 'updated_at' => '2025-12-05 11:20:00'],
+            ['project_id' => $project->id, 'amount' => 330000.00, 'date_paid' => '2026-01-09', 'reference' => 'WHA-PROG-260109', 'note' => 'Structural and envelope progress billing.', 'created_at' => '2026-01-09 14:15:00', 'updated_at' => '2026-01-09 14:15:00'],
+            ['project_id' => $project->id, 'amount' => 400000.00, 'date_paid' => '2026-02-14', 'reference' => 'WHA-FIN-260214', 'note' => 'Final billing after turnover, punch-list closure, and handover documents.', 'created_at' => '2026-02-14 16:50:00', 'updated_at' => '2026-02-14 16:50:00'],
         ];
     }
 
@@ -545,6 +987,16 @@ class FortressBuildingFlowSeeder extends Seeder
             ['project_id' => $project->id, 'category' => 'Electrical Wire', 'amount' => 27000.00, 'note' => 'Initial rough-in feeder and branch wire purchase.', 'date' => '2026-03-04', 'created_at' => '2026-03-04 13:00:00', 'updated_at' => '2026-03-04 13:00:00'],
             ['project_id' => $project->id, 'category' => 'PVC Pipe', 'amount' => 18500.00, 'note' => 'Sanitary and water line rough-in materials.', 'date' => '2026-03-06', 'created_at' => '2026-03-06 11:10:00', 'updated_at' => '2026-03-06 11:10:00'],
             ['project_id' => $project->id, 'category' => 'Miscellaneous', 'amount' => 30000.00, 'note' => 'Fasteners, safety stock, hauling, and site consumables.', 'date' => '2026-03-07', 'created_at' => '2026-03-07 17:10:00', 'updated_at' => '2026-03-07 17:10:00'],
+        ];
+    }
+
+    private function completedExpenseRows(Project $project): array
+    {
+        return [
+            ['project_id' => $project->id, 'category' => 'Steel and Roofing', 'amount' => 290000.00, 'note' => 'Main structure and roofing package.', 'date' => '2025-12-22', 'created_at' => '2025-12-22 09:30:00', 'updated_at' => '2025-12-22 09:30:00'],
+            ['project_id' => $project->id, 'category' => 'Concrete and Masonry', 'amount' => 180000.00, 'note' => 'Footings, slab-on-grade, and masonry walls.', 'date' => '2026-01-05', 'created_at' => '2026-01-05 11:15:00', 'updated_at' => '2026-01-05 11:15:00'],
+            ['project_id' => $project->id, 'category' => 'Labor', 'amount' => 185000.00, 'note' => 'Average manpower cost across the fit-out period.', 'date' => '2026-02-01', 'created_at' => '2026-02-01 17:30:00', 'updated_at' => '2026-02-01 17:30:00'],
+            ['project_id' => $project->id, 'category' => 'Equipment Rental', 'amount' => 65000.00, 'note' => 'Scaffolding, welding set, and lifting equipment.', 'date' => '2026-01-20', 'created_at' => '2026-01-20 10:45:00', 'updated_at' => '2026-01-20 10:45:00'],
         ];
     }
 
@@ -582,98 +1034,57 @@ class FortressBuildingFlowSeeder extends Seeder
         UserDetail::query()->updateOrCreate(['user_id' => $user->id], $detailData);
     }
 
-    private function cleanupExistingProject(User $primaryForeman, User $coForeman, array $workerNames): void
+    private function cleanupDatabaseExceptUsersAndUserDetails(): void
     {
         Storage::disk('public')->deleteDirectory(self::ASSET_ROOT);
 
-        $projectIds = Project::withTrashed()
-            ->where('name', self::PROJECT_NAME)
-            ->pluck('id');
-
-        if ($projectIds->isNotEmpty()) {
-            $scopeIds = ProjectScope::withTrashed()
-                ->whereIn('project_id', $projectIds->all())
-                ->pluck('id');
-
-            $storagePaths = collect([
-                DB::table('project_files')->whereIn('project_id', $projectIds->all())->pluck('file_path'),
-                DB::table('progress_photos')->whereIn('project_id', $projectIds->all())->pluck('photo_path'),
-                DB::table('material_requests')->whereIn('project_id', $projectIds->all())->pluck('photo_path'),
-                DB::table('issue_reports')->whereIn('project_id', $projectIds->all())->pluck('photo_path'),
-                DB::table('delivery_confirmations')->whereIn('project_id', $projectIds->all())->pluck('photo_path'),
-                DB::table('attendances')->whereIn('project_id', $projectIds->all())->pluck('selfie_path'),
-            ])->flatten();
-
-            if ($scopeIds->isNotEmpty()) {
-                $storagePaths = $storagePaths->merge(
-                    DB::table('scope_photos')->whereIn('project_scope_id', $scopeIds->all())->pluck('photo_path')
-                );
-
-                DB::table('scope_photos')->whereIn('project_scope_id', $scopeIds->all())->delete();
-            }
-
-            Storage::disk('public')->delete(
-                $storagePaths
-                    ->filter(fn ($path) => is_string($path) && trim($path) !== '')
-                    ->map(fn ($path) => trim($path))
-                    ->unique()
-                    ->values()
-                    ->all()
-            );
-
-            DB::table('progress_submit_tokens')->whereIn('project_id', $projectIds->all())->delete();
-            DB::table('attendances')->whereIn('project_id', $projectIds->all())->delete();
-            DB::table('weekly_accomplishments')->whereIn('project_id', $projectIds->all())->delete();
-            DB::table('material_requests')->whereIn('project_id', $projectIds->all())->delete();
-            DB::table('issue_reports')->whereIn('project_id', $projectIds->all())->delete();
-            DB::table('progress_photos')->whereIn('project_id', $projectIds->all())->delete();
-            DB::table('delivery_confirmations')->whereIn('project_id', $projectIds->all())->delete();
-            DB::table('project_assignments')->whereIn('project_id', $projectIds->all())->delete();
-            DB::table('project_workers')->whereIn('project_id', $projectIds->all())->delete();
-            DB::table('workers')
-                ->whereIn('project_id', $projectIds->all())
-                ->orWhere(function ($query) use ($primaryForeman, $coForeman, $workerNames) {
-                    $query
-                        ->whereIn('foreman_id', [$primaryForeman->id, $coForeman->id])
-                        ->whereIn('name', $workerNames);
-                })
-                ->delete();
-            DB::table('payments')->whereIn('project_id', $projectIds->all())->delete();
-            DB::table('expenses')->whereIn('project_id', $projectIds->all())->delete();
-            DB::table('project_updates')->whereIn('project_id', $projectIds->all())->delete();
-            DB::table('project_files')->whereIn('project_id', $projectIds->all())->delete();
-            DB::table('build_projects')->whereIn('project_id', $projectIds->all())->delete();
-            DB::table('design_projects')->whereIn('project_id', $projectIds->all())->delete();
-            DB::table('project_scopes')->whereIn('project_id', $projectIds->all())->delete();
-            DB::table('projects')->whereIn('id', $projectIds->all())->delete();
-        }
-
-        $payrollNames = collect(array_merge([$primaryForeman->fullname, $coForeman->fullname], $workerNames))
-            ->filter(fn ($name) => trim((string) $name) !== '')
+        $tables = collect($this->allTableNames())
+            ->reject(fn (string $table) => in_array($table, ['users', 'user_details', 'migrations'], true))
             ->values();
 
-        $cutoff = PayrollCutoff::query()
-            ->whereDate('start_date', self::PAYROLL_WEEK_START)
-            ->whereDate('end_date', self::PAYROLL_WEEK_END)
-            ->first();
+        Schema::disableForeignKeyConstraints();
+        try {
+            foreach ($tables as $table) {
+                DB::table($table)->truncate();
+            }
+        } finally {
+            Schema::enableForeignKeyConstraints();
+        }
+    }
 
-        if (!$cutoff) {
-            return;
+    private function allTableNames(): array
+    {
+        $driver = DB::getDriverName();
+
+        if ($driver === 'mysql') {
+            return collect(DB::select('SHOW TABLES'))
+                ->map(fn ($row) => (string) array_values((array) $row)[0])
+                ->values()
+                ->all();
         }
 
-        $payrollIds = Payroll::query()
-            ->where('cutoff_id', $cutoff->id)
-            ->whereIn('worker_name', $payrollNames->all())
-            ->pluck('id');
-
-        if ($payrollIds->isNotEmpty()) {
-            PayrollDeduction::query()->whereIn('payroll_id', $payrollIds->all())->delete();
-            Payroll::query()->whereIn('id', $payrollIds->all())->delete();
+        if ($driver === 'pgsql') {
+            return collect(DB::select("SELECT tablename FROM pg_tables WHERE schemaname = 'public'"))
+                ->map(fn ($row) => (string) $row->tablename)
+                ->values()
+                ->all();
         }
 
-        if (!Payroll::query()->where('cutoff_id', $cutoff->id)->exists()) {
-            $cutoff->delete();
+        if ($driver === 'sqlite') {
+            return collect(DB::select("SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%'"))
+                ->map(fn ($row) => (string) $row->name)
+                ->values()
+                ->all();
         }
+
+        if ($driver === 'sqlsrv') {
+            return collect(DB::select('SELECT name FROM sys.tables'))
+                ->map(fn ($row) => (string) $row->name)
+                ->values()
+                ->all();
+        }
+
+        return [];
     }
 
     private function buildAttendanceRows(int $projectId, User $primaryForeman, User $coForeman, array $workerSeedRows): array
@@ -871,21 +1282,37 @@ class FortressBuildingFlowSeeder extends Seeder
     private function prepareAssets(): array
     {
         $baseUrl = rtrim((string) config('app.url', 'http://127.0.0.1:8000'), '/');
-        $guidePath = self::ASSET_ROOT . '/Fortress-Building-Flow-Guide.txt';
+        $guidePath = self::ASSET_ROOT . '/Fortress-System-Flow-Guide.txt';
 
         Storage::disk('public')->put($guidePath, implode(PHP_EOL, [
-            'Fortress Building demo flow guide',
-            '',
-            'Project:',
-            '- Name: Fortress Building',
-            '- Client: Fortress Property Holdings, Inc.',
-            '- Phase: Construction',
-            '- Status: Ongoing',
+            'Fortress system demo flow guide',
             '',
             'Logins:',
             '- Head Admin: headadmin@buildbooks.com / password',
             '- Demo Foreman: ' . self::PRIMARY_FOREMAN_EMAIL . ' / password',
             '- Demo Co-Foreman: ' . self::CO_FOREMAN_EMAIL . ' / password',
+            '',
+            'Monitoring Board demo records:',
+            '- Fortress Building | DONE | converted into the Design source project and already linked to a Construction duplicate.',
+            '- Fortress Civic Center | DONE | converted into a Design project that is approved and ready for manual transfer.',
+            '- Harbor View Dormitory | IN_REVIEW | active proposal-stage example.',
+            '- Cebu Retail Arcade | PROPOSAL | early-stage proposal example.',
+            '- Northpoint Logistics Hub | APPROVED | near-conversion example.',
+            '',
+            'Projects Kanban demo records:',
+            '- Fortress Building | Design | approved at 100%, transfer already used, kept as the source project.',
+            '- Fortress Building | Construction | active duplicate linked through source_project_id with scopes, files, uploads, and payroll data.',
+            '- Fortress Civic Center | Design | approved at 100%, not yet transferred so the Transfer to Construction button can be tested.',
+            '- Fortress Experience Hub | Design | pending approval, so transfer should remain unavailable.',
+            '- Fortress Warehouse Annex | Completed | sample closed project for the Completed column.',
+            '',
+            'Flow walkthrough:',
+            '1. Proposal work starts in Monitoring Board with files and status progression.',
+            '2. A Monitoring Board item reaches 100% and is considered converted into a Design project.',
+            '3. Design progress is driven from design billing plus approval status, not from construction scopes.',
+            '4. Approved Design projects can be manually transferred from the Kanban card into a duplicated Construction project.',
+            '5. Construction progress is driven by project scopes, weekly accomplishments, attendance, uploads, expenses, and payments.',
+            '6. Construction projects can be manually transferred to Completed from the Kanban card.',
             '',
             'Public links:',
             '- Main Jotform flow: ' . $baseUrl . '/progress-submit/' . self::PRIMARY_TOKEN,
@@ -894,12 +1321,11 @@ class FortressBuildingFlowSeeder extends Seeder
             '- Co-foreman receipt: ' . $baseUrl . '/progress-receipt/' . self::CO_TOKEN,
             '',
             'What is seeded:',
-            '- Design and build financial records',
-            '- Project scopes with scope photos',
-            '- Foreman assignments and workers',
-            '- Worker and foreman attendance across two weeks',
-            '- Weekly accomplishments, material requests, issues, deliveries, and progress photos',
-            '- Payroll cutoff and deduction items for the active week',
+            '- Monitoring Board items in Proposal, In Review, Approved, and Done states, with attached files.',
+            '- Three design-stage examples: transferred, transfer-ready, and approval-pending.',
+            '- One active construction project with design linkage, scopes, scope photos, workers, attendance, weekly accomplishments, issues, deliveries, progress photos, updates, files, payments, expenses, payroll, and submission tokens.',
+            '- One completed project with closeout payments, expenses, files, and updates.',
+            '- A text guide file attached to both projects and monitoring entries to explain the seeded workflow.',
         ]));
 
         return [
