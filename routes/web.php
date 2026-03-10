@@ -7,6 +7,7 @@ use App\Http\Controllers\DesignController;
 use App\Http\Controllers\ExpenseController;
 use App\Http\Controllers\ForemanWorkerController;
 use App\Http\Controllers\ForemansController;
+use App\Http\Controllers\KpiController;
 use App\Http\Controllers\MaterialRequestController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\WeeklyAccomplishmentController;
@@ -45,6 +46,12 @@ Route::post('/progress-submit/{token}/issue-report', [PublicProgressController::
 Route::middleware(['auth', 'role:head_admin,admin,hr,foreman'])->group(function () {
     Route::get('/settings', [SettingsController::class, 'index'])->name('settings.index');
     Route::post('/settings', [SettingsController::class, 'update'])->name('settings.update');
+});
+
+Route::middleware(['auth', 'role:head_admin,admin,hr'])->group(function () {
+    Route::get('/kpi', [KpiController::class, 'index'])->name('kpi.index');
+    Route::get('/kpi/print', [KpiController::class, 'print'])->name('kpi.print');
+    Route::get('/kpi/export', [KpiController::class, 'export'])->name('kpi.export');
 });
 
 Route::middleware(['auth', 'role:head_admin'])->group(function () {

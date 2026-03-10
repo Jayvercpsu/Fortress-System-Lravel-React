@@ -6,6 +6,7 @@ import BrandIcon from './BrandIcon';
 const navByRole = {
     head_admin: [
         { label: 'Dashboard', href: '/head-admin', icon: 'fi fi-rr-dashboard' },
+        { label: 'KPI', href: '/kpi', icon: 'fi fi-rr-chart-pie' },
         { label: 'Projects', href: '/projects', icon: 'fi fi-rr-diagram-project' },
         // Builders navigation temporarily hidden
         { label: 'Attendance', href: '/attendance', icon: 'fi fi-rr-calendar-check' },
@@ -21,6 +22,7 @@ const navByRole = {
     ],
     admin: [
         { label: 'Dashboard', href: '/admin', icon: 'fi fi-rr-dashboard' },
+        { label: 'KPI', href: '/kpi', icon: 'fi fi-rr-chart-pie' },
         { label: 'Projects', href: '/projects', icon: 'fi fi-rr-diagram-project' },
         { label: 'Attendance', href: '/attendance', icon: 'fi fi-rr-calendar-check' },
         { label: 'Materials', href: '/materials', icon: 'fi fi-rr-shopping-cart' },
@@ -33,6 +35,7 @@ const navByRole = {
     ],
     hr: [
         { label: 'Dashboard', href: '/hr', icon: 'fi fi-rr-dashboard' },
+        { label: 'KPI', href: '/kpi', icon: 'fi fi-rr-chart-pie' },
         { label: 'Payroll', href: '/payroll/run', icon: 'fi fi-rr-money-bill-wave' },
         { label: 'Settings', href: '/settings', icon: 'fi fi-rr-settings' },
     ],

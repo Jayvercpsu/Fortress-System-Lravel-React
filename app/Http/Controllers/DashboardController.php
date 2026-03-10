@@ -96,7 +96,7 @@ class DashboardController extends Controller
 
         $recentPayrollsPager = Payroll::query()
             ->latest()
-            ->paginate(8, ['*'], 'ha_payrolls_page')
+            ->paginate(5, ['*'], 'ha_payrolls_page')
             ->withQueryString();
         $recentPayrollsPager->setCollection(
             $recentPayrollsPager->getCollection()
@@ -113,7 +113,7 @@ class DashboardController extends Controller
 
         $recentProjectsPager = $this->paginateCollection(
             collect($projectKpis['projects'] ?? []),
-            8,
+            5,
             'ha_projects_page',
             $request
         );
