@@ -15,6 +15,12 @@ const receiptLinkStyle = {
     textDecoration: 'none',
 };
 
+const numericCellStyle = {
+    padding: '10px 12px',
+    fontFamily: "'DM Mono', monospace",
+    fontSize: 12,
+};
+
 const money = (value) =>
     `P ${Number(value || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
@@ -59,9 +65,10 @@ export default function ReportsIndex({ summary = {}, projectProfitability = [] }
                     <StatCard label="Unallocated Payroll" value={money(summary.unallocated_payroll_total)} color="#f59e0b" />
                 </div>
 
-                <div style={{ ...cardStyle, overflow: 'hidden' }}>
+                <div style={cardStyle}>
                     <div style={{ fontWeight: 700, marginBottom: 10 }}>Project Profitability</div>
-                    <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                    <div style={{ overflowX: 'auto', width: '100%' }}>
+                        <table style={{ width: '100%', minWidth: 1100, borderCollapse: 'collapse' }}>
                         <thead>
                             <tr>
                                 {[
@@ -109,43 +116,32 @@ export default function ReportsIndex({ summary = {}, projectProfitability = [] }
                                                 {row.client} • {row.phase} • {row.status}
                                             </div>
                                         </td>
-                                        <td style={{ padding: '10px 12px', fontFamily: "'DM Mono', monospace" }}>
+                                        <td style={numericCellStyle}>
                                             {row.overall_progress}%
                                         </td>
-                                        <td
-                                            style={{
-                                                padding: '10px 12px',
-                                                fontFamily: "'DM Mono', monospace",
-                                            }}
-                                        >
+                                        <td style={numericCellStyle}>
                                             {row.weighted_progress_percent != null ? `${row.weighted_progress_percent.toFixed(2)}%` : '-'}
                                         </td>
-                                        <td
-                                            style={{
-                                                padding: '10px 12px',
-                                                fontFamily: "'DM Mono', monospace",
-                                            }}
-                                        >
+                                        <td style={numericCellStyle}>
                                             {money(row.computed_amount_to_date)}
                                         </td>
-                                        <td style={{ padding: '10px 12px', fontFamily: "'DM Mono', monospace" }}>
+                                        <td style={numericCellStyle}>
                                             {money(row.collected_amount)}
                                         </td>
-                                        <td style={{ padding: '10px 12px', fontFamily: "'DM Mono', monospace" }}>
+                                        <td style={numericCellStyle}>
                                             {money(row.expense_total)}
                                         </td>
-                                        <td style={{ padding: '10px 12px', fontFamily: "'DM Mono', monospace" }}>
+                                        <td style={numericCellStyle}>
                                             {money(row.allocated_payroll_total)}
                                         </td>
-                                        <td style={{ padding: '10px 12px', fontWeight: 700, fontFamily: "'DM Mono', monospace" }}>
+                                        <td style={{ ...numericCellStyle, fontWeight: 700 }}>
                                             {money(row.total_cost)}
                                         </td>
                                         <td
                                             style={{
-                                                padding: '10px 12px',
+                                                ...numericCellStyle,
                                                 fontWeight: 700,
                                                 color: Number(row.profit_collected_basis || 0) >= 0 ? '#4ade80' : '#f87171',
-                                                fontFamily: "'DM Mono', monospace",
                                             }}
                                         >
                                             {money(row.profit_collected_basis)}
@@ -155,10 +151,9 @@ export default function ReportsIndex({ summary = {}, projectProfitability = [] }
                                         </td>
                                         <td
                                             style={{
-                                                padding: '10px 12px',
+                                                ...numericCellStyle,
                                                 fontWeight: 700,
                                                 color: Number(row.profit_contract_basis || 0) >= 0 ? '#60a5fa' : '#f87171',
-                                                fontFamily: "'DM Mono', monospace",
                                             }}
                                         >
                                             {money(row.profit_contract_basis)}
@@ -181,7 +176,8 @@ export default function ReportsIndex({ summary = {}, projectProfitability = [] }
                                 ))
                             )}
                         </tbody>
-                    </table>
+                        </table>
+                    </div>
                 </div>
             </Layout>
         </>
