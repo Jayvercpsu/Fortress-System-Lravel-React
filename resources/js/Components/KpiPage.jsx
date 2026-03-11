@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from 'react';
 import Layout from './Layout';
 import ActionButton from './ActionButton';
 import DatePickerInput from './DatePickerInput';
+import SearchableDropdown from './SearchableDropdown';
 import SelectInput from './SelectInput';
 import TextInput from './TextInput';
 
@@ -342,19 +343,20 @@ export default function KpiPage({
                                     </div>
                                     <div>
                                         <div style={labelStyle}>Project</div>
-                                        <SelectInput
+                                        <SearchableDropdown
                                             value={draftFilters.project_id}
-                                            onChange={(e) => setDraftFilters((prev) => ({ ...prev, project_id: e.target.value }))}
+                                            onChange={(value) => setDraftFilters((prev) => ({ ...prev, project_id: value }))}
                                             data-testid="kpi-project-select"
                                             style={inputStyle}
-                                        >
-                                            <option value="">All projects</option>
-                                            {projects.map((project) => (
-                                                <option key={project.id} value={project.id}>
-                                                    {project.name}
-                                                </option>
-                                            ))}
-                                        </SelectInput>
+                                            placeholder="All projects"
+                                            searchPlaceholder="Search projects..."
+                                            pageSize={10}
+                                            loadMoreLabel="Load more"
+                                            options={[
+                                                { value: '', label: 'All projects' },
+                                                ...projects.map((project) => ({ value: String(project.id), label: project.name })),
+                                            ]}
+                                        />
                                     </div>
                                     <div>
                                         <div style={labelStyle}>Delivery Date Basis</div>
