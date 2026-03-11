@@ -354,7 +354,7 @@ export default function KpiPage({
                                             loadMoreLabel="Load more"
                                             options={[
                                                 { value: '', label: 'All projects' },
-                                                ...projects.map((project) => ({ value: String(project.id), label: project.name })),
+                                                ...projects.map((project) => ({ value: String(project.id), label: project.label || project.name })),
                                             ]}
                                         />
                                     </div>

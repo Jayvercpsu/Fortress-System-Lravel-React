@@ -54,7 +54,7 @@ export default function KpiPrintPage({
     const projectLabel = (() => {
         if (!filters?.project_id) return 'All projects';
         const match = projects.find((project) => String(project.id) === String(filters.project_id));
-        return match?.name || `Project ${filters.project_id}`;
+        return match?.label || match?.name || `Project ${filters.project_id}`;
     })();
 
     const dateLabel = (() => {

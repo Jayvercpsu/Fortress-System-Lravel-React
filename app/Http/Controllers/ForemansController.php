@@ -13,6 +13,7 @@ use App\Models\ProjectScope;
 use App\Models\User;
 use App\Models\Worker;
 use App\Models\WeeklyAccomplishment;
+use App\Support\ProjectSelection;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
@@ -85,16 +86,7 @@ class ForemansController extends Controller
             ];
         })->values();
 
-        $projects = Project::query()
-            ->when(
-                $assignedProjectIds->isNotEmpty(),
-                fn ($query) => $query->whereIn('id', $assignedProjectIds->all()),
-                fn ($query) => $query->whereRaw('1 = 0')
-            )
-            ->orderBy('name')
-            ->get(['id', 'name'])
-            ->map(fn (Project $project) => ['id' => $project->id, 'name' => $project->name])
-            ->values();
+        $projects = ProjectSelection::actualOptionsForIds($assignedProjectIds->all())->values();
 
         $workers = Worker::query()
             ->where('foreman_id', $foremanId)

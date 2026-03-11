@@ -16,6 +16,7 @@ use App\Models\ProjectScope;
 use App\Models\ScopePhoto;
 use App\Models\User;
 use App\Models\WeeklyAccomplishment;
+use App\Support\ProjectSelection;
 use Illuminate\Http\Request;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Carbon;
@@ -296,14 +297,19 @@ class DashboardController extends Controller
 
         $weeklyProjectId = trim((string) $request->query('foreman_weekly_project_id', ''));
         $weeklyProjectWeek = trim((string) $request->query('foreman_weekly_project_week', ''));
+        $weeklyProjectFamilyIds = ProjectSelection::familyIdsFor(
+            $weeklyProjectId !== '' ? (int) $weeklyProjectId : null
+        );
 
-        $weeklyAccomplishmentsByProjectPager = WeeklyAccomplishment::query()
+        $weeklyAccomplishmentsByProjectQuery = WeeklyAccomplishment::query()
             ->with('project:id,name')
-            ->where('foreman_id', $user->id)
-            ->when(
-                $weeklyProjectId !== '',
-                fn ($query) => $query->where('project_id', (int) $weeklyProjectId)
-            )
+            ->where('foreman_id', $user->id);
+
+        if (!empty($weeklyProjectFamilyIds)) {
+            $weeklyAccomplishmentsByProjectQuery->whereIn('project_id', $weeklyProjectFamilyIds);
+        }
+
+        $weeklyAccomplishmentsByProjectPager = $weeklyAccomplishmentsByProjectQuery
             ->selectRaw('
                 project_id,
                 COUNT(*) as scope_entries,
@@ -413,16 +419,8 @@ class DashboardController extends Controller
             ])
             ->values();
 
-        $projects = Project::query()
-            ->when(
-                $assignedProjectIds->isNotEmpty(),
-                fn ($query) => $query->whereIn('id', $assignedProjectIds->all()),
-                fn ($query) => $query->whereRaw('1 = 0')
-            )
-            ->orderBy('name')
-            ->get(['id', 'name'])
-            ->map(fn (Project $project) => ['id' => $project->id, 'name' => $project->name])
-            ->values();
+        $projects = ProjectSelection::actualOptionsForIds($assignedProjectIds->all())->values();
+        $projectFilters = ProjectSelection::familyFilterOptionsForIds($assignedProjectIds->all())->values();
 
         $foremanAttendanceToday = null;
         $foremanName = trim((string) ($user->fullname ?? ''));
@@ -469,6 +467,7 @@ class DashboardController extends Controller
             'weeklyAccomplishmentsByProjectPager',
             'weeklyAccomplishmentsByProjectFilters',
             'projects',
+            'projectFilters',
             'assignedProjects',
             'foremanAttendanceToday',
             'progressPhotos',

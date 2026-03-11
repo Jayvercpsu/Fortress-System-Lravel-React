@@ -194,7 +194,7 @@ export default function AttendanceSummaryPage({
                                     <option value="">All projects</option>
                                     {projects.map((project) => (
                                         <option key={project.id} value={project.id}>
-                                            {project.name}
+                                            {project.label || project.name}
                                         </option>
                                     ))}
                                 </select>

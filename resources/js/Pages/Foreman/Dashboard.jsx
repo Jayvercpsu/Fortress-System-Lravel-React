@@ -82,6 +82,7 @@ export default function ForemanDashboard({
     deliveriesPager = null,
     weeklyAccomplishmentsByProjectPager = null,
     projects = [],
+    projectFilters = [],
     assignedProjects = [],
     foremanAttendanceToday = null,
     progressPhotos = [],
@@ -94,8 +95,12 @@ export default function ForemanDashboard({
     const [dashboardPreviewPhoto, setDashboardPreviewPhoto] = useState(null);
 
     const projectOptions = useMemo(
-        () => (Array.isArray(projects) ? projects.map((project) => ({ id: project.id, name: project.name })) : []),
+        () => (Array.isArray(projects) ? projects.map((project) => ({ id: String(project.id), name: project.label || project.name })) : []),
         [projects]
+    );
+    const projectFilterOptions = useMemo(
+        () => (Array.isArray(projectFilters) ? projectFilters.map((project) => ({ id: String(project.id), name: project.label || project.name })) : []),
+        [projectFilters]
     );
     const assignedProjectRows = assignedProjectsPager?.data || assignedProjects;
     const materialRequestRows = materialRequestsPager?.data || materialRequests.slice(0, 5);
@@ -612,7 +617,7 @@ export default function ForemanDashboard({
                                 <label style={{ display: 'grid', gap: 4, fontSize: 12, color: 'var(--text-muted)' }}>
                                     Project
                                     <SearchableDropdown
-                                        options={projectOptions}
+                                        options={projectFilterOptions}
                                         value={weeklyProjectId}
                                         onChange={(value) => setWeeklyProjectId(value || '')}
                                         getOptionLabel={(option) => option.name}

@@ -7,8 +7,8 @@ use App\Models\DeliveryConfirmation;
 use App\Models\IssueReport;
 use App\Models\MaterialRequest;
 use App\Models\ProgressPhoto;
-use App\Models\Project;
 use App\Models\User;
+use App\Support\ProjectSelection;
 use App\Models\WeeklyAccomplishment;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
@@ -94,14 +94,18 @@ class KpiController extends Controller
         $dateFrom = $this->parseDate($filters['date_from']);
         $dateTo = $this->parseDate($filters['date_to'], true);
         $projectId = $filters['project_id'] !== '' ? (int) $filters['project_id'] : null;
+        $projectFamilyIds = ProjectSelection::familyIdsFor($projectId);
         $deliveryDateBasis = $filters['delivery_date_basis'] !== '' ? $filters['delivery_date_basis'] : 'created_at';
         if (!in_array($deliveryDateBasis, ['created_at', 'delivery_date'], true)) {
             $deliveryDateBasis = 'created_at';
         }
         $filters['delivery_date_basis'] = $deliveryDateBasis;
 
-        $attendanceRows = Attendance::query()
-            ->when($projectId, fn ($query) => $query->where('project_id', $projectId))
+        $attendanceQuery = Attendance::query();
+        if (!empty($projectFamilyIds)) {
+            $attendanceQuery->whereIn('project_id', $projectFamilyIds);
+        }
+        $attendanceRows = $attendanceQuery
             ->when($dateFrom, fn ($query) => $query->whereDate('date', '>=', $dateFrom))
             ->when($dateTo, fn ($query) => $query->whereDate('date', '<=', $dateTo))
             ->get([
@@ -114,8 +118,11 @@ class KpiController extends Controller
                 'attendance_code',
             ]);
 
-        $weeklyRows = WeeklyAccomplishment::query()
-            ->when($projectId, fn ($query) => $query->where('project_id', $projectId))
+        $weeklyQuery = WeeklyAccomplishment::query();
+        if (!empty($projectFamilyIds)) {
+            $weeklyQuery->whereIn('project_id', $projectFamilyIds);
+        }
+        $weeklyRows = $weeklyQuery
             ->when($dateFrom, fn ($query) => $query->whereDate('week_start', '>=', $dateFrom))
             ->when($dateTo, fn ($query) => $query->whereDate('week_start', '<=', $dateTo))
             ->get([
@@ -125,8 +132,11 @@ class KpiController extends Controller
                 'percent_completed',
             ]);
 
-        $issueRows = IssueReport::query()
-            ->when($projectId, fn ($query) => $query->where('project_id', $projectId))
+        $issueQuery = IssueReport::query();
+        if (!empty($projectFamilyIds)) {
+            $issueQuery->whereIn('project_id', $projectFamilyIds);
+        }
+        $issueRows = $issueQuery
             ->when($dateFrom, fn ($query) => $query->whereDate('created_at', '>=', $dateFrom))
             ->when($dateTo, fn ($query) => $query->whereDate('created_at', '<=', $dateTo))
             ->get([
@@ -135,8 +145,11 @@ class KpiController extends Controller
                 'created_at',
             ]);
 
-        $materialRows = MaterialRequest::query()
-            ->when($projectId, fn ($query) => $query->where('project_id', $projectId))
+        $materialQuery = MaterialRequest::query();
+        if (!empty($projectFamilyIds)) {
+            $materialQuery->whereIn('project_id', $projectFamilyIds);
+        }
+        $materialRows = $materialQuery
             ->when($dateFrom, fn ($query) => $query->whereDate('created_at', '>=', $dateFrom))
             ->when($dateTo, fn ($query) => $query->whereDate('created_at', '<=', $dateTo))
             ->get([
@@ -146,8 +159,11 @@ class KpiController extends Controller
             ]);
 
         $deliveryDateColumn = $deliveryDateBasis === 'delivery_date' ? 'delivery_date' : 'created_at';
-        $deliveryRows = DeliveryConfirmation::query()
-            ->when($projectId, fn ($query) => $query->where('project_id', $projectId))
+        $deliveryQuery = DeliveryConfirmation::query();
+        if (!empty($projectFamilyIds)) {
+            $deliveryQuery->whereIn('project_id', $projectFamilyIds);
+        }
+        $deliveryRows = $deliveryQuery
             ->when($dateFrom, fn ($query) => $query->whereDate($deliveryDateColumn, '>=', $dateFrom))
             ->when($dateTo, fn ($query) => $query->whereDate($deliveryDateColumn, '<=', $dateTo))
             ->get([
@@ -156,8 +172,11 @@ class KpiController extends Controller
                 'created_at',
             ]);
 
-        $progressPhotoRows = ProgressPhoto::query()
-            ->when($projectId, fn ($query) => $query->where('project_id', $projectId))
+        $progressPhotoQuery = ProgressPhoto::query();
+        if (!empty($projectFamilyIds)) {
+            $progressPhotoQuery->whereIn('project_id', $projectFamilyIds);
+        }
+        $progressPhotoRows = $progressPhotoQuery
             ->when($dateFrom, fn ($query) => $query->whereDate('created_at', '>=', $dateFrom))
             ->when($dateTo, fn ($query) => $query->whereDate('created_at', '<=', $dateTo))
             ->get([
@@ -165,6 +184,17 @@ class KpiController extends Controller
                 'project_id',
                 'created_at',
             ]);
+
+        $projectRootIdByProjectId = ProjectSelection::rootIdMapForIds(
+            $attendanceRows->pluck('project_id')
+                ->merge($weeklyRows->pluck('project_id'))
+                ->merge($issueRows->pluck('project_id'))
+                ->merge($materialRows->pluck('project_id'))
+                ->merge($deliveryRows->pluck('project_id'))
+                ->merge($progressPhotoRows->pluck('project_id'))
+                ->filter()
+                ->all()
+        );
 
         $foremanIds = $attendanceRows->pluck('foreman_id')
             ->merge($weeklyRows->pluck('foreman_id'))
@@ -180,7 +210,7 @@ class KpiController extends Controller
             ? User::query()->whereIn('id', $foremanIds->all())->pluck('fullname', 'id')->all()
             : [];
 
-        $workerKpis = $this->buildWorkerKpis($attendanceRows, $foremanNameById, $scoreConfig['weights']['worker']);
+        $workerKpis = $this->buildWorkerKpis($attendanceRows, $foremanNameById, $scoreConfig['weights']['worker'], $projectRootIdByProjectId);
         $foremanKpis = $this->buildForemanKpis(
             $attendanceRows,
             $weeklyRows,
@@ -189,14 +219,12 @@ class KpiController extends Controller
             $deliveryRows,
             $progressPhotoRows,
             $foremanNameById,
-            $scoreConfig['weights']['foreman']
+            $scoreConfig['weights']['foreman'],
+            $projectRootIdByProjectId
         );
         $summary = $this->buildSummary($workerKpis, $foremanKpis);
 
-        $projects = Project::query()
-            ->orderBy('name')
-            ->get(['id', 'name'])
-            ->map(fn (Project $project) => ['id' => $project->id, 'name' => $project->name])
+        $projects = ProjectSelection::familyFilterOptions()
             ->values()
             ->all();
 
@@ -370,7 +398,7 @@ class KpiController extends Controller
         return $endOfDay ? $date->endOfDay() : $date->startOfDay();
     }
 
-    private function buildWorkerKpis(Collection $attendanceRows, array $foremanNameById, array $weights): Collection
+    private function buildWorkerKpis(Collection $attendanceRows, array $foremanNameById, array $weights, array $projectRootIdByProjectId = []): Collection
     {
         $workerGroups = $attendanceRows
             ->filter(function (Attendance $row) {
@@ -416,7 +444,11 @@ class KpiController extends Controller
                 'foreman_name' => $foremanNames->count() > 1
                     ? 'Multiple'
                     : ($foremanNames->first() ?? 'Unassigned'),
-                'projects_count' => $rows->pluck('project_id')->filter()->unique()->count(),
+                'projects_count' => $rows->pluck('project_id')
+                    ->filter()
+                    ->map(fn ($id) => $projectRootIdByProjectId[(int) $id] ?? (int) $id)
+                    ->unique()
+                    ->count(),
                 'attendance_days' => $attendanceDays,
                 'attendance_hours' => round((float) $rows->sum(fn ($row) => (float) ($row->hours ?? 0)), 1),
                 'last_attendance' => $lastAttendance instanceof Carbon ? $lastAttendance->toDateString() : null,
@@ -451,7 +483,8 @@ class KpiController extends Controller
         Collection $deliveryRows,
         Collection $progressPhotoRows,
         array $foremanNameById,
-        array $weights
+        array $weights,
+        array $projectRootIdByProjectId = []
     ): Collection
     {
         $foremanAttendance = $attendanceRows->filter(function (Attendance $row) use ($foremanNameById) {
@@ -521,6 +554,7 @@ class KpiController extends Controller
                 ->merge($deliveryRows->pluck('project_id'))
                 ->merge($photoRows->pluck('project_id'))
                 ->filter()
+                ->map(fn ($id) => $projectRootIdByProjectId[(int) $id] ?? (int) $id)
                 ->unique()
                 ->count();
 

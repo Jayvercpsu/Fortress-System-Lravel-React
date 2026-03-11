@@ -7,6 +7,7 @@ use App\Models\ProjectAssignment;
 use App\Models\Attendance;
 use App\Models\Worker;
 use App\Models\User;
+use App\Support\ProjectSelection;
 use Illuminate\Support\Collection;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
@@ -215,10 +216,7 @@ class ForemanWorkerController extends Controller
             return collect();
         }
 
-        return Project::query()
-            ->whereIn('id', $assignedProjectIds->all())
-            ->orderBy('name')
-            ->get(['id', 'name']);
+        return ProjectSelection::actualOptionsForIds($assignedProjectIds->all())->values();
     }
 
     private function tableQueryParams(Request $request): array

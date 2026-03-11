@@ -3,8 +3,8 @@
 namespace App\Http\Controllers;
 
 use App\Models\Attendance;
-use App\Models\Project;
 use App\Models\User;
+use App\Support\ProjectSelection;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -28,11 +28,14 @@ class AttendanceController extends Controller
         }
 
         $filters = $this->filtersFromRequest($request);
+        $projectFamilyIds = ProjectSelection::familyIdsFor(
+            $filters['project_id'] !== '' ? (int) $filters['project_id'] : null
+        );
 
         $query = Attendance::query()
             ->with(['foreman:id,fullname', 'project:id,name']);
 
-        $this->applyAttendanceFilters($query, $filters, $search);
+        $this->applyAttendanceFilters($query, $filters, $search, $projectFamilyIds);
 
         $paginator = $query
             ->orderByDesc('date')
@@ -90,12 +93,15 @@ class AttendanceController extends Controller
         }
 
         $filters = $this->filtersFromRequest($request);
+        $projectFamilyIds = ProjectSelection::familyIdsFor(
+            $filters['project_id'] !== '' ? (int) $filters['project_id'] : null
+        );
 
         $base = Attendance::query()
             ->leftJoin('users as foremen', 'foremen.id', '=', 'attendances.foreman_id')
             ->leftJoin('projects', 'projects.id', '=', 'attendances.project_id');
 
-        $this->applyAttendanceFilterJoins($base, $filters, $search);
+        $this->applyAttendanceFilterJoins($base, $filters, $search, $projectFamilyIds);
 
         $totalsBase = clone $base;
         $summaryTotals = [
@@ -184,11 +190,7 @@ class AttendanceController extends Controller
 
     private function projectOptions()
     {
-        return Project::query()
-            ->orderBy('name')
-            ->get(['id', 'name'])
-            ->map(fn (Project $project) => ['id' => $project->id, 'name' => $project->name])
-            ->values();
+        return ProjectSelection::familyFilterOptions()->values();
     }
 
     private function workerRoleOptions()
@@ -231,7 +233,7 @@ class AttendanceController extends Controller
         ];
     }
 
-    private function applyAttendanceFilters(Builder $query, array $filters, string $search): void
+    private function applyAttendanceFilters(Builder $query, array $filters, string $search, array $projectFamilyIds = []): void
     {
         if ($filters['date_from']) {
             $query->whereDate('date', '>=', $filters['date_from']);
@@ -242,8 +244,8 @@ class AttendanceController extends Controller
         if ($filters['foreman_id']) {
             $query->where('foreman_id', $filters['foreman_id']);
         }
-        if ($filters['project_id']) {
-            $query->where('project_id', $filters['project_id']);
+        if (!empty($projectFamilyIds)) {
+            $query->whereIn('project_id', $projectFamilyIds);
         }
         if ($filters['worker_role']) {
             $query->where('worker_role', $filters['worker_role']);
@@ -265,7 +267,7 @@ class AttendanceController extends Controller
         }
     }
 
-    private function applyAttendanceFilterJoins($query, array $filters, string $search): void
+    private function applyAttendanceFilterJoins($query, array $filters, string $search, array $projectFamilyIds = []): void
     {
         if ($filters['date_from']) {
             $query->whereDate('attendances.date', '>=', $filters['date_from']);
@@ -276,8 +278,8 @@ class AttendanceController extends Controller
         if ($filters['foreman_id']) {
             $query->where('attendances.foreman_id', $filters['foreman_id']);
         }
-        if ($filters['project_id']) {
-            $query->where('attendances.project_id', $filters['project_id']);
+        if (!empty($projectFamilyIds)) {
+            $query->whereIn('attendances.project_id', $projectFamilyIds);
         }
         if ($filters['worker_role']) {
             $query->where('attendances.worker_role', $filters['worker_role']);

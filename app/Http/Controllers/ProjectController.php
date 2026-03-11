@@ -296,7 +296,7 @@ class ProjectController extends Controller
 
     public function edit(Request $request, Project $project)
     {
-        abort_unless($request->user()->role === 'head_admin', 403);
+        abort_unless(in_array($request->user()->role, ['head_admin', 'admin'], true), 403);
 
         return Inertia::render('HeadAdmin/Projects/Edit', [
             'project' => $this->projectPayload($project),
@@ -513,7 +513,7 @@ class ProjectController extends Controller
 
     public function editFinancials(Request $request, Project $project)
     {
-        abort_unless(in_array($request->user()->role, ['head_admin', 'hr'], true), 403);
+        abort_unless(in_array($request->user()->role, ['head_admin', 'admin', 'hr'], true), 403);
 
         $page = $request->user()->role === 'head_admin'
             ? 'HeadAdmin/Projects/Financials'
@@ -526,7 +526,7 @@ class ProjectController extends Controller
 
     public function updateFinancials(Request $request, Project $project)
     {
-        abort_unless(in_array($request->user()->role, ['head_admin', 'hr'], true), 403);
+        abort_unless(in_array($request->user()->role, ['head_admin', 'admin', 'hr'], true), 403);
 
         $validated = $request->validate([
             'contract_amount' => 'required|numeric|min:0',

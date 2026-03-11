@@ -1299,6 +1299,8 @@ class FortressBuildingFlowSeeder extends Seeder
             '4. Approved Design projects can be manually transferred from the Kanban card into a duplicated Construction project.',
             '5. Construction progress is driven by project scopes, weekly accomplishments, attendance, uploads, expenses, and payments.',
             '6. Construction projects can be manually transferred to Completed from the Kanban card.',
+            '7. Read-only project filters collapse lifecycle duplicates into one logical project selection.',
+            '8. Write-side project selectors still target the actual project row and now show the phase in the dropdown label.',
             '',
             'Public links:',
             '- Main Jotform flow: ' . $baseUrl . '/progress-submit/' . self::PRIMARY_TOKEN,

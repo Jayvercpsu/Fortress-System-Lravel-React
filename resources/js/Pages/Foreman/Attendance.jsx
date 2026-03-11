@@ -117,7 +117,7 @@ export default function ForemanAttendance({
     const todayLabel = useMemo(() => getPhTodayLabel(clockTick), [clockTick]);
 
     const projectOptions = useMemo(
-        () => (Array.isArray(projects) ? projects.map((project) => ({ id: String(project.id), name: project.name })) : []),
+        () => (Array.isArray(projects) ? projects.map((project) => ({ id: String(project.id), name: project.label || project.name })) : []),
         [projects]
     );
     const workerOptions = useMemo(

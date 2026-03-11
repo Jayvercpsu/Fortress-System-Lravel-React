@@ -482,12 +482,38 @@ export default function AdminProjectsShow({
                                 >
                                     View Client Receipt
                                 </ActionButton>
+                                <ActionButton href={`/projects/${project.id}/expenses`} style={shortcutButtonStyle} disabled={disableBuildSection}>
+                                    Open Expenses
+                                </ActionButton>
                             </div>
                             {disableBuildSection && (
                                 <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>
                                     Disabled while project phase is Design.
                                 </div>
                             )}
+                        </div>
+
+                        <div style={shortcutSectionStyle}>
+                            <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: 0.3 }}>
+                                Finance
+                            </div>
+                            <div style={{ display: 'grid', gap: 8 }}>
+                                <ActionButton href={`/projects/${project.id}/payments`} style={shortcutButtonStyle}>
+                                    Open Payments
+                                </ActionButton>
+                                <ActionButton href={`/projects/${project.id}/financials`} style={shortcutButtonStyle}>
+                                    Open Financials
+                                </ActionButton>
+                            </div>
+                        </div>
+
+                        <div style={shortcutSectionStyle}>
+                            <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: 0.3 }}>
+                                Project Admin
+                            </div>
+                            <ActionButton href={`/projects/${project.id}/edit`} style={shortcutButtonStyle}>
+                                Edit Project
+                            </ActionButton>
                         </div>
                     </div>
                 </div>

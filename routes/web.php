@@ -70,7 +70,7 @@ Route::middleware(['auth', 'role:admin'])->group(function () {
     Route::get('/admin', [DashboardController::class, 'admin'])->name('admin.dashboard');
 });
 
-Route::middleware(['auth', 'role:head_admin,hr'])->group(function () {
+Route::middleware(['auth', 'role:head_admin,admin,hr'])->group(function () {
     Route::get('/hr', [DashboardController::class, 'hr'])->name('hr.dashboard');
     Route::get('/payroll/run', [PayrollController::class, 'run'])->name('payroll.run');
     Route::post('/payroll/run/generate', [PayrollController::class, 'generateFromAttendance'])->name('payroll.run.generate');
@@ -166,7 +166,7 @@ Route::middleware(['auth', 'role:head_admin,admin'])->group(function () {
 Route::middleware(['auth', 'role:head_admin'])->group(function () {
 });
 
-Route::middleware(['auth', 'role:head_admin,hr'])->group(function () {
+Route::middleware(['auth', 'role:head_admin,admin,hr'])->group(function () {
     Route::get('/projects/{project}/financials', [ProjectController::class, 'editFinancials'])->name('projects.financials.edit');
     Route::patch('/projects/{project}/financials', [ProjectController::class, 'updateFinancials'])->name('projects.financials.update');
 });

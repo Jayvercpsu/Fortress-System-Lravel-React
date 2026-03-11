@@ -116,7 +116,7 @@ class PaymentController extends Controller
 
     private function authorizeRole(Request $request): void
     {
-        abort_unless(in_array($request->user()->role, ['head_admin', 'hr'], true), 403);
+        abort_unless(in_array($request->user()->role, ['head_admin', 'admin', 'hr'], true), 403);
     }
 
     private function tableQueryParams(Request $request): array

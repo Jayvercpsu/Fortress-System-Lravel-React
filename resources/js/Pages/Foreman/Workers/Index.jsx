@@ -35,7 +35,7 @@ export default function ForemanWorkersIndex({ workers = [], workerTable = {}, as
     const [deleteTarget, setDeleteTarget] = useState(null);
     const [deleting, setDeleting] = useState(false);
     const projectOptions = useMemo(
-        () => (Array.isArray(assignedProjects) ? assignedProjects.map((project) => ({ id: String(project.id), name: project.name })) : []),
+        () => (Array.isArray(assignedProjects) ? assignedProjects.map((project) => ({ id: String(project.id), name: project.label || project.name })) : []),
         [assignedProjects]
     );
     const defaultProjectId = projectOptions[0]?.id ?? '';
