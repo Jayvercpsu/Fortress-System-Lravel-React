@@ -156,22 +156,33 @@ export default function ForemanSubmissions({
         const groups = new Map();
 
         weeklyScopePhotosPager.data.forEach((photo) => {
-            const key = `${photo.project_id ?? 'unassigned'}-${String(photo.scope_name || 'Unknown Scope')}`;
+            const projectKey = photo.project_id ?? 'unassigned';
+            const scopeName = photo.scope_name || 'Unknown Scope';
 
-            if (!groups.has(key)) {
-                groups.set(key, {
-                    key,
+            if (!groups.has(projectKey)) {
+                groups.set(projectKey, {
+                    key: String(projectKey),
                     project_id: photo.project_id ?? null,
                     project_name: photo.project_name || 'Unassigned',
-                    scope_name: photo.scope_name || 'Unknown Scope',
+                    scopes: new Map(),
+                });
+            }
+
+            const projectGroup = groups.get(projectKey);
+            if (!projectGroup.scopes.has(scopeName)) {
+                projectGroup.scopes.set(scopeName, {
+                    scope_name: scopeName,
                     photos: [],
                 });
             }
 
-            groups.get(key).photos.push(photo);
+            projectGroup.scopes.get(scopeName).photos.push(photo);
         });
 
-        return Array.from(groups.values());
+        return Array.from(groups.values()).map((group) => ({
+            ...group,
+            scopes: Array.from(group.scopes.values()),
+        }));
     }, [weeklyScopePhotosPager.data]);
 
     const isProgressPreview = previewPhoto?.previewKind === 'progress';
@@ -498,7 +509,7 @@ export default function ForemanSubmissions({
                         <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, alignItems: 'center', marginBottom: 10, flexWrap: 'wrap' }}>
                             <div style={{ fontWeight: 700 }}>Scope Photos</div>
                             <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
-                                Uploaded from Weekly Progress and Monitoring Board, grouped by project and scope
+                                Uploaded from Weekly Progress and Monitoring Board, grouped by project
                             </div>
                         </div>
 
@@ -517,68 +528,75 @@ export default function ForemanSubmissions({
                                         }}
                                     >
                                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, marginBottom: 8, flexWrap: 'wrap' }}>
-                                            <div>
-                                                <div style={{ fontWeight: 700 }}>{group.project_name || 'Unassigned'}</div>
-                                                <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{group.scope_name || 'Unknown Scope'}</div>
-                                            </div>
+                                            <div style={{ fontWeight: 700 }}>{group.project_name || 'Unassigned'}</div>
                                             <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>
-                                                {group.photos.length} photo{group.photos.length === 1 ? '' : 's'}
+                                                {group.scopes.reduce((total, scope) => total + scope.photos.length, 0)} photo
+                                                {group.scopes.reduce((total, scope) => total + scope.photos.length, 0) === 1 ? '' : 's'}
                                             </div>
                                         </div>
 
-                                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: 8 }}>
-                                            {group.photos.map((photo) => (
-                                                <button
-                                                    key={photo.id}
-                                                    type="button"
-                                                    onClick={() =>
-                                                        setPreviewPhoto({
-                                                            ...photo,
-                                                            caption: photo.caption || 'Scope photo',
-                                                            meta: `${group.project_name || 'Unassigned'} · ${group.scope_name}`,
-                                                            created_at: photo.created_at,
-                                                            project_name: group.project_name,
-                                                            scope_name: group.scope_name,
-                                                            source: 'scope',
-                                                        })
-                                                    }
-                                                    style={{
-                                                        textDecoration: 'none',
-                                                        color: 'inherit',
-                                                        border: '1px solid var(--border-color)',
-                                                        borderRadius: 8,
-                                                        background: 'var(--surface-1)',
-                                                        padding: 8,
-                                                        display: 'block',
-                                                        cursor: 'pointer',
-                                                    }}
-                                                >
-                                                    <OptimizedImage
-                                                        src={`/storage/${photo.photo_path}`}
-                                                        alt={photo.caption || 'Weekly scope photo'}
-                                                        style={{ width: '100%', height: 92, objectFit: 'cover', borderRadius: 6, marginBottom: 6 }}
-                                                    />
-                                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 6, marginBottom: 3 }}>
-                                                        <span style={scopePhotoSourceBadge(photo.source)}>
-                                                            {scopePhotoSourceLabel(photo.source)}
-                                                        </span>
+                                        <div style={{ display: 'grid', gap: 10 }}>
+                                            {group.scopes.map((scope) => (
+                                                <div key={`${group.key}-${scope.scope_name}`}>
+                                                    <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 6 }}>
+                                                        {scope.scope_name}
                                                     </div>
-                                                    <div
-                                                        style={{
-                                                            fontSize: 12,
-                                                            fontWeight: 600,
-                                                            whiteSpace: 'nowrap',
-                                                            overflow: 'hidden',
-                                                            textOverflow: 'ellipsis',
-                                                        }}
-                                                        title={photo.caption || 'No caption'}
-                                                    >
-                                                        {photo.caption || 'No caption'}
+                                                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: 8 }}>
+                                                        {scope.photos.map((photo) => (
+                                                            <button
+                                                                key={photo.id}
+                                                                type="button"
+                                                                onClick={() =>
+                                                                    setPreviewPhoto({
+                                                                        ...photo,
+                                                                        caption: photo.caption || 'Scope photo',
+                                                                        meta: `${group.project_name || 'Unassigned'} - ${scope.scope_name}`,
+                                                                        created_at: photo.created_at,
+                                                                        project_name: group.project_name,
+                                                                        scope_name: scope.scope_name,
+                                                                        source: 'scope',
+                                                                    })
+                                                                }
+                                                                style={{
+                                                                    textDecoration: 'none',
+                                                                    color: 'inherit',
+                                                                    border: '1px solid var(--border-color)',
+                                                                    borderRadius: 8,
+                                                                    background: 'var(--surface-1)',
+                                                                    padding: 8,
+                                                                    display: 'block',
+                                                                    cursor: 'pointer',
+                                                                }}
+                                                            >
+                                                                <OptimizedImage
+                                                                    src={`/storage/${photo.photo_path}`}
+                                                                    alt={photo.caption || 'Weekly scope photo'}
+                                                                    style={{ width: '100%', height: 92, objectFit: 'cover', borderRadius: 6, marginBottom: 6 }}
+                                                                />
+                                                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 6, marginBottom: 3 }}>
+                                                                    <span style={scopePhotoSourceBadge(photo.source)}>
+                                                                        {scopePhotoSourceLabel(photo.source)}
+                                                                    </span>
+                                                                </div>
+                                                                <div
+                                                                    style={{
+                                                                        fontSize: 12,
+                                                                        fontWeight: 600,
+                                                                        whiteSpace: 'nowrap',
+                                                                        overflow: 'hidden',
+                                                                        textOverflow: 'ellipsis',
+                                                                    }}
+                                                                    title={photo.caption || 'No caption'}
+                                                                >
+                                                                    {photo.caption || 'No caption'}
+                                                                </div>
+                                                                <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 3 }}>
+                                                                    {photo.created_at || '-'}
+                                                                </div>
+                                                            </button>
+                                                        ))}
                                                     </div>
-                                                    <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 3 }}>
-                                                        {photo.created_at || '-'}
-                                                    </div>
-                                                </button>
+                                                </div>
                                             ))}
                                         </div>
                                     </div>

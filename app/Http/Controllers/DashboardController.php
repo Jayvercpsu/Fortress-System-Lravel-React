@@ -419,8 +419,26 @@ class DashboardController extends Controller
             ])
             ->values();
 
-        $projects = ProjectSelection::actualOptionsForIds($assignedProjectIds->all())->values();
-        $projectFilters = ProjectSelection::familyFilterOptionsForIds($assignedProjectIds->all())->values();
+        $allProjectOptions = ProjectSelection::actualOptionsForIds($assignedProjectIds->all())->values();
+        $projects = $allProjectOptions
+            ->filter(fn (array $project) => Str::lower(trim((string) ($project['phase'] ?? ''))) !== 'design')
+            ->values();
+        $phaseById = $allProjectOptions->mapWithKeys(fn (array $project) => [
+            (int) ($project['id'] ?? 0) => Str::lower(trim((string) ($project['phase'] ?? ''))),
+        ]);
+        $projectFilters = ProjectSelection::familyFilterOptionsForIds($assignedProjectIds->all())
+            ->filter(function (array $option) use ($phaseById) {
+                $projectIds = collect($option['project_ids'] ?? []);
+                if ($projectIds->isEmpty()) {
+                    return false;
+                }
+
+                return $projectIds->contains(function ($projectId) use ($phaseById) {
+                    $phase = (string) ($phaseById->get((int) $projectId, '') ?? '');
+                    return $phase !== 'design';
+                });
+            })
+            ->values();
 
         $foremanAttendanceToday = null;
         $foremanName = trim((string) ($user->fullname ?? ''));
@@ -815,7 +833,7 @@ class DashboardController extends Controller
             ->values();
 
         if ($assigned->isNotEmpty()) {
-            return $assigned;
+            return $this->excludeDesignPhaseIds($assigned);
         }
 
         $fullname = trim((string) ($user->fullname ?? ''));
@@ -823,7 +841,7 @@ class DashboardController extends Controller
             return collect();
         }
 
-        return Project::query()
+        $fallback = Project::query()
             ->whereNotNull('assigned')
             ->where('assigned', '!=', '')
             ->get(['id', 'assigned'])
@@ -837,6 +855,30 @@ class DashboardController extends Controller
             ->pluck('id')
             ->map(fn ($projectId) => (int) $projectId)
             ->unique()
+            ->values();
+
+        return $this->excludeDesignPhaseIds($fallback);
+    }
+
+    private function excludeDesignPhaseIds(Collection $projectIds): Collection
+    {
+        if ($projectIds->isEmpty()) {
+            return $projectIds;
+        }
+
+        $designIds = Project::query()
+            ->whereIn('id', $projectIds->all())
+            ->whereRaw('LOWER(TRIM(phase)) = ?', ['design'])
+            ->pluck('id')
+            ->map(fn ($projectId) => (int) $projectId)
+            ->values();
+
+        if ($designIds->isEmpty()) {
+            return $projectIds;
+        }
+
+        return $projectIds
+            ->reject(fn (int $projectId) => $designIds->contains($projectId))
             ->values();
     }
 

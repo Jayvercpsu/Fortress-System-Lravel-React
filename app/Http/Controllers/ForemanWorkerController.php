@@ -10,6 +10,7 @@ use App\Models\User;
 use App\Support\ProjectSelection;
 use Illuminate\Support\Collection;
 use Illuminate\Http\Request;
+use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
@@ -184,7 +185,7 @@ class ForemanWorkerController extends Controller
             ->values();
 
         if ($assigned->isNotEmpty()) {
-            return $assigned;
+        return $this->excludeDesignPhaseIds($assigned);
         }
 
         $fullname = trim((string) ($foreman->fullname ?? ''));
@@ -192,7 +193,7 @@ class ForemanWorkerController extends Controller
             return collect();
         }
 
-        return Project::query()
+        $fallback = Project::query()
             ->whereNotNull('assigned')
             ->where('assigned', '!=', '')
             ->get(['id', 'assigned'])
@@ -207,6 +208,30 @@ class ForemanWorkerController extends Controller
             ->map(fn ($projectId) => (int) $projectId)
             ->unique()
             ->values();
+
+        return $this->excludeDesignPhaseIds($fallback);
+    }
+
+    private function excludeDesignPhaseIds(Collection $projectIds): Collection
+    {
+        if ($projectIds->isEmpty()) {
+            return $projectIds;
+        }
+
+        $designIds = Project::query()
+            ->whereIn('id', $projectIds->all())
+            ->whereRaw('LOWER(TRIM(phase)) = ?', ['design'])
+            ->pluck('id')
+            ->map(fn ($projectId) => (int) $projectId)
+            ->values();
+
+        if ($designIds->isEmpty()) {
+            return $projectIds;
+        }
+
+        return $projectIds
+            ->reject(fn (int $projectId) => $designIds->contains($projectId))
+            ->values();
     }
 
     private function foremanAssignedProjects(User $foreman): Collection
@@ -216,7 +241,9 @@ class ForemanWorkerController extends Controller
             return collect();
         }
 
-        return ProjectSelection::actualOptionsForIds($assignedProjectIds->all())->values();
+        return ProjectSelection::actualOptionsForIds($assignedProjectIds->all())
+            ->filter(fn (array $project) => Str::lower(trim((string) ($project['phase'] ?? ''))) !== 'design')
+            ->values();
     }
 
     private function tableQueryParams(Request $request): array

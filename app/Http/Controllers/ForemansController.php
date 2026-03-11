@@ -86,7 +86,9 @@ class ForemansController extends Controller
             ];
         })->values();
 
-        $projects = ProjectSelection::actualOptionsForIds($assignedProjectIds->all())->values();
+        $projects = ProjectSelection::actualOptionsForIds($assignedProjectIds->all())
+            ->filter(fn (array $project) => Str::lower(trim((string) ($project['phase'] ?? ''))) !== 'design')
+            ->values();
 
         $workers = Worker::query()
             ->where('foreman_id', $foremanId)
@@ -589,7 +591,7 @@ class ForemansController extends Controller
             ->values();
 
         if ($assigned->isNotEmpty()) {
-            return $assigned;
+        return $this->excludeDesignPhaseIds($assigned);
         }
 
         $fullname = trim((string) ($foreman->fullname ?? ''));
@@ -597,7 +599,7 @@ class ForemansController extends Controller
             return collect();
         }
 
-        return Project::query()
+        $fallback = Project::query()
             ->whereNotNull('assigned')
             ->where('assigned', '!=', '')
             ->get(['id', 'assigned'])
@@ -611,6 +613,30 @@ class ForemansController extends Controller
             ->pluck('id')
             ->map(fn ($projectId) => (int) $projectId)
             ->unique()
+            ->values();
+
+        return $this->excludeDesignPhaseIds($fallback);
+    }
+
+    private function excludeDesignPhaseIds(Collection $projectIds): Collection
+    {
+        if ($projectIds->isEmpty()) {
+            return $projectIds;
+        }
+
+        $designIds = Project::query()
+            ->whereIn('id', $projectIds->all())
+            ->whereRaw('LOWER(TRIM(phase)) = ?', ['design'])
+            ->pluck('id')
+            ->map(fn ($projectId) => (int) $projectId)
+            ->values();
+
+        if ($designIds->isEmpty()) {
+            return $projectIds;
+        }
+
+        return $projectIds
+            ->reject(fn (int $projectId) => $designIds->contains($projectId))
             ->values();
     }
 
