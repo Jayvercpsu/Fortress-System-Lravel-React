@@ -2,6 +2,7 @@ import Layout from '../../../Components/Layout';
 import DatePickerInput from '../../../Components/DatePickerInput';
 import SearchableDropdown from '../../../Components/SearchableDropdown';
 import ActionButton from '../../../Components/ActionButton';
+import SelectInput from '../../../Components/SelectInput';
 import { Head, useForm } from '@inertiajs/react';
 import { ArrowLeft } from 'lucide-react';
 import { useState } from 'react';
@@ -414,11 +415,11 @@ export default function HeadAdminProjectsEdit({ project, foremen = [] }) {
                     </label>
                     <label>
                         <div style={{ fontSize: 12, marginBottom: 6 }}>Phase</div>
-                        <select value={data.phase} onChange={(e) => setData('phase', e.target.value)} style={inputStyle}>
+                        <SelectInput value={data.phase} onChange={(e) => setData('phase', e.target.value)} style={inputStyle} disabled>
                             {PROJECT_PHASES.map((phase) => (
                                 <option key={phase} value={phase}>{phase}</option>
                             ))}
-                        </select>
+                        </SelectInput>
                         {errors.phase && <div style={{ color: '#f87171', fontSize: 12, marginTop: 4 }}>{errors.phase}</div>}
                     </label>
                     <div style={{ gridColumn: '1 / -1', display: 'flex', justifyContent: 'flex-end' }}>

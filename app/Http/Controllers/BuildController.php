@@ -8,6 +8,9 @@ use App\Models\Expense;
 use App\Models\Material;
 use App\Models\Payment;
 use App\Models\Project;
+use App\Models\ProjectAssignment;
+use App\Models\ProjectScope;
+use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Schema;
 use Inertia\Inertia;
@@ -17,6 +20,8 @@ class BuildController extends Controller
     public function show(Request $request, string $project)
     {
         abort_unless(in_array($request->user()->role, ['head_admin', 'admin'], true), 403);
+
+        $projectModel = Project::findOrFail($project);
 
         $build = BuildProject::firstOrCreate(
             ['project_id' => $project],
@@ -103,6 +108,32 @@ class BuildController extends Controller
             ])
             ->values();
 
+        $scopes = $projectModel->scopes()
+            ->with(['photos' => fn ($query) => $query->latest('id')])
+            ->latest('id')
+            ->get()
+            ->map(fn (ProjectScope $scope) => [
+                'id' => $scope->id,
+                'project_id' => $scope->project_id,
+                'scope_name' => $scope->scope_name,
+                'assigned_personnel' => $scope->assigned_personnel,
+                'progress_percent' => (int) $scope->progress_percent,
+                'status' => $scope->status,
+                'remarks' => $scope->remarks,
+                'contract_amount' => (float) ($scope->contract_amount ?? 0),
+                'weight_percent' => (float) ($scope->weight_percent ?? 0),
+                'start_date' => optional($scope->start_date)?->toDateString(),
+                'target_completion' => optional($scope->target_completion)?->toDateString(),
+                'updated_at' => optional($scope->updated_at)?->toDateTimeString(),
+                'photos' => $scope->photos->map(fn ($photo) => [
+                    'id' => $photo->id,
+                    'photo_path' => $photo->photo_path,
+                    'caption' => $photo->caption,
+                    'created_at' => optional($photo->created_at)?->toDateTimeString(),
+                ])->values(),
+            ])
+            ->values();
+
         $payload['total_expenses'] = $expenseTotal;
         $payload['remaining_budget'] = $totalClientPayment - $expenseTotal;
         $payload['budget_vs_actual'] = $constructionContract - $expenseTotal;
@@ -128,6 +159,16 @@ class BuildController extends Controller
             ],
             'expenseTotal' => $expenseTotal,
             'remainingIncome' => $constructionContract - $expenseTotal,
+            'monitoring' => [
+                'project' => [
+                    'id' => $projectModel->id,
+                    'name' => $projectModel->name,
+                    'overall_progress' => (int) $projectModel->overall_progress,
+                    'status' => $projectModel->status,
+                ],
+                'scopes' => $scopes,
+                'foreman_options' => $this->projectForemanOptions($projectModel),
+            ],
         ]);
     }
 
@@ -182,5 +223,33 @@ class BuildController extends Controller
             'remaining_balance' => $contractAmount - $totalClientPayment,
             'last_paid_date' => $lastPaidDate,
         ]);
+    }
+
+    private function projectForemanOptions(Project $project): array
+    {
+        $assignedForemanIds = ProjectAssignment::query()
+            ->where('project_id', $project->id)
+            ->where('role_in_project', 'foreman')
+            ->pluck('user_id')
+            ->map(fn ($id) => (int) $id)
+            ->unique()
+            ->values();
+
+        return User::query()
+            ->where('role', 'foreman')
+            ->when(
+                $assignedForemanIds->isNotEmpty(),
+                fn ($query) => $query->whereIn('id', $assignedForemanIds->all()),
+                fn ($query) => $query->whereRaw('1 = 0')
+            )
+            ->orderBy('fullname')
+            ->get(['id', 'fullname'])
+            ->map(fn (User $user) => [
+                'id' => (int) $user->id,
+                'fullname' => trim((string) ($user->fullname ?? '')),
+            ])
+            ->filter(fn (array $row) => $row['fullname'] !== '')
+            ->values()
+            ->all();
     }
 }

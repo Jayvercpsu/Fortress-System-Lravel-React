@@ -373,12 +373,7 @@ export default function ProjectAccordionTable({
                 </div>
             )}
 
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
-                <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
-                    Showing {tableState.total === 0 ? 0 : tableState.from ?? 0}-
-                    {tableState.total === 0 ? 0 : tableState.to ?? 0} of {tableState.total}
-                </div>
-
+            <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                     <ActionButton
                         type="button"

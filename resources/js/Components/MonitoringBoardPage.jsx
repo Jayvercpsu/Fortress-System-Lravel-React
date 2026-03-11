@@ -9,7 +9,7 @@ import TextInput from './TextInput';
 import SelectInput from './SelectInput';
 import TextareaInput from './TextareaInput';
 import { Head, router, useForm } from '@inertiajs/react';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import toast from 'react-hot-toast';
 import { ArrowLeft, Trash2 } from 'lucide-react';
 
@@ -34,7 +34,12 @@ const STATUS_OPTIONS = ['NOT_STARTED', 'IN_PROGRESS', 'HOLD', 'COMPLETED'];
 const money = (value) =>
     `P ${Number(value || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
-export default function MonitoringBoardPage({ project, scopes = [], foreman_options: foremanOptions = [] }) {
+export default function MonitoringBoardPage({
+    project,
+    scopes = [],
+    foreman_options: foremanOptions = [],
+    embedded = false,
+}) {
     const [editScope, setEditScope] = useState(null);
     const [scopeToDelete, setScopeToDelete] = useState(null);
     const [deleting, setDeleting] = useState(false);
@@ -43,6 +48,10 @@ export default function MonitoringBoardPage({ project, scopes = [], foreman_opti
     const [uploadScopeId, setUploadScopeId] = useState(null);
     const [photoInputKey, setPhotoInputKey] = useState(0);
     const [scopePreview, setScopePreview] = useState(null);
+    const [showCreateModal, setShowCreateModal] = useState(false);
+    const [scopeSearch, setScopeSearch] = useState('');
+    const [scopePage, setScopePage] = useState(1);
+    const showBackButton = !embedded;
     const assignedPersonnelOptions = useMemo(() => {
         const rows = Array.isArray(foremanOptions) ? foremanOptions : [];
 
@@ -120,6 +129,7 @@ export default function MonitoringBoardPage({ project, scopes = [], foreman_opti
                 setCreateData('weight_percent', '');
                 setCreateData('start_date', '');
                 setCreateData('target_completion', '');
+                setShowCreateModal(false);
                 toast.success('Scope added successfully.');
             },
             onError: () => toast.error('Unable to add scope.'),
@@ -242,10 +252,43 @@ export default function MonitoringBoardPage({ project, scopes = [], foreman_opti
         });
     };
 
-    return (
+    const filteredScopes = useMemo(() => {
+        const term = scopeSearch.trim().toLowerCase();
+        if (!term) return scopes;
+
+        return scopes.filter((scope) => {
+            const fields = [
+                scope.scope_name,
+                scope.assigned_personnel,
+                scope.status,
+                scope.remarks,
+            ]
+                .map((value) => String(value || '').toLowerCase())
+                .filter(Boolean);
+
+            return fields.some((value) => value.includes(term));
+        });
+    }, [scopeSearch, scopes]);
+
+    const scopePerPage = 10;
+    const totalScopePages = Math.max(1, Math.ceil(filteredScopes.length / scopePerPage));
+    const clampedScopePage = Math.min(scopePage, totalScopePages);
+    const scopeStartIndex = (clampedScopePage - 1) * scopePerPage;
+    const visibleScopes = filteredScopes.slice(scopeStartIndex, scopeStartIndex + scopePerPage);
+
+    useEffect(() => {
+        setScopePage(1);
+    }, [scopeSearch]);
+
+    useEffect(() => {
+        if (scopePage > totalScopePages) {
+            setScopePage(totalScopePages);
+        }
+    }, [scopePage, totalScopePages]);
+
+    const content = (
         <>
-            <Head title={`Monitoring Board #${project.id}`} />
-            <Layout title={`Monitoring Board - Project #${project.id}`}>
+            {showBackButton && (
                 <div style={{ marginBottom: 12 }}>
                     <ActionButton
                         href={`/projects/${project.id}`}
@@ -255,7 +298,8 @@ export default function MonitoringBoardPage({ project, scopes = [], foreman_opti
                         Back to Project
                     </ActionButton>
                 </div>
-
+            )}
+            <div style={{ display: 'grid', gap: 16 }}>
                 <div style={{ ...cardStyle, display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12, marginBottom: 16 }}>
                     <div>
                         <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 4 }}>Project</div>
@@ -271,125 +315,17 @@ export default function MonitoringBoardPage({ project, scopes = [], foreman_opti
                     </div>
                 </div>
 
-                <form onSubmit={submitCreate} style={{ ...cardStyle, display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 12, marginBottom: 16 }}>
-                    <label>
-                        <div style={{ fontSize: 12, marginBottom: 6 }}>Scope Name</div>
-                        <TextInput
-                            value={createData.scope_name}
-                            onChange={(event) => setCreateData('scope_name', event.target.value)}
-                            style={inputStyle}
-                        />
-                        {createErrors.scope_name && <div style={{ color: '#f87171', fontSize: 12, marginTop: 4 }}>{createErrors.scope_name}</div>}
-                    </label>
-
-                    <label>
-                        <div style={{ fontSize: 12, marginBottom: 6 }}>Assigned Personnel</div>
-                        {assignedPersonnelOptions.length > 0 ? (
-                            <SearchableDropdown
-                                options={assignedPersonnelOptions}
-                                value={createData.assigned_personnel}
-                                onChange={(value) => setCreateData('assigned_personnel', value || '')}
-                                placeholder="Select foreman"
-                                searchPlaceholder="Search foreman..."
-                                emptyMessage="No foreman found"
-                                getOptionValue={(option) => option.value}
-                                getOptionLabel={(option) => option.label}
-                                style={{ ...inputStyle, minHeight: 40, padding: '8px 10px' }}
-                            />
-                        ) : (
-                            <TextInput
-                                value={createData.assigned_personnel}
-                                onChange={(event) => setCreateData('assigned_personnel', event.target.value)}
-                                style={inputStyle}
-                            />
-                        )}
-                        {createErrors.assigned_personnel && <div style={{ color: '#f87171', fontSize: 12, marginTop: 4 }}>{createErrors.assigned_personnel}</div>}
-                    </label>
-
-                    <label>
-                        <div style={{ fontSize: 12, marginBottom: 6 }}>Progress (%)</div>
-                        <TextInput
-                            type="number"
-                            min="0"
-                            max="100"
-                            value={createData.progress_percent}
-                            onChange={(event) => setCreateData('progress_percent', event.target.value)}
-                            style={inputStyle}
-                        />
-                        {createErrors.progress_percent && <div style={{ color: '#f87171', fontSize: 12, marginTop: 4 }}>{createErrors.progress_percent}</div>}
-                    </label>
-
-                    <label>
-                        <div style={{ fontSize: 12, marginBottom: 6 }}>Status</div>
-                        <SelectInput
-                            value={createData.status}
-                            onChange={(event) => setCreateData('status', event.target.value)}
-                            style={inputStyle}
-                        >
-                            {STATUS_OPTIONS.map((status) => (
-                                <option key={status} value={status}>
-                                    {status}
-                                </option>
-                            ))}
-                        </SelectInput>
-                        {createErrors.status && <div style={{ color: '#f87171', fontSize: 12, marginTop: 4 }}>{createErrors.status}</div>}
-                    </label>
-
-                    <label>
-                        <div style={{ fontSize: 12, marginBottom: 6 }}>Contract Amount</div>
-                        <TextInput
-                            type="number"
-                            min="0"
-                            step="0.01"
-                            value={createData.contract_amount}
-                            onChange={(event) => setCreateData('contract_amount', event.target.value)}
-                            style={inputStyle}
-                        />
-                        {createErrors.contract_amount && <div style={{ color: '#f87171', fontSize: 12, marginTop: 4 }}>{createErrors.contract_amount}</div>}
-                    </label>
-
-                    <label>
-                        <div style={{ fontSize: 12, marginBottom: 6 }}>Weight %</div>
-                        <TextInput
-                            type="number"
-                            min="0"
-                            max="100"
-                            step="0.01"
-                            value={createData.weight_percent}
-                            onChange={(event) => setCreateData('weight_percent', event.target.value)}
-                            style={inputStyle}
-                        />
-                        {createErrors.weight_percent && <div style={{ color: '#f87171', fontSize: 12, marginTop: 4 }}>{createErrors.weight_percent}</div>}
-                    </label>
-
-                    <label>
-                        <div style={{ fontSize: 12, marginBottom: 6 }}>Start Date</div>
-                        <DatePickerInput value={createData.start_date} onChange={(value) => setCreateData('start_date', value)} style={inputStyle} />
-                        {createErrors.start_date && <div style={{ color: '#f87171', fontSize: 12, marginTop: 4 }}>{createErrors.start_date}</div>}
-                    </label>
-
-                    <label>
-                        <div style={{ fontSize: 12, marginBottom: 6 }}>Target Completion</div>
-                        <DatePickerInput value={createData.target_completion} onChange={(value) => setCreateData('target_completion', value)} style={inputStyle} />
-                        {createErrors.target_completion && <div style={{ color: '#f87171', fontSize: 12, marginTop: 4 }}>{createErrors.target_completion}</div>}
-                    </label>
-
-                    <label style={{ gridColumn: '1 / -1' }}>
-                        <div style={{ fontSize: 12, marginBottom: 6 }}>Remarks</div>
-                        <TextareaInput
-                            value={createData.remarks}
-                            onChange={(event) => setCreateData('remarks', event.target.value)}
-                            style={{ ...inputStyle, minHeight: 90 }}
-                        />
-                        {createErrors.remarks && <div style={{ color: '#f87171', fontSize: 12, marginTop: 4 }}>{createErrors.remarks}</div>}
-                    </label>
-
-                    <div style={{ gridColumn: '1 / -1', display: 'flex', justifyContent: 'flex-end' }}>
-                        <ActionButton type="submit" variant="success" disabled={creating} style={{ padding: '10px 16px', fontSize: 13 }}>
-                            {creating ? 'Adding...' : 'Add Scope'}
-                        </ActionButton>
-                    </div>
-                </form>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12, justifyContent: 'space-between', flexWrap: 'wrap' }}>
+                    <TextInput
+                        value={scopeSearch}
+                        onChange={(event) => setScopeSearch(event.target.value)}
+                        placeholder="Search scopes..."
+                        style={{ ...inputStyle, maxWidth: 320, width: '100%' }}
+                    />
+                    <ActionButton type="button" variant="success" onClick={() => setShowCreateModal(true)} style={{ padding: '10px 16px', fontSize: 13 }}>
+                        Add Scope
+                    </ActionButton>
+                </div>
 
                 <div style={{ ...cardStyle, overflowX: 'auto' }}>
                     <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
@@ -413,14 +349,14 @@ export default function MonitoringBoardPage({ project, scopes = [], foreman_opti
                             </tr>
                         </thead>
                         <tbody>
-                            {scopes.length === 0 && (
+                            {visibleScopes.length === 0 && (
                                 <tr>
-                                    <td colSpan={8} style={{ padding: '14px 8px', color: 'var(--text-muted)' }}>
+                                    <td colSpan={12} style={{ padding: '14px 8px', color: 'var(--text-muted)' }}>
                                         No scope rows yet.
                                     </td>
                                 </tr>
                             )}
-                            {scopes.map((scope) => (
+                            {visibleScopes.map((scope) => (
                                 <tr key={scope.id}>
                                     <td style={{ padding: '10px 8px', borderBottom: '1px solid var(--border-color)' }}>
                                         {scope.scope_name}
@@ -603,6 +539,34 @@ export default function MonitoringBoardPage({ project, scopes = [], foreman_opti
                         </tbody>
                     </table>
                 </div>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+                    <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+                        {filteredScopes.length === 0
+                            ? 'Showing 0'
+                            : `Showing ${scopeStartIndex + 1}-${Math.min(scopeStartIndex + scopePerPage, filteredScopes.length)} of ${filteredScopes.length}`}
+                    </div>
+                    <div style={{ display: 'inline-flex', gap: 8 }}>
+                        <ActionButton
+                            type="button"
+                            onClick={() => setScopePage((prev) => Math.max(1, prev - 1))}
+                            disabled={clampedScopePage <= 1}
+                            style={{ padding: '8px 12px', fontSize: 12 }}
+                        >
+                            Prev
+                        </ActionButton>
+                        <div style={{ fontSize: 12, color: 'var(--text-muted)', padding: '8px 6px' }}>
+                            Page {clampedScopePage} of {totalScopePages}
+                        </div>
+                        <ActionButton
+                            type="button"
+                            onClick={() => setScopePage((prev) => Math.min(totalScopePages, prev + 1))}
+                            disabled={clampedScopePage >= totalScopePages}
+                            style={{ padding: '8px 12px', fontSize: 12 }}
+                        >
+                            Next
+                        </ActionButton>
+                    </div>
+                </div>
 
                 <EditModal
                     open={!!editScope}
@@ -727,6 +691,135 @@ export default function MonitoringBoardPage({ project, scopes = [], foreman_opti
                         </label>
                     </div>
                 </EditModal>
+                <Modal
+                    open={showCreateModal}
+                    onClose={() => (!creating ? setShowCreateModal(false) : null)}
+                    title="Add Scope"
+                    maxWidth={860}
+                >
+                    <form onSubmit={submitCreate} style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 12 }}>
+                        <label>
+                            <div style={{ fontSize: 12, marginBottom: 6 }}>Scope Name</div>
+                            <TextInput
+                                value={createData.scope_name}
+                                onChange={(event) => setCreateData('scope_name', event.target.value)}
+                                style={inputStyle}
+                            />
+                            {createErrors.scope_name && <div style={{ color: '#f87171', fontSize: 12, marginTop: 4 }}>{createErrors.scope_name}</div>}
+                        </label>
+
+                        <label>
+                            <div style={{ fontSize: 12, marginBottom: 6 }}>Assigned Personnel</div>
+                            {assignedPersonnelOptions.length > 0 ? (
+                                <SearchableDropdown
+                                    options={assignedPersonnelOptions}
+                                    value={createData.assigned_personnel}
+                                    onChange={(value) => setCreateData('assigned_personnel', value || '')}
+                                    placeholder="Select foreman"
+                                    searchPlaceholder="Search foreman..."
+                                    emptyMessage="No foreman found"
+                                    getOptionValue={(option) => option.value}
+                                    getOptionLabel={(option) => option.label}
+                                    style={{ ...inputStyle, minHeight: 40, padding: '8px 10px' }}
+                                />
+                            ) : (
+                                <TextInput
+                                    value={createData.assigned_personnel}
+                                    onChange={(event) => setCreateData('assigned_personnel', event.target.value)}
+                                    style={inputStyle}
+                                />
+                            )}
+                            {createErrors.assigned_personnel && <div style={{ color: '#f87171', fontSize: 12, marginTop: 4 }}>{createErrors.assigned_personnel}</div>}
+                        </label>
+
+                        <label>
+                            <div style={{ fontSize: 12, marginBottom: 6 }}>Progress (%)</div>
+                            <TextInput
+                                type="number"
+                                min="0"
+                                max="100"
+                                value={createData.progress_percent}
+                                onChange={(event) => setCreateData('progress_percent', event.target.value)}
+                                style={inputStyle}
+                            />
+                            {createErrors.progress_percent && <div style={{ color: '#f87171', fontSize: 12, marginTop: 4 }}>{createErrors.progress_percent}</div>}
+                        </label>
+
+                        <label>
+                            <div style={{ fontSize: 12, marginBottom: 6 }}>Status</div>
+                            <SelectInput
+                                value={createData.status}
+                                onChange={(event) => setCreateData('status', event.target.value)}
+                                style={inputStyle}
+                            >
+                                {STATUS_OPTIONS.map((status) => (
+                                    <option key={status} value={status}>
+                                        {status}
+                                    </option>
+                                ))}
+                            </SelectInput>
+                            {createErrors.status && <div style={{ color: '#f87171', fontSize: 12, marginTop: 4 }}>{createErrors.status}</div>}
+                        </label>
+
+                        <label>
+                            <div style={{ fontSize: 12, marginBottom: 6 }}>Contract Amount</div>
+                            <TextInput
+                                type="number"
+                                min="0"
+                                step="0.01"
+                                value={createData.contract_amount}
+                                onChange={(event) => setCreateData('contract_amount', event.target.value)}
+                                style={inputStyle}
+                            />
+                            {createErrors.contract_amount && <div style={{ color: '#f87171', fontSize: 12, marginTop: 4 }}>{createErrors.contract_amount}</div>}
+                        </label>
+
+                        <label>
+                            <div style={{ fontSize: 12, marginBottom: 6 }}>Weight %</div>
+                            <TextInput
+                                type="number"
+                                min="0"
+                                max="100"
+                                step="0.01"
+                                value={createData.weight_percent}
+                                onChange={(event) => setCreateData('weight_percent', event.target.value)}
+                                style={inputStyle}
+                            />
+                            {createErrors.weight_percent && <div style={{ color: '#f87171', fontSize: 12, marginTop: 4 }}>{createErrors.weight_percent}</div>}
+                        </label>
+
+                        <label>
+                            <div style={{ fontSize: 12, marginBottom: 6 }}>Start Date</div>
+                            <DatePickerInput value={createData.start_date} onChange={(value) => setCreateData('start_date', value)} style={inputStyle} />
+                            {createErrors.start_date && <div style={{ color: '#f87171', fontSize: 12, marginTop: 4 }}>{createErrors.start_date}</div>}
+                        </label>
+
+                        <label>
+                            <div style={{ fontSize: 12, marginBottom: 6 }}>Target Completion</div>
+                            <DatePickerInput value={createData.target_completion} onChange={(value) => setCreateData('target_completion', value)} style={inputStyle} />
+                            {createErrors.target_completion && <div style={{ color: '#f87171', fontSize: 12, marginTop: 4 }}>{createErrors.target_completion}</div>}
+                        </label>
+
+                        <label style={{ gridColumn: '1 / -1' }}>
+                            <div style={{ fontSize: 12, marginBottom: 6 }}>Remarks</div>
+                            <TextareaInput
+                                value={createData.remarks}
+                                onChange={(event) => setCreateData('remarks', event.target.value)}
+                                style={{ ...inputStyle, minHeight: 90 }}
+                            />
+                            {createErrors.remarks && <div style={{ color: '#f87171', fontSize: 12, marginTop: 4 }}>{createErrors.remarks}</div>}
+                        </label>
+
+                        <div style={{ gridColumn: '1 / -1', display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
+                            <ActionButton type="button" onClick={() => setShowCreateModal(false)} disabled={creating} style={{ padding: '10px 16px', fontSize: 13 }}>
+                                Cancel
+                            </ActionButton>
+                            <ActionButton type="submit" variant="success" disabled={creating} style={{ padding: '10px 16px', fontSize: 13 }}>
+                                {creating ? 'Adding...' : 'Add Scope'}
+                            </ActionButton>
+                        </div>
+                    </form>
+                </Modal>
 
                 <ConfirmationModal
                     open={!!scopeToDelete}
@@ -782,7 +875,18 @@ export default function MonitoringBoardPage({ project, scopes = [], foreman_opti
                         </div>
                     )}
                 </Modal>
-            </Layout>
+            </div>
+        </>
+    );
+
+    return (
+        <>
+            {!embedded && <Head title={`Monitoring Board #${project.id}`} />}
+            {embedded ? (
+                <div>{content}</div>
+            ) : (
+                <Layout title={`Monitoring Board - Project #${project.id}`}>{content}</Layout>
+            )}
             <style>{`
                 .bb-photo-tile .bb-photo-delete{
                     opacity:0;

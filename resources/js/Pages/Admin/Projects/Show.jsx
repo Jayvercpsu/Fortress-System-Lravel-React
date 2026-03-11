@@ -466,13 +466,10 @@ export default function AdminProjectsShow({
                             <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: 0.3 }}>
                                 Build
                             </div>
-                            <div style={{ display: 'grid', gap: 8 }}>
-                                <ActionButton href={`/projects/${project.id}/build`} style={shortcutButtonStyle} disabled={disableBuildSection}>
-                                    Open Build Tracker
-                                </ActionButton>
-                                <ActionButton href={`/projects/${project.id}/monitoring`} style={shortcutButtonStyle} disabled={disableBuildSection}>
-                                    Open Monitoring Board
-                                </ActionButton>
+                              <div style={{ display: 'grid', gap: 8 }}>
+                                  <ActionButton href={`/projects/${project.id}/build`} style={shortcutButtonStyle} disabled={disableBuildSection}>
+                                      Open Build Tracker
+                                  </ActionButton>
                                 <ActionButton
                                     href={`/projects/${project.id}/client-receipt`}
                                     style={shortcutButtonStyle}

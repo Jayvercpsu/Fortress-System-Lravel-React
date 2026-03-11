@@ -47,6 +47,8 @@ class FortressBuildingFlowSeeder extends Seeder
     private const CO_FOREMAN_EMAIL = 'fortress.coforeman@buildbooks.com';
     private const PRIMARY_TOKEN = 'fortress-building-main-demo-token';
     private const CO_TOKEN = 'fortress-building-co-demo-token';
+    private const PREVIOUS_PAYROLL_WEEK_START = '2026-02-23';
+    private const PREVIOUS_PAYROLL_WEEK_END = '2026-03-01';
     private const PAYROLL_WEEK_START = '2026-03-02';
     private const PAYROLL_WEEK_END = '2026-03-08';
     private const ATTENDANCE_CODE_HOURS = [
@@ -719,6 +721,78 @@ class FortressBuildingFlowSeeder extends Seeder
                 'phone' => '09170000006',
                 'address' => 'Pajo, Lapu-Lapu City',
             ],
+            [
+                'foreman_id' => $coForeman->id,
+                'name' => 'Nestor Cabral',
+                'job_type' => 'Skilled Worker',
+                'default_rate_per_hour' => 103.00,
+                'birth_date' => '1989-09-22',
+                'place_of_birth' => 'Bogo City',
+                'sex' => 'male',
+                'civil_status' => 'Married',
+                'phone' => '09170000007',
+                'address' => 'Sillon, Bogo City',
+            ],
+            [
+                'foreman_id' => $primaryForeman->id,
+                'name' => 'Bryan Lim',
+                'job_type' => 'Skilled Worker',
+                'default_rate_per_hour' => 96.00,
+                'birth_date' => '1992-11-14',
+                'place_of_birth' => 'Cebu City',
+                'sex' => 'male',
+                'civil_status' => 'Single',
+                'phone' => '09170000008',
+                'address' => 'Labangon, Cebu City',
+            ],
+            [
+                'foreman_id' => $primaryForeman->id,
+                'name' => 'Arnel Pangan',
+                'job_type' => 'Skilled Worker',
+                'default_rate_per_hour' => 112.00,
+                'birth_date' => '1986-03-29',
+                'place_of_birth' => 'Danao City',
+                'sex' => 'male',
+                'civil_status' => 'Married',
+                'phone' => '09170000009',
+                'address' => 'Guinsay, Danao City',
+            ],
+            [
+                'foreman_id' => $coForeman->id,
+                'name' => 'Josephine Abarca',
+                'job_type' => 'Worker',
+                'default_rate_per_hour' => 89.00,
+                'birth_date' => '1995-05-17',
+                'place_of_birth' => 'Mandaue City',
+                'sex' => 'female',
+                'civil_status' => 'Single',
+                'phone' => '09170000010',
+                'address' => 'Canduman, Mandaue City',
+            ],
+            [
+                'foreman_id' => $coForeman->id,
+                'name' => 'Daryl Ocampo',
+                'job_type' => 'Skilled Worker',
+                'default_rate_per_hour' => 108.00,
+                'birth_date' => '1991-01-08',
+                'place_of_birth' => 'Lapu-Lapu City',
+                'sex' => 'male',
+                'civil_status' => 'Married',
+                'phone' => '09170000011',
+                'address' => 'Maribago, Lapu-Lapu City',
+            ],
+            [
+                'foreman_id' => $primaryForeman->id,
+                'name' => 'Peter Salonga',
+                'job_type' => 'Skilled Worker',
+                'default_rate_per_hour' => 106.00,
+                'birth_date' => '1990-06-03',
+                'place_of_birth' => 'Carcar City',
+                'sex' => 'male',
+                'civil_status' => 'Married',
+                'phone' => '09170000012',
+                'address' => 'Ocana, Carcar City',
+            ],
         ];
     }
 
@@ -1147,6 +1221,12 @@ class FortressBuildingFlowSeeder extends Seeder
             ['foreman' => $primaryForeman, 'worker_name' => 'Carlo Belen', 'weeks' => ['2026-02-23' => ['P', 'P', 'P', 'H', 'P', 'P', 'R'], '2026-03-02' => ['P', 'P', 'P', 'H', 'P', 'P', 'R']]],
             ['foreman' => $primaryForeman, 'worker_name' => 'Alex Manuel', 'weeks' => ['2026-02-23' => ['P', 'A', 'P', 'P', 'P', 'P', 'R'], '2026-03-02' => ['P', 'A', 'P', 'P', 'P', 'P', 'R']]],
             ['foreman' => $coForeman, 'worker_name' => 'Mark Rivera', 'weeks' => ['2026-02-23' => ['P', 'P', 'P', 'P', 'P', 'H', 'R'], '2026-03-02' => ['P', 'P', 'P', 'P', 'P', 'H', 'R']]],
+            ['foreman' => $coForeman, 'worker_name' => 'Nestor Cabral', 'weeks' => ['2026-02-23' => ['P', 'P', 'P', 'P', 'P', 'P', 'R'], '2026-03-02' => ['P', 'P', 'P', 'P', 'P', 'P', 'R']]],
+            ['foreman' => $primaryForeman, 'worker_name' => 'Bryan Lim', 'weeks' => ['2026-02-23' => ['P', 'P', 'P', 'H', 'P', 'P', 'R'], '2026-03-02' => ['P', 'P', 'P', 'P', 'H', 'P', 'R']]],
+            ['foreman' => $primaryForeman, 'worker_name' => 'Arnel Pangan', 'weeks' => ['2026-02-23' => ['P', 'P', 'H', 'P', 'P', 'P', 'R'], '2026-03-02' => ['P', 'P', 'H', 'P', 'P', 'P', 'R']]],
+            ['foreman' => $coForeman, 'worker_name' => 'Josephine Abarca', 'weeks' => ['2026-02-23' => ['P', 'P', 'P', 'P', 'P', 'A', 'R'], '2026-03-02' => ['P', 'P', 'P', 'P', 'P', 'P', 'R']]],
+            ['foreman' => $coForeman, 'worker_name' => 'Daryl Ocampo', 'weeks' => ['2026-02-23' => ['P', 'P', 'P', 'P', 'P', 'P', 'R'], '2026-03-02' => ['P', 'P', 'P', 'P', 'H', 'P', 'R']]],
+            ['foreman' => $primaryForeman, 'worker_name' => 'Peter Salonga', 'weeks' => ['2026-02-23' => ['P', 'P', 'P', 'P', 'P', 'H', 'R'], '2026-03-02' => ['P', 'P', 'P', 'P', 'P', 'P', 'R']]],
         ];
 
         foreach ($workerWeeklyCodes as $workerDefinition) {
@@ -1179,14 +1259,97 @@ class FortressBuildingFlowSeeder extends Seeder
 
     private function seedPayrollFlow(int $projectId, User $payrollUser): void
     {
+        $previousCutoff = $this->buildPayrollCutoffFromAttendance(
+            $projectId,
+            $payrollUser,
+            self::PREVIOUS_PAYROLL_WEEK_START,
+            self::PREVIOUS_PAYROLL_WEEK_END
+        );
+
+        $this->applyPayrollDeductions($previousCutoff->id, [
+            'Ramon Castillo' => [
+                ['type' => 'cash_advance', 'amount' => 500.00, 'note' => 'Prior-week emergency cash advance.'],
+            ],
+            'Mark Rivera' => [
+                ['type' => 'loan', 'amount' => 700.00, 'note' => 'Safety shoes installment deduction.'],
+            ],
+            'Josephine Abarca' => [
+                ['type' => 'other', 'amount' => 180.00, 'note' => 'Site communication allowance offset.'],
+            ],
+        ]);
+
+        $previousReleaseTime = '2026-03-01 20:30:00';
+        Payroll::query()
+            ->where('cutoff_id', $previousCutoff->id)
+            ->update([
+                'status' => 'paid',
+                'released_at' => $previousReleaseTime,
+                'released_by' => $payrollUser->id,
+                'payment_reference' => 'PAY-CUTOFF-260223',
+                'bank_export_ref' => 'BPI-BATCH-260301',
+            ]);
+        $previousCutoff->update(['status' => 'paid', 'updated_at' => $previousReleaseTime]);
+
+        $currentCutoff = $this->buildPayrollCutoffFromAttendance(
+            $projectId,
+            $payrollUser,
+            self::PAYROLL_WEEK_START,
+            self::PAYROLL_WEEK_END
+        );
+
+        $this->applyPayrollDeductions($currentCutoff->id, [
+            'Ramon Castillo' => [
+                ['type' => 'cash_advance', 'amount' => 750.00, 'note' => 'Cash advance for family medical support.'],
+            ],
+            'Alex Manuel' => [
+                ['type' => 'loan', 'amount' => 1200.00, 'note' => 'Tools payment installment.'],
+                ['type' => 'other', 'amount' => 250.00, 'note' => 'Safety PPE replacement charge.'],
+            ],
+            'Fortress Demo Co-Foreman' => [
+                ['type' => 'other', 'amount' => 500.00, 'note' => 'Site communication allowance offset.'],
+            ],
+            'Daryl Ocampo' => [
+                ['type' => 'loan', 'amount' => 650.00, 'note' => 'Multimeter and testing tools installment.'],
+            ],
+            'Peter Salonga' => [
+                ['type' => 'cash_advance', 'amount' => 300.00, 'note' => 'Transport support for emergency call-out.'],
+            ],
+        ]);
+
+        $statusOverrides = [
+            'Fortress Demo Foreman' => 'approved',
+            'Fortress Demo Co-Foreman' => 'approved',
+            'Alex Manuel' => 'pending',
+            'Josephine Abarca' => 'pending',
+            'Ramon Castillo' => 'approved',
+        ];
+
+        foreach ($statusOverrides as $workerName => $status) {
+            Payroll::query()
+                ->where('cutoff_id', $currentCutoff->id)
+                ->where('worker_name', $workerName)
+                ->update(['status' => $status]);
+        }
+
+        $currentCutoff->update(['status' => 'generated']);
+    }
+
+    private function buildPayrollCutoffFromAttendance(
+        int $projectId,
+        User $payrollUser,
+        string $startDate,
+        string $endDate
+    ): PayrollCutoff {
         $cutoff = PayrollCutoff::query()->firstOrCreate(
-            ['start_date' => self::PAYROLL_WEEK_START, 'end_date' => self::PAYROLL_WEEK_END],
+            ['start_date' => $startDate, 'end_date' => $endDate],
             ['status' => 'generated']
         );
 
+        Payroll::query()->where('cutoff_id', $cutoff->id)->delete();
+
         $attendanceSummary = Attendance::query()
             ->where('project_id', $projectId)
-            ->whereBetween('date', [self::PAYROLL_WEEK_START, self::PAYROLL_WEEK_END])
+            ->whereBetween('date', [$startDate, $endDate])
             ->selectRaw('worker_name, worker_role, COALESCE(SUM(hours), 0) as total_hours')
             ->groupBy('worker_name', 'worker_role')
             ->orderBy('worker_name')
@@ -1210,25 +1373,20 @@ class FortressBuildingFlowSeeder extends Seeder
                 'deductions' => 0,
                 'net' => $gross,
                 'status' => 'ready',
-                'week_start' => self::PAYROLL_WEEK_START,
+                'week_start' => $startDate,
             ]);
         }
 
-        $deductions = [
-            'Ramon Castillo' => [
-                ['type' => 'cash_advance', 'amount' => 750.00, 'note' => 'Cash advance for family medical support.'],
-            ],
-            'Alex Manuel' => [
-                ['type' => 'loan', 'amount' => 1200.00, 'note' => 'Tools payment installment.'],
-                ['type' => 'other', 'amount' => 250.00, 'note' => 'Safety PPE replacement charge.'],
-            ],
-            'Fortress Demo Co-Foreman' => [
-                ['type' => 'other', 'amount' => 500.00, 'note' => 'Site communication allowance offset.'],
-            ],
-        ];
+        return $cutoff;
+    }
 
-        foreach ($deductions as $workerName => $items) {
-            $payroll = Payroll::query()->where('cutoff_id', $cutoff->id)->where('worker_name', $workerName)->first();
+    private function applyPayrollDeductions(int $cutoffId, array $deductionMap): void
+    {
+        foreach ($deductionMap as $workerName => $items) {
+            $payroll = Payroll::query()
+                ->where('cutoff_id', $cutoffId)
+                ->where('worker_name', $workerName)
+                ->first();
 
             if (!$payroll) {
                 continue;
@@ -1249,8 +1407,6 @@ class FortressBuildingFlowSeeder extends Seeder
                 'net' => round((float) $payroll->gross - $deductionTotal, 2),
             ]);
         }
-
-        $cutoff->update(['status' => 'generated']);
     }
 
     private function hoursBetween(string $timeIn, string $timeOut): float
@@ -1299,8 +1455,9 @@ class FortressBuildingFlowSeeder extends Seeder
             '4. Approved Design projects can be manually transferred from the Kanban card into a duplicated Construction project.',
             '5. Construction progress is driven by project scopes, weekly accomplishments, attendance, uploads, expenses, and payments.',
             '6. Construction projects can be manually transferred to Completed from the Kanban card.',
-            '7. Read-only project filters collapse lifecycle duplicates into one logical project selection.',
-            '8. Write-side project selectors still target the actual project row and now show the phase in the dropdown label.',
+            '7. Payroll uses attendance-based cutoffs with worker/foreman rates, deductions, release references, and payout status transitions.',
+            '8. Read-only project filters collapse lifecycle duplicates into one logical project selection.',
+            '9. Write-side project selectors still target the actual project row and now show the phase in the dropdown label.',
             '',
             'Public links:',
             '- Main Jotform flow: ' . $baseUrl . '/progress-submit/' . self::PRIMARY_TOKEN,
@@ -1311,7 +1468,8 @@ class FortressBuildingFlowSeeder extends Seeder
             'What is seeded:',
             '- Monitoring Board items in Proposal, In Review, Approved, and Done states, with attached files.',
             '- Three design-stage examples: transferred, transfer-ready, and approval-pending.',
-            '- One active construction project with design linkage, scopes, scope photos, workers, attendance, weekly accomplishments, issues, deliveries, progress photos, updates, files, payments, expenses, payroll, and submission tokens.',
+            '- One active construction project with design linkage, scopes, scope photos, expanded worker roster, attendance, weekly accomplishments, issues, deliveries, progress photos, updates, files, payments, expenses, payroll, and submission tokens.',
+            '- Payroll includes two attendance-generated cutoffs: one historical paid cutoff (with release refs) and one current generated cutoff (mixed pending/approved/ready rows).',
             '- One completed project with closeout payments, expenses, files, updates, and retained Design computations via source_project_id.',
             '- A text guide file attached to both projects and monitoring entries to explain the seeded workflow.',
         ]));

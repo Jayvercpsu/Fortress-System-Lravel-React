@@ -22,11 +22,26 @@ class MonitoringBoardController extends Controller
     {
         $this->ensureAuthorized($request);
 
-        $items = MonitoringBoardItem::query()
+        $rawItems = MonitoringBoardItem::query()
             ->with(['files' => fn ($query) => $query->latest('id')])
             ->orderBy('department')
             ->orderByDesc('created_at')
             ->get()
+            ->values();
+
+        $projectIds = $rawItems
+            ->pluck('project_id')
+            ->filter()
+            ->unique()
+            ->values();
+
+        $existingProjectIds = $projectIds->isEmpty()
+            ? []
+            : Project::query()->whereIn('id', $projectIds)->pluck('id')->all();
+
+        $existingProjectLookup = array_fill_keys($existingProjectIds, true);
+
+        $items = $rawItems
             ->map(fn (MonitoringBoardItem $item) => [
                 'id' => (int) $item->id,
                 'department' => $item->department,
@@ -43,6 +58,7 @@ class MonitoringBoardController extends Controller
                 'progress_percent' => (int) $item->progress_percent,
                 'remarks' => $item->remarks,
                 'project_id' => $item->project_id,
+                'project_deleted' => $item->project_id ? !isset($existingProjectLookup[$item->project_id]) : false,
                 'converted_at' => optional($item->converted_at)?->toDateTimeString(),
                 'files' => $item->files->map(fn (MonitoringBoardFile $file) => [
                     'id' => (int) $file->id,

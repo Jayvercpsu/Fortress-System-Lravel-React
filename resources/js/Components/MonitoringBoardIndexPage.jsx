@@ -11,7 +11,7 @@ import Layout from './Layout';
 import { Head, router, useForm } from '@inertiajs/react';
 import { useEffect, useMemo, useState } from 'react';
 import toast from 'react-hot-toast';
-import { Check } from 'lucide-react';
+import { Check, Trash2 } from 'lucide-react';
 
 const inputStyle = {
     width: '100%',
@@ -183,6 +183,12 @@ const statusBadgeTones = {
     },
 };
 
+const deletedBadgeStyle = {
+    backgroundColor: 'rgba(239, 68, 68, 0.12)',
+    borderColor: 'rgba(239, 68, 68, 0.35)',
+    color: '#f87171',
+};
+
 const groupColors = ['#38bdf8', '#a3e635', '#fbbf24', '#f472b6', '#f97316', '#22d3ee', '#c084fc'];
 
 const normalizeGroupKey = (value) => {
@@ -199,6 +205,27 @@ const normalizeProgressValue = (value) => {
     const numeric = Number(value);
     if (!Number.isFinite(numeric)) return 0;
     return Math.max(0, Math.min(100, Math.round(numeric)));
+};
+
+const parseTimelineRange = (value) => {
+    const raw = String(value || '').trim();
+    if (!raw) return { start: '', end: '' };
+    const match = raw.split(/\s+(?:to|–|—|-)\s+/i);
+    if (match.length >= 2) {
+        const start = match[0]?.trim() || '';
+        const end = match.slice(1).join(' - ').trim();
+        return { start, end };
+    }
+    return { start: raw, end: '' };
+};
+
+const buildTimelineRange = (start, end) => {
+    const safeStart = String(start || '').trim();
+    const safeEnd = String(end || '').trim();
+    if (safeStart && safeEnd) return `${safeStart} to ${safeEnd}`;
+    if (safeStart) return safeStart;
+    if (safeEnd) return safeEnd;
+    return '';
 };
 
 const sortOptions = [
@@ -730,7 +757,6 @@ export default function MonitoringBoardIndexPage({ items = [], status_options: s
                                         justifyContent: 'space-between',
                                         flexWrap: 'wrap',
                                         gap: 12,
-                                        marginBottom: 12,
                                     }}
                                 >
                                     <div style={{ display: 'flex', alignItems: 'center', gap: 10, fontWeight: 700 }}>
@@ -740,85 +766,91 @@ export default function MonitoringBoardIndexPage({ items = [], status_options: s
                                                 height: 10,
                                                 borderRadius: '50%',
                                                 background: groupColor,
-                                                boxShadow: `0 0 0 3px ${groupColor}30`,
-                                            }}
-                                        />
+                                            boxShadow: `0 0 0 3px ${groupColor}30`,
+                                        }}
+                                    />
                                         {group.department}
                                     </div>
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                                            <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>Sort</span>
-                                            <SelectInput
-                                                value={sortConfig.key}
-                                                onChange={(event) => updateDepartmentSort(group.department, { key: event.target.value })}
-                                                style={{ ...boardInputStyle, width: 150, padding: '6px 8px', fontSize: 11 }}
-                                            >
-                                                {sortOptions.map((option) => (
-                                                    <option key={option.value} value={option.value}>
-                                                        {option.label}
-                                                    </option>
-                                                ))}
-                                            </SelectInput>
-                                            <SelectInput
-                                                value={sortConfig.dir}
-                                                onChange={(event) => updateDepartmentSort(group.department, { dir: event.target.value })}
-                                                style={{ ...boardInputStyle, width: 80, padding: '6px 8px', fontSize: 11 }}
-                                            >
-                                                {sortDirectionOptions.map((option) => (
-                                                    <option key={option.value} value={option.value}>
-                                                        {option.label}
-                                                    </option>
-                                                ))}
-                                            </SelectInput>
-                                        </div>
-                                        <div style={{ minWidth: 180 }}>
-                                            <SearchableDropdown
-                                                options={bulkActionOptions}
-                                                value={bulkActionValue}
-                                                onChange={(value) => {
-                                                    setBulkActionByDepartment((prev) => ({ ...prev, [group.department]: value }));
-                                                    if (!value) return;
-                                                    if (value === 'edit' && canEditSelection) {
-                                                        openEdit(selectedRows[0]);
-                                                        clearDepartmentSelection(group.department);
-                                                        return;
-                                                    }
-                                                    if (value === 'delete') {
-                                                        requestBulkDelete(group.department, selectedIds);
-                                                    }
-                                                }}
-                                                placeholder="Select action"
-                                                searchPlaceholder="Search actions..."
-                                                emptyMessage="No actions available"
-                                                disabled={selectedCount === 0}
-                                                getOptionLabel={(option) => option.label}
-                                                getOptionValue={(option) => option.value}
-                                                style={{ ...actionDropdownStyle, minHeight: 32, padding: '5px 10px' }}
-                                                dropdownWidth={220}
-                                            />
-                                        </div>
-                                        <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
-                                            {selectedCount} selected
-                                        </div>
-                                        <button
-                                            type="button"
-                                            onClick={() => toggleDepartment(group.department)}
-                                            style={{
-                                                border: '1px solid var(--border-color)',
-                                                background: 'var(--surface-1)',
-                                                color: 'var(--text-main)',
-                                                padding: '4px 10px',
-                                                borderRadius: 999,
-                                                fontSize: 11,
-                                                cursor: 'pointer',
+                                    <ActionButton
+                                        type="button"
+                                        variant="danger"
+                                        onClick={() => requestBulkDelete(group.department, rowIds)}
+                                        disabled={rowIds.length === 0 || bulkDeleting}
+                                        style={{ padding: '6px 10px', fontSize: 11 }}
+                                        aria-label={`Delete ${group.department} entries`}
+                                    >
+                                        <Trash2 size={14} />
+                                    </ActionButton>
+                                </div>
+                            <div
+                                style={{
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'space-between',
+                                    flexWrap: 'wrap',
+                                    gap: 8,
+                                    marginTop: 8,
+                                    marginBottom: 12,
+                                }}
+                            >
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                    <div style={{ minWidth: 180 }}>
+                                        <SearchableDropdown
+                                            options={bulkActionOptions}
+                                            value={bulkActionValue}
+                                            onChange={(value) => {
+                                                setBulkActionByDepartment((prev) => ({ ...prev, [group.department]: value }));
+                                                if (!value) return;
+                                                if (value === 'edit' && canEditSelection) {
+                                                    openEdit(selectedRows[0]);
+                                                    clearDepartmentSelection(group.department);
+                                                    return;
+                                                }
+                                                if (value === 'delete') {
+                                                    requestBulkDelete(group.department, selectedIds);
+                                                }
                                             }}
-                                        >
-                                            {isCollapsed ? 'Show' : 'Hide'}
-                                        </button>
-                                        <div style={shortcutPill}>{group.rows.length} items</div>
+                                            placeholder="Select action"
+                                            searchPlaceholder="Search actions..."
+                                            emptyMessage="No actions available"
+                                            disabled={selectedCount === 0}
+                                            getOptionLabel={(option) => option.label}
+                                            getOptionValue={(option) => option.value}
+                                            style={{ ...actionDropdownStyle, minHeight: 32, padding: '5px 10px' }}
+                                            dropdownWidth={220}
+                                        />
+                                    </div>
+                                    <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+                                        {selectedCount} selected
                                     </div>
                                 </div>
-                                {!isCollapsed && (
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                                    <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>Sort</span>
+                                    <SelectInput
+                                        value={sortConfig.key}
+                                        onChange={(event) => updateDepartmentSort(group.department, { key: event.target.value })}
+                                        style={{ ...boardInputStyle, width: 150, padding: '6px 8px', fontSize: 11 }}
+                                    >
+                                        {sortOptions.map((option) => (
+                                            <option key={option.value} value={option.value}>
+                                                {option.label}
+                                            </option>
+                                        ))}
+                                    </SelectInput>
+                                    <SelectInput
+                                        value={sortConfig.dir}
+                                        onChange={(event) => updateDepartmentSort(group.department, { dir: event.target.value })}
+                                        style={{ ...boardInputStyle, width: 80, padding: '6px 8px', fontSize: 11 }}
+                                    >
+                                        {sortDirectionOptions.map((option) => (
+                                            <option key={option.value} value={option.value}>
+                                                {option.label}
+                                            </option>
+                                        ))}
+                                    </SelectInput>
+                                </div>
+                            </div>
+                            {!isCollapsed && (
                                 <div style={{ overflowX: 'auto', width: '100%', maxWidth: '100%', minWidth: 0 }}>
                                     <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12, minWidth: 1500 }}>
                                         <thead>
@@ -865,9 +897,11 @@ export default function MonitoringBoardIndexPage({ items = [], status_options: s
                                         <tbody>
                                             {sortedRows.map((item) => {
                                                 const isConverted = Boolean(item.project_id);
+                                                const isProjectDeleted = Boolean(item.project_deleted);
                                                 const progressValue = normalizeProgressValue(item.progress_percent);
                                                 const statusValue = item.status ?? resolvedStatusOptions[0];
                                                 const fileCount = Array.isArray(item.files) ? item.files.length : 0;
+                                                const timelineRange = parseTimelineRange(item.timeline);
                                                 const progressDashOffset = progressCircleCircumference - (progressValue / 100) * progressCircleCircumference;
 
                                                 return (
@@ -891,7 +925,46 @@ export default function MonitoringBoardIndexPage({ items = [], status_options: s
                                                         <td style={boardTableCell}>{item.location}</td>
                                                         <td style={boardTableCell}>{item.assigned_to || '-'}</td>
                                                         <td style={boardTableCell}>{formatDate(item.start_date)}</td>
-                                                        <td style={boardTableCell}>{item.timeline || '-'}</td>
+                                                        <td style={boardTableCell}>
+                                                            {timelineRange.start || timelineRange.end ? (
+                                                                <div style={{ display: 'grid', gap: 6, justifyItems: 'center' }}>
+                                                                    {timelineRange.start ? (
+                                                                        <span
+                                                                            style={{
+                                                                                padding: '4px 10px',
+                                                                                borderRadius: 999,
+                                                                                fontSize: 11,
+                                                                                fontWeight: 600,
+                                                                                background: 'var(--status-review-bg)',
+                                                                                color: 'var(--status-review-text)',
+                                                                                border: '1px solid var(--status-review-border)',
+                                                                                whiteSpace: 'nowrap',
+                                                                            }}
+                                                                        >
+                                                                            {timelineRange.start}
+                                                                        </span>
+                                                                    ) : null}
+                                                                    {timelineRange.end ? (
+                                                                        <span
+                                                                            style={{
+                                                                                padding: '4px 10px',
+                                                                                borderRadius: 999,
+                                                                                fontSize: 11,
+                                                                                fontWeight: 600,
+                                                                                background: 'var(--surface-2)',
+                                                                                color: 'var(--text-main)',
+                                                                                border: '1px solid var(--border-color)',
+                                                                                whiteSpace: 'nowrap',
+                                                                            }}
+                                                                        >
+                                                                            {timelineRange.end}
+                                                                        </span>
+                                                                    ) : null}
+                                                                </div>
+                                                            ) : (
+                                                                '-'
+                                                            )}
+                                                        </td>
                                                         <td style={boardTableCell}>{formatDate(item.due_date)}</td>
                                                         <td style={boardTableCell}>{formatDate(item.date_paid)}</td>
                                                         <td style={boardTableCell}>
@@ -957,7 +1030,9 @@ export default function MonitoringBoardIndexPage({ items = [], status_options: s
                                                             </ActionButton>
                                                         </td>
                                                         <td style={boardTableCell}>
-                                                            {isConverted ? (
+                                                            {isProjectDeleted ? (
+                                                                <span style={{ ...statusBadgeBase, ...deletedBadgeStyle }}>Project deleted</span>
+                                                            ) : isConverted ? (
                                                                 <ActionButton href={`/projects/${item.project_id}`} variant="view" style={{ padding: '6px 10px' }}>
                                                                     Open Project
                                                                 </ActionButton>
@@ -1194,11 +1269,22 @@ export default function MonitoringBoardIndexPage({ items = [], status_options: s
 
                             <label>
                                 <div style={{ fontSize: 12, marginBottom: 6 }}>Timeline</div>
-                                <TextInput
-                                    value={createData.timeline}
-                                    onChange={(event) => setCreateData('timeline', event.target.value)}
-                                    style={boardInputStyle}
-                                />
+                                <div style={{ display: 'grid', gap: 6 }}>
+                                    <DatePickerInput
+                                        value={parseTimelineRange(createData.timeline).start}
+                                        onChange={(value) =>
+                                            setCreateData('timeline', buildTimelineRange(value, parseTimelineRange(createData.timeline).end))
+                                        }
+                                        style={boardInputStyle}
+                                    />
+                                    <DatePickerInput
+                                        value={parseTimelineRange(createData.timeline).end}
+                                        onChange={(value) =>
+                                            setCreateData('timeline', buildTimelineRange(parseTimelineRange(createData.timeline).start, value))
+                                        }
+                                        style={boardInputStyle}
+                                    />
+                                </div>
                                 {createErrors.timeline && <div style={{ color: '#f87171', fontSize: 12, marginTop: 4 }}>{createErrors.timeline}</div>}
                             </label>
 
@@ -1407,11 +1493,22 @@ export default function MonitoringBoardIndexPage({ items = [], status_options: s
 
                         <label>
                             <div style={{ fontSize: 12, marginBottom: 6 }}>Timeline</div>
-                            <TextInput
-                                value={editData.timeline}
-                                onChange={(event) => setEditData('timeline', event.target.value)}
-                                style={inputStyle}
-                            />
+                            <div style={{ display: 'grid', gap: 6 }}>
+                                <DatePickerInput
+                                    value={parseTimelineRange(editData.timeline).start}
+                                    onChange={(value) =>
+                                        setEditData('timeline', buildTimelineRange(value, parseTimelineRange(editData.timeline).end))
+                                    }
+                                    style={inputStyle}
+                                />
+                                <DatePickerInput
+                                    value={parseTimelineRange(editData.timeline).end}
+                                    onChange={(value) =>
+                                        setEditData('timeline', buildTimelineRange(parseTimelineRange(editData.timeline).start, value))
+                                    }
+                                    style={inputStyle}
+                                />
+                            </div>
                             {editErrors.timeline && <div style={{ color: '#f87171', fontSize: 12, marginTop: 4 }}>{editErrors.timeline}</div>}
                         </label>
 

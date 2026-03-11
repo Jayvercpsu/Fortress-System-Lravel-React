@@ -6,6 +6,7 @@ import SearchableDropdown from '../../../Components/SearchableDropdown';
 import ConfirmationModal from '../../../Components/ConfirmationModal';
 import EditModal from '../../../Components/EditModal';
 import TextInput from '../../../Components/TextInput';
+import MonitoringBoardPage from '../../../Components/MonitoringBoardPage';
 import { Head, router, useForm } from '@inertiajs/react';
 import { useEffect, useState } from 'react';
 import toast from 'react-hot-toast';
@@ -41,6 +42,7 @@ export default function HeadAdminBuildShow({
     expenseCategoryTotals = [],
     materialOptions = [],
     expenseTable = {},
+    monitoring = {},
 }) {
     const [activeTab, setActiveTab] = useState(() => {
         const tab = new URLSearchParams(window.location.search).get('tab');
@@ -104,6 +106,9 @@ export default function HeadAdminBuildShow({
             ? (Number(data.total_client_payment || 0) / Number(data.construction_contract || 0)) * 100
             : 0;
     const remainingIncome = Number(data.construction_contract || 0) - totalExpenseAmount;
+    const monitoringProject = monitoring?.project ?? null;
+    const monitoringScopes = monitoring?.scopes ?? [];
+    const monitoringForemen = monitoring?.foreman_options ?? [];
 
     useEffect(() => {
         const url = new URL(window.location.href);
@@ -282,10 +287,11 @@ export default function HeadAdminBuildShow({
                 </div>
 
                 {activeTab === 'tracker' && (
-                    <form onSubmit={submit} style={{ display: 'grid', gap: 16 }}>
-                        <div style={{ ...cardStyle, display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12 }}>
-                            <div>
-                                <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 4 }}>Total Expenses</div>
+                    <div style={{ display: 'grid', gap: 16 }}>
+                        <form onSubmit={submit} style={{ display: 'grid', gap: 16 }}>
+                            <div style={{ ...cardStyle, display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12 }}>
+                                <div>
+                                    <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 4 }}>Total Expenses</div>
                                 <div style={{ fontWeight: 700 }}>{money(totalExpenses)}</div>
                             </div>
                             <div>
@@ -343,7 +349,19 @@ export default function HeadAdminBuildShow({
                                 {processing ? 'Saving...' : 'Save Build Tracker'}
                             </ActionButton>
                         </div>
-                    </form>
+                        </form>
+                        {monitoringProject && (
+                            <div style={{ display: 'grid', gap: 12 }}>
+                                <div style={{ fontSize: 14, fontWeight: 700 }}>Scope of Works</div>
+                                <MonitoringBoardPage
+                                    embedded
+                                    project={monitoringProject}
+                                    scopes={monitoringScopes}
+                                    foreman_options={monitoringForemen}
+                                />
+                            </div>
+                        )}
+                    </div>
                 )}
 
                 {activeTab === 'expenses' && (
