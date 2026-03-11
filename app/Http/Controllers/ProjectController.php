@@ -1148,8 +1148,13 @@ class ProjectController extends Controller
         $projectId = (string) $project->id;
         $design = DesignProject::where('project_id', $projectId)->first();
         $build = BuildProject::where('project_id', $projectId)->first();
+        $sourceDesign = null;
+        if ($project->source_project_id !== null) {
+            $sourceDesign = DesignProject::where('project_id', (string) $project->source_project_id)->first();
+        }
 
         $designContractAmount = (float) ($design?->design_contract_amount ?? 0);
+        $resolvedDesign = $sourceDesign ?: $design;
 
         $constructionContract = (float) ($build?->construction_contract ?? 0);
         $expenseConstructionCost = (float) Expense::where('project_id', $projectId)->sum('amount');
@@ -1161,13 +1166,14 @@ class ProjectController extends Controller
         $lastPaidDate = Payment::where('project_id', $projectId)->max('date_paid');
         $remainingBalance = $contractAmount - $totalClientPayment;
         $manualDesignFee = (float) ($project->design_fee ?? 0);
-        $designTotalReceived = (float) ($design?->total_received ?? 0);
-        $designDownpayment = (float) ($design?->downpayment ?? 0);
-        $designOfficePayrollDeduction = (float) ($design?->office_payroll_deduction ?? 0);
-        $designProgress = (int) max(0, min(100, (int) ($design?->design_progress ?? 0)));
-        $designRemaining = $designContractAmount - $designTotalReceived;
-        $designNetAfterOfficeDeduction = $designTotalReceived - $designOfficePayrollDeduction;
-        $designTrackerSharePct = $contractAmount > 0 ? ($designContractAmount / $contractAmount) * 100 : 0;
+        $designPayloadContractAmount = (float) ($resolvedDesign?->design_contract_amount ?? 0);
+        $designPayloadTotalReceived = (float) ($resolvedDesign?->total_received ?? 0);
+        $designPayloadDownpayment = (float) ($resolvedDesign?->downpayment ?? 0);
+        $designPayloadOfficePayrollDeduction = (float) ($resolvedDesign?->office_payroll_deduction ?? 0);
+        $designPayloadProgress = (int) max(0, min(100, (int) ($resolvedDesign?->design_progress ?? 0)));
+        $designPayloadRemaining = $designPayloadContractAmount - $designPayloadTotalReceived;
+        $designPayloadNetAfterOfficeDeduction = $designPayloadTotalReceived - $designPayloadOfficePayrollDeduction;
+        $designTrackerSharePct = $contractAmount > 0 ? ($designPayloadContractAmount / $contractAmount) * 100 : 0;
         $manualDesignFeeSharePct = $contractAmount > 0 ? ($manualDesignFee / $contractAmount) * 100 : 0;
         $buildTrackerClientPayment = (float) ($build?->total_client_payment ?? 0);
         $buildMaterialsCost = (float) ($build?->materials_cost ?? 0);
@@ -1187,14 +1193,16 @@ class ProjectController extends Controller
             'overall_progress' => $overallProgress,
             'computation_sources' => [
                 'design_tracker' => [
-                    'design_contract_amount' => $designContractAmount,
-                    'downpayment' => $designDownpayment,
-                    'total_received' => $designTotalReceived,
-                    'office_payroll_deduction' => $designOfficePayrollDeduction,
-                    'net_after_office_payroll_deduction' => $designNetAfterOfficeDeduction,
-                    'remaining_design_balance' => $designRemaining,
-                    'design_progress' => $designProgress,
-                    'client_approval_status' => $design?->client_approval_status ?: 'pending',
+                    'design_contract_amount' => $designPayloadContractAmount,
+                    'downpayment' => $designPayloadDownpayment,
+                    'total_received' => $designPayloadTotalReceived,
+                    'office_payroll_deduction' => $designPayloadOfficePayrollDeduction,
+                    'net_after_office_payroll_deduction' => $designPayloadNetAfterOfficeDeduction,
+                    'remaining_design_balance' => $designPayloadRemaining,
+                    'design_progress' => $designPayloadProgress,
+                    'client_approval_status' => $resolvedDesign?->client_approval_status ?: 'pending',
+                    'source_project_id' => $project->source_project_id !== null ? (int) $project->source_project_id : null,
+                    'is_inherited_from_source' => $project->source_project_id !== null && $sourceDesign !== null,
                     'share_of_total_budget_pct' => $designTrackerSharePct,
                 ],
                 'build_tracker' => [
@@ -1229,7 +1237,7 @@ class ProjectController extends Controller
                     'tracker_build_budget_minus_manual_derived_build_budget' => $constructionContract - ($contractAmount - $manualDesignFee),
                 ],
                 'deductions' => [
-                    'design_office_payroll_deduction' => $designOfficePayrollDeduction,
+                    'design_office_payroll_deduction' => $designPayloadOfficePayrollDeduction,
                     'includes_design_office_payroll_deduction_in_project_total' => false,
                     'includes_payroll_deductions_in_project_total' => false,
                     'payroll_deductions_note' => 'Payroll deductions are not included in Project Computations because payroll rows are not linked to project_id.',

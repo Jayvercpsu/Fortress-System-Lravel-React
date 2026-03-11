@@ -137,7 +137,10 @@ class FortressBuildingFlowSeeder extends Seeder
                 $this->projectAttributes($primaryForeman, $coForeman),
                 ['source_project_id' => $designSourceProject->id]
             ));
-            $completedProject = $this->createProjectRecord($this->completedProjectAttributes($primaryForeman, $coForeman));
+            $completedProject = $this->createProjectRecord(array_merge(
+                $this->completedProjectAttributes($primaryForeman, $coForeman),
+                ['source_project_id' => $designSourceProject->id]
+            ));
 
             DesignProject::query()->updateOrCreate(
                 ['project_id' => $designSourceProject->id],
@@ -150,10 +153,6 @@ class FortressBuildingFlowSeeder extends Seeder
             DesignProject::query()->updateOrCreate(
                 ['project_id' => $pendingDesignProject->id],
                 $this->pendingDesignTrackerAttributes()
-            );
-            DesignProject::query()->updateOrCreate(
-                ['project_id' => $completedProject->id],
-                $this->completedDesignProjectAttributes($completedProject)
             );
 
             BuildProject::query()->updateOrCreate(
@@ -224,7 +223,7 @@ class FortressBuildingFlowSeeder extends Seeder
                 ],
                 [
                     'project_id' => $completedProject->id,
-                    'note' => 'Final handover, completion billing, and closeout documentation were completed for this project to keep the Completed column populated.',
+                    'note' => 'Final handover, completion billing, and closeout documentation were completed. Design department values for computations are inherited from the linked source design project.',
                     'created_by' => $seedAdmin->id,
                     'created_at' => '2026-02-14 17:30:00',
                     'updated_at' => '2026-02-14 17:30:00',
@@ -397,19 +396,6 @@ class FortressBuildingFlowSeeder extends Seeder
             'office_payroll_deduction' => 12000.00,
             'design_progress' => 62,
             'client_approval_status' => 'pending',
-        ];
-    }
-
-    private function completedDesignProjectAttributes(Project $project): array
-    {
-        return [
-            'project_id' => $project->id,
-            'design_contract_amount' => 150000.00,
-            'downpayment' => 50000.00,
-            'total_received' => 150000.00,
-            'office_payroll_deduction' => 12000.00,
-            'design_progress' => 100,
-            'client_approval_status' => 'approved',
         ];
     }
 
@@ -1304,7 +1290,7 @@ class FortressBuildingFlowSeeder extends Seeder
             '- Fortress Building | Construction | active duplicate linked through source_project_id with scopes, files, uploads, and payroll data.',
             '- Fortress Civic Center | Design | approved at 100%, not yet transferred so the Transfer to Construction button can be tested.',
             '- Fortress Experience Hub | Design | pending approval, so transfer should remain unavailable.',
-            '- Fortress Warehouse Annex | Completed | sample closed project for the Completed column.',
+            '- Fortress Warehouse Annex | Completed | sample closed project where Design computations are retained through source_project_id linkage.',
             '',
             'Flow walkthrough:',
             '1. Proposal work starts in Monitoring Board with files and status progression.',
@@ -1324,7 +1310,7 @@ class FortressBuildingFlowSeeder extends Seeder
             '- Monitoring Board items in Proposal, In Review, Approved, and Done states, with attached files.',
             '- Three design-stage examples: transferred, transfer-ready, and approval-pending.',
             '- One active construction project with design linkage, scopes, scope photos, workers, attendance, weekly accomplishments, issues, deliveries, progress photos, updates, files, payments, expenses, payroll, and submission tokens.',
-            '- One completed project with closeout payments, expenses, files, and updates.',
+            '- One completed project with closeout payments, expenses, files, updates, and retained Design computations via source_project_id.',
             '- A text guide file attached to both projects and monitoring entries to explain the seeded workflow.',
         ]));
 
