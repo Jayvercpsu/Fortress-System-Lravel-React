@@ -1,5 +1,6 @@
 import { Settings } from 'lucide-react';
 import { useState } from 'react';
+import OptimizedImage from './OptimizedImage';
 
 const DEFAULT_LOGO_PATH = '/images/logo.jpg';
 
@@ -8,6 +9,7 @@ export default function BrandIcon({
     borderRadius = 8,
     background = '#1b8a7a',
     imagePath = DEFAULT_LOGO_PATH,
+    priority = false,
 }) {
     const [hasImageError, setHasImageError] = useState(false);
 
@@ -25,9 +27,10 @@ export default function BrandIcon({
             }}
         >
             {!hasImageError ? (
-                <img
+                <OptimizedImage
                     src={imagePath}
                     alt="Fortress logo"
+                    priority={priority}
                     onError={() => setHasImageError(true)}
                     style={{
                         width: '100%',

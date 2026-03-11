@@ -12,6 +12,7 @@ import { Head, router, useForm } from '@inertiajs/react';
 import { useEffect, useMemo, useState } from 'react';
 import toast from 'react-hot-toast';
 import { Check, Trash2 } from 'lucide-react';
+import OptimizedImage from './OptimizedImage';
 
 const inputStyle = {
     width: '100%',
@@ -1371,7 +1372,7 @@ export default function MonitoringBoardIndexPage({ items = [], status_options: s
                                     justifyContent: 'center',
                                 }}
                             >
-                                <img
+                                <OptimizedImage
                                     src={previewFile.file_path ? `/storage/${previewFile.file_path}` : ''}
                                     alt={previewFile.original_name || 'Preview'}
                                     style={{

@@ -3,6 +3,7 @@ import Modal from './Modal';
 import ProjectAccordionTable from './ProjectAccordionTable';
 import { Head } from '@inertiajs/react';
 import { useState } from 'react';
+import OptimizedImage from './OptimizedImage';
 
 const cardStyle = {
     background: 'var(--surface-1)',
@@ -105,7 +106,7 @@ export default function DeliveryConfirmationsPage({
                         })}
                         style={{ border: 'none', background: 'transparent', padding: 0, cursor: 'pointer' }}
                     >
-                        <img
+                        <OptimizedImage
                             src={`/storage/${row.photo_path}`}
                             alt={row.item_delivered || 'Delivery photo'}
                             style={{ width: 72, height: 52, objectFit: 'cover', borderRadius: 6, border: '1px solid var(--border-color)' }}
@@ -170,7 +171,7 @@ export default function DeliveryConfirmationsPage({
             >
                 {previewPhoto && (
                     <div style={{ display: 'grid', gap: 10 }}>
-                        <img
+                        <OptimizedImage
                             src={`/storage/${previewPhoto.path}`}
                             alt={previewPhoto.caption || 'Delivery photo'}
                             style={{

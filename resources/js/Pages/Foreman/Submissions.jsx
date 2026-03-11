@@ -6,6 +6,7 @@ import { Head } from '@inertiajs/react';
 import { useEffect, useMemo, useState } from 'react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import toast from 'react-hot-toast';
+import OptimizedImage from '../../Components/OptimizedImage';
 
 const card = {
     background: 'var(--surface-1)',
@@ -298,7 +299,7 @@ export default function ForemanSubmissions({
                                                             }
                                                         style={{ display: 'inline-block', marginBottom: 6, border: 'none', background: 'transparent', padding: 0, cursor: 'pointer' }}
                                                     >
-                                                        <img
+                                                        <OptimizedImage
                                                             src={`/storage/${row.photo_path}`}
                                                             alt={row.material_name || 'Material photo'}
                                                             style={{ width: 88, height: 62, objectFit: 'cover', borderRadius: 6, border: '1px solid var(--border-color)' }}
@@ -346,7 +347,7 @@ export default function ForemanSubmissions({
                                                             }
                                                         style={{ display: 'inline-block', marginBottom: 6, border: 'none', background: 'transparent', padding: 0, cursor: 'pointer' }}
                                                     >
-                                                        <img
+                                                        <OptimizedImage
                                                             src={`/storage/${row.photo_path}`}
                                                             alt={row.issue_title || 'Issue photo'}
                                                             style={{ width: 88, height: 62, objectFit: 'cover', borderRadius: 6, border: '1px solid var(--border-color)' }}
@@ -394,7 +395,7 @@ export default function ForemanSubmissions({
                                                             }
                                                         style={{ display: 'inline-block', marginBottom: 6, border: 'none', background: 'transparent', padding: 0, cursor: 'pointer' }}
                                                     >
-                                                        <img
+                                                        <OptimizedImage
                                                             src={`/storage/${row.photo_path}`}
                                                             alt={row.item_delivered || 'Delivery photo'}
                                                             style={{ width: 88, height: 62, objectFit: 'cover', borderRadius: 6, border: '1px solid var(--border-color)' }}
@@ -471,7 +472,7 @@ export default function ForemanSubmissions({
                                                         textAlign: 'left',
                                                     }}
                                                 >
-                                                    <img
+                                                    <OptimizedImage
                                                         src={`/storage/${photo.photo_path}`}
                                                         alt={photo.caption || 'Progress proof'}
                                                         style={{ width: '100%', height: 100, objectFit: 'cover', borderRadius: 6, marginBottom: 6 }}
@@ -552,7 +553,7 @@ export default function ForemanSubmissions({
                                                         cursor: 'pointer',
                                                     }}
                                                 >
-                                                    <img
+                                                    <OptimizedImage
                                                         src={`/storage/${photo.photo_path}`}
                                                         alt={photo.caption || 'Weekly scope photo'}
                                                         style={{ width: '100%', height: 92, objectFit: 'cover', borderRadius: 6, marginBottom: 6 }}
@@ -598,7 +599,7 @@ export default function ForemanSubmissions({
                     {previewPhoto && (
                         <div style={{ display: 'grid', gap: 10 }}>
                             <div style={{ position: 'relative' }}>
-                                <img
+                                <OptimizedImage
                                     src={`/storage/${previewPhoto.photo_path}`}
                                     alt={previewPhoto.caption || 'Progress proof'}
                                     style={{

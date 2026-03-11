@@ -7,6 +7,7 @@ import Modal from '../../Components/Modal';
 import { Head, Link, router } from '@inertiajs/react';
 import { Fragment, useEffect, useMemo, useState } from 'react';
 import toast from 'react-hot-toast';
+import OptimizedImage from '../../Components/OptimizedImage';
 
 const cardStyle = {
     background: 'var(--surface-1)',
@@ -501,7 +502,7 @@ export default function ForemanDashboard({
                                                     }
                                                     style={{ display: 'inline-block', marginBottom: 6, border: 'none', background: 'transparent', padding: 0, cursor: 'pointer' }}
                                                 >
-                                                    <img
+                                                    <OptimizedImage
                                                         src={`/storage/${item.photo_path}`}
                                                         alt={item.material_name || 'Material photo'}
                                                         style={{ width: 88, height: 62, objectFit: 'cover', borderRadius: 6, border: '1px solid var(--border-color)' }}
@@ -542,7 +543,7 @@ export default function ForemanDashboard({
                                                     }
                                                     style={{ display: 'inline-block', marginBottom: 6, border: 'none', background: 'transparent', padding: 0, cursor: 'pointer' }}
                                                 >
-                                                    <img
+                                                    <OptimizedImage
                                                         src={`/storage/${item.photo_path}`}
                                                         alt={item.issue_title || 'Issue photo'}
                                                         style={{ width: 88, height: 62, objectFit: 'cover', borderRadius: 6, border: '1px solid var(--border-color)' }}
@@ -582,7 +583,7 @@ export default function ForemanDashboard({
                                                     }
                                                     style={{ display: 'inline-block', marginBottom: 6, border: 'none', background: 'transparent', padding: 0, cursor: 'pointer' }}
                                                 >
-                                                    <img
+                                                    <OptimizedImage
                                                         src={`/storage/${item.photo_path}`}
                                                         alt={item.item_delivered || 'Delivery photo'}
                                                         style={{ width: 88, height: 62, objectFit: 'cover', borderRadius: 6, border: '1px solid var(--border-color)' }}
@@ -760,7 +761,7 @@ export default function ForemanDashboard({
                 >
                     {dashboardPreviewPhoto && (
                         <div style={{ display: 'grid', gap: 10 }}>
-                            <img
+                            <OptimizedImage
                                 src={`/storage/${dashboardPreviewPhoto.photo_path}`}
                                 alt={dashboardPreviewPhoto.caption || 'Preview photo'}
                                 style={{

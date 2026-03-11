@@ -8,6 +8,7 @@ import SearchableDropdown from '../../../Components/SearchableDropdown';
 import { Head, router, useForm, usePage } from '@inertiajs/react';
 import { useEffect, useState } from 'react';
 import toast from 'react-hot-toast';
+import OptimizedImage from '../../../Components/OptimizedImage';
 
 const cardStyle = {
     background: 'var(--surface-1)',
@@ -757,7 +758,7 @@ export default function AdminProjectsShow({
                     {previewFile && (
                         <div style={{ display: 'grid', gap: 12 }}>
                             {isImagePreview && (
-                                <img
+                                <OptimizedImage
                                     src={previewUrl}
                                     alt={previewFile.original_name}
                                     style={{

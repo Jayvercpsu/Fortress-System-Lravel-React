@@ -4,6 +4,7 @@ import ActionButton from './ActionButton';
 import Layout from './Layout';
 import Modal from './Modal';
 import ProjectAccordionTable from './ProjectAccordionTable';
+import OptimizedImage from './OptimizedImage';
 
 const cardStyle = {
     background: 'var(--surface-1)',
@@ -108,7 +109,7 @@ export default function IssueReportsPage({ issues = [], issueTable = {}, statusF
                         })}
                         style={{ border: 'none', background: 'transparent', padding: 0, cursor: 'pointer' }}
                     >
-                        <img
+                        <OptimizedImage
                             src={`/storage/${row.photo_path}`}
                             alt={row.issue_title || 'Issue photo'}
                             style={{ width: 72, height: 52, objectFit: 'cover', borderRadius: 6, border: '1px solid var(--border-color)' }}
@@ -222,7 +223,7 @@ export default function IssueReportsPage({ issues = [], issueTable = {}, statusF
             >
                 {previewPhoto && (
                     <div style={{ display: 'grid', gap: 10 }}>
-                        <img
+                        <OptimizedImage
                             src={`/storage/${previewPhoto.path}`}
                             alt={previewPhoto.caption || 'Issue photo'}
                             style={{

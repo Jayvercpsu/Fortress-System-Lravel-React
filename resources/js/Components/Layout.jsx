@@ -2,6 +2,7 @@ import { Link, router, usePage } from '@inertiajs/react';
 import { useEffect, useState } from 'react';
 import { LoaderCircle, Moon, Sun } from 'lucide-react';
 import BrandIcon from './BrandIcon';
+import OptimizedImage from './OptimizedImage';
 
 const navByRole = {
     head_admin: [
@@ -126,7 +127,7 @@ export default function Layout({ children, title }) {
                     }}
                 >
                     <div style={{ padding: '12px 16px 20px', display: 'flex', alignItems: 'center', gap: 10 }}>
-                        <BrandIcon size={36} borderRadius={8} />
+                        <BrandIcon size={36} borderRadius={8} priority />
 
                         <div>
                             <div style={{ fontSize: 15, fontWeight: 700 }}>Fortress System</div>
@@ -193,9 +194,10 @@ export default function Layout({ children, title }) {
                             }}
                         >
                             {profilePhotoUrl ? (
-                                <img
+                                <OptimizedImage
                                     src={profilePhotoUrl}
                                     alt="Profile"
+                                    priority
                                     style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: 999 }}
                                 />
                             ) : (

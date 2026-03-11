@@ -1,4 +1,5 @@
 import { Head } from '@inertiajs/react';
+import OptimizedImage from '../../Components/OptimizedImage';
 import {
     AlertTriangle,
     CalendarDays,
@@ -840,7 +841,7 @@ export default function ProgressReceipt({
                                                             <span className="receipt-assignee-avatar" aria-hidden="true">
                                                                 {getInitials(primaryAssignee)}
                                                                 {primaryPhoto ? (
-                                                                    <img
+                                                                    <OptimizedImage
                                                                         src={`/storage/${primaryPhoto}`}
                                                                         alt={primaryAssignee}
                                                                         onError={(event) => event.currentTarget.remove()}
@@ -874,7 +875,7 @@ export default function ProgressReceipt({
                                                                         })
                                                                     }
                                                                 >
-                                                                    <img
+                                                                    <OptimizedImage
                                                                         src={`/storage/${photo.photo_path}`}
                                                                         alt={photo.caption || scope.scopeName}
                                                                     />
@@ -983,7 +984,7 @@ export default function ProgressReceipt({
                 >
                     {previewPhoto ? (
                         <div style={{ display: 'grid', gap: 12 }}>
-                            <img
+                            <OptimizedImage
                                 src={`/storage/${previewPhoto.photo_path}`}
                                 alt={previewPhoto.caption || 'Scope photo'}
                                 className="receipt-modal-image"

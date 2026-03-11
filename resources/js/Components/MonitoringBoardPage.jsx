@@ -12,6 +12,7 @@ import { Head, router, useForm } from '@inertiajs/react';
 import { useEffect, useMemo, useState } from 'react';
 import toast from 'react-hot-toast';
 import { ArrowLeft, Trash2 } from 'lucide-react';
+import OptimizedImage from './OptimizedImage';
 
 const cardStyle = {
     background: 'var(--surface-1)',
@@ -418,7 +419,7 @@ export default function MonitoringBoardPage({
                                                                             background: 'var(--surface-2)',
                                                                         }}
                                                                     >
-                                                                        <img
+                                                                        <OptimizedImage
                                                                             src={`/storage/${photo.photo_path}`}
                                                                             alt={photo.caption || 'Scope photo'}
                                                                             style={{
@@ -855,7 +856,7 @@ export default function MonitoringBoardPage({
                 >
                     {scopePreview && (
                         <div style={{ display: 'grid', gap: 10 }}>
-                            <img
+                            <OptimizedImage
                                 src={`/storage/${scopePreview.photo_path}`}
                                 alt={scopePreview.caption || scopePreview.scope || 'Scope photo'}
                                 style={{

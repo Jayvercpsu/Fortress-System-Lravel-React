@@ -3,6 +3,7 @@ import Modal from './Modal';
 import ProjectAccordionTable from './ProjectAccordionTable';
 import { Head } from '@inertiajs/react';
 import { useState } from 'react';
+import OptimizedImage from './OptimizedImage';
 
 const cardStyle = {
     background: 'var(--surface-1)',
@@ -32,7 +33,7 @@ export default function ProgressPhotosPage({ photos = [], photoTable = {}, statu
                         cursor: 'pointer',
                     }}
                 >
-                    <img
+                    <OptimizedImage
                         src={`/storage/${photo.photo_path}`}
                         alt={photo.caption || 'Progress proof'}
                         style={{ width: 120, height: 72, objectFit: 'cover', display: 'block' }}
@@ -89,7 +90,7 @@ export default function ProgressPhotosPage({ photos = [], photoTable = {}, statu
                 >
                     {previewPhoto && (
                         <div style={{ display: 'grid', gap: 10 }}>
-                            <img
+                            <OptimizedImage
                                 src={`/storage/${previewPhoto.photo_path}`}
                                 alt={previewPhoto.caption || 'Progress proof'}
                                 style={{

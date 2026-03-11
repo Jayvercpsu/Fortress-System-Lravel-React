@@ -4,6 +4,7 @@ import ActionButton from '../../Components/ActionButton';
 import { Head, useForm } from '@inertiajs/react';
 import { useEffect, useRef, useState } from 'react';
 import toast from 'react-hot-toast';
+import OptimizedImage from '../../Components/OptimizedImage';
 
 const cardStyle = {
     background: 'var(--surface-1)',
@@ -190,9 +191,10 @@ export default function SettingsIndex({ account }) {
                                     }}
                                 >
                                     {previewPhotoUrl ? (
-                                        <img
+                                        <OptimizedImage
                                             src={previewPhotoUrl}
                                             alt="Profile"
+                                            priority
                                             style={{ width: '100%', height: '100%', objectFit: 'cover' }}
                                         />
                                     ) : (
