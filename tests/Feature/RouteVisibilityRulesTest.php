@@ -83,19 +83,19 @@ class RouteVisibilityRulesTest extends TestCase
 
         $this->actingAs($this->makeUser('admin'))
             ->get("/projects/{$project->id}/expenses")
-            ->assertForbidden();
+            ->assertRedirect("/projects/{$project->id}/build?tab=expenses");
 
         $this->actingAs($this->makeUser('admin'))
             ->get('/payroll/run')
-            ->assertForbidden();
+            ->assertOk();
 
         $this->actingAs($this->makeUser('admin'))
             ->get("/projects/{$project->id}/financials")
-            ->assertForbidden();
+            ->assertOk();
 
         $this->actingAs($this->makeUser('admin'))
             ->get("/projects/{$project->id}/payments")
-            ->assertForbidden();
+            ->assertOk();
 
         $this->actingAs($this->makeUser('hr'))
             ->get('/payroll/run')

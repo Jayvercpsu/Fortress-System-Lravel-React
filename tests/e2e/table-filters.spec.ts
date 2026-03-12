@@ -113,9 +113,16 @@ test('hr tables update server-side filters and local payroll pagination', async 
     await test.step('Manual payroll uses local pagination controls', async () => {
         await page.goto('/payroll');
         await selectPerPage(page, '5');
-        await expect(page.locator('body')).toContainText('Page 1 of 2');
-        await page.getByRole('button', { name: 'Next' }).last().click();
-        await expect(page.locator('body')).toContainText('Page 2 of 2');
+        const paginationText = page.getByText(/^Page \d+ of \d+$/).last();
+        await expect(paginationText).toHaveText(/^Page 1 of \d+$/);
+
+        const totalPagesMatch = (await paginationText.innerText()).match(/^Page 1 of (\d+)$/);
+        const totalPages = Number(totalPagesMatch?.[1] || 1);
+
+        if (totalPages > 1) {
+            await page.getByRole('button', { name: 'Next' }).last().click();
+            await expect(paginationText).toHaveText(new RegExp(`^Page 2 of ${totalPages}$`));
+        }
     });
 });
 

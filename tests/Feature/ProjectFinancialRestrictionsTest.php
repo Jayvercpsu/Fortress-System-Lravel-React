@@ -12,7 +12,7 @@ class ProjectFinancialRestrictionsTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_admin_cannot_hit_financials_endpoint(): void
+    public function test_admin_can_hit_financials_endpoint(): void
     {
         $admin = $this->makeUser('admin');
         $project = $this->makeProject();
@@ -24,7 +24,13 @@ class ProjectFinancialRestrictionsTest extends TestCase
                 'construction_cost' => 85000,
                 'total_client_payment' => 25000,
             ])
-            ->assertForbidden();
+            ->assertRedirect("/projects/{$project->id}");
+
+        $project->refresh();
+        $this->assertSame(100000.0, (float) $project->contract_amount);
+        $this->assertSame(15000.0, (float) $project->design_fee);
+        $this->assertSame(85000.0, (float) $project->construction_cost);
+        $this->assertSame(25000.0, (float) $project->total_client_payment);
     }
 
     public function test_normal_project_update_rejects_financial_fields_server_side(): void

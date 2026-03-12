@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test';
 import { loginAs } from './support/auth';
-import { DEMO_PROJECT_ID } from './support/constants';
+import { DEMO_ACTIVE_PROJECT_ID } from './support/constants';
 import { escapeRegExp } from './support/ui';
 
 test.describe.configure({ mode: 'serial' });
@@ -49,13 +49,13 @@ test('head admin can use project team, files, and updates table actions', async 
 
     await loginAs(page, 'head_admin');
 
-    await page.goto(`/projects/${DEMO_PROJECT_ID}?tab=overview`);
+    await page.goto(`/projects/${DEMO_ACTIVE_PROJECT_ID}?tab=overview`);
     await page.getByRole('button', { name: 'View Info' }).first().click();
     await expect(page.locator('body')).toContainText('Project Worker Info');
     await expect(page.locator('body')).toContainText('Project');
     await page.getByRole('button', { name: 'Close' }).click();
 
-    await page.goto(`/projects/${DEMO_PROJECT_ID}?tab=files`);
+    await page.goto(`/projects/${DEMO_ACTIVE_PROJECT_ID}?tab=files`);
     await page.locator('input[type="file"]').setInputFiles(uploadPath);
     await page.getByRole('button', { name: 'Upload' }).click();
     await expect(page.locator('body')).toContainText('logo.jpg');
@@ -75,7 +75,7 @@ test('head admin can use project team, files, and updates table actions', async 
     await page.getByRole('button', { name: 'Delete' }).last().click();
     await expect(page.locator('body')).not.toContainText('logo.jpg');
 
-    await page.goto(`/projects/${DEMO_PROJECT_ID}?tab=updates`);
+    await page.goto(`/projects/${DEMO_ACTIVE_PROJECT_ID}?tab=updates`);
     await page.locator('textarea').fill(updateNote);
     await page.getByRole('button', { name: 'Post Update' }).click();
     await expect(page.locator('body')).toContainText(updateNote);
@@ -87,7 +87,7 @@ test('admin can add, edit, and delete build expense table rows', async ({ page }
 
     await loginAs(page, 'admin');
 
-    await page.goto(`/projects/${DEMO_PROJECT_ID}/build?tab=expenses`);
+    await page.goto(`/projects/${DEMO_ACTIVE_PROJECT_ID}/build?tab=expenses`);
     await page.locator('label').filter({ hasText: 'Amount' }).locator('input').fill('1111.00');
     await page.locator('label').filter({ hasText: 'Note' }).locator('input').fill(createdNote);
     await page.getByRole('button', { name: 'Add Expense' }).click();

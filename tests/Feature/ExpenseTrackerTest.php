@@ -81,10 +81,10 @@ class ExpenseTrackerTest extends TestCase
             ->delete('/expenses/' . $expense->id)
             ->assertRedirect('/projects/10/build?tab=expenses');
 
-        $this->assertDatabaseMissing('expenses', ['id' => $expense->id]);
+        $this->assertSoftDeleted('expenses', ['id' => $expense->id]);
     }
 
-    public function test_admin_hr_and_foreman_cannot_manage_expenses(): void
+    public function test_admin_can_manage_expenses_but_hr_and_foreman_cannot(): void
     {
         $expense = Expense::create([
             'project_id' => 22,
@@ -96,7 +96,7 @@ class ExpenseTrackerTest extends TestCase
 
         $this->actingAs($this->makeUser('admin'))
             ->get('/projects/22/expenses')
-            ->assertForbidden();
+            ->assertRedirect('/projects/22/build?tab=expenses');
 
         $this->actingAs($this->makeUser('hr'))
             ->get('/projects/22/expenses')
@@ -109,7 +109,7 @@ class ExpenseTrackerTest extends TestCase
                 'note' => null,
                 'date' => '2026-02-21',
             ])
-            ->assertForbidden();
+            ->assertRedirect('/projects/22/build?tab=expenses');
 
         $this->actingAs($this->makeUser('foreman'))
             ->post('/projects/22/expenses', [
@@ -127,7 +127,7 @@ class ExpenseTrackerTest extends TestCase
                 'note' => null,
                 'date' => '2026-02-21',
             ])
-            ->assertForbidden();
+            ->assertRedirect('/projects/22/build?tab=expenses');
 
         $this->actingAs($this->makeUser('hr'))
             ->patch('/expenses/' . $expense->id, [
@@ -138,13 +138,13 @@ class ExpenseTrackerTest extends TestCase
             ])
             ->assertForbidden();
 
-        $this->actingAs($this->makeUser('admin'))
-            ->delete('/expenses/' . $expense->id)
-            ->assertForbidden();
-
         $this->actingAs($this->makeUser('foreman'))
             ->delete('/expenses/' . $expense->id)
             ->assertForbidden();
+
+        $this->actingAs($this->makeUser('admin'))
+            ->delete('/expenses/' . $expense->id)
+            ->assertRedirect('/projects/22/build?tab=expenses');
     }
 
     private function makeUser(string $role): User

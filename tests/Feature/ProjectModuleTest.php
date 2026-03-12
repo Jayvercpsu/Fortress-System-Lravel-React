@@ -54,7 +54,7 @@ class ProjectModuleTest extends TestCase
         ]);
     }
 
-    public function test_admin_can_view_projects_but_cannot_access_create_or_edit_page(): void
+    public function test_admin_can_view_projects_and_edit_page_but_not_create_page(): void
     {
         $project = Project::create([
             'name' => 'P1',
@@ -72,10 +72,10 @@ class ProjectModuleTest extends TestCase
         $this->actingAs($admin)->get('/projects')->assertOk();
         $this->actingAs($admin)->get("/projects/{$project->id}")->assertOk();
         $this->actingAs($admin)->get('/projects/create')->assertForbidden();
-        $this->actingAs($admin)->get("/projects/{$project->id}/edit")->assertForbidden();
+        $this->actingAs($admin)->get("/projects/{$project->id}/edit")->assertOk();
     }
 
-    public function test_financial_endpoint_allows_head_admin_and_hr_only(): void
+    public function test_financial_endpoint_allows_head_admin_admin_and_hr(): void
     {
         $project = Project::create([
             'name' => 'P2',
@@ -109,11 +109,11 @@ class ProjectModuleTest extends TestCase
 
         $this->actingAs($this->makeUser('admin'))
             ->patch("/projects/{$project->id}/financials", $payload)
-            ->assertForbidden();
+            ->assertRedirect("/projects/{$project->id}");
 
         $this->assertDatabaseHas('projects', [
             'id' => $project->id,
-            'total_client_payment' => 300000,
+            'total_client_payment' => 200000,
         ]);
     }
 

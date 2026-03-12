@@ -13,7 +13,7 @@ class ProjectPaymentsTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_head_admin_and_hr_can_open_payments_page_but_admin_cannot(): void
+    public function test_head_admin_admin_and_hr_can_open_payments_page(): void
     {
         $project = $this->makeProject(1000);
 
@@ -27,7 +27,7 @@ class ProjectPaymentsTest extends TestCase
 
         $this->actingAs($this->makeUser('admin'))
             ->get("/projects/{$project->id}/payments")
-            ->assertForbidden();
+            ->assertOk();
     }
 
     public function test_insert_and_delete_payments_instantly_update_project_financial_overview(): void

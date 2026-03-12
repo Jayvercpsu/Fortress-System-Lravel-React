@@ -133,21 +133,25 @@ class PublicProgressSubmitTest extends TestCase
             ],
         ])->assertRedirect("/progress-submit/{$token->token}");
 
-        $this->assertDatabaseHas('weekly_accomplishments', [
-            'foreman_id' => $token->foreman_id,
-            'project_id' => $token->project_id,
-            'week_start' => '2026-02-23',
-            'scope_of_work' => 'Mobilization and Hauling',
-            'percent_completed' => 40.0,
-        ]);
+        $this->assertTrue(
+            \App\Models\WeeklyAccomplishment::query()
+                ->where('foreman_id', $token->foreman_id)
+                ->where('project_id', $token->project_id)
+                ->where('scope_of_work', 'Mobilization and Hauling')
+                ->where('percent_completed', 40.0)
+                ->whereDate('week_start', '2026-02-23')
+                ->exists()
+        );
 
-        $this->assertDatabaseHas('weekly_accomplishments', [
-            'foreman_id' => $token->foreman_id,
-            'project_id' => $token->project_id,
-            'week_start' => '2026-02-23',
-            'scope_of_work' => 'Foundation Preparation',
-            'percent_completed' => 25.5,
-        ]);
+        $this->assertTrue(
+            \App\Models\WeeklyAccomplishment::query()
+                ->where('foreman_id', $token->foreman_id)
+                ->where('project_id', $token->project_id)
+                ->where('scope_of_work', 'Foundation Preparation')
+                ->where('percent_completed', 25.5)
+                ->whereDate('week_start', '2026-02-23')
+                ->exists()
+        );
     }
 
     public function test_public_issue_report_submit_stores_issue_and_photo(): void

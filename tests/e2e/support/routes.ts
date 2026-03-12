@@ -9,6 +9,7 @@ export type RouteExpectation = {
 export const routeCoverage: Record<RoleKey, RouteExpectation[]> = {
     head_admin: [
         { name: 'Head admin dashboard', path: '/head-admin', bodyText: 'Head Admin Dashboard' },
+        { name: 'KPI page', path: '/kpi', bodyText: 'KPI Performance' },
         { name: 'Projects board', path: '/projects', bodyText: 'Fortress Building' },
         { name: 'Project overview', path: `/projects/${DEMO_PROJECT_ID}`, bodyText: 'Project - Fortress Building' },
         { name: 'Project files tab', path: `/projects/${DEMO_PROJECT_ID}?tab=files`, bodyText: 'Upload Plan/File' },
@@ -35,6 +36,7 @@ export const routeCoverage: Record<RoleKey, RouteExpectation[]> = {
     ],
     admin: [
         { name: 'Admin dashboard', path: '/admin', bodyText: 'Admin Dashboard' },
+        { name: 'KPI page', path: '/kpi', bodyText: 'KPI Performance' },
         { name: 'Projects board', path: '/projects', bodyText: 'Fortress Building' },
         { name: 'Project overview', path: `/projects/${DEMO_PROJECT_ID}`, bodyText: 'Project - Fortress Building' },
         { name: 'Design tracker', path: `/projects/${DEMO_PROJECT_ID}/design`, bodyText: `Design Tracker - Project #${DEMO_PROJECT_ID}` },
@@ -53,6 +55,7 @@ export const routeCoverage: Record<RoleKey, RouteExpectation[]> = {
     ],
     hr: [
         { name: 'HR dashboard', path: '/hr', bodyText: 'HR Dashboard' },
+        { name: 'KPI page', path: '/kpi', bodyText: 'KPI Performance' },
         { name: 'Payroll run page', path: '/payroll/run', bodyText: 'Payroll Run' },
         { name: 'Worker rates page', path: '/payroll/worker-rates', bodyText: 'HR Worker Rate Management' },
         { name: 'Manual payroll page', path: '/payroll', bodyText: 'Payroll Management' },
@@ -72,10 +75,6 @@ export const routeCoverage: Record<RoleKey, RouteExpectation[]> = {
 export const forbiddenCoverage: Record<RoleKey, string[]> = {
     head_admin: [],
     admin: [
-        '/payroll/run',
-        `/projects/${DEMO_PROJECT_ID}/financials`,
-        `/projects/${DEMO_PROJECT_ID}/payments`,
-        `/projects/${DEMO_PROJECT_ID}/edit`,
         '/users',
         '/projects/create',
     ],
@@ -90,6 +89,9 @@ export const forbiddenCoverage: Record<RoleKey, string[]> = {
         '/attendance',
         '/payroll/run',
         '/users',
+        '/kpi',
+        '/kpi/print',
+        '/kpi/export',
     ],
 };
 

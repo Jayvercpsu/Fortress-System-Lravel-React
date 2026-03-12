@@ -1,6 +1,8 @@
 export const TEST_BASE_URL = 'http://127.0.0.1:8010';
 export const VITE_URL = 'http://127.0.0.1:5180';
 export const DEMO_PROJECT_ID = 1;
+export const DEMO_ACTIVE_PROJECT_ID = 4;
+export const DEMO_ACTIVE_PROJECT_LABEL = 'Fortress Building (Construction)';
 export const PRIMARY_PUBLIC_TOKEN = 'fortress-building-main-demo-token';
 export const CO_FOREMAN_PUBLIC_TOKEN = 'fortress-building-co-demo-token';
 

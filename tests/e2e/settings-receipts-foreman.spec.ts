@@ -1,5 +1,6 @@
 import { expect, test } from '@playwright/test';
 import { loginAs } from './support/auth';
+import { DEMO_ACTIVE_PROJECT_LABEL } from './support/constants';
 import { selectDateInput, selectSearchableDropdownOption, selectTimeInput } from './support/ui';
 
 test.describe.configure({ mode: 'serial' });
@@ -125,6 +126,7 @@ test('foreman self attendance, add-row attendance submission, and attendance edi
     await selectSearchableDropdownOption(
         page,
         page.getByRole('button', { name: /Select project/i }).first(),
+        DEMO_ACTIVE_PROJECT_LABEL,
         'Fortress Building'
     );
     await page.getByRole('button', { name: 'Time In' }).click();
@@ -139,7 +141,12 @@ test('foreman self attendance, add-row attendance submission, and attendance edi
     await expect(page.locator('form table tbody tr')).toHaveCount(2);
 
     const entryRow = page.locator('form table tbody tr').nth(1);
-    await selectSearchableDropdownOption(page, entryRow.locator('button').nth(0), 'Fortress Building');
+    await selectSearchableDropdownOption(
+        page,
+        entryRow.locator('button').nth(0),
+        DEMO_ACTIVE_PROJECT_LABEL,
+        'Fortress Building'
+    );
     await selectSearchableDropdownOption(page, entryRow.locator('button').nth(1), 'Ramon Castillo');
     await selectSearchableDropdownOption(page, entryRow.locator('button').nth(2), 'Skilled');
     await selectTimeInput(page, entryRow.locator('input.bb-date-input').nth(0), '08:00');

@@ -27,6 +27,8 @@ class MonitoringBoardTest extends TestCase
                 'progress_percent' => 20,
                 'status' => 'IN_PROGRESS',
                 'remarks' => 'Started excavation.',
+                'contract_amount' => 100000,
+                'weight_percent' => 20,
             ])
             ->assertRedirect("/projects/{$project->id}/monitoring");
 
@@ -42,6 +44,8 @@ class MonitoringBoardTest extends TestCase
                 'progress_percent' => 80,
                 'status' => 'IN_PROGRESS',
                 'remarks' => 'Nearly done.',
+                'contract_amount' => 100000,
+                'weight_percent' => 20,
             ])
             ->assertRedirect("/projects/{$project->id}/monitoring");
 
@@ -55,6 +59,8 @@ class MonitoringBoardTest extends TestCase
                 'progress_percent' => 20,
                 'status' => 'NOT_STARTED',
                 'remarks' => null,
+                'contract_amount' => 80000,
+                'weight_percent' => 15,
             ])
             ->assertRedirect("/projects/{$project->id}/monitoring");
 
@@ -99,6 +105,8 @@ class MonitoringBoardTest extends TestCase
                 'progress_percent' => 100,
                 'status' => 'COMPLETED',
                 'remarks' => 'All scope items done.',
+                'contract_amount' => 50000,
+                'weight_percent' => 100,
             ])
             ->assertRedirect("/projects/{$project->id}/monitoring");
 
@@ -122,6 +130,8 @@ class MonitoringBoardTest extends TestCase
             'progress_percent' => 25,
             'status' => 'IN_PROGRESS',
             'remarks' => null,
+            'contract_amount' => 10000,
+            'weight_percent' => 25,
         ]);
 
         $headAdmin = $this->makeUser('head_admin');
