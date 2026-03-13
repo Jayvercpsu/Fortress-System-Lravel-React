@@ -20,6 +20,7 @@ use App\Models\ScopePhoto;
 use App\Models\User;
 use App\Models\WeeklyAccomplishment;
 use App\Models\Worker;
+use App\Support\DesignComputation;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
@@ -75,7 +76,7 @@ class ProjectController extends Controller
             $total = (clone $phaseQuery)->count();
 
             $items = $phaseQuery
-                ->with(['designTracker:id,project_id,design_progress,client_approval_status'])
+                ->with(['designTracker:id,project_id,design_contract_amount,total_received,design_progress,client_approval_status'])
                 ->withCount('transferredProjects')
                 ->orderByDesc('created_at')
                 ->orderByDesc('id')
@@ -879,7 +880,11 @@ class ProjectController extends Controller
     private function projectIndexCardPayload(Project $project): array
     {
         $phase = $this->normalizeProjectPhase($project->phase);
-        $designProgress = (int) max(0, min(100, (int) ($project->designTracker?->design_progress ?? 0)));
+        $designProgress = DesignComputation::computeProgress(
+            (float) ($project->designTracker?->design_contract_amount ?? 0),
+            (float) ($project->designTracker?->total_received ?? 0),
+            (string) ($project->designTracker?->client_approval_status ?? 'pending')
+        );
         $designApprovalStatus = $this->normalizeDesignApprovalStatus($project->designTracker?->client_approval_status);
         $constructionProgress = (int) max(0, min(100, (int) ($project->overall_progress ?? 0)));
         $kanbanProgress = $phase === 'Design' ? $designProgress : $constructionProgress;
@@ -1170,7 +1175,15 @@ class ProjectController extends Controller
         $designPayloadTotalReceived = (float) ($resolvedDesign?->total_received ?? 0);
         $designPayloadDownpayment = (float) ($resolvedDesign?->downpayment ?? 0);
         $designPayloadOfficePayrollDeduction = (float) ($resolvedDesign?->office_payroll_deduction ?? 0);
-        $designPayloadProgress = (int) max(0, min(100, (int) ($resolvedDesign?->design_progress ?? 0)));
+        $designPayloadProgress = DesignComputation::computeProgress(
+            $designPayloadContractAmount,
+            $designPayloadTotalReceived,
+            (string) ($resolvedDesign?->client_approval_status ?? 'pending')
+        );
+        $designPayloadCollectionProgressPct = DesignComputation::computeCollectionPercent(
+            $designPayloadContractAmount,
+            $designPayloadTotalReceived
+        );
         $designPayloadRemaining = $designPayloadContractAmount - $designPayloadTotalReceived;
         $designPayloadNetAfterOfficeDeduction = $designPayloadTotalReceived - $designPayloadOfficePayrollDeduction;
         $designTrackerSharePct = $contractAmount > 0 ? ($designPayloadContractAmount / $contractAmount) * 100 : 0;
@@ -1182,6 +1195,11 @@ class ProjectController extends Controller
         $buildTrackerSubtotalCosts = $buildMaterialsCost + $buildLaborCost + $buildEquipmentCost;
         $buildVarianceFromTrackerBudget = $constructionContract - $constructionCost;
         $collectionProgressPct = $contractAmount > 0 ? ($totalClientPayment / $contractAmount) * 100 : 0;
+
+        if ($resolvedDesign && (int) $resolvedDesign->design_progress !== $designPayloadProgress) {
+            $resolvedDesign->design_progress = $designPayloadProgress;
+            $resolvedDesign->save();
+        }
 
         $computed = [
             'contract_amount' => $contractAmount,
@@ -1200,10 +1218,13 @@ class ProjectController extends Controller
                     'net_after_office_payroll_deduction' => $designPayloadNetAfterOfficeDeduction,
                     'remaining_design_balance' => $designPayloadRemaining,
                     'design_progress' => $designPayloadProgress,
+                    'collection_progress_pct' => $designPayloadCollectionProgressPct,
                     'client_approval_status' => $resolvedDesign?->client_approval_status ?: 'pending',
                     'source_project_id' => $project->source_project_id !== null ? (int) $project->source_project_id : null,
                     'is_inherited_from_source' => $project->source_project_id !== null && $sourceDesign !== null,
                     'share_of_total_budget_pct' => $designTrackerSharePct,
+                    'computation_basis' => DesignComputation::milestoneBreakdown($designPayloadContractAmount),
+                    'computation_basis_total_percent' => DesignComputation::totalBasisPercent(),
                 ],
                 'build_tracker' => [
                     'construction_contract' => $constructionContract,

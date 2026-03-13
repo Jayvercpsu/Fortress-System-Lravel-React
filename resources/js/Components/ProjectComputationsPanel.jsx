@@ -1,4 +1,9 @@
 import { useEffect, useState } from 'react';
+import {
+    computeDesignCollectionPercent,
+    computeDesignMilestoneBreakdown,
+    computeDesignProgressFromMilestones,
+} from '../Utils/designComputation';
 
 const panelCardStyle = {
     background: 'var(--surface-1)',
@@ -202,8 +207,32 @@ export default function ProjectComputationsPanel({ project }) {
     const designOfficePayrollDeduction = Number(designTracker.office_payroll_deduction ?? 0);
     const designNetAfterDeduction = Number(designTracker.net_after_office_payroll_deduction ?? (designTotalReceived - designOfficePayrollDeduction));
     const designRemainingBalance = Number(designTracker.remaining_design_balance ?? (designTrackerContractAmount - designTotalReceived));
-    const designProgressPct = Number(designTracker.design_progress ?? 0);
+    const designCollectionProgressPct = Number(
+        designTracker.collection_progress_pct ??
+            computeDesignCollectionPercent({
+                designContractAmount: designTrackerContractAmount,
+                totalReceived: designTotalReceived,
+            })
+    );
+    const designProgressPct = Number(
+        designTracker.design_progress ??
+            computeDesignProgressFromMilestones({
+                designContractAmount: designTrackerContractAmount,
+                totalReceived: designTotalReceived,
+                clientApprovalStatus: designTracker.client_approval_status,
+            })
+    );
     const designApprovalStatus = String(designTracker.client_approval_status || 'pending');
+    const designMilestoneBreakdown = (
+        Array.isArray(designTracker.computation_basis) && designTracker.computation_basis.length > 0
+            ? designTracker.computation_basis
+            : computeDesignMilestoneBreakdown(designTrackerContractAmount)
+    ).map((milestone) => ({
+        key: String(milestone.key || ''),
+        label: String(milestone.label || ''),
+        percent: Number(milestone.percent ?? 0),
+        amount: Number(milestone.amount ?? 0),
+    }));
     const designTrackerSharePct = Number(
         designTracker.share_of_total_budget_pct ?? (totalBudget > 0 ? (designTrackerContractAmount / totalBudget) * 100 : 0)
     );
@@ -271,11 +300,14 @@ export default function ProjectComputationsPanel({ project }) {
             >
                 <div style={sectionStyle}>
                     <div style={sectionTitleStyle}>Design Department</div>
-                    <div style={sectionSubtextStyle}>Design Tracker values (`design_projects`) including design-only office deduction.</div>
+                    <div style={sectionSubtextStyle}>
+                        Design Tracker values (`design_projects`) using the approved milestone schedule (10/5/10/10/10/10/10/10/5/10/10).
+                    </div>
                     <div style={metricGridStyle}>
                         <MetricRow label="Design Contract Amount" value={money(designTrackerContractAmount)} />
                         <MetricRow label="Downpayment" value={money(designDownpayment)} />
                         <MetricRow label="Total Received" value={money(designTotalReceived)} />
+                        <MetricRow label="Collection Ratio (Received / Contract)" value={percent(designCollectionProgressPct)} />
                         <MetricRow label="Office Payroll Deduction" value={money(designOfficePayrollDeduction)} valueColor="#ef4444" />
                         <MetricRow label="Net After Office Deduction" value={money(designNetAfterDeduction)} />
                         <MetricRow label="Design Remaining Balance" value={money(designRemainingBalance)} />
@@ -283,8 +315,19 @@ export default function ProjectComputationsPanel({ project }) {
                         <MetricRow label="Client Approval" value={<StatusBadge value={designApprovalStatus} />} valueStyle={{ whiteSpace: 'normal' }} />
                         <MetricRow label="Share of Total Budget (Tracker)" value={percent(designTrackerSharePct)} noBorder />
                     </div>
+                    <div style={subheadingStyle}>Milestone Computation Basis</div>
+                    <div style={metricGridStyle}>
+                        {designMilestoneBreakdown.map((milestone, index) => (
+                            <MetricRow
+                                key={milestone.key || `milestone-${index}`}
+                                label={`${index + 1}. ${milestone.label}`}
+                                value={`${percent(milestone.percent)} | ${money(milestone.amount)}`}
+                                noBorder={index === designMilestoneBreakdown.length - 1}
+                            />
+                        ))}
+                    </div>
                     <div style={infoBoxStyle}>
-                        Design office payroll deduction is shown here for design profitability tracking only. It is not subtracted from project-wide totals below.
+                        Design office payroll deduction is shown here for design profitability tracking only. Milestone progress is unlocked per cumulative milestone thresholds.
                     </div>
                 </div>
 

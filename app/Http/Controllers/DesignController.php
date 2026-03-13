@@ -7,6 +7,7 @@ use App\Models\DesignProject;
 use App\Models\Expense;
 use App\Models\Payment;
 use App\Models\Project;
+use App\Support\DesignComputation;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 
@@ -28,7 +29,7 @@ class DesignController extends Controller
             ]
         );
 
-        $autoDesignProgress = $this->computeAutomaticDesignProgress(
+        $autoDesignProgress = DesignComputation::computeProgress(
             (float) $design->design_contract_amount,
             (float) $design->total_received,
             (string) $design->client_approval_status
@@ -47,6 +48,12 @@ class DesignController extends Controller
             'office_payroll_deduction' => (float) $design->office_payroll_deduction,
             'design_progress' => $autoDesignProgress,
             'client_approval_status' => $design->client_approval_status,
+            'collection_progress_pct' => DesignComputation::computeCollectionPercent(
+                (float) $design->design_contract_amount,
+                (float) $design->total_received
+            ),
+            'computation_basis' => DesignComputation::milestoneBreakdown((float) $design->design_contract_amount),
+            'computation_basis_total_percent' => DesignComputation::totalBasisPercent(),
             'remaining' => (float) $design->design_contract_amount - (float) $design->total_received,
             'net_income' => (float) $design->total_received - (float) $design->office_payroll_deduction,
         ];
@@ -72,7 +79,7 @@ class DesignController extends Controller
             'office_payroll_deduction' => 'required|numeric|min:0',
             'client_approval_status' => 'required|in:pending,approved,rejected',
         ]);
-        $validated['design_progress'] = $this->computeAutomaticDesignProgress(
+        $validated['design_progress'] = DesignComputation::computeProgress(
             (float) $validated['design_contract_amount'],
             (float) $validated['total_received'],
             (string) $validated['client_approval_status']
@@ -114,18 +121,4 @@ class DesignController extends Controller
         ]);
     }
 
-    private function computeAutomaticDesignProgress(float $designContractAmount, float $totalReceived, string $clientApprovalStatus): int
-    {
-        if (strtolower(trim($clientApprovalStatus)) === 'approved') {
-            return 100;
-        }
-
-        if ($designContractAmount <= 0 || $totalReceived <= 0) {
-            return 0;
-        }
-
-        $ratio = ($totalReceived / $designContractAmount) * 100;
-
-        return (int) round(max(0, min(100, $ratio)));
-    }
 }

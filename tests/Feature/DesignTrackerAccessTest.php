@@ -79,7 +79,7 @@ class DesignTrackerAccessTest extends TestCase
         $this->assertDatabaseMissing('design_projects', ['project_id' => 5]);
     }
 
-    public function test_pending_design_progress_is_computed_automatically_from_received_ratio(): void
+    public function test_pending_design_progress_is_computed_from_milestone_thresholds(): void
     {
         DesignProject::create([
             'project_id' => 17,
@@ -103,7 +103,7 @@ class DesignTrackerAccessTest extends TestCase
 
         $this->assertDatabaseHas('design_projects', [
             'project_id' => 17,
-            'design_progress' => 20,
+            'design_progress' => 15,
         ]);
     }
 
