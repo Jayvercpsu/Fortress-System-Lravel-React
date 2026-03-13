@@ -187,6 +187,14 @@ export default function ProjectComputationsPanel({ project }) {
     }, []);
 
     const computationSources = project?.computation_sources || {};
+    const projectPhase = String(project?.phase || '').trim().toLowerCase();
+    const showDesignDepartment = projectPhase === 'design' || projectPhase === 'completed' || projectPhase === '';
+    const showBuildDepartment = projectPhase === 'construction' || projectPhase === 'completed' || projectPhase === '';
+    const hasSingleVisibleDepartment = showDesignDepartment !== showBuildDepartment;
+    const singleDepartmentSpanStyle =
+        isDesktopTwoColumn && hasSingleVisibleDepartment
+            ? { gridColumn: '1 / -1' }
+            : null;
     const designTracker = computationSources.design_tracker || {};
     const buildTracker = computationSources.build_tracker || {};
     const financeActuals = computationSources.finance_actuals || {};
@@ -298,75 +306,79 @@ export default function ProjectComputationsPanel({ project }) {
                     alignItems: 'start',
                 }}
             >
-                <div style={sectionStyle}>
-                    <div style={sectionTitleStyle}>Design Department</div>
-                    <div style={sectionSubtextStyle}>
-                        Design Tracker values (`design_projects`) using the approved milestone schedule (10/5/10/10/10/10/10/10/5/10/10).
+                {showDesignDepartment && (
+                    <div style={{ ...sectionStyle, ...(singleDepartmentSpanStyle || null) }}>
+                        <div style={sectionTitleStyle}>Design Department</div>
+                        <div style={sectionSubtextStyle}>
+                            Design Tracker values (`design_projects`) using the approved milestone schedule (10/5/10/10/10/10/10/10/5/10/10).
+                        </div>
+                        <div style={metricGridStyle}>
+                            <MetricRow label="Design Contract Amount" value={money(designTrackerContractAmount)} />
+                            <MetricRow label="Downpayment" value={money(designDownpayment)} />
+                            <MetricRow label="Total Received" value={money(designTotalReceived)} />
+                            <MetricRow label="Collection Ratio (Received / Contract)" value={percent(designCollectionProgressPct)} />
+                            <MetricRow label="Office Payroll Deduction" value={money(designOfficePayrollDeduction)} valueColor="#ef4444" />
+                            <MetricRow label="Net After Office Deduction" value={money(designNetAfterDeduction)} />
+                            <MetricRow label="Design Remaining Balance" value={money(designRemainingBalance)} />
+                            <MetricRow label="Design Progress" value={percent(designProgressPct)} />
+                            <MetricRow label="Client Approval" value={<StatusBadge value={designApprovalStatus} />} valueStyle={{ whiteSpace: 'normal' }} />
+                            <MetricRow label="Share of Total Budget (Tracker)" value={percent(designTrackerSharePct)} noBorder />
+                        </div>
+                        <div style={subheadingStyle}>Milestone Computation Basis</div>
+                        <div style={metricGridStyle}>
+                            {designMilestoneBreakdown.map((milestone, index) => (
+                                <MetricRow
+                                    key={milestone.key || `milestone-${index}`}
+                                    label={`${index + 1}. ${milestone.label}`}
+                                    value={`${percent(milestone.percent)} | ${money(milestone.amount)}`}
+                                    noBorder={index === designMilestoneBreakdown.length - 1}
+                                />
+                            ))}
+                        </div>
+                        <div style={infoBoxStyle}>
+                            Design office payroll deduction is shown here for design profitability tracking only. Milestone progress is unlocked per cumulative milestone thresholds.
+                        </div>
                     </div>
-                    <div style={metricGridStyle}>
-                        <MetricRow label="Design Contract Amount" value={money(designTrackerContractAmount)} />
-                        <MetricRow label="Downpayment" value={money(designDownpayment)} />
-                        <MetricRow label="Total Received" value={money(designTotalReceived)} />
-                        <MetricRow label="Collection Ratio (Received / Contract)" value={percent(designCollectionProgressPct)} />
-                        <MetricRow label="Office Payroll Deduction" value={money(designOfficePayrollDeduction)} valueColor="#ef4444" />
-                        <MetricRow label="Net After Office Deduction" value={money(designNetAfterDeduction)} />
-                        <MetricRow label="Design Remaining Balance" value={money(designRemainingBalance)} />
-                        <MetricRow label="Design Progress" value={percent(designProgressPct)} />
-                        <MetricRow label="Client Approval" value={<StatusBadge value={designApprovalStatus} />} valueStyle={{ whiteSpace: 'normal' }} />
-                        <MetricRow label="Share of Total Budget (Tracker)" value={percent(designTrackerSharePct)} noBorder />
-                    </div>
-                    <div style={subheadingStyle}>Milestone Computation Basis</div>
-                    <div style={metricGridStyle}>
-                        {designMilestoneBreakdown.map((milestone, index) => (
+                )}
+
+                {showBuildDepartment && (
+                    <div style={{ ...sectionStyle, ...(singleDepartmentSpanStyle || null) }}>
+                        <div style={sectionTitleStyle}>Build Department</div>
+                        <div style={sectionSubtextStyle}>Build Tracker budget compared to actual expense transactions from the Expenses module.</div>
+                        <div style={metricGridStyle}>
+                            <MetricRow label="Construction Contract (Tracker)" value={money(buildTrackerContractAmount)} />
+                            <MetricRow label="Build Tracker Client Payment" value={money(buildTrackerRecordedClientPayment)} />
+                            <MetricRow label="Build Collection Progress" value={percent(buildCollectionProgressPct)} />
+                            <MetricRow label="Tracker Cost Subtotal" value={money(buildTrackerCostSubtotal)} noBorder />
+                        </div>
+
+                        <div style={subheadingStyle}>Tracker Cost Breakdown</div>
+                        <div style={chipGridStyle}>
+                            <div style={chipStyle}>
+                                <div style={chipLabelStyle}>Materials</div>
+                                <div style={chipValueStyle}>{money(buildTrackerMaterialsCost)}</div>
+                            </div>
+                            <div style={chipStyle}>
+                                <div style={chipLabelStyle}>Labor</div>
+                                <div style={chipValueStyle}>{money(buildTrackerLaborCost)}</div>
+                            </div>
+                            <div style={chipStyle}>
+                                <div style={chipLabelStyle}>Equipment</div>
+                                <div style={chipValueStyle}>{money(buildTrackerEquipmentCost)}</div>
+                            </div>
+                        </div>
+
+                        <div style={metricGridStyle}>
+                            <MetricRow label="Actual Expenses (Expenses module)" value={money(actualExpensesTotal)} />
                             <MetricRow
-                                key={milestone.key || `milestone-${index}`}
-                                label={`${index + 1}. ${milestone.label}`}
-                                value={`${percent(milestone.percent)} | ${money(milestone.amount)}`}
-                                noBorder={index === designMilestoneBreakdown.length - 1}
+                                label="Variance vs Actual Expenses"
+                                value={money(buildVarianceVsActualExpenses)}
+                                valueColor={buildVarianceVsActualExpenses < 0 ? '#ef4444' : '#22c55e'}
+                                noBorder
                             />
-                        ))}
-                    </div>
-                    <div style={infoBoxStyle}>
-                        Design office payroll deduction is shown here for design profitability tracking only. Milestone progress is unlocked per cumulative milestone thresholds.
-                    </div>
-                </div>
-
-                <div style={sectionStyle}>
-                    <div style={sectionTitleStyle}>Build Department</div>
-                    <div style={sectionSubtextStyle}>Build Tracker budget compared to actual expense transactions from the Expenses module.</div>
-                    <div style={metricGridStyle}>
-                        <MetricRow label="Construction Contract (Tracker)" value={money(buildTrackerContractAmount)} />
-                        <MetricRow label="Build Tracker Client Payment" value={money(buildTrackerRecordedClientPayment)} />
-                        <MetricRow label="Build Collection Progress" value={percent(buildCollectionProgressPct)} />
-                        <MetricRow label="Tracker Cost Subtotal" value={money(buildTrackerCostSubtotal)} noBorder />
-                    </div>
-
-                    <div style={subheadingStyle}>Tracker Cost Breakdown</div>
-                    <div style={chipGridStyle}>
-                        <div style={chipStyle}>
-                            <div style={chipLabelStyle}>Materials</div>
-                            <div style={chipValueStyle}>{money(buildTrackerMaterialsCost)}</div>
-                        </div>
-                        <div style={chipStyle}>
-                            <div style={chipLabelStyle}>Labor</div>
-                            <div style={chipValueStyle}>{money(buildTrackerLaborCost)}</div>
-                        </div>
-                        <div style={chipStyle}>
-                            <div style={chipLabelStyle}>Equipment</div>
-                            <div style={chipValueStyle}>{money(buildTrackerEquipmentCost)}</div>
                         </div>
                     </div>
-
-                    <div style={metricGridStyle}>
-                        <MetricRow label="Actual Expenses (Expenses module)" value={money(actualExpensesTotal)} />
-                        <MetricRow
-                            label="Variance vs Actual Expenses"
-                            value={money(buildVarianceVsActualExpenses)}
-                            valueColor={buildVarianceVsActualExpenses < 0 ? '#ef4444' : '#22c55e'}
-                            noBorder
-                        />
-                    </div>
-                </div>
+                )}
 
                 <div style={sectionStyle}>
                     <div style={sectionTitleStyle}>Finance (Payments Module)</div>
