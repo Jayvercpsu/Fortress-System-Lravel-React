@@ -31,8 +31,8 @@ class DashboardController extends Controller
 
     public function headAdmin(Request $request)
     {
-        $projectKpis = $this->projectKpis();
-        $payrollPaymentKpis = $this->payrollAndPaymentKpis();
+        $projectKpis = $this->projectKpis(true);
+        $payrollPaymentKpis = $this->payrollAndPaymentKpis(true);
         $companyFinancialSummary = $this->companyFinancialSummary((float) ($projectKpis['financial_totals']['contract_sum'] ?? 0));
 
         $stats = [
@@ -130,7 +130,7 @@ class DashboardController extends Controller
 
     public function admin(Request $request)
     {
-        $projectKpis = $this->projectKpis();
+        $projectKpis = $this->projectKpis(true);
         $companyFinancialSummary = $this->companyFinancialSummary((float) ($projectKpis['financial_totals']['contract_sum'] ?? 0));
 
         // Intentionally exclude payroll-related figures from admin payload.
@@ -201,7 +201,7 @@ class DashboardController extends Controller
             ])->values()
         );
 
-        $kpis = $this->payrollAndPaymentKpis();
+        $kpis = $this->payrollAndPaymentKpis(true);
         $kpis['company_financial_summary'] = $this->companyFinancialSummary((float) ($kpis['payment_totals']['contract_sum'] ?? 0));
 
         return Inertia::render('HR/Dashboard', compact('payrolls', 'totalPayable', 'projects', 'kpis', 'projectPaymentsPager', 'recentPayrollsPager'));
@@ -629,7 +629,7 @@ class DashboardController extends Controller
         ));
     }
 
-    private function projectKpis(): array
+    private function projectKpis(bool $excludeCompletedFromMoney = false): array
     {
         $projects = Project::query()
             ->orderBy('name')
@@ -647,11 +647,16 @@ class DashboardController extends Controller
             ]);
 
         $totalProjects = $projects->count();
-        $contractSum = round((float) $projects->sum(fn (Project $project) => (float) $project->contract_amount), 2);
-        $collectedSum = round((float) $projects->sum(fn (Project $project) => (float) $project->total_client_payment), 2);
-        $remainingSum = round((float) $projects->sum(fn (Project $project) => (float) $project->remaining_balance), 2);
-        $companyProgressPercent = $totalProjects > 0
-            ? round((float) $projects->avg(fn (Project $project) => (int) $project->overall_progress), 1)
+        $moneyProjects = $excludeCompletedFromMoney
+            ? $projects->reject(fn (Project $project) => $this->isCompletedStatus($project->status))
+            : $projects;
+        $contractSum = round((float) $moneyProjects->sum(fn (Project $project) => (float) $project->contract_amount), 2);
+        $collectedSum = round((float) $moneyProjects->sum(fn (Project $project) => (float) $project->total_client_payment), 2);
+        $remainingSum = round((float) $moneyProjects->sum(fn (Project $project) => (float) $project->remaining_balance), 2);
+        $progressBase = $excludeCompletedFromMoney ? $moneyProjects : $projects;
+        $progressCount = $progressBase->count();
+        $companyProgressPercent = $progressCount > 0
+            ? round((float) $progressBase->avg(fn (Project $project) => (int) $project->overall_progress), 1)
             : 0.0;
 
         return [
@@ -674,7 +679,7 @@ class DashboardController extends Controller
         ];
     }
 
-    private function payrollAndPaymentKpis(): array
+    private function payrollAndPaymentKpis(bool $excludeCompletedFromPayments = false): array
     {
         $payrollPayable = round((float) Payroll::query()->whereIn('status', ['pending', 'ready', 'approved'])->sum('net'), 2);
         $payrollDeductionsTotal = round((float) Payroll::query()->sum('deductions'), 2);
@@ -693,10 +698,13 @@ class DashboardController extends Controller
             ->values()
             ->all();
 
-        $projects = Project::query()->get(['contract_amount', 'total_client_payment', 'remaining_balance']);
-        $contractSum = round((float) $projects->sum(fn (Project $project) => (float) $project->contract_amount), 2);
-        $collectedSum = round((float) $projects->sum(fn (Project $project) => (float) $project->total_client_payment), 2);
-        $remainingSum = round((float) $projects->sum(fn (Project $project) => (float) $project->remaining_balance), 2);
+        $projects = Project::query()->get(['contract_amount', 'total_client_payment', 'remaining_balance', 'status']);
+        $paymentProjects = $excludeCompletedFromPayments
+            ? $projects->reject(fn (Project $project) => $this->isCompletedStatus($project->status))
+            : $projects;
+        $contractSum = round((float) $paymentProjects->sum(fn (Project $project) => (float) $project->contract_amount), 2);
+        $collectedSum = round((float) $paymentProjects->sum(fn (Project $project) => (float) $project->total_client_payment), 2);
+        $remainingSum = round((float) $paymentProjects->sum(fn (Project $project) => (float) $project->remaining_balance), 2);
 
         return [
             'payroll_payable' => $payrollPayable,
@@ -805,6 +813,13 @@ class DashboardController extends Controller
         $clean = trim((string) $value);
 
         return $clean !== '' ? $clean : $fallback;
+    }
+
+    private function isCompletedStatus(?string $status): bool
+    {
+        $normalized = Str::lower(trim((string) $status));
+
+        return $normalized === 'completed' || $normalized === 'complete';
     }
 
     private function projectSummaryRow(Project $project): array
