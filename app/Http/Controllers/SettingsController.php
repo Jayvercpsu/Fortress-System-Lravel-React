@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Support\Uploads\UploadManager;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Http\UploadedFile;
@@ -80,7 +81,7 @@ class SettingsController extends Controller
             'civil_status' => 'nullable|string|max:100',
             'phone' => 'nullable|string|max:50',
             'address' => 'nullable|string|max:500',
-            'profile_photo' => 'nullable|image|mimes:jpg,jpeg,png,gif,webp|max:5120',
+            'profile_photo' => ['nullable', 'image', 'mimes:jpg,jpeg,png,gif,webp', UploadManager::maxRule()],
         ];
     }
 
@@ -106,14 +107,7 @@ class SettingsController extends Controller
             Storage::disk('public')->delete($detail->profile_photo_path);
         }
 
-        $filename = sprintf(
-            'profile_%s_%s.%s',
-            now()->format('YmdHis'),
-            substr(md5((string) rand()), 0, 6),
-            $photo->guessExtension() ?? 'jpg'
-        );
-
-        return $photo->storeAs('profile-photos/' . $user->id, $filename, 'public');
+        return UploadManager::store($photo, 'profile-photos/' . $user->id, 'public');
     }
 
     private function settingsPayload(User $user): array

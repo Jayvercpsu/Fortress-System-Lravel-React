@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Project;
 use App\Models\ProjectFile;
+use App\Support\Uploads\UploadManager;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 
@@ -23,11 +24,11 @@ class ProjectFileController extends Controller
         $this->authorizeRole($request);
 
         $validated = $request->validate([
-            'file' => 'required|file|max:20480',
+            'file' => ['required', 'file', UploadManager::maxRule()],
         ]);
 
         $uploaded = $validated['file'];
-        $path = $uploaded->store('project-files/' . $project->id, 'public');
+        $path = UploadManager::store($uploaded, 'project-files/' . $project->id, 'public');
 
         ProjectFile::create([
             'project_id' => $project->id,

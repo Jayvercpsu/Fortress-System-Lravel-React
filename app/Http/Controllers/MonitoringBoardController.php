@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\MonitoringBoardFile;
 use App\Models\MonitoringBoardItem;
 use App\Models\Project;
+use App\Support\Uploads\UploadManager;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use Inertia\Inertia;
@@ -128,11 +129,11 @@ class MonitoringBoardController extends Controller
         $this->ensureAuthorized($request);
 
         $validated = $request->validate([
-            'file' => ['required', 'file', 'max:5120'],
+            'file' => ['required', 'file', UploadManager::maxRule()],
         ]);
 
         $file = $validated['file'];
-        $path = $file->store('monitoring-board', 'public');
+        $path = UploadManager::store($file, 'monitoring-board', 'public');
 
         $item->files()->create([
             'file_path' => $path,

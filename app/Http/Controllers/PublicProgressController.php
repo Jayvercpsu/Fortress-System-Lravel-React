@@ -16,6 +16,7 @@ use App\Models\ScopePhoto;
 use App\Models\User;
 use App\Models\WeeklyAccomplishment;
 use App\Models\Worker;
+use App\Support\Uploads\UploadManager;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Carbon;
 use Illuminate\Http\Request;
@@ -551,12 +552,12 @@ class PublicProgressController extends Controller
 
         $validated = $request->validate([
             'progress_note' => ['required', 'string', 'max:2000'],
-            'photo' => ['required', 'image', 'max:10240'],
+            'photo' => ['required', 'image', UploadManager::maxRule()],
             'caption' => ['nullable', 'string', 'max:255'],
         ]);
 
         $uploaded = $validated['photo'];
-        $path = $uploaded->store('public-progress/' . $submitToken->project_id, 'public');
+        $path = UploadManager::store($uploaded, 'public-progress/' . $submitToken->project_id, 'public');
         $progressNote = trim((string) $validated['progress_note']);
         $caption = trim((string) ($validated['caption'] ?? ''));
 
@@ -597,13 +598,13 @@ class PublicProgressController extends Controller
             'delivery_quantity' => ['nullable', 'string', 'max:120'],
             'delivery_supplier' => ['nullable', 'string', 'max:255'],
             'delivery_note' => ['nullable', 'string', 'max:500'],
-            'delivery_photo' => ['nullable', 'image', 'max:10240'],
+            'delivery_photo' => ['nullable', 'image', UploadManager::maxRule()],
 
             'material_name' => ['nullable', 'string', 'max:255'],
             'material_quantity' => ['nullable', 'string', 'max:120'],
             'material_unit' => ['nullable', 'string', 'max:120'],
             'material_remarks' => ['nullable', 'string', 'max:1000'],
-            'material_photo' => ['nullable', 'image', 'max:10240'],
+            'material_photo' => ['nullable', 'image', UploadManager::maxRule()],
 
             'weekly_week_start' => ['nullable', 'date'],
             'weekly_scopes' => ['nullable', 'array'],
@@ -611,18 +612,18 @@ class PublicProgressController extends Controller
             'weekly_scopes.*.percent_completed' => ['nullable', 'numeric', 'min:0', 'max:100'],
             'weekly_scopes.*.photo_caption' => ['nullable', 'string', 'max:255'],
             'weekly_scopes.*.photos' => ['nullable', 'array'],
-            'weekly_scopes.*.photos.*' => ['nullable', 'image', 'max:10240'],
+            'weekly_scopes.*.photos.*' => ['nullable', 'image', UploadManager::maxRule()],
             'weekly_removed_scopes' => ['nullable', 'array'],
             'weekly_removed_scopes.*' => ['nullable', 'string', 'max:255'],
 
-            'photo_file' => ['nullable', 'image', 'max:10240'],
+            'photo_file' => ['nullable', 'image', UploadManager::maxRule()],
             'photo_category' => ['nullable', Rule::in(self::PHOTO_CATEGORIES)],
             'photo_description' => ['nullable', 'string', 'max:1000'],
 
             'issue_title' => ['nullable', 'string', 'max:255'],
             'issue_description' => ['nullable', 'string', 'max:2000'],
             'issue_urgency' => ['nullable', Rule::in(['low', 'normal', 'high'])],
-            'issue_photo' => ['nullable', 'image', 'max:10240'],
+            'issue_photo' => ['nullable', 'image', UploadManager::maxRule()],
         ];
 
         foreach (self::ATTENDANCE_DAY_KEYS as $dayKey) {
@@ -721,7 +722,11 @@ class PublicProgressController extends Controller
             $note = trim((string) ($validated['delivery_note'] ?? ''));
 
             if (isset($validated['delivery_photo'])) {
-                $deliveryPhotoPath = $validated['delivery_photo']->store('progress-photos/public-token/' . $submitToken->project_id, 'public');
+                $deliveryPhotoPath = UploadManager::store(
+                    $validated['delivery_photo'],
+                    'progress-photos/public-token/' . $submitToken->project_id,
+                    'public'
+                );
             }
 
             DeliveryConfirmation::create([
@@ -772,7 +777,11 @@ class PublicProgressController extends Controller
 
             $materialPhotoPath = null;
             if (isset($validated['material_photo'])) {
-                $materialPhotoPath = $validated['material_photo']->store('progress-photos/public-token/' . $submitToken->project_id, 'public');
+                $materialPhotoPath = UploadManager::store(
+                    $validated['material_photo'],
+                    'progress-photos/public-token/' . $submitToken->project_id,
+                    'public'
+                );
             }
 
             MaterialRequest::create([
@@ -906,7 +915,11 @@ class PublicProgressController extends Controller
                 ]);
             }
 
-            $path = $validated['photo_file']->store('progress-photos/public-token/' . $submitToken->project_id, 'public');
+            $path = UploadManager::store(
+                $validated['photo_file'],
+                'progress-photos/public-token/' . $submitToken->project_id,
+                'public'
+            );
             $category = trim((string) ($validated['photo_category'] ?? ''));
             $description = trim((string) ($validated['photo_description'] ?? ''));
             $captionParts = [];
@@ -947,7 +960,11 @@ class PublicProgressController extends Controller
             $severity = $issueUrgency === 'normal' ? 'medium' : $issueUrgency;
             $issuePhotoPath = null;
             if (isset($validated['issue_photo'])) {
-                $issuePhotoPath = $validated['issue_photo']->store('progress-photos/public-token/' . $submitToken->project_id, 'public');
+                $issuePhotoPath = UploadManager::store(
+                    $validated['issue_photo'],
+                    'progress-photos/public-token/' . $submitToken->project_id,
+                    'public'
+                );
             }
 
             IssueReport::create([
@@ -1062,7 +1079,7 @@ class PublicProgressController extends Controller
             'item_delivered' => ['nullable', 'string', 'max:255'],
             'quantity' => ['nullable', 'string', 'max:120'],
             'supplier' => ['nullable', 'string', 'max:255'],
-            'photo' => ['nullable', 'image', 'max:10240'],
+            'photo' => ['nullable', 'image', UploadManager::maxRule()],
             'note' => ['nullable', 'string', 'max:500'],
         ]);
 
@@ -1073,7 +1090,11 @@ class PublicProgressController extends Controller
         $note = trim((string) ($validated['note'] ?? ''));
 
         if (isset($validated['photo'])) {
-            $deliveryPhotoPath = $validated['photo']->store('progress-photos/public-token/' . $submitToken->project_id, 'public');
+            $deliveryPhotoPath = UploadManager::store(
+                $validated['photo'],
+                'progress-photos/public-token/' . $submitToken->project_id,
+                'public'
+            );
         }
 
         DeliveryConfirmation::create([
@@ -1117,12 +1138,16 @@ class PublicProgressController extends Controller
             'quantity' => ['required', 'string', 'max:120'],
             'unit' => ['required', 'string', 'max:120'],
             'remarks' => ['nullable', 'string', 'max:1000'],
-            'photo' => ['nullable', 'image', 'max:10240'],
+            'photo' => ['nullable', 'image', UploadManager::maxRule()],
         ]);
 
         $materialPhotoPath = null;
         if (isset($validated['photo'])) {
-            $materialPhotoPath = $validated['photo']->store('progress-photos/public-token/' . $submitToken->project_id, 'public');
+            $materialPhotoPath = UploadManager::store(
+                $validated['photo'],
+                'progress-photos/public-token/' . $submitToken->project_id,
+                'public'
+            );
         }
 
         MaterialRequest::create([
@@ -1169,7 +1194,7 @@ class PublicProgressController extends Controller
             'scopes.*.percent_completed' => ['required', 'numeric', 'min:0', 'max:100'],
             'scopes.*.photo_caption' => ['nullable', 'string', 'max:255'],
             'scopes.*.photos' => ['nullable', 'array'],
-            'scopes.*.photos.*' => ['nullable', 'image', 'max:10240'],
+            'scopes.*.photos.*' => ['nullable', 'image', UploadManager::maxRule()],
         ]);
 
         $weekStart = Carbon::parse($validated['week_start'])
@@ -1219,12 +1244,12 @@ class PublicProgressController extends Controller
         $submitToken = $this->resolveActiveToken($token);
 
         $validated = $request->validate([
-            'photo' => ['required', 'image', 'max:10240'],
+            'photo' => ['required', 'image', UploadManager::maxRule()],
             'category' => ['nullable', Rule::in(self::PHOTO_CATEGORIES)],
             'description' => ['nullable', 'string', 'max:1000'],
         ]);
 
-        $path = $validated['photo']->store('progress-photos/public-token/' . $submitToken->project_id, 'public');
+        $path = UploadManager::store($validated['photo'], 'progress-photos/public-token/' . $submitToken->project_id, 'public');
         $category = trim((string) ($validated['category'] ?? ''));
         $description = trim((string) ($validated['description'] ?? ''));
         $captionParts = [];
@@ -1258,7 +1283,7 @@ class PublicProgressController extends Controller
             'issue_title' => ['required', 'string', 'max:255'],
             'description' => ['required', 'string', 'max:2000'],
             'urgency' => ['required', Rule::in(['low', 'normal', 'high'])],
-            'photo' => ['nullable', 'image', 'max:10240'],
+            'photo' => ['nullable', 'image', UploadManager::maxRule()],
         ]);
 
         $severity = $validated['urgency'] === 'normal'
@@ -1267,7 +1292,11 @@ class PublicProgressController extends Controller
 
         $issuePhotoPath = null;
         if (isset($validated['photo'])) {
-            $issuePhotoPath = $validated['photo']->store('progress-photos/public-token/' . $submitToken->project_id, 'public');
+            $issuePhotoPath = UploadManager::store(
+                $validated['photo'],
+                'progress-photos/public-token/' . $submitToken->project_id,
+                'public'
+            );
         }
 
         IssueReport::create([
@@ -1564,7 +1593,7 @@ class PublicProgressController extends Controller
             $photoCaption = trim((string) ($scope['photo_caption'] ?? ''));
 
             foreach ($uploadedPhotos as $photo) {
-                $path = $photo->store('scope-photos/' . $projectScope->id, 'public');
+                $path = UploadManager::store($photo, 'scope-photos/' . $projectScope->id, 'public');
 
                 ScopePhoto::query()->create([
                     'project_scope_id' => $projectScope->id,

@@ -53,8 +53,8 @@ const money = (value) =>
     `P ${Number(value || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
 const mono = { fontFamily: "'DM Mono', monospace" };
-const MAX_UPLOAD_SIZE_BYTES = 20 * 1024 * 1024;
-const MAX_UPLOAD_SIZE_LABEL = '20 MB';
+const MAX_UPLOAD_SIZE_BYTES = 10 * 1024 * 1024;
+const MAX_UPLOAD_SIZE_LABEL = '10 MB';
 
 const parseAssignedForemen = (value) =>
     String(value || '')

@@ -13,6 +13,7 @@ use App\Models\ProjectScope;
 use App\Models\User;
 use App\Models\Worker;
 use App\Models\WeeklyAccomplishment;
+use App\Support\Uploads\UploadManager;
 use App\Support\ProjectSelection;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
@@ -479,7 +480,7 @@ class ForemansController extends Controller
     public function storeProgressPhoto(Request $request)
     {
         $request->validate([
-            'photo'   => 'required|image|max:5120',
+            'photo'   => ['required', 'image', UploadManager::maxRule()],
             'caption' => 'nullable|string|max:1000',
             'project_id' => 'nullable|exists:projects,id',
             'scope_id' => 'nullable|exists:project_scopes,id',
@@ -499,7 +500,7 @@ class ForemansController extends Controller
             $projectId = (int) $scope->project_id;
         }
 
-        $path = $request->file('photo')->store('progress-photos', 'public');
+        $path = UploadManager::store($request->file('photo'), 'progress-photos', 'public');
 
         ProgressPhoto::create([
             'foreman_id' => Auth::id(),

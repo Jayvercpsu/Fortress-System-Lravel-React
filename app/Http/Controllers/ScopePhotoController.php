@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\ProjectScope;
 use App\Models\ScopePhoto;
+use App\Support\Uploads\UploadManager;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 
@@ -14,11 +15,11 @@ class ScopePhotoController extends Controller
         $this->authorizeRole($request);
 
         $validated = $request->validate([
-            'photo' => ['required', 'image', 'max:10240'],
+            'photo' => ['required', 'image', UploadManager::maxRule()],
             'caption' => ['nullable', 'string', 'max:255'],
         ]);
 
-        $path = $validated['photo']->store('scope-photos/' . $scope->id, 'public');
+        $path = UploadManager::store($validated['photo'], 'scope-photos/' . $scope->id, 'public');
 
         $scope->photos()->create([
             'photo_path' => $path,
