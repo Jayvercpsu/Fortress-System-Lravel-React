@@ -8,7 +8,6 @@ use Illuminate\Http\Request;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Hash;
-use Illuminate\Support\Facades\Storage;
 use Inertia\Inertia;
 
 class SettingsController extends Controller
@@ -103,11 +102,9 @@ class SettingsController extends Controller
     private function storeProfilePhoto(UploadedFile $photo, User $user): string
     {
         $detail = $user->detail;
-        if ($detail?->profile_photo_path) {
-            Storage::disk('public')->delete($detail->profile_photo_path);
-        }
+        UploadManager::delete($detail?->profile_photo_path);
 
-        return UploadManager::store($photo, 'profile-photos/' . $user->id, 'public');
+        return UploadManager::store($photo, 'profile-photos/' . $user->id);
     }
 
     private function settingsPayload(User $user): array

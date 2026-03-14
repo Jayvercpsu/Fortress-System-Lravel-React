@@ -500,7 +500,7 @@ class ForemansController extends Controller
             $projectId = (int) $scope->project_id;
         }
 
-        $path = UploadManager::store($request->file('photo'), 'progress-photos', 'public');
+        $path = UploadManager::store($request->file('photo'), 'progress-photos');
 
         ProgressPhoto::create([
             'foreman_id' => Auth::id(),

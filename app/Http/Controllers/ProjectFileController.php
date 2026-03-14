@@ -6,7 +6,6 @@ use App\Models\Project;
 use App\Models\ProjectFile;
 use App\Support\Uploads\UploadManager;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Storage;
 
 class ProjectFileController extends Controller
 {
@@ -28,7 +27,7 @@ class ProjectFileController extends Controller
         ]);
 
         $uploaded = $validated['file'];
-        $path = UploadManager::store($uploaded, 'project-files/' . $project->id, 'public');
+        $path = UploadManager::store($uploaded, 'project-files/' . $project->id);
 
         ProjectFile::create([
             'project_id' => $project->id,
@@ -49,9 +48,7 @@ class ProjectFileController extends Controller
     {
         $this->authorizeRole($request);
 
-        if ($projectFile->file_path) {
-            Storage::disk('public')->delete($projectFile->file_path);
-        }
+        UploadManager::delete($projectFile->file_path);
 
         $projectId = $projectFile->project_id;
         $projectFile->delete();

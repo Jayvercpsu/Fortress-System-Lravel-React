@@ -557,7 +557,7 @@ class PublicProgressController extends Controller
         ]);
 
         $uploaded = $validated['photo'];
-        $path = UploadManager::store($uploaded, 'public-progress/' . $submitToken->project_id, 'public');
+        $path = UploadManager::store($uploaded, 'public-progress/' . $submitToken->project_id);
         $progressNote = trim((string) $validated['progress_note']);
         $caption = trim((string) ($validated['caption'] ?? ''));
 
@@ -724,8 +724,7 @@ class PublicProgressController extends Controller
             if (isset($validated['delivery_photo'])) {
                 $deliveryPhotoPath = UploadManager::store(
                     $validated['delivery_photo'],
-                    'progress-photos/public-token/' . $submitToken->project_id,
-                    'public'
+                    'progress-photos/public-token/' . $submitToken->project_id
                 );
             }
 
@@ -779,8 +778,7 @@ class PublicProgressController extends Controller
             if (isset($validated['material_photo'])) {
                 $materialPhotoPath = UploadManager::store(
                     $validated['material_photo'],
-                    'progress-photos/public-token/' . $submitToken->project_id,
-                    'public'
+                    'progress-photos/public-token/' . $submitToken->project_id
                 );
             }
 
@@ -917,8 +915,7 @@ class PublicProgressController extends Controller
 
             $path = UploadManager::store(
                 $validated['photo_file'],
-                'progress-photos/public-token/' . $submitToken->project_id,
-                'public'
+                'progress-photos/public-token/' . $submitToken->project_id
             );
             $category = trim((string) ($validated['photo_category'] ?? ''));
             $description = trim((string) ($validated['photo_description'] ?? ''));
@@ -962,8 +959,7 @@ class PublicProgressController extends Controller
             if (isset($validated['issue_photo'])) {
                 $issuePhotoPath = UploadManager::store(
                     $validated['issue_photo'],
-                    'progress-photos/public-token/' . $submitToken->project_id,
-                    'public'
+                    'progress-photos/public-token/' . $submitToken->project_id
                 );
             }
 
@@ -1092,8 +1088,7 @@ class PublicProgressController extends Controller
         if (isset($validated['photo'])) {
             $deliveryPhotoPath = UploadManager::store(
                 $validated['photo'],
-                'progress-photos/public-token/' . $submitToken->project_id,
-                'public'
+                'progress-photos/public-token/' . $submitToken->project_id
             );
         }
 
@@ -1145,8 +1140,7 @@ class PublicProgressController extends Controller
         if (isset($validated['photo'])) {
             $materialPhotoPath = UploadManager::store(
                 $validated['photo'],
-                'progress-photos/public-token/' . $submitToken->project_id,
-                'public'
+                'progress-photos/public-token/' . $submitToken->project_id
             );
         }
 
@@ -1249,7 +1243,7 @@ class PublicProgressController extends Controller
             'description' => ['nullable', 'string', 'max:1000'],
         ]);
 
-        $path = UploadManager::store($validated['photo'], 'progress-photos/public-token/' . $submitToken->project_id, 'public');
+        $path = UploadManager::store($validated['photo'], 'progress-photos/public-token/' . $submitToken->project_id);
         $category = trim((string) ($validated['category'] ?? ''));
         $description = trim((string) ($validated['description'] ?? ''));
         $captionParts = [];
@@ -1294,8 +1288,7 @@ class PublicProgressController extends Controller
         if (isset($validated['photo'])) {
             $issuePhotoPath = UploadManager::store(
                 $validated['photo'],
-                'progress-photos/public-token/' . $submitToken->project_id,
-                'public'
+                'progress-photos/public-token/' . $submitToken->project_id
             );
         }
 
@@ -1593,7 +1586,7 @@ class PublicProgressController extends Controller
             $photoCaption = trim((string) ($scope['photo_caption'] ?? ''));
 
             foreach ($uploadedPhotos as $photo) {
-                $path = UploadManager::store($photo, 'scope-photos/' . $projectScope->id, 'public');
+                $path = UploadManager::store($photo, 'scope-photos/' . $projectScope->id);
 
                 ScopePhoto::query()->create([
                     'project_scope_id' => $projectScope->id,

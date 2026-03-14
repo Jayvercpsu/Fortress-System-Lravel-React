@@ -24,18 +24,42 @@ class UploadManager
         return 'max:' . self::MAX_UPLOAD_KB;
     }
 
-    public static function store(UploadedFile $file, string $directory, string $disk = 'public'): string
+    public static function disk(): string
     {
+        if (app()->environment(['local', 'testing'])) {
+            return 'public';
+        }
+
+        $hasS3Config = (string) config('filesystems.disks.s3.bucket') !== ''
+            && (string) config('filesystems.disks.s3.key') !== ''
+            && (string) config('filesystems.disks.s3.secret') !== '';
+
+        return $hasS3Config ? 's3' : 'public';
+    }
+
+    public static function store(UploadedFile $file, string $directory, ?string $disk = null): string
+    {
+        $resolvedDisk = $disk ?: self::disk();
         $normalizedDirectory = trim($directory, '/');
         if ($normalizedDirectory === '') {
             $normalizedDirectory = 'uploads';
         }
 
         if (!self::isImage($file)) {
-            return $file->store($normalizedDirectory, $disk);
+            return $file->store($normalizedDirectory, $resolvedDisk);
         }
 
-        return self::storeCompressedImage($file, $normalizedDirectory, $disk);
+        return self::storeCompressedImage($file, $normalizedDirectory, $resolvedDisk);
+    }
+
+    public static function delete(?string $path, ?string $disk = null): void
+    {
+        $normalizedPath = trim((string) $path);
+        if ($normalizedPath === '') {
+            return;
+        }
+
+        Storage::disk($disk ?: self::disk())->delete($normalizedPath);
     }
 
     private static function isImage(UploadedFile $file): bool

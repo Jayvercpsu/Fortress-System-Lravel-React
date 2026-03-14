@@ -6,7 +6,6 @@ use App\Models\ProjectScope;
 use App\Models\ScopePhoto;
 use App\Support\Uploads\UploadManager;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Storage;
 
 class ScopePhotoController extends Controller
 {
@@ -19,7 +18,7 @@ class ScopePhotoController extends Controller
             'caption' => ['nullable', 'string', 'max:255'],
         ]);
 
-        $path = UploadManager::store($validated['photo'], 'scope-photos/' . $scope->id, 'public');
+        $path = UploadManager::store($validated['photo'], 'scope-photos/' . $scope->id);
 
         $scope->photos()->create([
             'photo_path' => $path,
@@ -36,9 +35,7 @@ class ScopePhotoController extends Controller
         $this->authorizeRole($request);
 
         $projectId = $photo->scope?->project_id;
-        if ($photo->photo_path) {
-            Storage::disk('public')->delete($photo->photo_path);
-        }
+        UploadManager::delete($photo->photo_path);
         $photo->delete();
 
         return redirect()

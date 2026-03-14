@@ -21,6 +21,7 @@ use App\Http\Controllers\IssueReportController;
 use App\Http\Controllers\PublicProgressController;
 use App\Http\Controllers\ReportsController;
 use App\Http\Controllers\ScopePhotoController;
+use App\Http\Controllers\StorageProxyController;
 use App\Http\Controllers\MonitoringController;
 use App\Http\Controllers\MonitoringBoardController;
 use App\Http\Controllers\ProjectUpdateController;
@@ -28,6 +29,9 @@ use App\Http\Controllers\SettingsController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', fn() => redirect()->route('login'));
+Route::get('/storage/{path}', [StorageProxyController::class, 'show'])
+    ->where('path', '.*')
+    ->name('storage.proxy');
 
 Route::get('/login', [AuthController::class, 'showLogin'])->name('login');
 Route::post('/login', [AuthController::class, 'login']);

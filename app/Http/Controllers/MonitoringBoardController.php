@@ -7,7 +7,6 @@ use App\Models\MonitoringBoardItem;
 use App\Models\Project;
 use App\Support\Uploads\UploadManager;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Storage;
 use Inertia\Inertia;
 
 class MonitoringBoardController extends Controller
@@ -133,7 +132,7 @@ class MonitoringBoardController extends Controller
         ]);
 
         $file = $validated['file'];
-        $path = UploadManager::store($file, 'monitoring-board', 'public');
+        $path = UploadManager::store($file, 'monitoring-board');
 
         $item->files()->create([
             'file_path' => $path,
@@ -151,9 +150,7 @@ class MonitoringBoardController extends Controller
     {
         $this->ensureAuthorized($request);
 
-        if ($file->file_path) {
-            Storage::disk('public')->delete($file->file_path);
-        }
+        UploadManager::delete($file->file_path);
 
         $file->delete();
 
