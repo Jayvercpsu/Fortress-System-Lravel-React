@@ -1,7 +1,7 @@
 import Layout from '../../Components/Layout';
 import InlinePagination from '../../Components/InlinePagination';
 import ActionButton from '../../Components/ActionButton';
-import { Head } from '@inertiajs/react';
+import { Head, usePage } from '@inertiajs/react';
 
 const cardStyle = {
     background: 'var(--surface-1)',
@@ -20,7 +20,7 @@ const toStatTestId = (label) =>
         .replace(/[^a-z0-9]+/g, '-')
         .replace(/^-+|-+$/g, '');
 
-function StatCard({ label, value, color = 'var(--text-main)' }) {
+function StatCard({ label, value, color = 'var(--text-main)', children }) {
     const statId = toStatTestId(label);
 
     return (
@@ -34,6 +34,11 @@ function StatCard({ label, value, color = 'var(--text-main)' }) {
             >
                 {value}
             </div>
+            {children ? (
+                <div style={{ marginTop: 8, fontSize: 11, color: 'var(--text-muted)', display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                    {children}
+                </div>
+            ) : null}
         </div>
     );
 }
@@ -86,7 +91,13 @@ function SummaryRow({ label, value, strong = false }) {
 }
 
 export default function AdminDashboard({ kpis = {}, projectSnapshotPager = null }) {
+    const { auth } = usePage().props;
+    const isHeadAdmin = auth?.user?.role === 'head_admin';
     const projectCounts = kpis.project_counts || {};
+    const phaseCounts = (projectCounts.by_phase || []).reduce((acc, row) => {
+        acc[String(row.label || '').toLowerCase()] = Number(row.count || 0);
+        return acc;
+    }, {});
     const financialTotals = kpis.financial_totals || {};
     const companyFinancialSummary = kpis.company_financial_summary || {};
     const projects = kpis.projects || [];
@@ -113,42 +124,44 @@ export default function AdminDashboard({ kpis = {}, projectSnapshotPager = null 
                     <StatCard label="Uncollected Contract Value" value={money(financialTotals.remaining_sum)} color="#fbbf24" />
                 </div>
 
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 16 }}>
-                    <div style={cardStyle}>
-                        <div style={{ fontWeight: 700, marginBottom: 10 }}>Net Profit Formula</div>
-                        <div style={{ display: 'grid', gap: 4, fontSize: 13 }}>
-                            <div><strong>Total Contract Value</strong></div>
-                            <div>- Total Materials</div>
-                            <div>- Total Labor (Payroll)</div>
-                            <div>- Total Subcontractors</div>
-                            <div>- Total Miscellaneous</div>
-                            <div>- Total Equipment (if applicable)</div>
-                            <div style={{ marginTop: 4, fontWeight: 700 }}>= Net Profit</div>
+                {isHeadAdmin ? (
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 16 }}>
+                        <div style={cardStyle}>
+                            <div style={{ fontWeight: 700, marginBottom: 10 }}>Net Profit Formula</div>
+                            <div style={{ display: 'grid', gap: 4, fontSize: 13 }}>
+                                <div><strong>Total Contract Value</strong></div>
+                                <div>- Total Materials</div>
+                                <div>- Total Labor (Payroll)</div>
+                                <div>- Total Subcontractors</div>
+                                <div>- Total Miscellaneous</div>
+                                <div>- Total Equipment (if applicable)</div>
+                                <div style={{ marginTop: 4, fontWeight: 700 }}>= Net Profit</div>
+                            </div>
+                            <div style={{ marginTop: 10, fontSize: 12, color: 'var(--text-muted)' }}>
+                                Net profit uses contract value (not collected amount).
+                            </div>
                         </div>
-                        <div style={{ marginTop: 10, fontSize: 12, color: 'var(--text-muted)' }}>
-                            Net profit uses contract value (not collected amount).
-                        </div>
-                    </div>
 
-                    <div style={cardStyle}>
-                        <div style={{ fontWeight: 700, marginBottom: 10, textTransform: 'uppercase' }}>Company Financial Summary</div>
-                        <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 6 }}>Revenue</div>
-                        <div style={{ display: 'grid', gap: 8 }}>
-                            <SummaryRow label="Total Contract Value" value={money(totalContractValue)} strong />
-                        </div>
-                        <div style={{ fontSize: 12, color: 'var(--text-muted)', margin: '10px 0 6px' }}>Expenses</div>
-                        <div style={{ display: 'grid', gap: 8 }}>
-                            <SummaryRow label="Materials" value={money(materialsTotal)} />
-                            <SummaryRow label="Labor (Payroll)" value={money(laborPayrollTotal)} />
-                            <SummaryRow label="Subcontractors" value={money(subcontractorsTotal)} />
-                            <SummaryRow label="Miscellaneous" value={money(miscellaneousTotal)} />
-                            <SummaryRow label="Equipment (if applicable)" value={money(equipmentTotal)} />
-                            <SummaryRow label="Total Expenses" value={money(totalExpenses)} strong />
-                            <SummaryRow label="Net Profit" value={money(netProfit)} strong />
-                            <SummaryRow label="Net Margin %" value={`${netMarginPercent.toFixed(2)}%`} strong />
+                        <div style={cardStyle}>
+                            <div style={{ fontWeight: 700, marginBottom: 10, textTransform: 'uppercase' }}>Company Financial Summary</div>
+                            <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 6 }}>Revenue</div>
+                            <div style={{ display: 'grid', gap: 8 }}>
+                                <SummaryRow label="Total Contract Value" value={money(totalContractValue)} strong />
+                            </div>
+                            <div style={{ fontSize: 12, color: 'var(--text-muted)', margin: '10px 0 6px' }}>Expenses</div>
+                            <div style={{ display: 'grid', gap: 8 }}>
+                                <SummaryRow label="Materials" value={money(materialsTotal)} />
+                                <SummaryRow label="Labor (Payroll)" value={money(laborPayrollTotal)} />
+                                <SummaryRow label="Subcontractors" value={money(subcontractorsTotal)} />
+                                <SummaryRow label="Miscellaneous" value={money(miscellaneousTotal)} />
+                                <SummaryRow label="Equipment (if applicable)" value={money(equipmentTotal)} />
+                                <SummaryRow label="Total Expenses" value={money(totalExpenses)} strong />
+                                <SummaryRow label="Net Profit" value={money(netProfit)} strong />
+                                <SummaryRow label="Net Margin %" value={`${netMarginPercent.toFixed(2)}%`} strong />
+                            </div>
                         </div>
                     </div>
-                </div>
+                ) : null}
 
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 16 }}>
                     <BreakdownPanel title="Projects by Status" items={projectCounts.by_status || []} />

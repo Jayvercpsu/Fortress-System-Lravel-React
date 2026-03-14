@@ -23,7 +23,7 @@ const toStatTestId = (label) =>
         .replace(/[^a-z0-9]+/g, '-')
         .replace(/^-+|-+$/g, '');
 
-function StatCard({ label, value, color = 'var(--text-main)' }) {
+function StatCard({ label, value, color = 'var(--text-main)', children }) {
     const statId = toStatTestId(label);
 
     return (
@@ -37,6 +37,11 @@ function StatCard({ label, value, color = 'var(--text-main)' }) {
             >
                 {value}
             </div>
+            {children ? (
+                <div style={{ marginTop: 8, fontSize: 11, color: 'var(--text-muted)', display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                    {children}
+                </div>
+            ) : null}
         </div>
     );
 }
@@ -95,6 +100,10 @@ export default function HeadAdminDashboard({
     recentPayrollsPager = null,
 }) {
     const projectCounts = kpis.project_counts || {};
+    const phaseCounts = (projectCounts.by_phase || []).reduce((acc, row) => {
+        acc[String(row.label || '').toLowerCase()] = Number(row.count || 0);
+        return acc;
+    }, {});
     const financialTotals = kpis.financial_totals || {};
     const paymentTotals = kpis.payment_totals || {};
     const users = kpis.users || {};
