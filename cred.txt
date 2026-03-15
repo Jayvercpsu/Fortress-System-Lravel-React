@@ -1,0 +1,7 @@
+head admin account
+- headadmin@buildbooks.com
+- password
+
+Client cred
+- jayver.cpsu@gmail.com
+- jayver.cpsu@gmail.com111322

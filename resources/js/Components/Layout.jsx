@@ -20,6 +20,7 @@ const navByRole = {
         { label: 'Reports', href: '/reports', icon: 'fi fi-rr-document' },
         { label: 'Accomplishments', href: '/weekly-accomplishments', icon: 'fi fi-rr-document' },
         { label: 'Users', href: '/users', icon: 'fi fi-rr-user-add' },
+        { label: 'Clients', href: '/clients', icon: 'fi fi-rr-user' },
         { label: 'Settings', href: '/settings', icon: 'fi fi-rr-settings' },
     ],
     admin: [
@@ -49,6 +50,9 @@ const navByRole = {
         { label: 'Attendance', href: '/foreman/attendance', icon: 'fi fi-rr-calendar-check' },
         { label: 'Settings', href: '/settings', icon: 'fi fi-rr-settings' },
     ],
+    client: [
+        { label: 'Dashboard', href: '/client', icon: 'fi fi-rr-dashboard' },
+    ],
 };
 
 const roleLabels = {
@@ -56,6 +60,7 @@ const roleLabels = {
     admin: 'Admin',
     hr: 'HR',
     foreman: 'Foreman',
+    client: 'Client',
 };
 
 export default function Layout({ children, title }) {
@@ -138,7 +143,7 @@ export default function Layout({ children, title }) {
                     <nav style={{ flex: 1 }}>
                         {navItems.map((item) => {
                             const itemPath = item.href.replace(/\/+$/, '') || '/';
-                            const exactOnlyPaths = new Set(['/head-admin', '/admin', '/hr', '/foreman']);
+                            const exactOnlyPaths = new Set(['/head-admin', '/admin', '/hr', '/foreman', '/client']);
                             const exactOnly = exactOnlyPaths.has(itemPath);
                             const aliasPathsByHref = {
                                 '/payroll/run': ['/payroll', '/payroll/worker-rates'],

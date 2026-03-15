@@ -2,6 +2,8 @@
 use App\Http\Controllers\Auth\AuthController;
 use App\Http\Controllers\AttendanceController;
 use App\Http\Controllers\BuildController;
+use App\Http\Controllers\ClientController;
+use App\Http\Controllers\ClientPortalController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\DesignController;
 use App\Http\Controllers\ExpenseController;
@@ -35,6 +37,8 @@ Route::get('/storage/{path}', [StorageProxyController::class, 'show'])
 
 Route::get('/login', [AuthController::class, 'showLogin'])->name('login');
 Route::post('/login', [AuthController::class, 'login']);
+Route::get('/client/login', [AuthController::class, 'showClientLogin'])->name('client.login');
+Route::post('/client/login', [AuthController::class, 'clientLogin'])->name('client.login.submit');
 Route::post('/logout', [AuthController::class, 'logout'])->name('logout');
 Route::get('/progress-submit/{token}', [PublicProgressController::class, 'show'])->name('public.progress-submit.show');
 Route::get('/progress-receipt/{token}', [PublicProgressController::class, 'receipt'])->name('public.progress-receipt');
@@ -68,6 +72,9 @@ Route::middleware(['auth', 'role:head_admin'])->group(function () {
     Route::post('/users', [UserController::class, 'store'])->name('users.store');
     Route::patch('/users/{user}', [UserController::class, 'update'])->name('users.update');
     Route::delete('/users/{user}', [UserController::class, 'destroy'])->name('users.destroy');
+    Route::get('/clients', [ClientController::class, 'index'])->name('clients.index');
+    Route::post('/clients', [ClientController::class, 'store'])->name('clients.store');
+    Route::delete('/clients/{user}', [ClientController::class, 'destroy'])->name('clients.destroy');
 });
 
 Route::middleware(['auth', 'role:admin'])->group(function () {
@@ -110,6 +117,10 @@ Route::middleware(['auth', 'role:foreman'])->group(function () {
     Route::post('/foreman/attendance/time-out', [ForemansController::class, 'timeOutAttendance'])->name('foreman.attendance.time_out');
     Route::post('/foreman/submit-all', [ForemansController::class, 'submitAll'])->name('foreman.submit_all');
     Route::post('/foreman/progress-photo', [ForemansController::class, 'storeProgressPhoto'])->name('foreman.photo');
+});
+
+Route::middleware(['auth', 'role:client'])->group(function () {
+    Route::get('/client', [ClientPortalController::class, 'index'])->name('client.dashboard');
 });
 
 Route::middleware(['auth', 'role:head_admin,admin'])->group(function () {

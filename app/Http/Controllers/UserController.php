@@ -17,7 +17,7 @@ class UserController extends Controller {
             $perPage = 10;
         }
 
-        $query = User::query()->where('role', '!=', 'head_admin');
+        $query = User::query()->whereNotIn('role', ['head_admin', 'client']);
 
         if ($search !== '') {
             $query->where(function ($builder) use ($search) {
@@ -62,7 +62,7 @@ class UserController extends Controller {
     }
 
     public function edit(User $user) {
-        if ($user->role === 'head_admin') abort(403);
+        if (in_array($user->role, ['head_admin', 'client'], true)) abort(403);
 
         $user->load('detail');
 
@@ -87,7 +87,7 @@ class UserController extends Controller {
     }
 
     public function update(Request $request, User $user) {
-        if ($user->role === 'head_admin') abort(403);
+        if (in_array($user->role, ['head_admin', 'client'], true)) abort(403);
 
         $validated = $request->validate($this->userRules($user));
 
@@ -115,7 +115,7 @@ class UserController extends Controller {
     }
 
     public function destroy(Request $request, User $user) {
-        if ($user->role === 'head_admin') abort(403);
+        if (in_array($user->role, ['head_admin', 'client'], true)) abort(403);
         $user->delete();
 
         $query = array_filter([
