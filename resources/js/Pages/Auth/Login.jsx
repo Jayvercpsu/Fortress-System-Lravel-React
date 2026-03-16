@@ -3,6 +3,7 @@ import { useEffect } from 'react';
 import toast from 'react-hot-toast';
 import ActionButton from '../../Components/ActionButton';
 import BrandIcon from '../../Components/BrandIcon';
+import TextInput from '../../Components/TextInput';
 
 export default function Login() {
     useEffect(() => {
@@ -17,7 +18,7 @@ export default function Login() {
 
     const submit = (e) => {
         e.preventDefault();
-        post('/login', {
+        post('/admin/login', {
             onError: (formErrors) => {
                 if (formErrors?.email === 'Invalid credentials.') {
                     toast.error(formErrors.email, { id: 'login-invalid-credentials' });
@@ -72,6 +73,7 @@ export default function Login() {
                         <form onSubmit={submit}>
                             <div style={{ marginBottom: 16 }}>
                                 <label
+                                    htmlFor="email"
                                     style={{
                                         display: 'block',
                                         color: 'var(--text-muted)',
@@ -83,10 +85,13 @@ export default function Login() {
                                     Email
                                 </label>
 
-                                <input
+                                <TextInput
+                                    id="email"
+                                    name="email"
                                     type="email"
                                     value={data.email}
                                     onChange={(e) => setData('email', e.target.value)}
+                                    autoComplete="email"
                                     style={{
                                         width: '100%',
                                         background: 'var(--surface-2)',
@@ -109,6 +114,7 @@ export default function Login() {
 
                             <div style={{ marginBottom: 24 }}>
                                 <label
+                                    htmlFor="password"
                                     style={{
                                         display: 'block',
                                         color: 'var(--text-muted)',
@@ -120,10 +126,13 @@ export default function Login() {
                                     Password
                                 </label>
 
-                                <input
+                                <TextInput
+                                    id="password"
+                                    name="password"
                                     type="password"
                                     value={data.password}
                                     onChange={(e) => setData('password', e.target.value)}
+                                    autoComplete="current-password"
                                     style={{
                                         width: '100%',
                                         background: 'var(--surface-2)',

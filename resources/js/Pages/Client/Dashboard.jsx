@@ -1,5 +1,7 @@
+import { useState } from 'react';
 import Layout from '../../Components/Layout';
 import DataTable from '../../Components/DataTable';
+import Modal from '../../Components/Modal';
 import OptimizedImage from '../../Components/OptimizedImage';
 import { Head, router } from '@inertiajs/react';
 
@@ -31,7 +33,10 @@ export default function ClientDashboard({
     photoTable = {},
     accomplishments = [],
     accomplishmentTable = {},
+    weeklyScopePhotoMap = {},
 }) {
+    const [previewPhoto, setPreviewPhoto] = useState(null);
+    const [previewScopePhoto, setPreviewScopePhoto] = useState(null);
     const photosState = {
         search: photoTable?.search ?? '',
         perPage: Number(photoTable?.per_page ?? 10),
@@ -88,11 +93,17 @@ export default function ClientDashboard({
             width: 120,
             render: (row) =>
                 row.photo_path ? (
-                    <a
-                        href={`/storage/${row.photo_path}`}
-                        target="_blank"
-                        rel="noreferrer"
-                        style={{ display: 'inline-block' }}
+                    <button
+                        type="button"
+                        onClick={() => setPreviewPhoto(row)}
+                        style={{
+                            border: '1px solid var(--border-color)',
+                            borderRadius: 8,
+                            overflow: 'hidden',
+                            padding: 0,
+                            background: 'var(--surface-2)',
+                            cursor: 'pointer',
+                        }}
                     >
                         <OptimizedImage
                             src={`/storage/${row.photo_path}`}
@@ -101,12 +112,10 @@ export default function ClientDashboard({
                                 width: 92,
                                 height: 62,
                                 objectFit: 'cover',
-                                borderRadius: 8,
-                                border: '1px solid var(--border-color)',
-                                background: 'var(--surface-2)',
+                                display: 'block',
                             }}
                         />
-                    </a>
+                    </button>
                 ) : (
                     '-'
                 ),
@@ -138,6 +147,51 @@ export default function ClientDashboard({
     ];
 
     const accomplishmentColumns = [
+        {
+            key: 'scope_photos',
+            label: 'Photos',
+            width: 220,
+            render: (row) => {
+                const scopeKey = String(row.scope_of_work || '').trim().toLowerCase();
+                const photosForScope =
+                    scopeKey && Array.isArray(weeklyScopePhotoMap[scopeKey])
+                        ? weeklyScopePhotoMap[scopeKey]
+                        : [];
+
+                if (photosForScope.length === 0) {
+                    return (
+                        <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+                            No scope photos yet.
+                        </div>
+                    );
+                }
+
+                return (
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(60px, 1fr))', gap: 6 }}>
+                        {photosForScope.slice(0, 4).map((photo) => (
+                            <button
+                                key={`scope-photo-${photo.id}`}
+                                type="button"
+                                onClick={() => setPreviewScopePhoto({ ...photo, scope: row.scope_of_work })}
+                                style={{ border: 'none', background: 'transparent', padding: 0, cursor: 'pointer' }}
+                            >
+                                <OptimizedImage
+                                    src={`/storage/${photo.photo_path}`}
+                                    alt={photo.caption || row.scope_of_work || 'Scope photo'}
+                                    style={{
+                                        width: '100%',
+                                        height: 58,
+                                        objectFit: 'cover',
+                                        borderRadius: 6,
+                                        border: '1px solid var(--border-color)',
+                                    }}
+                                />
+                            </button>
+                        ))}
+                    </div>
+                );
+            },
+        },
         {
             key: 'week_start',
             label: 'Week Start',
@@ -242,6 +296,61 @@ export default function ClientDashboard({
                     </div>
                 </div>
             </Layout>
+            <Modal
+                open={Boolean(previewPhoto)}
+                onClose={() => setPreviewPhoto(null)}
+                title={previewPhoto?.caption || 'Progress Photo'}
+                maxWidth={900}
+            >
+                {previewPhoto && (
+                    <div style={{ display: 'grid', gap: 10 }}>
+                        <OptimizedImage
+                            src={`/storage/${previewPhoto.photo_path}`}
+                            alt={previewPhoto.caption || 'Progress photo'}
+                            style={{
+                                width: '100%',
+                                maxHeight: '70vh',
+                                objectFit: 'contain',
+                                border: '1px solid var(--border-color)',
+                                borderRadius: 8,
+                                background: 'var(--surface-2)',
+                            }}
+                        />
+                        <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+                            Uploaded by: {previewPhoto.uploaded_by || '-'} | Project: {previewPhoto.project_name || '-'} |{' '}
+                            {previewPhoto.created_at || '-'}
+                        </div>
+                    </div>
+                )}
+            </Modal>
+            <Modal
+                open={Boolean(previewScopePhoto)}
+                onClose={() => setPreviewScopePhoto(null)}
+                title={previewScopePhoto?.caption || previewScopePhoto?.scope || 'Scope Photo'}
+                maxWidth={900}
+            >
+                {previewScopePhoto && (
+                    <div style={{ display: 'grid', gap: 10 }}>
+                        <OptimizedImage
+                            src={`/storage/${previewScopePhoto.photo_path}`}
+                            alt={previewScopePhoto.caption || previewScopePhoto.scope || 'Scope photo'}
+                            style={{
+                                width: '100%',
+                                maxHeight: '70vh',
+                                objectFit: 'contain',
+                                border: '1px solid var(--border-color)',
+                                borderRadius: 8,
+                                background: 'var(--surface-2)',
+                            }}
+                        />
+                        <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+                            {previewScopePhoto.scope ? `Scope: ${previewScopePhoto.scope}` : null}
+                            {previewScopePhoto.scope && previewScopePhoto.created_at ? ' | ' : ''}
+                            {previewScopePhoto.created_at || '-'}
+                        </div>
+                    </div>
+                )}
+            </Modal>
         </>
     );
 }

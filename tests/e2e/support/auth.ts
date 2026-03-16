@@ -4,8 +4,8 @@ import { ACCOUNTS, AccountKey } from './constants';
 export async function loginAs(page: Page, accountKey: AccountKey) {
     const account = ACCOUNTS[accountKey];
 
-    await page.goto('/login');
-    await page.locator('input[type="email"]').fill(account.email);
+    await page.goto('/admin/login');
+    await page.locator('input[name="email"]').fill(account.email);
     await page.locator('input[type="password"]').fill(account.password);
     await page.getByRole('button', { name: /sign in/i }).click();
 

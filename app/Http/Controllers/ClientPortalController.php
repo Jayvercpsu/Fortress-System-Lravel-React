@@ -6,9 +6,11 @@ use App\Models\DesignProject;
 use App\Models\ProgressPhoto;
 use App\Models\Project;
 use App\Models\ProjectAssignment;
+use App\Models\ScopePhoto;
 use App\Models\WeeklyAccomplishment;
 use App\Support\ProjectSelection;
 use Illuminate\Http\Request;
+use Illuminate\Support\Str;
 use Inertia\Inertia;
 
 class ClientPortalController extends Controller
@@ -83,6 +85,7 @@ class ClientPortalController extends Controller
 
         [$photos, $photoTable] = $this->photoTablePayload($request, $familyProjectIds);
         [$accomplishments, $accomplishmentTable] = $this->accomplishmentTablePayload($request, $familyProjectIds);
+        $weeklyScopePhotoMap = $this->weeklyScopePhotoMap($familyProjectIds);
 
         return Inertia::render('Client/Dashboard', [
             'assignedProject' => [
@@ -98,7 +101,55 @@ class ClientPortalController extends Controller
             'photoTable' => $photoTable,
             'accomplishments' => $accomplishments,
             'accomplishmentTable' => $accomplishmentTable,
+            'weeklyScopePhotoMap' => $weeklyScopePhotoMap,
         ]);
+    }
+
+    private function weeklyScopePhotoMap(array $projectIds): array
+    {
+        $nonNullProjectIds = array_values(array_filter($projectIds, fn ($value) => $value !== null));
+        if (empty($nonNullProjectIds)) {
+            return [];
+        }
+
+        $map = [];
+        $scopePhotos = ScopePhoto::query()
+            ->select([
+                'scope_photos.id',
+                'scope_photos.photo_path',
+                'scope_photos.caption',
+                'scope_photos.created_at',
+                'project_scopes.scope_name',
+            ])
+            ->join('project_scopes', 'project_scopes.id', '=', 'scope_photos.project_scope_id')
+            ->whereIn('project_scopes.project_id', $nonNullProjectIds)
+            ->orderByDesc('scope_photos.id')
+            ->get();
+
+        foreach ($scopePhotos as $scopePhoto) {
+            $scopeName = trim((string) ($scopePhoto->scope_name ?? ''));
+            if ($scopeName === '') {
+                continue;
+            }
+
+            $scopeKey = Str::lower($scopeName);
+            if (!isset($map[$scopeKey])) {
+                $map[$scopeKey] = [];
+            }
+
+            if (count($map[$scopeKey]) >= 8) {
+                continue;
+            }
+
+            $map[$scopeKey][] = [
+                'id' => (int) $scopePhoto->id,
+                'photo_path' => $scopePhoto->photo_path,
+                'caption' => $scopePhoto->caption,
+                'created_at' => optional($scopePhoto->created_at)?->toDateTimeString(),
+            ];
+        }
+
+        return $map;
     }
 
     private function photoTablePayload(Request $request, array $projectIds): array
