@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\DeliveryConfirmation;
+use App\Models\Project;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 
@@ -42,24 +43,49 @@ class DeliveryConfirmationController extends Controller
             });
         };
 
-        $projectQuery = DeliveryConfirmation::query();
-        $applySearch($projectQuery);
-        if ($status !== '') {
-            $projectQuery->where('status', $status);
+        $projects = collect();
+        $showEmptyProjects = $search === '' && $status === '';
+
+        if ($showEmptyProjects) {
+            $projectPaginator = Project::query()
+                ->whereRaw("LOWER(TRIM(COALESCE(phase, ''))) != 'design'")
+                ->orderBy('name')
+                ->orderBy('id')
+                ->paginate($perPage)
+                ->withQueryString();
+
+            $projectIds = collect($projectPaginator->items())
+                ->map(fn ($item) => $item->id ?? null)
+                ->values()
+                ->unique()
+                ->all();
+
+            $projects = collect($projectPaginator->items())
+                ->map(fn ($project) => [
+                    'id' => $project->id,
+                    'name' => $project->name,
+                ])
+                ->values();
+        } else {
+            $projectQuery = DeliveryConfirmation::query();
+            $applySearch($projectQuery);
+            if ($status !== '') {
+                $projectQuery->where('status', $status);
+            }
+
+            $projectPaginator = (clone $projectQuery)
+                ->selectRaw('project_id, MAX(created_at) as last_created_at')
+                ->groupBy('project_id')
+                ->orderByDesc('last_created_at')
+                ->paginate($perPage)
+                ->withQueryString();
+
+            $projectIds = collect($projectPaginator->items())
+                ->map(fn ($item) => $item->project_id ?? null)
+                ->values()
+                ->unique()
+                ->all();
         }
-
-        $projectPaginator = (clone $projectQuery)
-            ->selectRaw('project_id, MAX(created_at) as last_created_at')
-            ->groupBy('project_id')
-            ->orderByDesc('last_created_at')
-            ->paginate($perPage)
-            ->withQueryString();
-
-        $projectIds = collect($projectPaginator->items())
-            ->map(fn ($item) => $item->project_id ?? null)
-            ->values()
-            ->unique()
-            ->all();
 
         $deliveries = collect([]);
         if (!empty($projectIds)) {
@@ -128,6 +154,7 @@ class DeliveryConfirmationController extends Controller
 
         return Inertia::render($page, [
             'deliveries' => $deliveries,
+            'projects' => $projects,
             'deliveryTable' => $this->tableMeta($projectPaginator, $search, $status),
             'statusFilters' => ['received', 'incomplete', 'rejected'],
             'selectedStatus' => $status,

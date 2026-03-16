@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\ScopePhoto;
 use App\Models\WeeklyAccomplishment;
+use App\Models\Project;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
 use Inertia\Inertia;
@@ -17,6 +18,7 @@ class WeeklyAccomplishmentController extends Controller
         $search = trim((string) $request->query('search', ''));
         $allowedPerPage = [5, 10, 25, 50];
         $perPage = (int) $request->query('per_page', 10);
+        $status = trim((string) $request->query('status', ''));
 
         if (!in_array($perPage, $allowedPerPage, true)) {
             $perPage = 10;
@@ -36,22 +38,46 @@ class WeeklyAccomplishmentController extends Controller
             });
         };
 
-        $projectQuery = WeeklyAccomplishment::query();
-        $applySearch($projectQuery);
+        $projects = collect();
+        $showEmptyProjects = $search === '' && $status === '';
 
-        $paginator = (clone $projectQuery)
-            ->selectRaw('project_id, MAX(created_at) as last_created_at')
-            ->groupBy('project_id')
-            ->orderByDesc('last_created_at')
-            ->paginate($perPage)
-            ->withQueryString();
+        if ($showEmptyProjects) {
+            $paginator = Project::query()
+                ->whereRaw("LOWER(TRIM(COALESCE(phase, ''))) != 'design'")
+                ->orderBy('name')
+                ->orderBy('id')
+                ->paginate($perPage)
+                ->withQueryString();
 
-        $projectIds = collect($paginator->items())
-            ->map(fn ($item) => $item->project_id ?? null)
-            ->values()
-            ->unique()
-            ->all();
-        $status = trim((string) $request->query('status', ''));
+            $projectIds = collect($paginator->items())
+                ->map(fn ($item) => $item->id ?? null)
+                ->values()
+                ->unique()
+                ->all();
+
+            $projects = collect($paginator->items())
+                ->map(fn ($project) => [
+                    'id' => $project->id,
+                    'name' => $project->name,
+                ])
+                ->values();
+        } else {
+            $projectQuery = WeeklyAccomplishment::query();
+            $applySearch($projectQuery);
+
+            $paginator = (clone $projectQuery)
+                ->selectRaw('project_id, MAX(created_at) as last_created_at')
+                ->groupBy('project_id')
+                ->orderByDesc('last_created_at')
+                ->paginate($perPage)
+                ->withQueryString();
+
+            $projectIds = collect($paginator->items())
+                ->map(fn ($item) => $item->project_id ?? null)
+                ->values()
+                ->unique()
+                ->all();
+        }
         $nonNullProjectIds = array_values(array_filter($projectIds, fn ($value) => $value !== null));
         $hasNullProject = in_array(null, $projectIds, true);
 
@@ -149,6 +175,7 @@ class WeeklyAccomplishmentController extends Controller
 
         return Inertia::render($page, [
             'weeklyAccomplishments' => $accomplishments,
+            'projects' => $projects,
             'weeklyAccomplishmentTable' => $this->tableMeta($paginator, $search, $status),
             'weeklyScopePhotoMap' => $weeklyScopePhotoMap,
             'statusFilters' => [],

@@ -41,6 +41,7 @@ export default function MaterialRequestsPage({
     materialRequests = [],
     materialRequestTable = {},
     statusFilters = [],
+    projects = [],
 }) {
     const [processingId, setProcessingId] = useState(null);
     const [previewPhoto, setPreviewPhoto] = useState(null);
@@ -173,6 +174,7 @@ export default function MaterialRequestsPage({
                 <ProjectAccordionTable
                     columns={columns}
                     rows={materialRequests}
+                    projects={projects}
                     rowKey="id"
                     searchPlaceholder="Search material requests..."
                     emptyMessage="No material requests yet."

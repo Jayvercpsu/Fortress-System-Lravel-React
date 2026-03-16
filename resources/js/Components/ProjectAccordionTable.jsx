@@ -1,6 +1,8 @@
 import { router } from '@inertiajs/react';
 import { useEffect, useMemo, useState } from 'react';
 import ActionButton from './ActionButton';
+import TextInput from './TextInput';
+import SelectInput from './SelectInput';
 
 const controlStyle = {
     background: 'var(--surface-2)',
@@ -26,6 +28,7 @@ function resolveRowKey(rowKey, row, index) {
 export default function ProjectAccordionTable({
     columns = [],
     rows = [],
+    projects = [],
     rowKey = 'id',
     searchPlaceholder = 'Search...',
     emptyMessage = 'No records found.',
@@ -59,8 +62,30 @@ export default function ProjectAccordionTable({
         setStatusValue(String(tableState.status ?? ''));
     }, [tableState.status]);
 
+    const normalizedProjects = useMemo(() => {
+        if (!Array.isArray(projects)) return [];
+        return projects
+            .map((project) => ({
+                id: project?.id ?? null,
+                name: String(project?.name ?? '').trim() || 'Unassigned',
+            }))
+            .filter((project) => project.id !== null && project.id !== undefined);
+    }, [projects]);
+
     const grouped = useMemo(() => {
         const groups = new Map();
+
+        normalizedProjects.forEach((project) => {
+            const key = `project-${project.id}`;
+            if (!groups.has(key)) {
+                groups.set(key, {
+                    key,
+                    project_id: project.id,
+                    project_name: project.name,
+                    rows: [],
+                });
+            }
+        });
 
         rows.forEach((row) => {
             const projectName = String(row?.project_name || 'Unassigned').trim() || 'Unassigned';
@@ -78,11 +103,15 @@ export default function ProjectAccordionTable({
                 });
             }
 
-            groups.get(key).rows.push(row);
+            const group = groups.get(key);
+            group.rows.push(row);
+            if (!group.project_name && projectName) {
+                group.project_name = projectName;
+            }
         });
 
         return Array.from(groups.values());
-    }, [rows]);
+    }, [rows, normalizedProjects]);
 
     useEffect(() => {
         setExpandedByGroup((prev) => {
@@ -198,8 +227,7 @@ export default function ProjectAccordionTable({
         <div style={{ display: 'grid', gap: 12 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', flex: 1, minWidth: 0 }}>
-                    <input
-                        type="text"
+                    <TextInput
                         value={searchDraft}
                         onChange={(e) => setSearchDraft(e.target.value)}
                         placeholder={searchPlaceholder}
@@ -209,7 +237,7 @@ export default function ProjectAccordionTable({
 
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                     <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>Per page</span>
-                    <select
+                    <SelectInput
                         value={tableState.perPage}
                         onChange={(e) => applyPerPage(Number(e.target.value))}
                         style={controlStyle}
@@ -219,11 +247,11 @@ export default function ProjectAccordionTable({
                                 {size}
                             </option>
                         ))}
-                    </select>
+                    </SelectInput>
                     {hasStatusFilter ? (
                         <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                             <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>Status</span>
-                            <select
+                            <SelectInput
                                 value={statusValue}
                                 onChange={(e) => {
                                     const next = e.target.value;
@@ -238,7 +266,7 @@ export default function ProjectAccordionTable({
                                         {option.label}
                                     </option>
                                 ))}
-                            </select>
+                            </SelectInput>
                         </div>
                     ) : null}
                 </div>

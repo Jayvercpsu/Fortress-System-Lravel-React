@@ -12,7 +12,7 @@ const cardStyle = {
     padding: 16,
 };
 
-export default function ProgressPhotosPage({ photos = [], photoTable = {}, statusFilters = [] }) {
+export default function ProgressPhotosPage({ photos = [], photoTable = {}, statusFilters = [], projects = [] }) {
     const [previewPhoto, setPreviewPhoto] = useState(null);
 
     const columns = [
@@ -71,6 +71,7 @@ export default function ProgressPhotosPage({ photos = [], photoTable = {}, statu
                     <ProjectAccordionTable
                         columns={columns}
                         rows={photos}
+                        projects={projects}
                         rowKey="id"
                     searchPlaceholder="Search foreman, project, or caption..."
                     emptyMessage="No foreman proof photos yet."

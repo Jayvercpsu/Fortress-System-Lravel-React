@@ -17,6 +17,7 @@ export default function WeeklyAccomplishmentsPage({
     weeklyAccomplishmentTable = {},
     weeklyScopePhotoMap = {},
     statusFilters = [],
+    projects = [],
 }) {
     const [previewPhoto, setPreviewPhoto] = useState(null);
     const columns = [
@@ -103,6 +104,7 @@ export default function WeeklyAccomplishmentsPage({
                 <ProjectAccordionTable
                     columns={columns}
                     rows={weeklyAccomplishments}
+                    projects={projects}
                     rowKey="id"
                     searchPlaceholder="Search weekly accomplishments..."
                     emptyMessage="No weekly accomplishments yet."

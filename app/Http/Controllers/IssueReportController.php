@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\IssueReport;
+use App\Models\Project;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 
@@ -38,24 +39,49 @@ class IssueReportController extends Controller
             });
         };
 
-        $projectQuery = IssueReport::query();
-        $applySearch($projectQuery);
-        if ($status !== '') {
-            $projectQuery->where('status', $status);
+        $projects = collect();
+        $showEmptyProjects = $search === '' && $status === '';
+
+        if ($showEmptyProjects) {
+            $paginator = Project::query()
+                ->whereRaw("LOWER(TRIM(COALESCE(phase, ''))) != 'design'")
+                ->orderBy('name')
+                ->orderBy('id')
+                ->paginate($perPage)
+                ->withQueryString();
+
+            $projectIds = collect($paginator->items())
+                ->map(fn ($item) => $item->id ?? null)
+                ->values()
+                ->unique()
+                ->all();
+
+            $projects = collect($paginator->items())
+                ->map(fn ($project) => [
+                    'id' => $project->id,
+                    'name' => $project->name,
+                ])
+                ->values();
+        } else {
+            $projectQuery = IssueReport::query();
+            $applySearch($projectQuery);
+            if ($status !== '') {
+                $projectQuery->where('status', $status);
+            }
+
+            $paginator = (clone $projectQuery)
+                ->selectRaw('project_id, MAX(created_at) as last_created_at')
+                ->groupBy('project_id')
+                ->orderByDesc('last_created_at')
+                ->paginate($perPage)
+                ->withQueryString();
+
+            $projectIds = collect($paginator->items())
+                ->map(fn ($item) => $item->project_id ?? null)
+                ->values()
+                ->unique()
+                ->all();
         }
-
-        $paginator = (clone $projectQuery)
-            ->selectRaw('project_id, MAX(created_at) as last_created_at')
-            ->groupBy('project_id')
-            ->orderByDesc('last_created_at')
-            ->paginate($perPage)
-            ->withQueryString();
-
-        $projectIds = collect($paginator->items())
-            ->map(fn ($item) => $item->project_id ?? null)
-            ->values()
-            ->unique()
-            ->all();
 
         $issues = collect([]);
         if (!empty($projectIds)) {
@@ -120,6 +146,7 @@ class IssueReportController extends Controller
 
         return Inertia::render($page, [
             'issues' => $issues,
+            'projects' => $projects,
             'issueTable' => $this->tableMeta($paginator, $search, $status),
             'statusFilters' => ['open', 'resolved'],
             'selectedStatus' => $status,

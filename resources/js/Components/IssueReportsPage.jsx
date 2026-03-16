@@ -54,7 +54,7 @@ const statusBadgeStyle = (status) => {
     };
 };
 
-export default function IssueReportsPage({ issues = [], issueTable = {}, statusFilters = [] }) {
+export default function IssueReportsPage({ issues = [], issueTable = {}, statusFilters = [], projects = [] }) {
     const [processingId, setProcessingId] = useState(null);
     const [previewPhoto, setPreviewPhoto] = useState(null);
 
@@ -205,6 +205,7 @@ export default function IssueReportsPage({ issues = [], issueTable = {}, statusF
                 <ProjectAccordionTable
                     columns={columns}
                     rows={issues}
+                    projects={projects}
                     rowKey="id"
                     searchPlaceholder="Search issues..."
                     emptyMessage="No issue reports yet."

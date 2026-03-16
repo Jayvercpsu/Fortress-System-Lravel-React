@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\ProgressPhoto;
+use App\Models\Project;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 
@@ -32,21 +33,46 @@ class ProgressPhotoController extends Controller
             });
         };
 
-        $projectQuery = ProgressPhoto::query();
-        $applySearch($projectQuery);
+        $projects = collect();
+        $showEmptyProjects = $search === '' && $status === '';
 
-        $paginator = (clone $projectQuery)
-            ->selectRaw('project_id, MAX(created_at) as last_created_at')
-            ->groupBy('project_id')
-            ->orderByDesc('last_created_at')
-            ->paginate($perPage)
-            ->withQueryString();
+        if ($showEmptyProjects) {
+            $paginator = Project::query()
+                ->whereRaw("LOWER(TRIM(COALESCE(phase, ''))) != 'design'")
+                ->orderBy('name')
+                ->orderBy('id')
+                ->paginate($perPage)
+                ->withQueryString();
 
-        $projectIds = collect($paginator->items())
-            ->map(fn ($item) => $item->project_id ?? null)
-            ->values()
-            ->unique()
-            ->all();
+            $projectIds = collect($paginator->items())
+                ->map(fn ($item) => $item->id ?? null)
+                ->values()
+                ->unique()
+                ->all();
+
+            $projects = collect($paginator->items())
+                ->map(fn ($project) => [
+                    'id' => $project->id,
+                    'name' => $project->name,
+                ])
+                ->values();
+        } else {
+            $projectQuery = ProgressPhoto::query();
+            $applySearch($projectQuery);
+
+            $paginator = (clone $projectQuery)
+                ->selectRaw('project_id, MAX(created_at) as last_created_at')
+                ->groupBy('project_id')
+                ->orderByDesc('last_created_at')
+                ->paginate($perPage)
+                ->withQueryString();
+
+            $projectIds = collect($paginator->items())
+                ->map(fn ($item) => $item->project_id ?? null)
+                ->values()
+                ->unique()
+                ->all();
+        }
 
         $photos = collect([]);
         if (!empty($projectIds)) {
@@ -105,6 +131,7 @@ class ProgressPhotoController extends Controller
 
         return Inertia::render($page, [
             'photos' => $photos,
+            'projects' => $projects,
             'photoTable' => $this->tableMeta($paginator, $search, $status),
             'statusFilters' => [],
             'selectedStatus' => $status,

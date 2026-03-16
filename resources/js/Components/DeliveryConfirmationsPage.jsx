@@ -40,6 +40,7 @@ export default function DeliveryConfirmationsPage({
     deliveries = [],
     deliveryTable = {},
     statusFilters = [],
+    projects = [],
 }) {
     const [previewPhoto, setPreviewPhoto] = useState(null);
     const columns = [
@@ -153,6 +154,7 @@ export default function DeliveryConfirmationsPage({
                 <ProjectAccordionTable
                     columns={columns}
                     rows={deliveries}
+                    projects={projects}
                     rowKey="id"
                     searchPlaceholder="Search deliveries..."
                     emptyMessage="No delivery confirmations yet."
