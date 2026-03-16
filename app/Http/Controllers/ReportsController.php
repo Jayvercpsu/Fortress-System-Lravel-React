@@ -19,6 +19,7 @@ class ReportsController extends Controller
         abort_unless(in_array($request->user()->role, ['head_admin', 'admin'], true), 403);
 
         $projects = Project::query()
+            ->whereRaw("LOWER(TRIM(COALESCE(phase, ''))) != 'design'")
             ->orderBy('name')
             ->get([
                 'id',

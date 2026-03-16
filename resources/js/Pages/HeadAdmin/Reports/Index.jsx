@@ -24,6 +24,17 @@ const numericCellStyle = {
 const money = (value) =>
     `P ${Number(value || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
+const descriptionStyle = {
+    background: 'var(--surface-2)',
+    border: '1px solid var(--border-color)',
+    borderRadius: 12,
+    padding: '14px 18px',
+    marginBottom: 16,
+    color: 'var(--text-main)',
+    fontSize: 14,
+    lineHeight: 1.5,
+};
+
 const toStatTestId = (label) =>
     String(label || '')
         .trim()
@@ -54,6 +65,11 @@ export default function ReportsIndex({ summary = {}, projectProfitability = [] }
         <>
             <Head title="Reports" />
             <Layout title="Reports / Project Profitability">
+                <div style={descriptionStyle}>
+                    This report surfaces the construction projects that are currently active (filtered by phase) and aggregates
+                    contract value, progress, expenses, and payroll so you can compare cash collected versus earned revenue,
+                    visualize profitability, and launch receipt PDFs directly from the table.
+                </div>
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: 12, marginBottom: 16 }}>
                     <StatCard label="Projects" value={summary.project_count ?? 0} />
                     <StatCard label="Collected Contract Value" value={money(summary.collected_sum)} color="#22c55e" />
