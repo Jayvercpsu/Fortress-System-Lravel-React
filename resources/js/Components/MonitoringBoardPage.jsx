@@ -1,4 +1,4 @@
-import Layout from './Layout';
+﻿import Layout from './Layout';
 import ActionButton from './ActionButton';
 import Modal from './Modal';
 import EditModal from './EditModal';
@@ -420,7 +420,7 @@ export default function MonitoringBoardPage({
                                                                         }}
                                                                     >
                                                                         <OptimizedImage
-                                                                            src={`/storage/${photo.photo_path}`}
+                                                                            src={`/files/${photo.photo_path}`}
                                                                             alt={photo.caption || 'Scope photo'}
                                                                             style={{
                                                                                 width: '100%',
@@ -857,7 +857,7 @@ export default function MonitoringBoardPage({
                     {scopePreview && (
                         <div style={{ display: 'grid', gap: 10 }}>
                             <OptimizedImage
-                                src={`/storage/${scopePreview.photo_path}`}
+                                src={`/files/${scopePreview.photo_path}`}
                                 alt={scopePreview.caption || scopePreview.scope || 'Scope photo'}
                                 style={{
                                     width: '100%',
@@ -905,3 +905,4 @@ export default function MonitoringBoardPage({
         </>
     );
 }
+

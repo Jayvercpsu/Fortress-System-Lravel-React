@@ -89,24 +89,6 @@ class UploadManager
 
     private static function encodeForStorage(ImageInterface $image, UploadedFile $file): array
     {
-        $extension = Str::lower((string) $file->getClientOriginalExtension());
-
-        if (in_array($extension, ['jpg', 'jpeg', 'jpe'], true)) {
-            return [$image->toJpeg(self::IMAGE_QUALITY, progressive: true), 'jpg'];
-        }
-
-        if ($extension === 'webp') {
-            return [$image->toWebp(self::IMAGE_QUALITY), 'webp'];
-        }
-
-        if ($extension === 'png') {
-            return [$image->toPng(), 'png'];
-        }
-
-        if ($extension === 'gif') {
-            return [$image->toGif(), 'gif'];
-        }
-
-        return [$image->toJpeg(self::IMAGE_QUALITY, progressive: true), 'jpg'];
+        return [$image->toWebp(self::IMAGE_QUALITY), 'webp'];
     }
 }

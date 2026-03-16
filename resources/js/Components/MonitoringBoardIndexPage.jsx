@@ -1,4 +1,4 @@
-import ActionButton from './ActionButton';
+﻿import ActionButton from './ActionButton';
 import EditModal from './EditModal';
 import ConfirmationModal from './ConfirmationModal';
 import Modal from './Modal';
@@ -220,7 +220,7 @@ const normalizeProgressValue = (value) => {
 const parseTimelineRange = (value) => {
     const raw = String(value || '').trim();
     if (!raw) return { start: '', end: '' };
-    const match = raw.split(/\s+(?:to|–|—|-)\s+/i);
+    const match = raw.split(/\s+(?:to|â€“|â€”|-)\s+/i);
     if (match.length >= 2) {
         const start = match[0]?.trim() || '';
         const end = match.slice(1).join(' - ').trim();
@@ -1103,7 +1103,7 @@ export default function MonitoringBoardIndexPage({ items = [], status_options: s
                             <div style={{ fontWeight: 700, fontSize: 13 }}>Attached Files</div>
                                 {pagedFiles.length ? (
                                     pagedFiles.map((file) => {
-                                        const fileUrl = file.file_path ? `/storage/${file.file_path}` : '#';
+                                        const fileUrl = file.file_path ? `/files/${file.file_path}` : '#';
                                         const isImage = isImageFile(file);
 
                                         return (
@@ -1123,7 +1123,7 @@ export default function MonitoringBoardIndexPage({ items = [], status_options: s
                                             <div style={{ minWidth: 0 }}>
                                                 <div style={{ fontWeight: 600, fontSize: 13 }}>{file.original_name || 'File'}</div>
                                                 <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>
-                                                    {(file.mime_type || 'file').toUpperCase()} • {file.created_at || 'Uploaded'}
+                                                    {(file.mime_type || 'file').toUpperCase()} â€¢ {file.created_at || 'Uploaded'}
                                                 </div>
                                             </div>
                                             <div style={{ display: 'flex', gap: 8 }}>
@@ -1391,7 +1391,7 @@ export default function MonitoringBoardIndexPage({ items = [], status_options: s
                                 }}
                             >
                                 <OptimizedImage
-                                    src={previewFile.file_path ? `/storage/${previewFile.file_path}` : ''}
+                                    src={previewFile.file_path ? `/files/${previewFile.file_path}` : ''}
                                     alt={previewFile.original_name || 'Preview'}
                                     style={{
                                         maxWidth: '100%',
@@ -1403,7 +1403,7 @@ export default function MonitoringBoardIndexPage({ items = [], status_options: s
                             </div>
                             <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
                                 <ActionButton
-                                    href={previewFile.file_path ? `/storage/${previewFile.file_path}` : '#'}
+                                    href={previewFile.file_path ? `/files/${previewFile.file_path}` : '#'}
                                     external
                                     variant="view"
                                 >
@@ -1620,3 +1620,4 @@ export default function MonitoringBoardIndexPage({ items = [], status_options: s
         </>
     );
 }
+

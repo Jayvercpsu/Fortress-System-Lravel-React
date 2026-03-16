@@ -1,4 +1,4 @@
-import Layout from '../../Components/Layout';
+﻿import Layout from '../../Components/Layout';
 import ActionButton from '../../Components/ActionButton';
 import InlinePagination from '../../Components/InlinePagination';
 import Modal from '../../Components/Modal';
@@ -311,7 +311,7 @@ export default function ForemanSubmissions({
                                                         style={{ display: 'inline-block', marginBottom: 6, border: 'none', background: 'transparent', padding: 0, cursor: 'pointer' }}
                                                     >
                                                         <OptimizedImage
-                                                            src={`/storage/${row.photo_path}`}
+                                                            src={`/files/${row.photo_path}`}
                                                             alt={row.material_name || 'Material photo'}
                                                             style={{ width: 88, height: 62, objectFit: 'cover', borderRadius: 6, border: '1px solid var(--border-color)' }}
                                                         />
@@ -359,7 +359,7 @@ export default function ForemanSubmissions({
                                                         style={{ display: 'inline-block', marginBottom: 6, border: 'none', background: 'transparent', padding: 0, cursor: 'pointer' }}
                                                     >
                                                         <OptimizedImage
-                                                            src={`/storage/${row.photo_path}`}
+                                                            src={`/files/${row.photo_path}`}
                                                             alt={row.issue_title || 'Issue photo'}
                                                             style={{ width: 88, height: 62, objectFit: 'cover', borderRadius: 6, border: '1px solid var(--border-color)' }}
                                                         />
@@ -407,7 +407,7 @@ export default function ForemanSubmissions({
                                                         style={{ display: 'inline-block', marginBottom: 6, border: 'none', background: 'transparent', padding: 0, cursor: 'pointer' }}
                                                     >
                                                         <OptimizedImage
-                                                            src={`/storage/${row.photo_path}`}
+                                                            src={`/files/${row.photo_path}`}
                                                             alt={row.item_delivered || 'Delivery photo'}
                                                             style={{ width: 88, height: 62, objectFit: 'cover', borderRadius: 6, border: '1px solid var(--border-color)' }}
                                                         />
@@ -484,7 +484,7 @@ export default function ForemanSubmissions({
                                                     }}
                                                 >
                                                     <OptimizedImage
-                                                        src={`/storage/${photo.photo_path}`}
+                                                        src={`/files/${photo.photo_path}`}
                                                         alt={photo.caption || 'Progress proof'}
                                                         style={{ width: '100%', height: 100, objectFit: 'cover', borderRadius: 6, marginBottom: 6 }}
                                                     />
@@ -569,7 +569,7 @@ export default function ForemanSubmissions({
                                                                 }}
                                                             >
                                                                 <OptimizedImage
-                                                                    src={`/storage/${photo.photo_path}`}
+                                                                    src={`/files/${photo.photo_path}`}
                                                                     alt={photo.caption || 'Weekly scope photo'}
                                                                     style={{ width: '100%', height: 92, objectFit: 'cover', borderRadius: 6, marginBottom: 6 }}
                                                                 />
@@ -618,7 +618,7 @@ export default function ForemanSubmissions({
                         <div style={{ display: 'grid', gap: 10 }}>
                             <div style={{ position: 'relative' }}>
                                 <OptimizedImage
-                                    src={`/storage/${previewPhoto.photo_path}`}
+                                    src={`/files/${previewPhoto.photo_path}`}
                                     alt={previewPhoto.caption || 'Progress proof'}
                                     style={{
                                         width: '100%',
@@ -661,7 +661,7 @@ export default function ForemanSubmissions({
                                     {currentPreviewIndex >= 0 ? `${currentPreviewIndex + 1} / ${progressPhotosPager.data.length} (this page)` : '-'}
                                 </div>
                                 <ActionButton
-                                    href={`/storage/${previewPhoto.photo_path}`}
+                                    href={`/files/${previewPhoto.photo_path}`}
                                     external
                                     style={{ padding: '8px 12px' }}
                                 >
@@ -675,3 +675,4 @@ export default function ForemanSubmissions({
         </>
     );
 }
+

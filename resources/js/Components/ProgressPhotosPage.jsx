@@ -1,4 +1,4 @@
-import Layout from './Layout';
+﻿import Layout from './Layout';
 import Modal from './Modal';
 import ProjectAccordionTable from './ProjectAccordionTable';
 import { Head } from '@inertiajs/react';
@@ -34,7 +34,7 @@ export default function ProgressPhotosPage({ photos = [], photoTable = {}, statu
                     }}
                 >
                     <OptimizedImage
-                        src={`/storage/${photo.photo_path}`}
+                        src={`/files/${photo.photo_path}`}
                         alt={photo.caption || 'Progress proof'}
                         style={{ width: 120, height: 72, objectFit: 'cover', display: 'block' }}
                     />
@@ -92,7 +92,7 @@ export default function ProgressPhotosPage({ photos = [], photoTable = {}, statu
                     {previewPhoto && (
                         <div style={{ display: 'grid', gap: 10 }}>
                             <OptimizedImage
-                                src={`/storage/${previewPhoto.photo_path}`}
+                                src={`/files/${previewPhoto.photo_path}`}
                                 alt={previewPhoto.caption || 'Progress proof'}
                                 style={{
                                     width: '100%',
@@ -113,3 +113,4 @@ export default function ProgressPhotosPage({ photos = [], photoTable = {}, statu
         </>
     );
 }
+

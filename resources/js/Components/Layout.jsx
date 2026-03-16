@@ -1,4 +1,4 @@
-import { Link, router, usePage } from '@inertiajs/react';
+﻿import { Link, router, usePage } from '@inertiajs/react';
 import { useEffect, useState } from 'react';
 import { LoaderCircle, Moon, Sun } from 'lucide-react';
 import toast from 'react-hot-toast';
@@ -67,7 +67,7 @@ const roleLabels = {
 export default function Layout({ children, title }) {
     const { auth } = usePage().props;
     const user = auth?.user;
-    const profilePhotoUrl = user?.profile_photo_path ? `/storage/${user.profile_photo_path}` : null;
+    const profilePhotoUrl = user?.profile_photo_path ? `/files/${user.profile_photo_path}` : null;
     const navItems = navByRole[user?.role] || [];
     const currentPath =
         typeof window !== 'undefined'
@@ -77,11 +77,11 @@ export default function Layout({ children, title }) {
     const [showLogoutModal, setShowLogoutModal] = useState(false);
     const [isLoggingOut, setIsLoggingOut] = useState(false);
 
-    // ✅ Theme state (persisted)
+    // âœ… Theme state (persisted)
     const [theme, setTheme] = useState(() => localStorage.getItem('bb_theme') || 'dark');
     const isDark = theme === 'dark';
 
-    // ✅ Apply theme globally to <html>
+    // âœ… Apply theme globally to <html>
     useEffect(() => {
         document.documentElement.setAttribute('data-theme', theme);
         localStorage.setItem('bb_theme', theme);
@@ -372,3 +372,4 @@ export default function Layout({ children, title }) {
         </>
     );
 }
+

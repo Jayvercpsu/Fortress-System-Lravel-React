@@ -1,4 +1,4 @@
-import Layout from '../../Components/Layout';
+﻿import Layout from '../../Components/Layout';
 import DatePickerInput from '../../Components/DatePickerInput';
 import ActionButton from '../../Components/ActionButton';
 import { Head, useForm } from '@inertiajs/react';
@@ -90,13 +90,13 @@ export default function SettingsIndex({ account }) {
 
     const [selectedPhoto, setSelectedPhoto] = useState(null);
     const [previewPhotoUrl, setPreviewPhotoUrl] = useState(
-        account?.profile_photo_path ? `/storage/${account.profile_photo_path}` : ''
+        account?.profile_photo_path ? `/files/${account.profile_photo_path}` : ''
     );
     const [photoError, setPhotoError] = useState('');
 
     useEffect(() => {
         if (!selectedPhoto) {
-            setPreviewPhotoUrl(account?.profile_photo_path ? `/storage/${account.profile_photo_path}` : '');
+            setPreviewPhotoUrl(account?.profile_photo_path ? `/files/${account.profile_photo_path}` : '');
             return;
         }
 
@@ -389,3 +389,4 @@ export default function SettingsIndex({ account }) {
         </>
     );
 }
+

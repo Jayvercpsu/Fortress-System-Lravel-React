@@ -1,4 +1,4 @@
-import { useState } from 'react';
+﻿import { useState } from 'react';
 import Layout from '../../Components/Layout';
 import DataTable from '../../Components/DataTable';
 import Modal from '../../Components/Modal';
@@ -106,7 +106,7 @@ export default function ClientDashboard({
                         }}
                     >
                         <OptimizedImage
-                            src={`/storage/${row.photo_path}`}
+                            src={`/files/${row.photo_path}`}
                             alt={row.caption || 'Progress photo'}
                             style={{
                                 width: 92,
@@ -176,7 +176,7 @@ export default function ClientDashboard({
                                 style={{ border: 'none', background: 'transparent', padding: 0, cursor: 'pointer' }}
                             >
                                 <OptimizedImage
-                                    src={`/storage/${photo.photo_path}`}
+                                    src={`/files/${photo.photo_path}`}
                                     alt={photo.caption || row.scope_of_work || 'Scope photo'}
                                     style={{
                                         width: '100%',
@@ -305,7 +305,7 @@ export default function ClientDashboard({
                 {previewPhoto && (
                     <div style={{ display: 'grid', gap: 10 }}>
                         <OptimizedImage
-                            src={`/storage/${previewPhoto.photo_path}`}
+                            src={`/files/${previewPhoto.photo_path}`}
                             alt={previewPhoto.caption || 'Progress photo'}
                             style={{
                                 width: '100%',
@@ -332,7 +332,7 @@ export default function ClientDashboard({
                 {previewScopePhoto && (
                     <div style={{ display: 'grid', gap: 10 }}>
                         <OptimizedImage
-                            src={`/storage/${previewScopePhoto.photo_path}`}
+                            src={`/files/${previewScopePhoto.photo_path}`}
                             alt={previewScopePhoto.caption || previewScopePhoto.scope || 'Scope photo'}
                             style={{
                                 width: '100%',
@@ -354,3 +354,4 @@ export default function ClientDashboard({
         </>
     );
 }
+

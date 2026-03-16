@@ -1,4 +1,4 @@
-import Layout from './Layout';
+﻿import Layout from './Layout';
 import Modal from './Modal';
 import ProjectAccordionTable from './ProjectAccordionTable';
 import ActionButton from './ActionButton';
@@ -94,7 +94,7 @@ export default function MaterialRequestsPage({
                         style={{ border: 'none', background: 'transparent', padding: 0, cursor: 'pointer' }}
                     >
                         <OptimizedImage
-                            src={`/storage/${row.photo_path}`}
+                            src={`/files/${row.photo_path}`}
                             alt={row.material_name || 'Material photo'}
                             style={{ width: 72, height: 52, objectFit: 'cover', borderRadius: 6, border: '1px solid var(--border-color)' }}
                         />
@@ -194,7 +194,7 @@ export default function MaterialRequestsPage({
                 {previewPhoto && (
                     <div style={{ display: 'grid', gap: 10 }}>
                         <OptimizedImage
-                            src={`/storage/${previewPhoto.path}`}
+                            src={`/files/${previewPhoto.path}`}
                             alt={previewPhoto.caption || 'Material photo'}
                             style={{
                                 width: '100%',
@@ -217,3 +217,4 @@ export default function MaterialRequestsPage({
     </>
 );
 }
+

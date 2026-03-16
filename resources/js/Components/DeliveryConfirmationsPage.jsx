@@ -1,4 +1,4 @@
-import Layout from './Layout';
+﻿import Layout from './Layout';
 import Modal from './Modal';
 import ProjectAccordionTable from './ProjectAccordionTable';
 import { Head } from '@inertiajs/react';
@@ -103,12 +103,12 @@ export default function DeliveryConfirmationsPage({
                         onClick={() => setPreviewPhoto({
                             path: row.photo_path,
                             caption: row.item_delivered || 'Delivery photo',
-                            meta: `${row.delivery_date || '-'} · ${row.supplier || 'Unknown supplier'}`,
+                            meta: `${row.delivery_date || '-'} Â· ${row.supplier || 'Unknown supplier'}`,
                         })}
                         style={{ border: 'none', background: 'transparent', padding: 0, cursor: 'pointer' }}
                     >
                         <OptimizedImage
-                            src={`/storage/${row.photo_path}`}
+                            src={`/files/${row.photo_path}`}
                             alt={row.item_delivered || 'Delivery photo'}
                             style={{ width: 72, height: 52, objectFit: 'cover', borderRadius: 6, border: '1px solid var(--border-color)' }}
                         />
@@ -174,7 +174,7 @@ export default function DeliveryConfirmationsPage({
                 {previewPhoto && (
                     <div style={{ display: 'grid', gap: 10 }}>
                         <OptimizedImage
-                            src={`/storage/${previewPhoto.path}`}
+                            src={`/files/${previewPhoto.path}`}
                             alt={previewPhoto.caption || 'Delivery photo'}
                             style={{
                                 width: '100%',
@@ -197,3 +197,4 @@ export default function DeliveryConfirmationsPage({
     </>
 );
 }
+

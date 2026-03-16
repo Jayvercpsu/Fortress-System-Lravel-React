@@ -1,4 +1,4 @@
-import { Head, router } from '@inertiajs/react';
+﻿import { Head, router } from '@inertiajs/react';
 import { useState } from 'react';
 import ActionButton from './ActionButton';
 import Layout from './Layout';
@@ -105,12 +105,12 @@ export default function IssueReportsPage({ issues = [], issueTable = {}, statusF
                         onClick={() => setPreviewPhoto({
                             path: row.photo_path,
                             caption: row.issue_title || 'Issue photo',
-                            meta: `${row.severity || 'normal'} issue · ${row.foreman_name || 'Unknown foreman'}`,
+                            meta: `${row.severity || 'normal'} issue Â· ${row.foreman_name || 'Unknown foreman'}`,
                         })}
                         style={{ border: 'none', background: 'transparent', padding: 0, cursor: 'pointer' }}
                     >
                         <OptimizedImage
-                            src={`/storage/${row.photo_path}`}
+                            src={`/files/${row.photo_path}`}
                             alt={row.issue_title || 'Issue photo'}
                             style={{ width: 72, height: 52, objectFit: 'cover', borderRadius: 6, border: '1px solid var(--border-color)' }}
                         />
@@ -225,7 +225,7 @@ export default function IssueReportsPage({ issues = [], issueTable = {}, statusF
                 {previewPhoto && (
                     <div style={{ display: 'grid', gap: 10 }}>
                         <OptimizedImage
-                            src={`/storage/${previewPhoto.path}`}
+                            src={`/files/${previewPhoto.path}`}
                             alt={previewPhoto.caption || 'Issue photo'}
                             style={{
                                 width: '100%',
@@ -248,3 +248,4 @@ export default function IssueReportsPage({ issues = [], issueTable = {}, statusF
     </>
 );
 }
+

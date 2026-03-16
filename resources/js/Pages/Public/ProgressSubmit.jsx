@@ -1,4 +1,4 @@
-import { Head, router, usePage } from '@inertiajs/react';
+﻿import { Head, router, usePage } from '@inertiajs/react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Camera, Check, ChevronDown, Plus } from 'lucide-react';
 import toast from 'react-hot-toast';
@@ -341,7 +341,7 @@ export default function ProgressSubmit({ submitToken }) {
         const normalizedPath = String(photoPath || '').trim();
         if (normalizedPath === '') return;
         setPreviewPhoto({
-            src: `/storage/${normalizedPath}`,
+            src: `/files/${normalizedPath}`,
             title,
             meta: String(meta || '').trim(),
         });
@@ -574,7 +574,7 @@ export default function ProgressSubmit({ submitToken }) {
                                     style={{ display: 'block', marginBottom: 6, border: 'none', background: 'transparent', padding: 0, width: '100%', cursor: 'pointer' }}
                                 >
                                     <OptimizedImage
-                                        src={`/storage/${row.photo_path}`}
+                                        src={`/files/${row.photo_path}`}
                                         alt={row.item_delivered || 'Delivery photo'}
                                         style={{ width: '100%', maxHeight: 130, objectFit: 'cover', borderRadius: 6, border: '1px solid #d4cec0' }}
                                     />
@@ -623,7 +623,7 @@ export default function ProgressSubmit({ submitToken }) {
                                     style={{ display: 'block', marginBottom: 6, border: 'none', background: 'transparent', padding: 0, width: '100%', cursor: 'pointer' }}
                                 >
                                     <OptimizedImage
-                                        src={`/storage/${row.photo_path}`}
+                                        src={`/files/${row.photo_path}`}
                                         alt={row.material_name || 'Material photo'}
                                         style={{ width: '100%', maxHeight: 130, objectFit: 'cover', borderRadius: 6, border: '1px solid #d4cec0' }}
                                     />
@@ -710,7 +710,7 @@ export default function ProgressSubmit({ submitToken }) {
                                                                     style={{ display: 'block', border: 'none', background: 'transparent', padding: 0, cursor: 'pointer' }}
                                                                 >
                                                                     <OptimizedImage
-                                                                        src={`/storage/${photo.photo_path}`}
+                                                                        src={`/files/${photo.photo_path}`}
                                                                         alt={photo.caption || 'Scope photo'}
                                                                         style={{ width: '100%', height: 58, objectFit: 'cover', borderRadius: 6, border: '1px solid #d4cec0' }}
                                                                     />
@@ -820,7 +820,7 @@ export default function ProgressSubmit({ submitToken }) {
                                 onClick={() => openPhotoPreview(photo.photo_path, photo.caption || 'Photo', photo.created_at || '')}
                                 style={{ border: 'none', background: 'transparent', padding: 0, cursor: 'pointer', width: 90, justifySelf: 'start' }}
                             >
-                                <OptimizedImage src={`/storage/${photo.photo_path}`} alt={photo.caption || 'Photo'} />
+                                <OptimizedImage src={`/files/${photo.photo_path}`} alt={photo.caption || 'Photo'} />
                             </button>
                             <div>
                                 <div style={{ fontWeight: 700 }}>{photo.caption || 'No description'}</div>
@@ -863,7 +863,7 @@ export default function ProgressSubmit({ submitToken }) {
                                     style={{ display: 'block', marginBottom: 6, border: 'none', background: 'transparent', padding: 0, width: '100%', cursor: 'pointer' }}
                                 >
                                     <OptimizedImage
-                                        src={`/storage/${row.photo_path}`}
+                                        src={`/files/${row.photo_path}`}
                                         alt={row.issue_title || 'Issue photo'}
                                         style={{ width: '100%', maxHeight: 130, objectFit: 'cover', borderRadius: 6, border: '1px solid #d4cec0' }}
                                     />
@@ -1012,3 +1012,4 @@ export default function ProgressSubmit({ submitToken }) {
         </>
     );
 }
+

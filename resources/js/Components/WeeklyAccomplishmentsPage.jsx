@@ -1,4 +1,4 @@
-import { useState } from 'react';
+﻿import { useState } from 'react';
 import Layout from './Layout';
 import Modal from './Modal';
 import ProjectAccordionTable from './ProjectAccordionTable';
@@ -84,7 +84,7 @@ export default function WeeklyAccomplishmentsPage({
                                 style={{ border: 'none', background: 'transparent', padding: 0, cursor: 'pointer' }}
                             >
                                 <OptimizedImage
-                                    src={`/storage/${photo.photo_path}`}
+                                    src={`/files/${photo.photo_path}`}
                                     alt={photo.caption || row.scope_of_work || 'Scope photo'}
                                     style={{ width: '100%', height: 58, objectFit: 'cover', borderRadius: 6, border: '1px solid var(--border-color)' }}
                                 />
@@ -124,7 +124,7 @@ export default function WeeklyAccomplishmentsPage({
                 {previewPhoto && (
                     <div style={{ display: 'grid', gap: 10 }}>
                         <OptimizedImage
-                            src={`/storage/${previewPhoto.photo_path}`}
+                            src={`/files/${previewPhoto.photo_path}`}
                             alt={previewPhoto.caption || previewPhoto.scope || 'Scope photo'}
                             style={{
                                 width: '100%',
@@ -147,3 +147,4 @@ export default function WeeklyAccomplishmentsPage({
     </>
 );
 }
+

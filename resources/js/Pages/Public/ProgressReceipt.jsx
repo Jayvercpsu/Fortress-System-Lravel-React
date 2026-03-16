@@ -1,4 +1,4 @@
-import { Head } from '@inertiajs/react';
+﻿import { Head } from '@inertiajs/react';
 import OptimizedImage from '../../Components/OptimizedImage';
 import {
     AlertTriangle,
@@ -842,7 +842,7 @@ export default function ProgressReceipt({
                                                                 {getInitials(primaryAssignee)}
                                                                 {primaryPhoto ? (
                                                                     <OptimizedImage
-                                                                        src={`/storage/${primaryPhoto}`}
+                                                                        src={`/files/${primaryPhoto}`}
                                                                         alt={primaryAssignee}
                                                                         onError={(event) => event.currentTarget.remove()}
                                                                     />
@@ -876,7 +876,7 @@ export default function ProgressReceipt({
                                                                     }
                                                                 >
                                                                     <OptimizedImage
-                                                                        src={`/storage/${photo.photo_path}`}
+                                                                        src={`/files/${photo.photo_path}`}
                                                                         alt={photo.caption || scope.scopeName}
                                                                     />
                                                                 </button>
@@ -985,7 +985,7 @@ export default function ProgressReceipt({
                     {previewPhoto ? (
                         <div style={{ display: 'grid', gap: 12 }}>
                             <OptimizedImage
-                                src={`/storage/${previewPhoto.photo_path}`}
+                                src={`/files/${previewPhoto.photo_path}`}
                                 alt={previewPhoto.caption || 'Scope photo'}
                                 className="receipt-modal-image"
                             />
@@ -1000,3 +1000,4 @@ export default function ProgressReceipt({
         </>
     );
 }
+

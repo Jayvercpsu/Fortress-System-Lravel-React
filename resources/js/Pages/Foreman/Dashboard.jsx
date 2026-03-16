@@ -1,4 +1,4 @@
-import Layout from '../../Components/Layout';
+﻿import Layout from '../../Components/Layout';
 import InlinePagination from '../../Components/InlinePagination';
 import SearchableDropdown from '../../Components/SearchableDropdown';
 import DatePickerInput from '../../Components/DatePickerInput';
@@ -424,7 +424,7 @@ export default function ForemanDashboard({
                                             <div>
                                                 <div style={{ fontWeight: 700 }}>{project.name}</div>
                                                 <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
-                                                    {project.client || 'No client'} • {project.phase || '-'} • {project.status || '-'}
+                                                    {project.client || 'No client'} â€¢ {project.phase || '-'} â€¢ {project.status || '-'}
                                                 </div>
                                             </div>
                                             <div style={{ fontSize: 12, ...mono }}>{project.overall_progress}%</div>
@@ -503,7 +503,7 @@ export default function ForemanDashboard({
                                                     style={{ display: 'inline-block', marginBottom: 6, border: 'none', background: 'transparent', padding: 0, cursor: 'pointer' }}
                                                 >
                                                     <OptimizedImage
-                                                        src={`/storage/${item.photo_path}`}
+                                                        src={`/files/${item.photo_path}`}
                                                         alt={item.material_name || 'Material photo'}
                                                         style={{ width: 88, height: 62, objectFit: 'cover', borderRadius: 6, border: '1px solid var(--border-color)' }}
                                                     />
@@ -544,7 +544,7 @@ export default function ForemanDashboard({
                                                     style={{ display: 'inline-block', marginBottom: 6, border: 'none', background: 'transparent', padding: 0, cursor: 'pointer' }}
                                                 >
                                                     <OptimizedImage
-                                                        src={`/storage/${item.photo_path}`}
+                                                        src={`/files/${item.photo_path}`}
                                                         alt={item.issue_title || 'Issue photo'}
                                                         style={{ width: 88, height: 62, objectFit: 'cover', borderRadius: 6, border: '1px solid var(--border-color)' }}
                                                     />
@@ -552,7 +552,7 @@ export default function ForemanDashboard({
                                             ) : null}
                                             <div style={{ fontWeight: 700 }}>{item.issue_title}</div>
                                             <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
-                                                {item.severity || '-'} • {item.status || 'open'}
+                                                {item.severity || '-'} â€¢ {item.status || 'open'}
                                             </div>
                                         </div>
                                     ))}
@@ -577,14 +577,14 @@ export default function ForemanDashboard({
                                                             photo_path: item.photo_path,
                                                             caption: item.item_delivered || 'Delivery photo',
                                                             project_name: item.project_name || 'Unassigned',
-                                                            meta: `Qty: ${item.quantity || '-'} • ${item.delivery_date || '-'}`,
+                                                            meta: `Qty: ${item.quantity || '-'} â€¢ ${item.delivery_date || '-'}`,
                                                             created_at: item.created_at,
                                                         })
                                                     }
                                                     style={{ display: 'inline-block', marginBottom: 6, border: 'none', background: 'transparent', padding: 0, cursor: 'pointer' }}
                                                 >
                                                     <OptimizedImage
-                                                        src={`/storage/${item.photo_path}`}
+                                                        src={`/files/${item.photo_path}`}
                                                         alt={item.item_delivered || 'Delivery photo'}
                                                         style={{ width: 88, height: 62, objectFit: 'cover', borderRadius: 6, border: '1px solid var(--border-color)' }}
                                                     />
@@ -595,7 +595,7 @@ export default function ForemanDashboard({
                                                 Project: {item.project_name || 'Unassigned'} (ID: {item.project_id ?? '-'})
                                             </div>
                                             <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
-                                                {item.quantity || '-'} • {item.delivery_date || '-'}
+                                                {item.quantity || '-'} â€¢ {item.delivery_date || '-'}
                                             </div>
                                             <div style={{ fontSize: 12, textTransform: 'capitalize', marginTop: 2 }}>{item.status || '-'}</div>
                                         </div>
@@ -762,7 +762,7 @@ export default function ForemanDashboard({
                     {dashboardPreviewPhoto && (
                         <div style={{ display: 'grid', gap: 10 }}>
                             <OptimizedImage
-                                src={`/storage/${dashboardPreviewPhoto.photo_path}`}
+                                src={`/files/${dashboardPreviewPhoto.photo_path}`}
                                 alt={dashboardPreviewPhoto.caption || 'Preview photo'}
                                 style={{
                                     width: '100%',
@@ -782,7 +782,7 @@ export default function ForemanDashboard({
                             ) : null}
                             <div style={{ textAlign: 'right' }}>
                                 <ActionButton
-                                    href={`/storage/${dashboardPreviewPhoto.photo_path}`}
+                                    href={`/files/${dashboardPreviewPhoto.photo_path}`}
                                     external
                                     style={{ padding: '6px 12px', fontSize: 12, fontWeight: 700 }}
                                 >
@@ -796,3 +796,4 @@ export default function ForemanDashboard({
         </>
     );
 }
+

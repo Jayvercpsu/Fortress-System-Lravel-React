@@ -1,4 +1,4 @@
-import Layout from '../../../Components/Layout';
+﻿import Layout from '../../../Components/Layout';
 import ActionButton from '../../../Components/ActionButton';
 import DataTable from '../../../Components/DataTable';
 import Modal from '../../../Components/Modal';
@@ -294,7 +294,7 @@ export default function AdminProjectsShow({
         );
     };
 
-    const previewUrl = previewFile ? `/storage/${previewFile.file_path}` : '';
+    const previewUrl = previewFile ? `/files/${previewFile.file_path}` : '';
     const previewExt = (previewFile?.original_name || '').split('.').pop()?.toLowerCase() || '';
     const isImagePreview = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'svg'].includes(previewExt);
     const isPdfPreview = previewExt === 'pdf';
@@ -332,7 +332,7 @@ export default function AdminProjectsShow({
                     </ActionButton>
                     <ActionButton
                         variant="view"
-                        href={`/storage/${file.file_path}`}
+                        href={`/files/${file.file_path}`}
                         external
                         download
                         rel="noreferrer"
@@ -853,3 +853,4 @@ export default function AdminProjectsShow({
         </>
     );
 }
+
