@@ -36,8 +36,8 @@ Route::get('/storage/{path}', [StorageProxyController::class, 'show'])
     ->where('path', '.*')
     ->name('storage.proxy');
 
-Route::get('/admin/login', [AuthController::class, 'showLogin'])->name('login');
-Route::post('/admin/login', [AuthController::class, 'login']);
+Route::get('/login', [AuthController::class, 'showLogin'])->name('login');
+Route::post('/login', [AuthController::class, 'login']);
 Route::get('/client/login', [AuthController::class, 'showClientLogin'])->name('client.login');
 Route::post('/client/login', [AuthController::class, 'clientLogin'])->name('client.login.submit');
 Route::post('/logout', [AuthController::class, 'logout'])->name('logout');

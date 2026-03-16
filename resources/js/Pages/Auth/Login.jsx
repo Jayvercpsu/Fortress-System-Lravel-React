@@ -18,11 +18,14 @@ export default function Login() {
 
     const submit = (e) => {
         e.preventDefault();
-        post('/admin/login', {
+        post('/login', {
             onError: (formErrors) => {
                 if (formErrors?.email === 'Invalid credentials.') {
                     toast.error(formErrors.email, { id: 'login-invalid-credentials' });
                 }
+            },
+            onSuccess: () => {
+                toast.success('Signed in successfully.', { id: 'admin-login-success' });
             },
         });
     };

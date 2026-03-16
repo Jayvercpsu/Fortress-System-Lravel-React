@@ -1,6 +1,7 @@
 import { Link, router, usePage } from '@inertiajs/react';
 import { useEffect, useState } from 'react';
 import { LoaderCircle, Moon, Sun } from 'lucide-react';
+import toast from 'react-hot-toast';
 import BrandIcon from './BrandIcon';
 import OptimizedImage from './OptimizedImage';
 
@@ -93,6 +94,7 @@ export default function Layout({ children, title }) {
         router.post('/logout', {}, {
             preserveScroll: true,
             onError: () => setIsLoggingOut(false),
+            onSuccess: () => toast.success('Signed out successfully.', { id: 'logout-success' }),
             onFinish: () => setIsLoggingOut(false),
         });
     };

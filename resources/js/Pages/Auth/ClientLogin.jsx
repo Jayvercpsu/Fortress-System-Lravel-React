@@ -36,6 +36,9 @@ export default function ClientLogin() {
                     toast.error(formErrors.username, { id: 'client-login-invalid-credentials' });
                 }
             },
+            onSuccess: () => {
+                toast.success('Signed in successfully.', { id: 'client-login-success' });
+            },
         });
     };
 
