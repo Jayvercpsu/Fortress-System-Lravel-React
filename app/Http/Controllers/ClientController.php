@@ -93,6 +93,7 @@ class ClientController extends Controller
                 'phone' => $user->detail?->phone,
                 'location' => $user->detail?->address,
                 'assigned_project' => $projectFamily['name'] ?? $assignment?->project?->name ?? '-',
+                'project_id' => $assignedProjectId ?: null,
                 'created_at' => optional($user->created_at)?->toDateTimeString(),
             ];
         })->values();
@@ -116,26 +117,32 @@ class ClientController extends Controller
     {
         $validated = $request->validate([
             'client_name' => ['required', 'string', 'max:255'],
-            'project_id' => ['required', 'integer', 'exists:projects,id'],
+            'project_id' => ['nullable', 'integer', 'exists:projects,id'],
             'location' => ['nullable', 'string', 'max:255'],
-            'email' => ['required', 'email', 'unique:users,email'],
-            'phone' => ['required', 'string', 'max:50'],
+            'email' => ['nullable', 'email', 'max:255', 'unique:users,email'],
+            'phone' => ['nullable', 'string', 'max:50'],
             'username' => ['required', 'string', 'max:80', 'regex:/^[A-Za-z0-9._-]+$/', 'unique:users,username'],
-            'password' => ['required', 'string', 'min:6'],
+            'password' => ['required', 'string', 'min:6', 'confirmed'],
         ]);
 
-        $assignmentProjectId = $this->resolveClientProjectId((int) $validated['project_id']);
+        $email = $validated['email'] ?? null;
+        $phone = $validated['phone'] ?? null;
+
+        $assignmentProjectId = null;
+        if (!empty($validated['project_id'])) {
+            $assignmentProjectId = $this->resolveClientProjectId((int) $validated['project_id']);
+        }
 
         $client = User::create([
             'fullname' => $validated['client_name'],
-            'email' => $validated['email'],
+            'email' => $email,
             'username' => $validated['username'],
             'password' => Hash::make($validated['password']),
             'role' => 'client',
         ]);
 
         $client->detail()->create([
-            'phone' => $validated['phone'],
+            'phone' => $phone,
             'address' => $validated['location'] ?? null,
         ]);
 
@@ -154,6 +161,80 @@ class ClientController extends Controller
         return redirect()
             ->route('clients.index')
             ->with('success', 'Client created successfully.');
+    }
+
+    public function update(Request $request, User $user)
+    {
+        abort_unless($user->role === 'client', 403);
+
+        $validated = $request->validate([
+            'client_name' => ['required', 'string', 'max:255'],
+            'project_id' => ['nullable', 'integer', 'exists:projects,id'],
+            'location' => ['nullable', 'string', 'max:255'],
+            'email' => ['nullable', 'email', 'max:255', 'unique:users,email,' . $user->id],
+            'phone' => ['nullable', 'string', 'max:50'],
+            'username' => ['required', 'string', 'max:80', 'regex:/^[A-Za-z0-9._-]+$/', 'unique:users,username,' . $user->id],
+            'password' => ['nullable', 'string', 'min:6', 'confirmed'],
+        ]);
+
+        $email = $validated['email'] ?? null;
+        $phone = $validated['phone'] ?? null;
+
+        $user->update([
+            'fullname' => $validated['client_name'],
+            'email' => $email,
+            'username' => $validated['username'],
+        ]);
+
+        if (!empty($validated['password'])) {
+            $user->update(['password' => Hash::make($validated['password'])]);
+        }
+
+        $user->detail()->updateOrCreate(
+            ['user_id' => $user->id],
+            [
+                'phone' => $phone,
+                'address' => $validated['location'] ?? null,
+            ]
+        );
+
+        $assignmentProjectId = null;
+        if (!empty($validated['project_id'])) {
+            $assignmentProjectId = $this->resolveClientProjectId((int) $validated['project_id']);
+        }
+
+        if ($assignmentProjectId) {
+            ProjectAssignment::query()->updateOrCreate(
+                [
+                    'project_id' => $assignmentProjectId,
+                    'user_id' => $user->id,
+                ],
+                [
+                    'role_in_project' => 'client',
+                ]
+            );
+
+            ProjectAssignment::query()
+                ->where('user_id', $user->id)
+                ->where('role_in_project', 'client')
+                ->where('project_id', '!=', $assignmentProjectId)
+                ->delete();
+        } else {
+            ProjectAssignment::query()
+                ->where('user_id', $user->id)
+                ->where('role_in_project', 'client')
+                ->delete();
+        }
+
+        $query = array_filter([
+            'search' => $request->query('search'),
+            'per_page' => $request->query('per_page'),
+            'page' => $request->query('page'),
+        ], fn ($value) => $value !== null && $value !== '');
+
+        return redirect()
+            ->route('clients.index', $query)
+            ->with('success', 'Client updated successfully.');
     }
 
     public function destroy(Request $request, User $user)

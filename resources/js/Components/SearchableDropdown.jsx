@@ -30,6 +30,7 @@ export default function SearchableDropdown({
     loadMoreLabel = 'Load more',
     style = {},
     dropdownWidth,
+    footer = null,
     getOptionLabel = (option) => option?.label ?? option?.name ?? String(option ?? ''),
     getOptionValue = (option) => option?.value ?? option?.id ?? option,
 }) {
@@ -195,7 +196,7 @@ export default function SearchableDropdown({
                         boxShadow: '0 14px 34px rgba(0,0,0,0.18)',
                         overflow: 'hidden',
                     }}
-                >
+                    >
                     <div style={{ padding: 10, borderBottom: '1px solid var(--border-color)', background: 'var(--surface-2)' }}>
                         <div
                             style={{
@@ -294,6 +295,18 @@ export default function SearchableDropdown({
                             </div>
                         ) : null}
                     </div>
+
+                    {footer ? (
+                        <div
+                            style={{
+                                padding: '8px 10px',
+                                borderTop: '1px solid var(--border-color)',
+                                background: 'var(--surface-2)',
+                            }}
+                        >
+                            {footer}
+                        </div>
+                    ) : null}
                 </div>
             )}
         </div>

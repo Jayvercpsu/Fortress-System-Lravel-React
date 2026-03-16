@@ -4,7 +4,9 @@ namespace App\Http\Controllers;
 
 use App\Models\MonitoringBoardFile;
 use App\Models\MonitoringBoardItem;
+use App\Models\ProjectAssignment;
 use App\Models\Project;
+use App\Models\User;
 use App\Support\Uploads\UploadManager;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -80,6 +82,7 @@ class MonitoringBoardController extends Controller
         return Inertia::render($page, [
             'items' => $items,
             'status_options' => self::STATUS_OPTIONS,
+            'clientOptions' => $this->clientOptionsPayload(),
         ]);
     }
 
@@ -224,5 +227,45 @@ class MonitoringBoardController extends Controller
             'converted_at' => now(),
             'status' => 'DONE',
         ]);
+    }
+
+    private function clientOptionsPayload(): array
+    {
+        $clients = User::query()
+            ->where('role', 'client')
+            ->orderBy('fullname')
+            ->get(['id', 'fullname']);
+
+        $clientIds = $clients->pluck('id')
+            ->map(fn ($id) => (int) $id)
+            ->values();
+
+        $assignments = $clientIds->isEmpty()
+            ? collect()
+            : ProjectAssignment::query()
+                ->with('project:id,name')
+                ->whereIn('user_id', $clientIds->all())
+                ->where('role_in_project', 'client')
+                ->latest('id')
+                ->get()
+                ->groupBy('user_id')
+                ->map(fn ($rows) => $rows->first());
+
+        return $clients
+            ->map(function (User $user) use ($assignments) {
+                $assignment = $assignments->get($user->id);
+                $projectName = $assignment?->project?->name;
+                $label = $projectName
+                    ? "{$user->fullname} ({$projectName})"
+                    : "{$user->fullname} (Unassigned)";
+
+                return [
+                    'id' => (int) $user->id,
+                    'label' => $label,
+                    'value' => $user->fullname,
+                ];
+            })
+            ->values()
+            ->all();
     }
 }

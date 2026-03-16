@@ -74,6 +74,7 @@ Route::middleware(['auth', 'role:head_admin'])->group(function () {
     Route::delete('/users/{user}', [UserController::class, 'destroy'])->name('users.destroy');
     Route::get('/clients', [ClientController::class, 'index'])->name('clients.index');
     Route::post('/clients', [ClientController::class, 'store'])->name('clients.store');
+    Route::patch('/clients/{user}', [ClientController::class, 'update'])->name('clients.update');
     Route::delete('/clients/{user}', [ClientController::class, 'destroy'])->name('clients.destroy');
 });
 

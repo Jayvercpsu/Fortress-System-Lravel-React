@@ -3,6 +3,8 @@ import DatePickerInput from '../../../Components/DatePickerInput';
 import SearchableDropdown from '../../../Components/SearchableDropdown';
 import ActionButton from '../../../Components/ActionButton';
 import SelectInput from '../../../Components/SelectInput';
+import TextInput from '../../../Components/TextInput';
+import ClientSelectInput from '../../../Components/ClientSelectInput';
 import { Head, useForm } from '@inertiajs/react';
 import { ArrowLeft } from 'lucide-react';
 import { useState } from 'react';
@@ -111,7 +113,7 @@ const normalizeAssignedRoles = (entries) => {
 
 const serializeAssignedRoles = (entries) => normalizeAssignedRoles(entries).map((entry) => entry.label).join('; ');
 
-export default function HeadAdminProjectsEdit({ project, foremen = [] }) {
+export default function HeadAdminProjectsEdit({ project, foremen = [], clientOptions = [] }) {
     const initialProjectType = String(project.type ?? '');
     const initialProjectTypeIsPreset = PROJECT_TYPE_OPTIONS.includes(initialProjectType);
 
@@ -214,21 +216,32 @@ export default function HeadAdminProjectsEdit({ project, foremen = [] }) {
                 </div>
 
                 <form onSubmit={submit} style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 14, background: 'var(--surface-1)', border: '1px solid var(--border-color)', borderRadius: 12, padding: 16, marginBottom: 16 }}>
-                    {[
-                        ['name', 'Project Name'],
-                        ['client', 'Client'],
-                        ['location', 'Location'],
-                    ].map(([key, label]) => (
-                        <label key={key}>
-                            <div style={{ fontSize: 12, marginBottom: 6 }}>{label}</div>
-                            <input value={data[key]} onChange={(e) => setData(key, e.target.value)} style={inputStyle} />
-                            {errors[key] && <div style={{ color: '#f87171', fontSize: 12, marginTop: 4 }}>{errors[key]}</div>}
-                        </label>
-                    ))}
+                    <label>
+                        <div style={{ fontSize: 12, marginBottom: 6 }}>Project Name</div>
+                        <TextInput value={data.name} onChange={(e) => setData('name', e.target.value)} style={inputStyle} />
+                        {errors.name && <div style={{ color: '#f87171', fontSize: 12, marginTop: 4 }}>{errors.name}</div>}
+                    </label>
+
+                    <label>
+                        <div style={{ fontSize: 12, marginBottom: 6 }}>Client</div>
+                        <ClientSelectInput
+                            clients={clientOptions}
+                            value={data.client}
+                            onChange={(value) => setData('client', value)}
+                            style={inputStyle}
+                        />
+                        {errors.client && <div style={{ color: '#f87171', fontSize: 12, marginTop: 4 }}>{errors.client}</div>}
+                    </label>
+
+                    <label>
+                        <div style={{ fontSize: 12, marginBottom: 6 }}>Location</div>
+                        <TextInput value={data.location} onChange={(e) => setData('location', e.target.value)} style={inputStyle} />
+                        {errors.location && <div style={{ color: '#f87171', fontSize: 12, marginTop: 4 }}>{errors.location}</div>}
+                    </label>
 
                     <label style={{ display: 'grid', gap: 6 }}>
                         <div style={{ fontSize: 12, marginBottom: 0 }}>Project Type</div>
-                        <select
+                        <SelectInput
                             value={projectTypeOption}
                             onChange={(e) => handleProjectTypeOptionChange(e.target.value)}
                             style={inputStyle}
@@ -237,9 +250,9 @@ export default function HeadAdminProjectsEdit({ project, foremen = [] }) {
                                 <option key={type} value={type}>{type}</option>
                             ))}
                             <option value={OTHER_PROJECT_TYPE_OPTION}>Other (manual)</option>
-                        </select>
+                        </SelectInput>
                         {projectTypeOption === OTHER_PROJECT_TYPE_OPTION ? (
-                            <input
+                            <TextInput
                                 value={customProjectType}
                                 onChange={(e) => {
                                     setCustomProjectType(e.target.value);
@@ -255,7 +268,7 @@ export default function HeadAdminProjectsEdit({ project, foremen = [] }) {
                     <div style={{ display: 'grid', gap: 6 }}>
                         <div style={{ fontSize: 12, marginBottom: 0 }}>Assigned</div>
                         <div style={{ display: 'grid', gridTemplateColumns: '170px 1fr auto', gap: 8, alignItems: 'end' }}>
-                            <select
+                            <SelectInput
                                 value={pendingAssignedRole}
                                 onChange={(e) => setPendingAssignedRole(e.target.value)}
                                 style={inputStyle}
@@ -264,8 +277,8 @@ export default function HeadAdminProjectsEdit({ project, foremen = [] }) {
                                 {PROJECT_ASSIGNED_ROLE_OPTIONS.map((role) => (
                                     <option key={role} value={role}>{role}</option>
                                 ))}
-                            </select>
-                            <input
+                            </SelectInput>
+                            <TextInput
                                 value={pendingAssignedRoleName}
                                 onChange={(e) => setPendingAssignedRoleName(e.target.value)}
                                 placeholder="Enter name"
@@ -406,11 +419,11 @@ export default function HeadAdminProjectsEdit({ project, foremen = [] }) {
                     </label>
                     <label>
                         <div style={{ fontSize: 12, marginBottom: 6 }}>Status</div>
-                        <select value={data.status} onChange={(e) => setData('status', e.target.value)} style={inputStyle}>
+                        <SelectInput value={data.status} onChange={(e) => setData('status', e.target.value)} style={inputStyle}>
                             {PROJECT_STATUS_OPTIONS.map((status) => (
                                 <option key={status} value={status}>{status}</option>
                             ))}
-                        </select>
+                        </SelectInput>
                         {errors.status && <div style={{ color: '#f87171', fontSize: 12, marginTop: 4 }}>{errors.status}</div>}
                     </label>
                     <label>
@@ -437,19 +450,19 @@ export default function HeadAdminProjectsEdit({ project, foremen = [] }) {
 
                     <label>
                         <div style={{ fontSize: 12, marginBottom: 6 }}>Contract Amount</div>
-                        <input type="text" value={money(project.contract_amount)} readOnly style={inputStyle} />
+                        <TextInput type="text" value={money(project.contract_amount)} readOnly style={inputStyle} />
                     </label>
                     <label>
                         <div style={{ fontSize: 12, marginBottom: 6 }}>Design Fee</div>
-                        <input type="text" value={money(project.design_fee)} readOnly style={inputStyle} />
+                        <TextInput type="text" value={money(project.design_fee)} readOnly style={inputStyle} />
                     </label>
                     <label>
                         <div style={{ fontSize: 12, marginBottom: 6 }}>Construction Cost</div>
-                        <input type="text" value={money(project.construction_cost)} readOnly style={inputStyle} />
+                        <TextInput type="text" value={money(project.construction_cost)} readOnly style={inputStyle} />
                     </label>
                     <label>
                         <div style={{ fontSize: 12, marginBottom: 6 }}>Total Client Payment</div>
-                        <input type="text" value={money(project.total_client_payment)} readOnly style={inputStyle} />
+                        <TextInput type="text" value={money(project.total_client_payment)} readOnly style={inputStyle} />
                     </label>
 
                     <div style={{ gridColumn: '1 / -1', fontWeight: 700 }}>

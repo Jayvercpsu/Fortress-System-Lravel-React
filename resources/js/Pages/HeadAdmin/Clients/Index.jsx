@@ -2,6 +2,7 @@ import Layout from '../../../Components/Layout';
 import DataTable from '../../../Components/DataTable';
 import ActionButton from '../../../Components/ActionButton';
 import ConfirmationModal from '../../../Components/ConfirmationModal';
+import EditModal from '../../../Components/EditModal';
 import SearchableDropdown from '../../../Components/SearchableDropdown';
 import TextInput from '../../../Components/TextInput';
 import { Head, router, useForm } from '@inertiajs/react';
@@ -43,6 +44,7 @@ function Field({ label, required = false, error, children }) {
 export default function ClientsIndex({ clients = [], clientTable = {}, projectOptions = [] }) {
     const [deleteTarget, setDeleteTarget] = useState(null);
     const [deleting, setDeleting] = useState(false);
+    const [editTarget, setEditTarget] = useState(null);
 
     const table = {
         search: clientTable?.search ?? '',
@@ -62,6 +64,26 @@ export default function ClientsIndex({ clients = [], clientTable = {}, projectOp
         phone: '',
         username: '',
         password: '',
+        password_confirmation: '',
+    });
+
+    const {
+        data: editData,
+        setData: setEditData,
+        patch,
+        reset: resetEditData,
+        errors: editErrors,
+        processing: updating,
+        clearErrors: clearEditErrors,
+    } = useForm({
+        client_name: '',
+        project_id: '',
+        location: '',
+        email: '',
+        phone: '',
+        username: '',
+        password: '',
+        password_confirmation: '',
     });
 
     const projectDropdownOptions = useMemo(
@@ -105,7 +127,7 @@ export default function ClientsIndex({ clients = [], clientTable = {}, projectOp
             preserveScroll: true,
             onSuccess: () => {
                 toast.success('Client created successfully.');
-                reset('client_name', 'project_id', 'location', 'email', 'phone', 'username', 'password');
+                reset('client_name', 'project_id', 'location', 'email', 'phone', 'username', 'password', 'password_confirmation');
             },
             onError: () => {
                 toast.error('Unable to create client. Check the form fields.');
@@ -120,6 +142,44 @@ export default function ClientsIndex({ clients = [], clientTable = {}, projectOp
             onFinish: () => {
                 setDeleting(false);
                 setDeleteTarget(null);
+            },
+        });
+    };
+
+    const openEdit = (row) => {
+        setEditTarget(row);
+        clearEditErrors();
+        setEditData({
+            client_name: row.fullname ?? '',
+            project_id: row.project_id ? String(row.project_id) : '',
+            location: row.location ?? '',
+            email: row.email ?? '',
+            phone: row.phone ?? '',
+            username: row.username ?? '',
+            password: '',
+            password_confirmation: '',
+        });
+    };
+
+    const closeEdit = () => {
+        if (updating) return;
+        setEditTarget(null);
+        resetEditData();
+    };
+
+    const submitEdit = (e) => {
+        e.preventDefault();
+        if (!editTarget) return;
+
+        patch(`/clients/${editTarget.id}${listQueryString()}`, {
+            preserveScroll: true,
+            onSuccess: () => {
+                toast.success('Client updated successfully.');
+                setEditTarget(null);
+                resetEditData();
+            },
+            onError: () => {
+                toast.error('Unable to update client. Check the form fields.');
             },
         });
     };
@@ -165,16 +225,27 @@ export default function ClientsIndex({ clients = [], clientTable = {}, projectOp
             key: 'actions',
             label: 'Actions',
             render: (row) => (
-                <ActionButton
-                    type="button"
-                    variant="danger"
-                    onClick={() => setDeleteTarget(row)}
-                    style={{ padding: '5px 12px' }}
-                    disabled={deleting}
-                    loading={deleting && deleteTarget?.id === row.id}
-                >
-                    {deleting && deleteTarget?.id === row.id ? 'Deleting...' : 'Delete'}
-                </ActionButton>
+                <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                    <ActionButton
+                        type="button"
+                        variant="edit"
+                        onClick={() => openEdit(row)}
+                        style={{ padding: '5px 12px' }}
+                        disabled={updating}
+                    >
+                        Edit
+                    </ActionButton>
+                    <ActionButton
+                        type="button"
+                        variant="danger"
+                        onClick={() => setDeleteTarget(row)}
+                        style={{ padding: '5px 12px' }}
+                        disabled={deleting}
+                        loading={deleting && deleteTarget?.id === row.id}
+                    >
+                        {deleting && deleteTarget?.id === row.id ? 'Deleting...' : 'Delete'}
+                    </ActionButton>
+                </div>
             ),
         },
     ];
@@ -196,16 +267,17 @@ export default function ClientsIndex({ clients = [], clientTable = {}, projectOp
                                 />
                             </Field>
 
-                            <Field label="Assigned Project" required error={errors.project_id}>
+                            <Field label="Assigned Project (optional)" error={errors.project_id}>
                                 <SearchableDropdown
                                     options={projectDropdownOptions}
                                     value={data.project_id}
                                     onChange={(value) => setData('project_id', value || '')}
                                     getOptionLabel={(option) => option.name}
                                     getOptionValue={(option) => option.id}
-                                    placeholder={projectDropdownOptions.length > 0 ? 'Select project' : 'No projects available'}
+                                    placeholder={projectDropdownOptions.length > 0 ? 'Select project (optional)' : 'No projects available'}
                                     searchPlaceholder="Search project..."
                                     emptyMessage="No projects found"
+                                    clearable
                                     style={{ ...inputStyle, padding: '8px 10px', minHeight: 40 }}
                                     dropdownWidth={320}
                                 />
@@ -220,7 +292,7 @@ export default function ClientsIndex({ clients = [], clientTable = {}, projectOp
                                 />
                             </Field>
 
-                            <Field label="Email" required error={errors.email}>
+                            <Field label="Email (optional)" error={errors.email}>
                                 <TextInput
                                     type="email"
                                     value={data.email}
@@ -229,7 +301,7 @@ export default function ClientsIndex({ clients = [], clientTable = {}, projectOp
                                 />
                             </Field>
 
-                            <Field label="Phone" required error={errors.phone}>
+                            <Field label="Phone (optional)" error={errors.phone}>
                                 <TextInput
                                     type="text"
                                     value={data.phone}
@@ -252,6 +324,15 @@ export default function ClientsIndex({ clients = [], clientTable = {}, projectOp
                                     type="password"
                                     value={data.password}
                                     onChange={(e) => setData('password', e.target.value)}
+                                    style={inputStyle}
+                                />
+                            </Field>
+
+                            <Field label="Confirm Password" required error={errors.password_confirmation}>
+                                <TextInput
+                                    type="password"
+                                    value={data.password_confirmation}
+                                    onChange={(e) => setData('password_confirmation', e.target.value)}
                                     style={inputStyle}
                                 />
                             </Field>
@@ -301,6 +382,96 @@ export default function ClientsIndex({ clients = [], clientTable = {}, projectOp
                     processing={deleting}
                     danger
                 />
+
+                <EditModal
+                    open={!!editTarget}
+                    onClose={closeEdit}
+                    title={editTarget ? `Edit Client - ${editTarget.fullname}` : 'Edit Client'}
+                    submitLabel="Update Client"
+                    onSubmit={submitEdit}
+                    processing={updating}
+                >
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 14 }}>
+                        <Field label="Client Name" required error={editErrors.client_name}>
+                            <TextInput
+                                type="text"
+                                value={editData.client_name}
+                                onChange={(e) => setEditData('client_name', e.target.value)}
+                                style={inputStyle}
+                            />
+                        </Field>
+
+                        <Field label="Assigned Project (optional)" error={editErrors.project_id}>
+                            <SearchableDropdown
+                                options={projectDropdownOptions}
+                                value={editData.project_id}
+                                onChange={(value) => setEditData('project_id', value || '')}
+                                getOptionLabel={(option) => option.name}
+                                getOptionValue={(option) => option.id}
+                                placeholder={projectDropdownOptions.length > 0 ? 'Select project (optional)' : 'No projects available'}
+                                searchPlaceholder="Search project..."
+                                emptyMessage="No projects found"
+                                clearable
+                                style={{ ...inputStyle, padding: '8px 10px', minHeight: 40 }}
+                                dropdownWidth={320}
+                            />
+                        </Field>
+
+                        <Field label="Location (optional)" error={editErrors.location}>
+                            <TextInput
+                                type="text"
+                                value={editData.location}
+                                onChange={(e) => setEditData('location', e.target.value)}
+                                style={inputStyle}
+                            />
+                        </Field>
+
+                        <Field label="Email (optional)" error={editErrors.email}>
+                            <TextInput
+                                type="email"
+                                value={editData.email}
+                                onChange={(e) => setEditData('email', e.target.value)}
+                                style={inputStyle}
+                            />
+                        </Field>
+
+                        <Field label="Phone (optional)" error={editErrors.phone}>
+                            <TextInput
+                                type="text"
+                                value={editData.phone}
+                                onChange={(e) => setEditData('phone', e.target.value)}
+                                style={inputStyle}
+                            />
+                        </Field>
+
+                        <Field label="Username" required error={editErrors.username}>
+                            <TextInput
+                                type="text"
+                                value={editData.username}
+                                onChange={(e) => setEditData('username', e.target.value)}
+                                style={inputStyle}
+                            />
+                        </Field>
+
+                        <Field label="New Password (optional)" error={editErrors.password}>
+                            <TextInput
+                                type="password"
+                                value={editData.password}
+                                onChange={(e) => setEditData('password', e.target.value)}
+                                style={inputStyle}
+                            />
+                        </Field>
+
+                        <Field label="Confirm Password (optional)" error={editErrors.password_confirmation}>
+                            <TextInput
+                                type="password"
+                                value={editData.password_confirmation}
+                                onChange={(e) => setEditData('password_confirmation', e.target.value)}
+                                style={inputStyle}
+                            />
+                        </Field>
+                    </div>
+                </EditModal>
             </Layout>
         </>
     );

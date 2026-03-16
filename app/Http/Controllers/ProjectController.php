@@ -139,6 +139,7 @@ class ProjectController extends Controller
 
         return Inertia::render('HeadAdmin/Projects/Create', [
             'foremen' => $this->foremanOptionsPayload(),
+            'clientOptions' => $this->clientOptionsPayload(),
         ]);
     }
 
@@ -302,6 +303,7 @@ class ProjectController extends Controller
         return Inertia::render('HeadAdmin/Projects/Edit', [
             'project' => $this->projectPayload($project),
             'foremen' => $this->foremanOptionsPayload(),
+            'clientOptions' => $this->clientOptionsPayload(),
         ]);
     }
 
@@ -1118,6 +1120,46 @@ class ProjectController extends Controller
                 'fullname' => $user->fullname,
             ])
             ->values();
+    }
+
+    private function clientOptionsPayload(): array
+    {
+        $clients = User::query()
+            ->where('role', 'client')
+            ->orderBy('fullname')
+            ->get(['id', 'fullname']);
+
+        $clientIds = $clients->pluck('id')
+            ->map(fn ($id) => (int) $id)
+            ->values();
+
+        $assignments = $clientIds->isEmpty()
+            ? collect()
+            : ProjectAssignment::query()
+                ->with('project:id,name')
+                ->whereIn('user_id', $clientIds->all())
+                ->where('role_in_project', 'client')
+                ->latest('id')
+                ->get()
+                ->groupBy('user_id')
+                ->map(fn ($rows) => $rows->first());
+
+        return $clients
+            ->map(function (User $user) use ($assignments) {
+                $assignment = $assignments->get($user->id);
+                $projectName = $assignment?->project?->name;
+                $label = $projectName
+                    ? "{$user->fullname} ({$projectName})"
+                    : "{$user->fullname} (Unassigned)";
+
+                return [
+                    'id' => (int) $user->id,
+                    'label' => $label,
+                    'value' => $user->fullname,
+                ];
+            })
+            ->values()
+            ->all();
     }
 
     private function projectTeamOptions(): array

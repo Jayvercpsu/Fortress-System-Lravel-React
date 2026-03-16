@@ -7,6 +7,7 @@ import SelectInput from './SelectInput';
 import TextareaInput from './TextareaInput';
 import DatePickerInput from './DatePickerInput';
 import SearchableDropdown from './SearchableDropdown';
+import ClientSelectInput from './ClientSelectInput';
 import Layout from './Layout';
 import { Head, router, useForm } from '@inertiajs/react';
 import { useEffect, useMemo, useState } from 'react';
@@ -125,11 +126,19 @@ const selectionToggleActiveStyle = {
 const selectionHeaderStyle = {
     textAlign: 'center',
     width: 36,
+    position: 'sticky',
+    left: 0,
+    zIndex: 3,
+    background: 'var(--surface-2)',
 };
 
 const selectionCellStyle = {
     textAlign: 'center',
     width: 36,
+    position: 'sticky',
+    left: 0,
+    zIndex: 2,
+    background: 'var(--surface-2)',
 };
 
 const progressHeaderStyle = {
@@ -306,7 +315,7 @@ const isImageFile = (file) => {
     return ['.png', '.jpg', '.jpeg', '.gif', '.webp', '.bmp', '.svg'].some((ext) => name.endsWith(ext));
 };
 
-export default function MonitoringBoardIndexPage({ items = [], status_options: statusOptions = [] }) {
+export default function MonitoringBoardIndexPage({ items = [], status_options: statusOptions = [], clientOptions = [] }) {
     const resolvedStatusOptions = statusOptions.length > 0 ? statusOptions : ['PROPOSAL', 'IN_REVIEW', 'APPROVED', 'DONE'];
 
     const {
@@ -748,6 +757,14 @@ export default function MonitoringBoardIndexPage({ items = [], status_options: s
                             : [{ value: 'delete', label: 'Delete selected' }];
                         const sortConfig = { ...globalSort, ...(departmentSort[group.department] || {}) };
                         const sortedRows = sortRows(group.rows, sortConfig.key, sortConfig.dir);
+                        const stickyHeaderStyle = {
+                            ...selectionHeaderStyle,
+                            background: `color-mix(in srgb, ${groupColor} 14%, var(--surface-2))`,
+                        };
+                        const stickyCellStyle = {
+                            ...selectionCellStyle,
+                            background: `color-mix(in srgb, ${groupColor} 10%, var(--surface-1))`,
+                        };
 
                         return (
                             <div key={group.department} style={boardPanel}>
@@ -856,7 +873,7 @@ export default function MonitoringBoardIndexPage({ items = [], status_options: s
                                     <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12, minWidth: 1500 }}>
                                         <thead>
                                             <tr>
-                                                <th style={{ ...boardTableHeaderCell, ...selectionHeaderStyle }}>
+                                                <th style={{ ...boardTableHeaderCell, ...stickyHeaderStyle }}>
                                                     <button
                                                         type="button"
                                                         onClick={() => toggleSelectAllRows(group.department, rowIds)}
@@ -907,7 +924,7 @@ export default function MonitoringBoardIndexPage({ items = [], status_options: s
 
                                                 return (
                                                     <tr key={item.id}>
-                                                        <td style={{ ...boardTableCell, ...selectionCellStyle }}>
+                                                        <td style={{ ...boardTableCell, ...stickyCellStyle }}>
                                                             <button
                                                                 type="button"
                                                                 onClick={() => toggleRowSelection(group.department, item.id)}
@@ -1194,9 +1211,10 @@ export default function MonitoringBoardIndexPage({ items = [], status_options: s
 
                             <label>
                                 <div style={{ fontSize: 12, marginBottom: 6 }}>Client Name</div>
-                                <TextInput
+                                <ClientSelectInput
+                                    clients={clientOptions}
                                     value={createData.client_name}
-                                    onChange={(event) => setCreateData('client_name', event.target.value)}
+                                    onChange={(value) => setCreateData('client_name', value)}
                                     style={boardInputStyle}
                                 />
                                 {createErrors.client_name && <div style={{ color: '#f87171', fontSize: 12, marginTop: 4 }}>{createErrors.client_name}</div>}
@@ -1418,9 +1436,10 @@ export default function MonitoringBoardIndexPage({ items = [], status_options: s
 
                         <label>
                             <div style={{ fontSize: 12, marginBottom: 6 }}>Client Name</div>
-                            <TextInput
+                            <ClientSelectInput
+                                clients={clientOptions}
                                 value={editData.client_name}
-                                onChange={(event) => setEditData('client_name', event.target.value)}
+                                onChange={(value) => setEditData('client_name', value)}
                                 style={inputStyle}
                             />
                             {editErrors.client_name && <div style={{ color: '#f87171', fontSize: 12, marginTop: 4 }}>{editErrors.client_name}</div>}
