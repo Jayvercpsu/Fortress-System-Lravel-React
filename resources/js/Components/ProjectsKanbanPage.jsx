@@ -1,7 +1,7 @@
 import ActionButton from './ActionButton';
 import Modal from './Modal';
 import { router } from '@inertiajs/react';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import toast from 'react-hot-toast';
 
 const phaseAccent = {
@@ -46,6 +46,23 @@ const approvalStatusTone = (status) => {
     return 'var(--text-main)';
 };
 
+const statusTone = (status) => {
+    const normalized = String(status || '').trim().toLowerCase();
+    if (normalized === 'completed') {
+        return { color: '#16a34a', border: '1px solid rgba(16,163,84,0.25)', background: 'rgba(16,163,84,0.08)' };
+    }
+    if (normalized === 'active' || normalized === 'design') {
+        return { color: '#0ea5e9', border: '1px solid rgba(14,165,233,0.25)', background: 'rgba(14,165,233,0.08)' };
+    }
+    if (normalized === 'on_hold' || normalized === 'hold') {
+        return { color: '#f97316', border: '1px solid rgba(249,115,22,0.25)', background: 'rgba(249,115,22,0.08)' };
+    }
+    if (normalized === 'cancelled') {
+        return { color: '#dc2626', border: '1px solid rgba(220,38,38,0.25)', background: 'rgba(220,38,38,0.08)' };
+    }
+    return { color: 'var(--text-muted)', border: '1px solid rgba(148,163,184,0.35)', background: 'rgba(148,163,184,0.12)' };
+};
+
 export default function ProjectsKanbanPage({
     projectBoard = {},
     canCreate = false,
@@ -57,6 +74,16 @@ export default function ProjectsKanbanPage({
     const [projectToDelete, setProjectToDelete] = useState(null);
     const [deletingProject, setDeletingProject] = useState(false);
     const [transferringId, setTransferringId] = useState(null);
+    const [creatingProject, setCreatingProject] = useState(false);
+    const createTimeoutRef = useRef(null);
+
+    useEffect(() => {
+        return () => {
+            if (createTimeoutRef.current) {
+                clearTimeout(createTimeoutRef.current);
+            }
+        };
+    }, []);
 
     useEffect(() => {
         setSearch(projectBoard.search ?? '');
@@ -153,7 +180,20 @@ export default function ProjectsKanbanPage({
 
                 <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
                     {canCreate && (
-                        <ActionButton href="/projects/create" variant="success" style={{ padding: '9px 14px', fontSize: 13 }}>
+                        <ActionButton
+                            type="button"
+                            variant="success"
+                            loading={creatingProject}
+                            disabled={creatingProject}
+                            onClick={() => {
+                                if (creatingProject) return;
+                                setCreatingProject(true);
+                                createTimeoutRef.current = setTimeout(() => {
+                                    router.get('/monitoring-board?create=1');
+                                }, 2000);
+                            }}
+                            style={{ padding: '9px 14px', fontSize: 13 }}
+                        >
                             + Create Project
                         </ActionButton>
                     )}
@@ -221,7 +261,7 @@ export default function ProjectsKanbanPage({
                                                 padding: 12,
                                                 display: 'grid',
                                                 gap: 10,
-                                                height: KANBAN_CARD_HEIGHT,
+                                                minHeight: KANBAN_CARD_HEIGHT,
                                                 gridTemplateRows: 'auto auto auto auto minmax(0, 1fr) auto',
                                                 overflow: 'hidden',
                                                 position: 'relative',
@@ -336,9 +376,27 @@ export default function ProjectsKanbanPage({
                                                     <span style={{ color: 'var(--text-muted)' }}>Paid</span>
                                                     <span title={money(project.total_client_payment)} style={{ color: '#4ade80', textAlign: 'right', ...singleLineClampStyle }}>{money(project.total_client_payment)}</span>
                                                 </div>
+                                                <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, minWidth: 0 }}>
+                                                    <span style={{ color: 'var(--text-muted)' }}>Status</span>
+                                                    <span
+                                                        style={{
+                                                            textTransform: 'capitalize',
+                                                            fontSize: 11,
+                                                            fontWeight: 700,
+                                                            textAlign: 'right',
+                                                            maxWidth: 160,
+                                                            overflow: 'hidden',
+                                                            whiteSpace: 'nowrap',
+                                                            textOverflow: 'ellipsis',
+                                                            color: statusTone(project.status)?.color || 'var(--text-main)',
+                                                        }}
+                                                    >
+                                                        {project.status || 'Unknown'}
+                                                    </span>
+                                                </div>
                                             </div>
 
-                                            <div style={{ display: 'flex', gap: 8, flexWrap: 'nowrap', alignItems: 'center' }}>
+                                            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', marginTop: 8 }}>
                                                 <ActionButton href={`/projects/${project.id}`} variant="view" style={{ padding: '6px 10px', minHeight: 30 }}>Manage</ActionButton>
                                                 {canDelete && (
                                                     <ActionButton
@@ -368,8 +426,8 @@ export default function ProjectsKanbanPage({
                                                             project.transfer_to_construction_used
                                                                 ? 'Already transferred to construction.'
                                                                 : (project.can_transfer_to_construction
-                                                                    ? 'Transfer this approved design project to construction.'
-                                                                    : 'Client approval must be Approved before transfer.')
+                                                                    ? 'Transfer this design project to construction.'
+                                                                    : 'Requires Completed status and not yet transferred.')
                                                         }
                                                     >
                                                         {project.transfer_to_construction_used ? 'Transferred' : 'Transfer to Construction'}

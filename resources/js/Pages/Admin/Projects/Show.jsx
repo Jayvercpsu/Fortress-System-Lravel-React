@@ -49,6 +49,55 @@ const shortcutButtonStyle = {
     fontSize: 13,
 };
 
+const sectionLabelStyle = {
+    fontSize: 11,
+    color: 'var(--text-muted)',
+    textTransform: 'uppercase',
+    letterSpacing: 0.3,
+};
+
+const statTileStyle = {
+    border: '1px solid var(--border-color)',
+    borderRadius: 12,
+    padding: 12,
+    background: 'var(--surface-2)',
+    display: 'grid',
+    gap: 4,
+};
+
+const pillStyle = {
+    padding: '6px 10px',
+    borderRadius: 999,
+    fontSize: 12,
+    fontWeight: 700,
+    border: '1px solid rgba(148,163,184,0.35)',
+    background: 'rgba(148,163,184,0.12)',
+    color: 'var(--text-main)',
+};
+
+const chipNeutralStyle = {
+    padding: '5px 12px',
+    borderRadius: 999,
+    background: 'rgba(59,130,246,0.12)',
+    border: '1px solid rgba(59,130,246,0.25)',
+    fontSize: 12,
+    color: '#1d4ed8',
+    fontWeight: 600,
+};
+
+const chipPositiveStyle = {
+    padding: '4px 10px',
+    borderRadius: 999,
+    background: 'rgba(52,211,153,0.12)',
+    border: '1px solid rgba(16,185,129,0.35)',
+    fontSize: 12,
+    color: '#0f766e',
+    fontWeight: 600,
+    lineHeight: 1.1,
+    display: 'inline-flex',
+    alignItems: 'center',
+};
+
 const money = (value) =>
     `P ${Number(value || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
@@ -449,6 +498,29 @@ export default function AdminProjectsShow({
                         Project shortcuts grouped by department
                     </div>
                     <div style={{ display: 'grid', gap: 10, gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))' }}>
+                        <div style={shortcutSectionStyle}>
+                            <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: 0.3 }}>
+                                Project Admin
+                            </div>
+                            <ActionButton href={`/projects/${project.id}/edit`} style={shortcutButtonStyle}>
+                                Edit Project
+                            </ActionButton>
+                        </div>
+
+                        <div style={shortcutSectionStyle}>
+                            <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: 0.3 }}>
+                                Finance
+                            </div>
+                            <div style={{ display: 'grid', gap: 8 }}>
+                                <ActionButton href={`/projects/${project.id}/payments`} style={shortcutButtonStyle}>
+                                    Open Payments
+                                </ActionButton>
+                                <ActionButton href={`/projects/${project.id}/financials`} style={shortcutButtonStyle}>
+                                    Open Financials
+                                </ActionButton>
+                            </div>
+                        </div>
+
                         <div style={{ ...shortcutSectionStyle, opacity: disableDesignSection ? 0.65 : 1 }}>
                             <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: 0.3 }}>
                                 Design
@@ -491,167 +563,116 @@ export default function AdminProjectsShow({
                             )}
                         </div>
 
-                        <div style={shortcutSectionStyle}>
-                            <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: 0.3 }}>
-                                Finance
-                            </div>
-                            <div style={{ display: 'grid', gap: 8 }}>
-                                <ActionButton href={`/projects/${project.id}/payments`} style={shortcutButtonStyle}>
-                                    Open Payments
-                                </ActionButton>
-                                <ActionButton href={`/projects/${project.id}/financials`} style={shortcutButtonStyle}>
-                                    Open Financials
-                                </ActionButton>
-                            </div>
-                        </div>
-
-                        <div style={shortcutSectionStyle}>
-                            <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: 0.3 }}>
-                                Project Admin
-                            </div>
-                            <ActionButton href={`/projects/${project.id}/edit`} style={shortcutButtonStyle}>
-                                Edit Project
-                            </ActionButton>
-                        </div>
                     </div>
                 </div>
 
                 {tab === 'overview' && (
                     <div style={{ display: 'grid', gap: 14 }}>
-                        <div style={{ ...cardStyle, display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 12 }}>
-                            {[
-                                { label: 'Name', value: project.name },
-                                { label: 'Client', value: project.client },
-                                { label: 'Type', value: project.type },
-                                { label: 'Location', value: project.location },
-                                { label: 'Assigned', value: project.assigned_role, asList: true },
-                                { label: 'Assigned Foremen', value: project.assigned, asList: true },
-                                { label: 'Target', value: project.target || '-' },
-                                { label: 'Phase', value: project.phase },
-                                { label: 'Status', value: project.status },
-                                { label: 'Overall Progress', value: `${project.overall_progress}%` },
-                            ].map(({ label, value, asList = false }) => (
-                                <div key={label}>
-                                    <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{label}</div>
-                                    {asList ? (
-                                        (() => {
-                                            const items = parseProjectDisplayList(value);
-                                            if (items.length === 0) {
-                                                return <div style={{ fontWeight: 400 }}>-</div>;
-                                            }
-
-                                            return (
-                                                <ul style={{ margin: '4px 0 0', paddingLeft: 18, fontWeight: 400, display: 'grid', gap: 2 }}>
-                                                    {items.map((item, index) => (
-                                                        <li key={`${label}-${index}`}>{item}</li>
-                                                    ))}
-                                                </ul>
-                                            );
-                                        })()
-                                    ) : (
-                                        <div style={{ fontWeight: 600 }}>{value}</div>
+                        <div style={{ ...cardStyle, display: 'grid', gap: 16 }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, flexWrap: 'wrap' }}>
+                                <div style={{ display: 'grid', gap: 6 }}>
+                                    <div style={sectionLabelStyle}>Project</div>
+                                    <div style={{ fontSize: 20, fontWeight: 800 }}>{project.name || '-'}</div>
+                                    <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>Client · {project.client || '-'}</div>
+                                </div>
+                                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                                    {project.phase && (
+                                        <span
+                                            style={{
+                                                ...pillStyle,
+                                                background: 'rgba(59,130,246,0.12)',
+                                                border: '1px solid rgba(59,130,246,0.25)',
+                                                color: '#1d4ed8',
+                                            }}
+                                        >
+                                            {project.phase}
+                                        </span>
+                                    )}
+                                    {project.status && (
+                                        <span
+                                            style={{
+                                                ...pillStyle,
+                                                background: 'rgba(34,197,94,0.12)',
+                                                border: '1px solid rgba(34,197,94,0.25)',
+                                                color: '#047857',
+                                            }}
+                                        >
+                                            {project.status}
+                                        </span>
                                     )}
                                 </div>
-                            ))}
+                            </div>
+
+                            <div style={{ display: 'grid', gap: 10, gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))' }}>
+                                {[
+                                    ['Type', project.type || '-'],
+                                    ['Location', project.location || '-'],
+                                    ['Target', project.target || '-'],
+                                    ['Overall Progress', `${project.overall_progress}%`],
+                                    ['Phase', project.phase || '-'],
+                                    ['Status', project.status || '-'],
+                                ].map(([label, value]) => (
+                                    <div key={label} style={statTileStyle}>
+                                        <div style={sectionLabelStyle}>{label}</div>
+                                        <div style={{ fontWeight: 700, fontSize: 13 }}>{value}</div>
+                                    </div>
+                                ))}
+                            </div>
+
+                            <div style={{ display: 'grid', gap: 8 }}>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 12, color: 'var(--text-muted)' }}>
+                                    <span>Overall Progress</span>
+                                    <span style={{ fontWeight: 700, color: 'var(--text-main)' }}>{project.overall_progress}%</span>
+                                </div>
+                                <div style={{ background: 'rgba(148,163,184,0.2)', borderRadius: 999, height: 10, overflow: 'hidden' }}>
+                                    <div
+                                        style={{
+                                            width: `${project.overall_progress || 0}%`,
+                                            background: 'linear-gradient(90deg, #3b82f6, #10b981)',
+                                            height: '100%',
+                                        }}
+                                    />
+                                </div>
+                            </div>
+
+                            <div style={{ display: 'grid', gap: 12, gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))' }}>
+                                <div style={{ border: '1px solid var(--border-color)', borderRadius: 10, padding: 12, display: 'grid', gap: 8, background: 'var(--surface-2)' }}>
+                                    <div style={sectionLabelStyle}>Assigned</div>
+                                    {(() => {
+                                        const items = parseProjectDisplayList(project.assigned_role);
+                                        if (items.length === 0) return <div style={{ color: 'var(--text-muted)' }}>None</div>;
+                                        return (
+                                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                                                {items.map((item, idx) => (
+                                                    <span key={idx} style={chipPositiveStyle}>
+                                                        {item}
+                                                    </span>
+                                                ))}
+                                            </div>
+                                        );
+                                    })()}
+                                </div>
+
+                                <div style={{ border: '1px solid var(--border-color)', borderRadius: 10, padding: 12, display: 'grid', gap: 8, background: 'var(--surface-2)' }}>
+                                    <div style={sectionLabelStyle}>Assigned Foremen</div>
+                                    {(() => {
+                                        const items = parseProjectDisplayList(project.assigned);
+                                        if (items.length === 0) return <div style={{ color: 'var(--text-muted)' }}>None</div>;
+                                        return (
+                                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                                                {items.map((item, idx) => (
+                                                    <span key={idx} style={chipPositiveStyle}>
+                                                        {item}
+                                                    </span>
+                                                ))}
+                                            </div>
+                                        );
+                                    })()}
+                                </div>
+                            </div>
                         </div>
 
                         <ProjectComputationsPanel project={project} />
-
-                        <div style={{ ...cardStyle, display: 'grid', gap: 12 }}>
-                            <div style={{ fontWeight: 700 }}>Assigned Foremen (Quick Update)</div>
-                            <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
-                                One project can have multiple foremen. This updates the project assignment list used by foreman access and submissions.
-                            </div>
-
-                            <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 8, alignItems: 'end' }}>
-                                <SearchableDropdown
-                                    options={foremanOptions}
-                                    value={pendingAssignedForeman}
-                                    onChange={(value) => setPendingAssignedForeman(value || '')}
-                                    getOptionLabel={(option) => option.fullname}
-                                    getOptionValue={(option) => option.fullname}
-                                    placeholder={foremanOptions.length === 0 ? 'No foreman users available' : 'Select foreman'}
-                                    searchPlaceholder="Search foremen..."
-                                    emptyMessage="No foremen found"
-                                    disabled={foremanOptions.length === 0}
-                                    clearable
-                                    style={{ ...inputStyle, minHeight: 40, padding: '8px 10px' }}
-                                    dropdownWidth={340}
-                                />
-                                <ActionButton
-                                    type="button"
-                                    onClick={addAssignedForeman}
-                                    disabled={!pendingAssignedForeman}
-                                    style={{ padding: '10px 12px' }}
-                                >
-                                    Add Foreman
-                                </ActionButton>
-                            </div>
-
-                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-                                {assignedForemenDraft.length === 0 ? (
-                                    <div style={{ color: 'var(--text-muted)', fontSize: 12 }}>No foremen assigned yet.</div>
-                                ) : (
-                                    assignedForemenDraft.map((name) => (
-                                        <div
-                                            key={name}
-                                            style={{
-                                                display: 'inline-flex',
-                                                alignItems: 'center',
-                                                gap: 8,
-                                                padding: '6px 10px',
-                                                borderRadius: 999,
-                                                border: '1px solid var(--border-color)',
-                                                background: 'var(--surface-2)',
-                                                fontSize: 12,
-                                            }}
-                                        >
-                                            <span>{name}</span>
-                                            <button
-                                                type="button"
-                                                onClick={() => removeAssignedForeman(name)}
-                                                style={{
-                                                    border: 'none',
-                                                    background: 'transparent',
-                                                    color: 'var(--text-muted)',
-                                                    cursor: 'pointer',
-                                                    fontSize: 12,
-                                                    padding: 0,
-                                                }}
-                                                aria-label={`Remove ${name}`}
-                                            >
-                                                x
-                                            </button>
-                                        </div>
-                                    ))
-                                )}
-                            </div>
-
-                            {(pageErrors?.foreman_names || pageErrors?.['foreman_names.0']) && (
-                                <div style={{ color: '#f87171', fontSize: 12 }}>
-                                    {pageErrors?.foreman_names || pageErrors?.['foreman_names.0']}
-                                </div>
-                            )}
-
-                            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
-                                <ActionButton
-                                    type="button"
-                                    onClick={resetAssignedForemenDraft}
-                                    style={{ padding: '8px 12px' }}
-                                >
-                                    Reset
-                                </ActionButton>
-                                <ActionButton
-                                    type="button"
-                                    onClick={saveAssignedForemen}
-                                    variant="success"
-                                    disabled={savingAssignedForemen}
-                                    style={{ padding: '8px 12px' }}
-                                >
-                                    {savingAssignedForemen ? 'Saving...' : 'Save Assigned Foremen'}
-                                </ActionButton>
-                            </div>
-                        </div>
 
                         <div style={{ ...cardStyle, display: 'grid', gap: 12 }}>
                             <div style={{ fontWeight: 700 }}>Project Workers (Read-only)</div>

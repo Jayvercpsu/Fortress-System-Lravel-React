@@ -8,6 +8,7 @@ import ClientSelectInput from '../../../Components/ClientSelectInput';
 import { Head, useForm } from '@inertiajs/react';
 import { useState } from 'react';
 import toast from 'react-hot-toast';
+import { ArrowLeft } from 'lucide-react';
 
 const inputStyle = {
     width: '100%',
@@ -184,6 +185,12 @@ export default function HeadAdminProjectsCreate({ foremen = [], clientOptions = 
         <>
             <Head title="Create Project" />
             <Layout title="Create Project">
+                <div style={{ marginBottom: 12 }}>
+                    <ActionButton href="/projects" style={{ padding: '8px 12px', fontSize: 13 }}>
+                        <ArrowLeft size={16} />
+                        Back to Projects
+                    </ActionButton>
+                </div>
                 <form onSubmit={submit} style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 14, background: 'var(--surface-1)', border: '1px solid var(--border-color)', borderRadius: 12, padding: 16 }}>
                     <label>
                         <div style={{ fontSize: 12, marginBottom: 6 }}>Project Name</div>

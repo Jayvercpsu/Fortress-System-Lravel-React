@@ -29,6 +29,20 @@ const OTHER_PROJECT_TYPE_OPTION = '__OTHER__';
 const money = (value) =>
     `P ${Number(value || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
+const assignedChipStyle = {
+    padding: '4px 10px',
+    borderRadius: 999,
+    background: 'rgba(52,211,153,0.12)',
+    border: '1px solid rgba(16,185,129,0.35)',
+    fontSize: 12,
+    color: '#0f766e',
+    fontWeight: 600,
+    lineHeight: 1.1,
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: 6,
+};
+
 const parseAssignedForemen = (value) =>
     String(value || '')
         .split(/[,;]+/)
@@ -296,28 +310,19 @@ export default function HeadAdminProjectsEdit({ project, foremen = [], clientOpt
                         <div style={{ color: 'var(--text-muted)', fontSize: 12 }}>
                             Add role + name. Multiple entries are allowed, including multiple Engineers.
                         </div>
-                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-                            {assignedRoles.length === 0 ? (
-                                <div style={{ color: 'var(--text-muted)', fontSize: 12 }}>No assigned Architect / Engineer / PM yet.</div>
-                            ) : (
-                                assignedRoles.map((entry) => (
-                                    <div
-                                        key={entry.key}
-                                        style={{
-                                            display: 'inline-flex',
-                                            alignItems: 'center',
-                                            gap: 8,
-                                            padding: '6px 10px',
-                                            borderRadius: 999,
-                                            border: '1px solid var(--border-color)',
-                                            background: 'var(--surface-2)',
-                                            fontSize: 12,
-                                        }}
-                                    >
-                                        <span>{entry.label}</span>
-                                        <button
-                                            type="button"
-                                            onClick={() => removeAssignedRole(entry)}
+                                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                                    {assignedRoles.length === 0 ? (
+                                        <div style={{ color: 'var(--text-muted)', fontSize: 12 }}>No assigned Architect / Engineer / PM yet.</div>
+                                    ) : (
+                                        assignedRoles.map((entry) => (
+                                            <div
+                                                key={entry.key}
+                                                style={assignedChipStyle}
+                                            >
+                                                <span>{entry.label}</span>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => removeAssignedRole(entry)}
                                             style={{
                                                 border: 'none',
                                                 background: 'transparent',
@@ -376,19 +381,7 @@ export default function HeadAdminProjectsEdit({ project, foremen = [], clientOpt
                                 <div style={{ color: 'var(--text-muted)', fontSize: 12 }}>No foremen selected yet.</div>
                             ) : (
                                 assignedForemen.map((name) => (
-                                    <div
-                                        key={name}
-                                        style={{
-                                            display: 'inline-flex',
-                                            alignItems: 'center',
-                                            gap: 8,
-                                            padding: '6px 10px',
-                                            borderRadius: 999,
-                                            border: '1px solid var(--border-color)',
-                                            background: 'var(--surface-2)',
-                                            fontSize: 12,
-                                        }}
-                                    >
+                                    <div key={name} style={assignedChipStyle}>
                                         <span>{name}</span>
                                         <button
                                             type="button"
@@ -442,33 +435,6 @@ export default function HeadAdminProjectsEdit({ project, foremen = [], clientOpt
                     </div>
                 </form>
 
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 14, background: 'var(--surface-1)', border: '1px solid var(--border-color)', borderRadius: 12, padding: 16 }}>
-                    <div style={{ gridColumn: '1 / -1', fontSize: 14, fontWeight: 700 }}>Financial Overview</div>
-                    <div style={{ gridColumn: '1 / -1', fontSize: 12, color: 'var(--text-muted)' }}>
-                        Auto-calculated from Design Tracker, Build Tracker, and Expenses.
-                    </div>
-
-                    <label>
-                        <div style={{ fontSize: 12, marginBottom: 6 }}>Contract Amount</div>
-                        <TextInput type="text" value={money(project.contract_amount)} readOnly style={inputStyle} />
-                    </label>
-                    <label>
-                        <div style={{ fontSize: 12, marginBottom: 6 }}>Design Fee</div>
-                        <TextInput type="text" value={money(project.design_fee)} readOnly style={inputStyle} />
-                    </label>
-                    <label>
-                        <div style={{ fontSize: 12, marginBottom: 6 }}>Construction Cost</div>
-                        <TextInput type="text" value={money(project.construction_cost)} readOnly style={inputStyle} />
-                    </label>
-                    <label>
-                        <div style={{ fontSize: 12, marginBottom: 6 }}>Total Client Payment</div>
-                        <TextInput type="text" value={money(project.total_client_payment)} readOnly style={inputStyle} />
-                    </label>
-
-                    <div style={{ gridColumn: '1 / -1', fontWeight: 700 }}>
-                        Remaining Balance: {money(remainingBalance)}
-                    </div>
-                </div>
             </Layout>
         </>
     );

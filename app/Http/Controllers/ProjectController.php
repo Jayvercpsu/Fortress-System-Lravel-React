@@ -390,13 +390,6 @@ class ProjectController extends Controller
             ]);
         }
 
-        $approvalStatus = strtolower(trim((string) ($project->designTracker?->client_approval_status ?? 'pending')));
-        if ($approvalStatus !== 'approved') {
-            throw ValidationException::withMessages([
-                'transfer' => 'Design project must be Approved before transfer to Construction.',
-            ]);
-        }
-
         $alreadyTransferred = Project::withTrashed()
             ->where('source_project_id', $project->id)
             ->exists();
@@ -769,6 +762,7 @@ class ProjectController extends Controller
             'assigned' => $project->assigned,
             'target' => optional($project->target)->toDateString(),
             'phase' => $this->normalizeProjectPhase($project->phase),
+            'status' => $this->normalizeProjectStatus($project->status),
             'overall_progress' => (int) ($project->overall_progress ?? 0),
             'contract_amount' => (float) ($project->contract_amount ?? 0),
             'design_fee' => (float) ($project->design_fee ?? 0),
@@ -888,13 +882,14 @@ class ProjectController extends Controller
             (string) ($project->designTracker?->client_approval_status ?? 'pending')
         );
         $designApprovalStatus = $this->normalizeDesignApprovalStatus($project->designTracker?->client_approval_status);
+        $status = $this->normalizeProjectStatus($project->status);
         $constructionProgress = (int) max(0, min(100, (int) ($project->overall_progress ?? 0)));
         $kanbanProgress = $phase === 'Design' ? $designProgress : $constructionProgress;
         $hasTransferredConstruction = $phase === 'Design' && (int) ($project->transferred_projects_count ?? 0) > 0;
         $canTransferToConstruction = $phase === 'Design'
             && $project->source_project_id === null
             && !$hasTransferredConstruction
-            && $designApprovalStatus === 'Approved';
+            && $status === 'COMPLETED';
         $canTransferToCompleted = $phase === 'Construction';
 
         return [
@@ -907,7 +902,7 @@ class ProjectController extends Controller
             'assigned_role' => $this->normalizeProjectAssignedRoleList($project->assigned_role ?? null),
             'assigned' => $project->assigned,
             'target' => optional($project->target)->toDateString(),
-            'status' => $this->normalizeProjectStatus($project->status),
+            'status' => $status,
             'phase' => $phase,
             'overall_progress' => $kanbanProgress,
             'design_progress' => $designProgress,
@@ -1203,14 +1198,27 @@ class ProjectController extends Controller
         $designContractAmount = (float) ($design?->design_contract_amount ?? 0);
         $resolvedDesign = $sourceDesign ?: $design;
 
+        $manualContractAmount = (float) ($project->contract_amount ?? 0);
+        $manualConstructionCost = (float) ($project->construction_cost ?? 0);
+        $manualTotalClientPayment = (float) ($project->total_client_payment ?? 0);
+        $manualLastPaidDate = $project->last_paid_date ? $project->last_paid_date->toDateString() : null;
+
         $constructionContract = (float) ($build?->construction_contract ?? 0);
         $expenseConstructionCost = (float) Expense::where('project_id', $projectId)->sum('amount');
-        $constructionCost = $expenseConstructionCost;
-        $overallProgress = (int) max(0, min(100, (int) $project->overall_progress));
+        $constructionCost = $expenseConstructionCost > 0 ? $expenseConstructionCost : $manualConstructionCost;
 
         $contractAmount = $designContractAmount + $constructionContract;
+        if ($contractAmount <= 0 && $manualContractAmount > 0) {
+            $contractAmount = $manualContractAmount;
+        }
         $totalClientPayment = (float) Payment::where('project_id', $projectId)->sum('amount');
+        if ($totalClientPayment <= 0 && $manualTotalClientPayment > 0) {
+            $totalClientPayment = $manualTotalClientPayment;
+        }
         $lastPaidDate = Payment::where('project_id', $projectId)->max('date_paid');
+        if (!$lastPaidDate && $manualLastPaidDate) {
+            $lastPaidDate = $manualLastPaidDate;
+        }
         $remainingBalance = $contractAmount - $totalClientPayment;
         $manualDesignFee = (float) ($project->design_fee ?? 0);
         $designPayloadContractAmount = (float) ($resolvedDesign?->design_contract_amount ?? 0);
@@ -1237,6 +1245,10 @@ class ProjectController extends Controller
         $buildTrackerSubtotalCosts = $buildMaterialsCost + $buildLaborCost + $buildEquipmentCost;
         $buildVarianceFromTrackerBudget = $constructionContract - $constructionCost;
         $collectionProgressPct = $contractAmount > 0 ? ($totalClientPayment / $contractAmount) * 100 : 0;
+        $phase = $this->normalizeProjectPhase($project->phase);
+        $overallProgress = $phase === 'Design'
+            ? (int) max(0, min(100, (int) $designPayloadProgress))
+            : (int) max(0, min(100, (int) ($project->overall_progress ?? 0)));
 
         if ($resolvedDesign && (int) $resolvedDesign->design_progress !== $designPayloadProgress) {
             $resolvedDesign->design_progress = $designPayloadProgress;
@@ -1285,7 +1297,8 @@ class ProjectController extends Controller
                     'last_paid_date' => $lastPaidDate,
                 ],
                 'project_financials_snapshot' => [
-                    'total_budget_contract_amount' => $contractAmount,
+                    // Prefer the manual contract amount entered in Financials; fall back to tracker-derived total
+                    'total_budget_contract_amount' => $manualContractAmount > 0 ? $manualContractAmount : $contractAmount,
                     'design_fee_manual' => $manualDesignFee,
                     'design_fee_share_of_total_budget_pct' => $manualDesignFeeSharePct,
                     'construction_cost' => $constructionCost,
@@ -1307,16 +1320,6 @@ class ProjectController extends Controller
                 ],
             ],
         ];
-
-        // Keep project financial snapshot columns aligned with tracker-derived values,
-        // except design_fee which is manually controlled in Project Financials.
-        Project::whereKey($project->id)->update([
-            'contract_amount' => $computed['contract_amount'],
-            'construction_cost' => $computed['construction_cost'],
-            'total_client_payment' => $computed['total_client_payment'],
-            'remaining_balance' => $computed['remaining_balance'],
-            'last_paid_date' => $computed['last_paid_date'],
-        ]);
 
         return $computed;
     }

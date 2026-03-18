@@ -3,10 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\BuildProject;
-use App\Models\DesignProject;
 use App\Models\Expense;
-use App\Models\Payment;
-use App\Models\Project;
 use Illuminate\Http\Request;
 
 class ExpenseController extends Controller
@@ -122,25 +119,8 @@ class ExpenseController extends Controller
 
     private function syncProjectFinancials(string $projectId): void
     {
-        $design = DesignProject::where('project_id', $projectId)->first();
-        $build = BuildProject::where('project_id', $projectId)->first();
-
-        $designContractAmount = (float) ($design?->design_contract_amount ?? 0);
-
-        $constructionContract = (float) ($build?->construction_contract ?? 0);
-        $totalClientPayment = (float) Payment::where('project_id', $projectId)->sum('amount');
-        $lastPaidDate = Payment::where('project_id', $projectId)->max('date_paid');
-
-        $expenseConstructionCost = (float) Expense::where('project_id', $projectId)->sum('amount');
-        $constructionCost = $expenseConstructionCost;
-        $contractAmount = $designContractAmount + $constructionContract;
-
-        Project::whereKey($projectId)->update([
-            'contract_amount' => $contractAmount,
-            'construction_cost' => $constructionCost,
-            'total_client_payment' => $totalClientPayment,
-            'remaining_balance' => $contractAmount - $totalClientPayment,
-            'last_paid_date' => $lastPaidDate,
-        ]);
+        // Financial fields are managed from Project Financials / Payments.
+        // Expense updates should not overwrite manual financial snapshots.
+        return;
     }
 }

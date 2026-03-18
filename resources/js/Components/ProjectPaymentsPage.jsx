@@ -163,7 +163,7 @@ export default function ProjectPaymentsPage({ project, payments = [], paymentTab
         },
     ];
 
-    const backHref = auth?.user?.role === 'head_admin' ? `/projects/${project.id}` : '/hr';
+    const backHref = `/projects/${project.id}`;
 
     return (
         <>
@@ -176,7 +176,7 @@ export default function ProjectPaymentsPage({ project, payments = [], paymentTab
                             style={{ padding: '8px 12px', fontSize: 13 }}
                         >
                             <ArrowLeft size={16} />
-                            Back
+                            Back to Project
                         </ActionButton>
 
                         <ActionButton

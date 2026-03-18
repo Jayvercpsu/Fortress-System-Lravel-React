@@ -9,6 +9,7 @@ export default function AdminProjectsIndex({ projectBoard = {} }) {
             <Layout title="Projects">
                 <ProjectsKanbanPage
                     projectBoard={projectBoard}
+                    canCreate
                 />
             </Layout>
         </>

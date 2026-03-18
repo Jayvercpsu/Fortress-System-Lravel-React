@@ -395,6 +395,15 @@ export default function MonitoringBoardIndexPage({ items = [], status_options: s
     const [departmentSort, setDepartmentSort] = useState({});
 
     useEffect(() => {
+        if (typeof window === 'undefined') return;
+        const params = new URLSearchParams(window.location.search);
+        const createFlag = params.get('create');
+        if (createFlag === '1' || createFlag === 'true') {
+            setShowCreateModal(true);
+        }
+    }, []);
+
+    useEffect(() => {
         if (!filesItem) return;
         const updated = items.find((item) => item.id === filesItem.id);
         if (updated && updated !== filesItem) {

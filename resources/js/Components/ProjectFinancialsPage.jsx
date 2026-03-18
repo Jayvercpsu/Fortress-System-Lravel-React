@@ -1,6 +1,6 @@
 import Layout from './Layout';
 import ActionButton from './ActionButton';
-import { Head, useForm, usePage } from '@inertiajs/react';
+import { Head, router, useForm, usePage } from '@inertiajs/react';
 import { ArrowLeft } from 'lucide-react';
 import { useEffect } from 'react';
 import toast from 'react-hot-toast';
@@ -46,16 +46,30 @@ export default function ProjectFinancialsPage({ project }) {
         }));
     }, [project?.id, project?.contract_amount, project?.design_fee, project?.construction_cost, project?.total_client_payment]);
 
+    useEffect(() => {
+        if (typeof window === 'undefined') return undefined;
+
+        const handlePageShow = (event) => {
+            if (event.persisted) {
+                router.reload({ only: ['project'], preserveScroll: true, preserveState: true });
+            }
+        };
+
+        window.addEventListener('pageshow', handlePageShow);
+        return () => window.removeEventListener('pageshow', handlePageShow);
+    }, []);
+
     const contractAmount = Number(data.contract_amount || 0);
     const totalClientPayment = Number(data.total_client_payment || 0);
     const remainingBalance = contractAmount - totalClientPayment;
-    const backHref = role === 'head_admin' ? `/projects/${project.id}` : `/projects/${project.id}/payments`;
+    const backHref = `/projects/${project.id}`;
 
     const submit = (event) => {
         event.preventDefault();
 
         patch(`/projects/${project.id}/financials?return=financials`, {
             preserveScroll: true,
+            replace: true,
             onSuccess: () => toast.success('Project financials updated successfully.'),
             onError: () => toast.error('Unable to update financials. Check the form fields.'),
         });
@@ -72,7 +86,7 @@ export default function ProjectFinancialsPage({ project }) {
                             style={{ padding: '8px 12px', fontSize: 13 }}
                         >
                             <ArrowLeft size={16} />
-                            Back
+                            Back to Project
                         </ActionButton>
                         <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
                             Only Head Admin and HR can update project financial fields.

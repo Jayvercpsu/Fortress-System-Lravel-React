@@ -411,23 +411,6 @@ export default function ProjectComputationsPanel({ project }) {
                         <MetricRow label="Last Paid Date (Snapshot)" value={snapshotLastPaidDate} noBorder />
                     </div>
 
-                    <div style={dividerStyle} />
-
-                    <div style={subheadingStyle}>Sync Checks</div>
-                    <div style={metricGridStyle}>
-                        <MetricRow label="Manual Derived Build Budget" value={money(manualDerivedBuildBudget)} />
-                        <MetricRow
-                            label="Design Fee Gap vs Design Tracker"
-                            value={money(designFeeGap)}
-                            valueColor={hasDesignFeeGap ? '#f59e0b' : '#22c55e'}
-                        />
-                        <MetricRow
-                            label="Build Budget Gap (Tracker vs Manual-Derived)"
-                            value={money(buildBudgetGap)}
-                            valueColor={hasBuildBudgetGap ? '#f59e0b' : '#22c55e'}
-                            noBorder
-                        />
-                    </div>
                 </div>
             </div>
         </div>
