@@ -15,6 +15,31 @@ use Inertia\Inertia;
 
 class BuildController extends Controller
 {
+    private function defaultConstructionScopes(): array
+    {
+        return [
+            'Mobilization and Hauling',
+            'Foundation Preparation',
+            'Column Footing',
+            'Column',
+            'Wall Footing',
+            'Second-Floor Beam, Slab and Stairs',
+            'Slab on Fill',
+            'CHB Laying with Plastering',
+            'Garage Flooring',
+            'Roof Facade and Garage Partition',
+            'Roofing and Tinsmithry (garage included)',
+            'Roof Beam',
+            'Ceiling Works',
+            'Doors and Jambs',
+            'Aluminum Doors and Windows',
+            'Second-Floor Level Floor Tile',
+            'Lower Level Floor Tile',
+            'Kitchen Counter Cabinet',
+            'Canopy',
+        ];
+    }
+
     public function show(Request $request, string $project)
     {
         abort_unless(in_array($request->user()->role, ['head_admin', 'admin'], true), 403);
@@ -99,17 +124,46 @@ class BuildController extends Controller
             ->map(fn (Expense $expense) => [
                 'id' => $expense->id,
                 'project_id' => $expense->project_id,
-                'category' => $expense->category,
+                'category' => $expense->category ?: 'Uncategorized',
                 'amount' => (float) $expense->amount,
                 'note' => $expense->note,
                 'date' => optional($expense->date)->toDateString(),
             ])
             ->values();
 
-        $scopes = $projectModel->scopes()
+        $scopesQuery = $projectModel->scopes()
             ->with(['photos' => fn ($query) => $query->latest('id')])
             ->latest('id')
-            ->get()
+            ->get();
+
+        if ($scopesQuery->isEmpty()) {
+            // Seed default scopes into the database so they persist after weekly submissions
+            $now = now();
+            $projectModel->scopes()->insert(
+                collect($this->defaultConstructionScopes())->map(function (string $name) use ($project, $now) {
+                    return [
+                        'project_id' => (int) $project,
+                        'scope_name' => $name,
+                        'assigned_personnel' => null,
+                        'progress_percent' => 0,
+                        'status' => 'NOT_STARTED',
+                        'remarks' => null,
+                        'contract_amount' => 0,
+                        'weight_percent' => 0,
+                        'start_date' => null,
+                        'target_completion' => null,
+                        'created_at' => $now,
+                        'updated_at' => $now,
+                    ];
+                })->all()
+            );
+            $scopesQuery = $projectModel->scopes()
+                ->with(['photos' => fn ($query) => $query->latest('id')])
+                ->latest('id')
+                ->get();
+        }
+
+        $scopes = $scopesQuery
             ->map(fn (ProjectScope $scope) => [
                 'id' => $scope->id,
                 'project_id' => $scope->project_id,
@@ -131,6 +185,7 @@ class BuildController extends Controller
                 ])->values(),
             ])
             ->values();
+
 
         $payload['total_expenses'] = $expenseTotal;
         $payload['remaining_budget'] = $totalClientPayment - $expenseTotal;

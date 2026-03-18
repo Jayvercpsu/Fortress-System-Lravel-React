@@ -1,5 +1,1 @@
-import WeeklyAccomplishmentsPage from '../../../Components/WeeklyAccomplishmentsPage';
-
-export default function AdminWeeklyAccomplishmentsIndex(props) {
-    return <WeeklyAccomplishmentsPage {...props} />;
-}
+export { default } from '../../HeadAdmin/WeeklyAccomplishments/Index';

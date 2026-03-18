@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\DesignProject;
+use App\Models\Project;
 use App\Support\DesignComputation;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -24,6 +25,7 @@ class DesignController extends Controller
                 'client_approval_status' => 'pending',
             ]
         );
+        $projectModel = Project::find($project);
 
         $autoDesignProgress = DesignComputation::computeProgress(
             (float) $design->design_contract_amount,
@@ -52,6 +54,8 @@ class DesignController extends Controller
             'computation_basis_total_percent' => DesignComputation::totalBasisPercent(),
             'remaining' => (float) $design->design_contract_amount - (float) $design->total_received,
             'net_income' => (float) $design->total_received - (float) $design->office_payroll_deduction,
+            'project_status' => $projectModel?->status ?? '',
+            'project_phase' => $projectModel?->phase ?? '',
         ];
 
         $page = $request->user()->role === 'head_admin'

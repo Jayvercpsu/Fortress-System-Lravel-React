@@ -176,6 +176,7 @@ Route::middleware(['auth', 'role:head_admin,admin'])->group(function () {
     Route::delete('/project-files/{projectFile}', [ProjectFileController::class, 'destroy'])->name('project-files.destroy');
     Route::get('/projects/{project}/updates', [ProjectUpdateController::class, 'index'])->name('project-updates.index');
     Route::post('/projects/{project}/updates', [ProjectUpdateController::class, 'store'])->name('project-updates.store');
+    Route::delete('/project-updates/{projectUpdate}', [ProjectUpdateController::class, 'destroy'])->name('project-updates.destroy');
     Route::get('/projects/{project}/client-receipt', [ProjectController::class, 'projectReceipt'])->name('projects.client_receipt');
     Route::get('/projects/{project}', [ProjectController::class, 'show'])->name('projects.show');
 });

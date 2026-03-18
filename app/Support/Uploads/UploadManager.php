@@ -24,6 +24,18 @@ class UploadManager
         return 'max:' . self::MAX_UPLOAD_KB;
     }
 
+    /**
+     * Image validation rules (supports avif).
+     */
+    public static function imageRules(bool $required = false): array
+    {
+        return [
+            $required ? 'required' : 'nullable',
+            'mimes:jpg,jpeg,png,bmp,gif,svg,webp,avif',
+            self::maxRule(),
+        ];
+    }
+
     public static function disk(): string
     {
         if (app()->environment(['local', 'testing'])) {

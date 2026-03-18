@@ -552,7 +552,7 @@ class PublicProgressController extends Controller
 
         $validated = $request->validate([
             'progress_note' => ['required', 'string', 'max:2000'],
-            'photo' => ['required', 'image', UploadManager::maxRule()],
+            'photo' => UploadManager::imageRules(true),
             'caption' => ['nullable', 'string', 'max:255'],
         ]);
 
@@ -598,13 +598,13 @@ class PublicProgressController extends Controller
             'delivery_quantity' => ['nullable', 'string', 'max:120'],
             'delivery_supplier' => ['nullable', 'string', 'max:255'],
             'delivery_note' => ['nullable', 'string', 'max:500'],
-            'delivery_photo' => ['nullable', 'image', UploadManager::maxRule()],
+            'delivery_photo' => UploadManager::imageRules(),
 
             'material_name' => ['nullable', 'string', 'max:255'],
             'material_quantity' => ['nullable', 'string', 'max:120'],
             'material_unit' => ['nullable', 'string', 'max:120'],
             'material_remarks' => ['nullable', 'string', 'max:1000'],
-            'material_photo' => ['nullable', 'image', UploadManager::maxRule()],
+            'material_photo' => UploadManager::imageRules(),
 
             'weekly_week_start' => ['nullable', 'date'],
             'weekly_scopes' => ['nullable', 'array'],
@@ -612,18 +612,18 @@ class PublicProgressController extends Controller
             'weekly_scopes.*.percent_completed' => ['nullable', 'numeric', 'min:0', 'max:100'],
             'weekly_scopes.*.photo_caption' => ['nullable', 'string', 'max:255'],
             'weekly_scopes.*.photos' => ['nullable', 'array'],
-            'weekly_scopes.*.photos.*' => ['nullable', 'image', UploadManager::maxRule()],
+            'weekly_scopes.*.photos.*' => UploadManager::imageRules(),
             'weekly_removed_scopes' => ['nullable', 'array'],
             'weekly_removed_scopes.*' => ['nullable', 'string', 'max:255'],
 
-            'photo_file' => ['nullable', 'image', UploadManager::maxRule()],
+            'photo_file' => UploadManager::imageRules(),
             'photo_category' => ['nullable', Rule::in(self::PHOTO_CATEGORIES)],
             'photo_description' => ['nullable', 'string', 'max:1000'],
 
             'issue_title' => ['nullable', 'string', 'max:255'],
             'issue_description' => ['nullable', 'string', 'max:2000'],
             'issue_urgency' => ['nullable', Rule::in(['low', 'normal', 'high'])],
-            'issue_photo' => ['nullable', 'image', UploadManager::maxRule()],
+            'issue_photo' => UploadManager::imageRules(),
         ];
 
         foreach (self::ATTENDANCE_DAY_KEYS as $dayKey) {
@@ -1075,7 +1075,7 @@ class PublicProgressController extends Controller
             'item_delivered' => ['nullable', 'string', 'max:255'],
             'quantity' => ['nullable', 'string', 'max:120'],
             'supplier' => ['nullable', 'string', 'max:255'],
-            'photo' => ['nullable', 'image', UploadManager::maxRule()],
+            'photo' => UploadManager::imageRules(),
             'note' => ['nullable', 'string', 'max:500'],
         ]);
 
@@ -1133,7 +1133,7 @@ class PublicProgressController extends Controller
             'quantity' => ['required', 'string', 'max:120'],
             'unit' => ['required', 'string', 'max:120'],
             'remarks' => ['nullable', 'string', 'max:1000'],
-            'photo' => ['nullable', 'image', UploadManager::maxRule()],
+            'photo' => UploadManager::imageRules(),
         ]);
 
         $materialPhotoPath = null;
@@ -1188,7 +1188,7 @@ class PublicProgressController extends Controller
             'scopes.*.percent_completed' => ['required', 'numeric', 'min:0', 'max:100'],
             'scopes.*.photo_caption' => ['nullable', 'string', 'max:255'],
             'scopes.*.photos' => ['nullable', 'array'],
-            'scopes.*.photos.*' => ['nullable', 'image', UploadManager::maxRule()],
+            'scopes.*.photos.*' => UploadManager::imageRules(),
         ]);
 
         $weekStart = Carbon::parse($validated['week_start'])
@@ -1238,7 +1238,7 @@ class PublicProgressController extends Controller
         $submitToken = $this->resolveActiveToken($token);
 
         $validated = $request->validate([
-            'photo' => ['required', 'image', UploadManager::maxRule()],
+            'photo' => UploadManager::imageRules(true),
             'category' => ['nullable', Rule::in(self::PHOTO_CATEGORIES)],
             'description' => ['nullable', 'string', 'max:1000'],
         ]);
@@ -1277,7 +1277,7 @@ class PublicProgressController extends Controller
             'issue_title' => ['required', 'string', 'max:255'],
             'description' => ['required', 'string', 'max:2000'],
             'urgency' => ['required', Rule::in(['low', 'normal', 'high'])],
-            'photo' => ['nullable', 'image', UploadManager::maxRule()],
+            'photo' => UploadManager::imageRules(),
         ]);
 
         $severity = $validated['urgency'] === 'normal'

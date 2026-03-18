@@ -253,10 +253,35 @@ export default function ProjectComputationsPanel({ project }) {
     const buildTrackerMaterialsCost = Number(buildTracker.materials_cost ?? 0);
     const buildTrackerLaborCost = Number(buildTracker.labor_cost ?? 0);
     const buildTrackerEquipmentCost = Number(buildTracker.equipment_cost ?? 0);
+    const buildActualsByCategory = Array.isArray(buildTracker.actual_expenses_by_category) ? buildTracker.actual_expenses_by_category : [];
+    const findActualAmount = (label) => {
+        const match = buildActualsByCategory.find(
+            (item) => String(item.category || '').trim().toLowerCase() === String(label).trim().toLowerCase()
+        );
+        return Number(match?.amount ?? 0);
+    };
+    const actualMaterials = findActualAmount('materials');
+    const actualLabor = findActualAmount('labor');
+    const actualEquipment = findActualAmount('equipment');
+    const coreCategories = ['materials', 'labor', 'equipment'];
+    const otherActuals = buildActualsByCategory
+        .filter((item) => !coreCategories.includes(String(item.category || '').trim().toLowerCase()))
+        .map((item) => ({
+            category: item.category || 'Uncategorized',
+            amount: Number(item.amount ?? 0),
+        }))
+        .filter((item) => item.amount !== 0);
     const buildTrackerCostSubtotal = Number(
         buildTracker.tracker_cost_subtotal ?? (buildTrackerMaterialsCost + buildTrackerLaborCost + buildTrackerEquipmentCost)
     );
-    const actualExpensesTotal = Number(buildTracker.actual_expenses_total ?? project?.construction_cost ?? 0);
+    const actualExpensesTotalRaw =
+        buildTracker.actual_expenses_total ??
+        (buildActualsByCategory.length > 0
+            ? buildActualsByCategory.reduce((sum, item) => sum + Number(item.amount ?? 0), 0)
+            : actualMaterials + actualLabor + actualEquipment);
+    const actualExpensesTotal = Number(
+        (actualExpensesTotalRaw ?? 0) || Number(project?.construction_cost ?? 0)
+    );
     const buildVarianceVsActualExpenses = Number(
         buildTracker.variance_vs_actual_expenses ?? (buildTrackerContractAmount - actualExpensesTotal)
     );
@@ -278,10 +303,6 @@ export default function ProjectComputationsPanel({ project }) {
         syncChecks.tracker_build_budget_minus_manual_derived_build_budget ?? (buildTrackerContractAmount - manualDerivedBuildBudget)
     );
 
-    const hasDesignFeeGap = Math.abs(designFeeGap) > 0.009;
-    const hasBuildBudgetGap = Math.abs(buildBudgetGap) > 0.009;
-    const hasSyncMismatch = hasDesignFeeGap || hasBuildBudgetGap;
-
     return (
         <div style={panelCardStyle}>
             <div style={{ display: 'grid', gap: 4 }}>
@@ -290,13 +311,6 @@ export default function ProjectComputationsPanel({ project }) {
                     Tracker, payments, and project financial snapshot values are grouped by source so you can compare them more easily.
                 </div>
             </div>
-
-            {hasSyncMismatch && (
-                <div style={warnBoxStyle}>
-                    Mismatch detected between manual Financials values and tracker values. Review the <strong>Design Fee Gap</strong> and{' '}
-                    <strong>Build Budget Gap</strong> in the Project Financials section before finalizing reports.
-                </div>
-            )}
 
             <div
                 style={{
@@ -356,16 +370,22 @@ export default function ProjectComputationsPanel({ project }) {
                         <div style={chipGridStyle}>
                             <div style={chipStyle}>
                                 <div style={chipLabelStyle}>Materials</div>
-                                <div style={chipValueStyle}>{money(buildTrackerMaterialsCost)}</div>
+                                <div style={chipValueStyle}>{money(actualMaterials || buildTrackerMaterialsCost)}</div>
                             </div>
                             <div style={chipStyle}>
                                 <div style={chipLabelStyle}>Labor</div>
-                                <div style={chipValueStyle}>{money(buildTrackerLaborCost)}</div>
+                                <div style={chipValueStyle}>{money(actualLabor || buildTrackerLaborCost)}</div>
                             </div>
                             <div style={chipStyle}>
                                 <div style={chipLabelStyle}>Equipment</div>
-                                <div style={chipValueStyle}>{money(buildTrackerEquipmentCost)}</div>
+                                <div style={chipValueStyle}>{money(actualEquipment || buildTrackerEquipmentCost)}</div>
                             </div>
+                            {otherActuals.map((item) => (
+                                <div key={`other-${item.category}`} style={chipStyle}>
+                                    <div style={chipLabelStyle}>{item.category}</div>
+                                    <div style={chipValueStyle}>{money(item.amount)}</div>
+                                </div>
+                            ))}
                         </div>
 
                         <div style={metricGridStyle}>

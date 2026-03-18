@@ -29,6 +29,10 @@ const money = (value) =>
 export default function ProjectFinancialsPage({ project }) {
     const { auth } = usePage().props;
     const role = auth?.user?.role;
+    const isHr = role === 'hr';
+    const isAdminOrHead = role === 'admin' || role === 'head_admin';
+    const status = String(project?.status || '').trim().toLowerCase();
+    const isLocked = status === 'completed' || status === 'cancelled';
 
     const { data, setData, patch, processing, errors } = useForm({
         contract_amount: String(project?.contract_amount ?? 0),
@@ -67,6 +71,7 @@ export default function ProjectFinancialsPage({ project }) {
     const submit = (event) => {
         event.preventDefault();
 
+        if (isLocked) return;
         patch(`/projects/${project.id}/financials?return=financials`, {
             preserveScroll: true,
             replace: true,
@@ -80,7 +85,16 @@ export default function ProjectFinancialsPage({ project }) {
             <Head title={`Financials - ${project?.name || 'Project'}`} />
             <Layout title={`Project Financials - ${project?.name || 'Project'}`}>
                 <div style={{ display: 'grid', gap: 16 }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+                <div
+                    style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 8,
+                        flexWrap: 'wrap',
+                        justifyContent: isAdminOrHead ? 'space-between' : 'flex-start',
+                    }}
+                >
+                    {!isHr && (
                         <ActionButton
                             href={backHref}
                             style={{ padding: '8px 12px', fontSize: 13 }}
@@ -88,10 +102,14 @@ export default function ProjectFinancialsPage({ project }) {
                             <ArrowLeft size={16} />
                             Back to Project
                         </ActionButton>
-                        <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
-                            Only Head Admin and HR can update project financial fields.
-                        </div>
-                    </div>
+                    )}
+                    <ActionButton
+                        href={`/projects/${project.id}/payments`}
+                        style={{ padding: '9px 12px', fontSize: 13 }}
+                    >
+                        Open Payments
+                    </ActionButton>
+                </div>
 
                     <div style={{ ...cardStyle, display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: 12 }}>
                         <div>
@@ -125,7 +143,8 @@ export default function ProjectFinancialsPage({ project }) {
                                     value={data.contract_amount}
                                     onChange={(e) => setData('contract_amount', e.target.value)}
                                     style={inputStyle}
-                                />
+                                disabled={isLocked}
+                            />
                                 {errors.contract_amount && <div style={{ color: '#f87171', fontSize: 12, marginTop: 4 }}>{errors.contract_amount}</div>}
                             </label>
 
@@ -138,7 +157,8 @@ export default function ProjectFinancialsPage({ project }) {
                                     value={data.design_fee}
                                     onChange={(e) => setData('design_fee', e.target.value)}
                                     style={inputStyle}
-                                />
+                                disabled={isLocked}
+                            />
                                 {errors.design_fee && <div style={{ color: '#f87171', fontSize: 12, marginTop: 4 }}>{errors.design_fee}</div>}
                             </label>
 
@@ -151,7 +171,8 @@ export default function ProjectFinancialsPage({ project }) {
                                     value={data.construction_cost}
                                     onChange={(e) => setData('construction_cost', e.target.value)}
                                     style={inputStyle}
-                                />
+                                disabled={isLocked}
+                            />
                                 {errors.construction_cost && <div style={{ color: '#f87171', fontSize: 12, marginTop: 4 }}>{errors.construction_cost}</div>}
                             </label>
 
@@ -164,7 +185,8 @@ export default function ProjectFinancialsPage({ project }) {
                                     value={data.total_client_payment}
                                     onChange={(e) => setData('total_client_payment', e.target.value)}
                                     style={inputStyle}
-                                />
+                                disabled={isLocked}
+                            />
                                 {errors.total_client_payment && <div style={{ color: '#f87171', fontSize: 12, marginTop: 4 }}>{errors.total_client_payment}</div>}
                             </label>
                         </div>
@@ -177,20 +199,14 @@ export default function ProjectFinancialsPage({ project }) {
                         </div>
 
                         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, flexWrap: 'wrap' }}>
-                            <ActionButton
-                                href={`/projects/${project.id}/payments`}
-                                style={{ padding: '9px 12px', fontSize: 13 }}
-                            >
-                                Open Payments
-                            </ActionButton>
-                            <ActionButton
-                                type="submit"
-                                variant="success"
-                                disabled={processing}
-                                style={{ padding: '9px 14px', fontSize: 13 }}
-                            >
-                                {processing ? 'Saving...' : 'Save Financials'}
-                            </ActionButton>
+                        <ActionButton
+                            type="submit"
+                            variant="success"
+                            disabled={processing || isLocked}
+                            style={{ padding: '9px 14px', fontSize: 13 }}
+                        >
+                            {processing ? 'Saving...' : 'Save Financials'}
+                        </ActionButton>
                         </div>
                     </form>
                 </div>

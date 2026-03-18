@@ -39,6 +39,22 @@ class ProjectUpdateController extends Controller
             ->with('success', 'Project update added successfully.');
     }
 
+    public function destroy(Request $request, ProjectUpdate $projectUpdate)
+    {
+        $this->authorizeRole($request);
+
+        $projectId = $projectUpdate->project_id;
+        $projectUpdate->delete();
+
+        return redirect()
+            ->route('projects.show', [
+                'project' => $projectId,
+                ...$this->projectShowQueryParams($request),
+                'tab' => 'updates',
+            ])
+            ->with('success', 'Project update deleted successfully.');
+    }
+
     private function authorizeRole(Request $request): void
     {
         abort_unless(in_array($request->user()->role, ['head_admin', 'admin'], true), 403);

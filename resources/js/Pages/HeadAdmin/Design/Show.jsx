@@ -58,7 +58,6 @@ const milestoneTextStyle = {
 };
 
 export default function HeadAdminDesignShow({ projectId, design }) {
-
     const { data, setData, patch, processing, errors } = useForm({
         design_contract_amount: design.design_contract_amount ?? 0,
         downpayment: design.downpayment ?? 0,
@@ -66,6 +65,8 @@ export default function HeadAdminDesignShow({ projectId, design }) {
         office_payroll_deduction: design.office_payroll_deduction ?? 0,
         client_approval_status: design.client_approval_status ?? 'pending',
     });
+    const projectStatus = String(design.project_status || '').trim().toLowerCase();
+    const isLocked = projectStatus === 'completed' || projectStatus === 'cancelled';
 
     const remaining = Number(data.design_contract_amount || 0) - Number(data.total_received || 0);
     const netIncome = Number(data.total_received || 0) - Number(data.office_payroll_deduction || 0);
@@ -82,6 +83,8 @@ export default function HeadAdminDesignShow({ projectId, design }) {
 
     const submit = (e) => {
         e.preventDefault();
+        if (isLocked) return;
+        if (isLocked) return;
         patch(`/projects/${projectId}/design`, {
             preserveScroll: true,
             onSuccess: () => toast.success('Design tracker updated successfully.'),
@@ -104,6 +107,7 @@ export default function HeadAdminDesignShow({ projectId, design }) {
                 </div>
 
                 <form onSubmit={submit} style={{ display: 'grid', gap: 16 }}>
+                    <fieldset disabled={isLocked} style={{ border: 'none', padding: 0, margin: 0, display: 'contents' }}>
                     <div style={{ ...cardStyle, display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
                         <div>
                             <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 4 }}>Design Contract Amount</div>
@@ -192,12 +196,13 @@ export default function HeadAdminDesignShow({ projectId, design }) {
                         <ActionButton
                             type="submit"
                             variant="success"
-                            disabled={processing}
+                            disabled={processing || isLocked}
                             style={{ padding: '10px 16px', fontSize: 13 }}
                         >
                             {processing ? 'Saving...' : 'Save Design Tracker'}
                         </ActionButton>
                     </div>
+                    </fieldset>
                 </form>
             </Layout>
         </>

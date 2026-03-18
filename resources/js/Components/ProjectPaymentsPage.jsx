@@ -30,6 +30,11 @@ const money = (value) =>
 
 export default function ProjectPaymentsPage({ project, payments = [], paymentTable = {} }) {
     const { auth } = usePage().props;
+    const isHr = auth?.user?.role === 'hr';
+    const status = String(project?.status || '').trim().toLowerCase();
+    const phase = String(project?.phase || '').trim().toLowerCase();
+    const isLocked = ['completed', 'cancelled'].includes(status) || phase === 'completed';
+    const lockInputProps = isLocked ? { disabled: true, readOnly: true } : {};
     const [paymentToDelete, setPaymentToDelete] = useState(null);
     const [deletingPaymentId, setDeletingPaymentId] = useState(null);
 
@@ -84,6 +89,7 @@ export default function ProjectPaymentsPage({ project, payments = [], paymentTab
 
     const submitPayment = (event) => {
         event.preventDefault();
+        if (isLocked) return;
         post(`/projects/${project.id}/payments${queryString({ page: 1 })}`, {
             preserveScroll: true,
             onSuccess: () => {
@@ -95,7 +101,7 @@ export default function ProjectPaymentsPage({ project, payments = [], paymentTab
     };
 
     const deletePayment = () => {
-        if (!paymentToDelete) return;
+        if (!paymentToDelete || isLocked) return;
 
         setDeletingPaymentId(paymentToDelete.id);
         router.delete(`/payments/${paymentToDelete.id}${queryString()}`, {
@@ -153,7 +159,7 @@ export default function ProjectPaymentsPage({ project, payments = [], paymentTab
                     type="button"
                     variant="danger"
                     onClick={() => setPaymentToDelete(payment)}
-                    disabled={deletingPaymentId === payment.id}
+                    disabled={isLocked || deletingPaymentId === payment.id}
                     loading={deletingPaymentId === payment.id}
                     style={{ padding: '6px 10px' }}
                 >
@@ -171,13 +177,15 @@ export default function ProjectPaymentsPage({ project, payments = [], paymentTab
             <Layout title={`Payments - ${project.name}`}>
                 <div style={{ marginBottom: 12 }}>
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap' }}>
-                        <ActionButton
-                            href={backHref}
-                            style={{ padding: '8px 12px', fontSize: 13 }}
-                        >
-                            <ArrowLeft size={16} />
-                            Back to Project
-                        </ActionButton>
+                        {!isHr && (
+                            <ActionButton
+                                href={backHref}
+                                style={{ padding: '8px 12px', fontSize: 13 }}
+                            >
+                                <ArrowLeft size={16} />
+                                Back to Project
+                            </ActionButton>
+                        )}
 
                         <ActionButton
                             href={`/projects/${project.id}/financials`}
@@ -208,47 +216,69 @@ export default function ProjectPaymentsPage({ project, payments = [], paymentTab
                         <div style={{ fontWeight: 700 }}>{project.last_paid_date || '-'}</div>
                     </div>
                 </div>
+                <fieldset disabled={isLocked} style={{ border: 'none', padding: 0, margin: 0 }}>
+                    <form onSubmit={submitPayment} style={{ ...cardStyle, display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 12, marginBottom: 16 }}>
+                        <label>
+                            <div style={{ fontSize: 12, marginBottom: 6 }}>Amount</div>
+                            <input
+                                type="number"
+                                min="0"
+                                step="0.01"
+                                value={data.amount}
+                                onChange={(event) => setData('amount', event.target.value)}
+                                style={inputStyle}
+                                {...lockInputProps}
+                            />
+                            {errors.amount && <div style={{ color: '#f87171', fontSize: 12, marginTop: 4 }}>{errors.amount}</div>}
+                        </label>
 
-                <form onSubmit={submitPayment} style={{ ...cardStyle, display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 12, marginBottom: 16 }}>
-                    <label>
-                        <div style={{ fontSize: 12, marginBottom: 6 }}>Amount</div>
-                        <input type="number" min="0" step="0.01" value={data.amount} onChange={(event) => setData('amount', event.target.value)} style={inputStyle} />
-                        {errors.amount && <div style={{ color: '#f87171', fontSize: 12, marginTop: 4 }}>{errors.amount}</div>}
-                    </label>
+                        <label>
+                            <div style={{ fontSize: 12, marginBottom: 6 }}>Date Paid</div>
+                            <DatePickerInput
+                                value={data.date_paid}
+                                onChange={(value) => setData('date_paid', value || '')}
+                                style={inputStyle}
+                                disabled={isLocked}
+                            />
+                            {errors.date_paid && <div style={{ color: '#f87171', fontSize: 12, marginTop: 4 }}>{errors.date_paid}</div>}
+                        </label>
 
-                    <label>
-                        <div style={{ fontSize: 12, marginBottom: 6 }}>Date Paid</div>
-                        <DatePickerInput
-                            value={data.date_paid}
-                            onChange={(value) => setData('date_paid', value || '')}
-                            style={inputStyle}
-                        />
-                        {errors.date_paid && <div style={{ color: '#f87171', fontSize: 12, marginTop: 4 }}>{errors.date_paid}</div>}
-                    </label>
+                        <label>
+                            <div style={{ fontSize: 12, marginBottom: 6 }}>Reference</div>
+                            <input
+                                value={data.reference}
+                                onChange={(event) => setData('reference', event.target.value)}
+                                style={inputStyle}
+                                placeholder="Receipt no., bank ref, etc."
+                                {...lockInputProps}
+                            />
+                            {errors.reference && <div style={{ color: '#f87171', fontSize: 12, marginTop: 4 }}>{errors.reference}</div>}
+                        </label>
 
-                    <label>
-                        <div style={{ fontSize: 12, marginBottom: 6 }}>Reference</div>
-                        <input value={data.reference} onChange={(event) => setData('reference', event.target.value)} style={inputStyle} placeholder="Receipt no., bank ref, etc." />
-                        {errors.reference && <div style={{ color: '#f87171', fontSize: 12, marginTop: 4 }}>{errors.reference}</div>}
-                    </label>
+                        <label>
+                            <div style={{ fontSize: 12, marginBottom: 6 }}>Note</div>
+                            <input
+                                value={data.note}
+                                onChange={(event) => setData('note', event.target.value)}
+                                style={inputStyle}
+                                placeholder="Optional note"
+                                {...lockInputProps}
+                            />
+                            {errors.note && <div style={{ color: '#f87171', fontSize: 12, marginTop: 4 }}>{errors.note}</div>}
+                        </label>
 
-                    <label>
-                        <div style={{ fontSize: 12, marginBottom: 6 }}>Note</div>
-                        <input value={data.note} onChange={(event) => setData('note', event.target.value)} style={inputStyle} placeholder="Optional note" />
-                        {errors.note && <div style={{ color: '#f87171', fontSize: 12, marginTop: 4 }}>{errors.note}</div>}
-                    </label>
-
-                    <div style={{ gridColumn: '1 / -1', display: 'flex', justifyContent: 'flex-end' }}>
-                        <ActionButton
-                            type="submit"
-                            variant="success"
-                            disabled={processing}
-                            style={{ padding: '10px 16px', fontSize: 13 }}
-                        >
-                            {processing ? 'Saving...' : 'Add Payment'}
-                        </ActionButton>
-                    </div>
-                </form>
+                        <div style={{ gridColumn: '1 / -1', display: 'flex', justifyContent: 'flex-end' }}>
+                            <ActionButton
+                                type="submit"
+                                variant="success"
+                                disabled={processing || isLocked}
+                                style={{ padding: '10px 16px', fontSize: 13 }}
+                            >
+                                {processing ? 'Saving...' : 'Add Payment'}
+                            </ActionButton>
+                        </div>
+                    </form>
+                </fieldset>
 
                 <div style={cardStyle}>
                     <DataTable

@@ -323,17 +323,17 @@ export default function Payroll({ payrolls = [], totalPayable = 0, workerOptions
                             flexWrap: 'wrap',
                         }}
                     >
-                        <ActionButton
-                            onClick={() => setShowForm((v) => !v)}
-                            variant={showForm ? 'neutral' : 'success'}
-                            style={{
-                                padding: '9px 20px',
-                                fontSize: 13,
-                                color: showForm ? 'var(--text-muted)' : undefined,
-                            }}
-                        >
-                            {showForm ? 'Cancel' : '+ Add Payroll Entry'}
-                        </ActionButton>
+                            <ActionButton
+                                onClick={() => setShowForm((v) => !v)}
+                                variant={showForm ? 'neutral' : 'success'}
+                                style={{
+                                    padding: '9px 20px',
+                                    fontSize: 13,
+                                    color: showForm ? 'var(--text-muted)' : '#ffffff',
+                                }}
+                            >
+                                {showForm ? 'Cancel' : '+ Add Payroll Entry'}
+                            </ActionButton>
                     </div>
                 </div>
 

@@ -1,5 +1,1 @@
-import MonitoringBoardIndexPage from '../../../Components/MonitoringBoardIndexPage';
-
-export default function AdminMonitoringBoardIndex(props) {
-    return <MonitoringBoardIndexPage {...props} />;
-}
+export { default } from '../../HeadAdmin/MonitoringBoard/Index';

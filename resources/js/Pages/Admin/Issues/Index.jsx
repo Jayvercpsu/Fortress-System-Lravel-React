@@ -1,5 +1,1 @@
-import IssueReportsPage from '../../../Components/IssueReportsPage';
-
-export default function AdminIssuesIndex(props) {
-    return <IssueReportsPage {...props} />;
-}
+export { default } from '../../HeadAdmin/Issues/Index';

@@ -62,6 +62,8 @@ class PaymentController extends Controller
                 'total_client_payment' => (float) $project->total_client_payment,
                 'remaining_balance' => (float) $project->remaining_balance,
                 'last_paid_date' => optional($project->last_paid_date)?->toDateString(),
+                'status' => $project->status ?? '',
+                'phase' => $project->phase ?? '',
             ],
             'payments' => $payments,
             'paymentTable' => [

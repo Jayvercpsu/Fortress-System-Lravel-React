@@ -1,5 +1,1 @@
-import KpiPrintPage from '../../Components/KpiPrintPage';
-
-export default function AdminKpiPrint(props) {
-    return <KpiPrintPage {...props} />;
-}
+export { default } from '../HeadAdmin/KpiPrint';

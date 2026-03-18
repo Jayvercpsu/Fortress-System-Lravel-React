@@ -142,11 +142,15 @@ export default function HeadAdminProjectsShow({
     updates = [],
     updateTable = {},
 }) {
-    const { errors: pageErrors } = usePage().props;
+    const { errors: pageErrors, auth } = usePage().props;
+    const role = auth?.user?.role;
+    const isHeadAdmin = role === 'head_admin';
     const [tab, setTab] = useState(() => {
         const active = new URLSearchParams(window.location.search).get('tab');
         return ['overview', 'files', 'updates'].includes(active) ? active : 'overview';
     });
+    const [transferring, setTransferring] = useState(false);
+    const [transferTarget, setTransferTarget] = useState(null);
     const [previewFile, setPreviewFile] = useState(null);
     const [teamInfoMember, setTeamInfoMember] = useState(null);
     const [pendingAssignedForeman, setPendingAssignedForeman] = useState('');
@@ -155,6 +159,8 @@ export default function HeadAdminProjectsShow({
     const [clientFileError, setClientFileError] = useState('');
     const [fileToDelete, setFileToDelete] = useState(null);
     const [deletingFile, setDeletingFile] = useState(false);
+    const [updateToDelete, setUpdateToDelete] = useState(null);
+    const [deletingUpdate, setDeletingUpdate] = useState(false);
 
     const {
         data: fileData,
@@ -212,6 +218,17 @@ export default function HeadAdminProjectsShow({
         from: assignedTeamTable?.from ?? null,
         to: assignedTeamTable?.to ?? null,
     };
+    const phaseKey = String(project?.phase || '').trim().toLowerCase();
+    const statusKey = String(project?.status || '').trim().toLowerCase();
+    const isDesignPhase = phaseKey === 'design';
+    const isLocked = ['completed', 'cancelled'].includes(statusKey);
+    const canTransferToConstructionFlag = project?.can_transfer_to_construction;
+    const canTransferToCompletedFlag = project?.can_transfer_to_completed;
+    const hasTransferredConstruction = Boolean(project?.transfer_to_construction_used);
+    const canManageTransfers = ['head_admin', 'admin'].includes(role);
+    const canTransferToConstruction =
+        canTransferToConstructionFlag ?? (phaseKey === 'design' && statusKey === 'completed' && !hasTransferredConstruction && !project?.source_project_id);
+    const canTransferToCompleted = canTransferToCompletedFlag ?? phaseKey === 'construction';
 
     const projectShowQueryParams = (overrides = {}) => {
         const params = {
@@ -238,6 +255,31 @@ export default function HeadAdminProjectsShow({
         const params = new URLSearchParams(projectShowQueryParams(overrides));
         const queryString = params.toString();
         return queryString ? `?${queryString}` : '';
+    };
+
+    const transferProjectPhase = (target) => {
+        if (transferring || !project?.id) return;
+        const endpoint =
+            target === 'completed'
+                ? `/projects/${project.id}/transfer-to-completed`
+                : `/projects/${project.id}/transfer-to-construction`;
+
+        setTransferTarget(target);
+        setTransferring(true);
+        router.patch(
+            `${endpoint}${projectShowQueryString()}`,
+            {},
+            {
+                preserveScroll: true,
+                replace: true,
+                onSuccess: () => toast.success(`Project transferred to ${target === 'completed' ? 'Completed' : 'Construction'}.`),
+                onError: (errors) => toast.error(errors.transfer || 'Unable to transfer project.'),
+                onFinish: () => {
+                    setTransferring(false);
+                    setTransferTarget(null);
+                },
+            }
+        );
     };
 
     const navigateProjectTable = (overrides = {}) => {
@@ -310,6 +352,19 @@ export default function HeadAdminProjectsShow({
         });
     };
 
+    const deleteUpdate = (id) => {
+        setDeletingUpdate(true);
+        router.delete(`/project-updates/${id}${projectShowQueryString({ tab: 'updates' })}`, {
+            preserveScroll: true,
+            onError: () => toast.error('Unable to delete update.'),
+            onSuccess: () => toast.success('Project update deleted.'),
+            onFinish: () => {
+                setDeletingUpdate(false);
+                setUpdateToDelete(null);
+            },
+        });
+    };
+
     const foremanOptions = Array.isArray(foremen) ? foremen : [];
 
     const syncAssignedForemenDraft = (nextNames) => {
@@ -349,7 +404,6 @@ export default function HeadAdminProjectsShow({
     const previewExt = (previewFile?.original_name || '').split('.').pop()?.toLowerCase() || '';
     const isImagePreview = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'svg'].includes(previewExt);
     const isPdfPreview = previewExt === 'pdf';
-    const phaseKey = String(project?.phase || '').trim().toLowerCase();
     const disableDesignSection = phaseKey === 'construction';
     const disableBuildSection = phaseKey === 'design';
 
@@ -395,7 +449,7 @@ export default function HeadAdminProjectsShow({
                         type="button"
                         variant="danger"
                         onClick={() => setFileToDelete(file)}
-                        disabled={deletingFile}
+                        disabled={isLocked || deletingFile}
                         loading={deletingFile && fileToDelete?.id === file.id}
                     >
                         {deletingFile && fileToDelete?.id === file.id ? 'Deleting...' : 'Delete'}
@@ -423,6 +477,22 @@ export default function HeadAdminProjectsShow({
             label: 'Created At',
             render: (update) => <div style={{ fontSize: 13 }}>{update.created_at || '-'}</div>,
             searchAccessor: (update) => update.created_at,
+        },
+        {
+            key: 'actions',
+            label: 'Actions',
+            align: 'right',
+            render: (update) => (
+                <ActionButton
+                    type="button"
+                    variant="danger"
+                    onClick={() => setUpdateToDelete(update)}
+                    disabled={isLocked || deletingUpdate}
+                    loading={deletingUpdate && updateToDelete?.id === update.id}
+                >
+                    {deletingUpdate && updateToDelete?.id === update.id ? 'Deleting...' : 'Delete'}
+                </ActionButton>
+            ),
         },
     ];
 
@@ -495,6 +565,36 @@ export default function HeadAdminProjectsShow({
                             </ActionButton>
                         ))}
                     </div>
+
+                    {canManageTransfers && (
+                        <div style={{ display: 'flex', gap: 8 }}>
+                            {canTransferToConstruction && (
+                                <ActionButton
+                                    type="button"
+                                    variant="success"
+                                    onClick={() => transferProjectPhase('construction')}
+                                    loading={transferring && transferTarget === 'construction'}
+                                    disabled={transferring}
+                                    style={{ padding: '10px 14px', fontWeight: 700 }}
+                                >
+                                    {transferring && transferTarget === 'construction' ? 'Transferring...' : 'Transfer to Construction'}
+                                </ActionButton>
+                            )}
+
+                            {canTransferToCompleted && (
+                                <ActionButton
+                                    type="button"
+                                    variant="success"
+                                    onClick={() => transferProjectPhase('completed')}
+                                    loading={transferring && transferTarget === 'completed'}
+                                    disabled={transferring}
+                                    style={{ padding: '10px 14px', fontWeight: 700 }}
+                                >
+                                    {transferring && transferTarget === 'completed' ? 'Transferring...' : 'Transfer to Completed'}
+                                </ActionButton>
+                            )}
+                        </div>
+                    )}
                 </div>
 
                 <div style={{ ...shortcutPanelStyle, marginBottom: 14, display: 'grid', gap: 10 }}>
@@ -678,30 +778,34 @@ export default function HeadAdminProjectsShow({
 
                         <ProjectComputationsPanel project={project} />
 
-                        <div style={{ ...cardStyle, display: 'grid', gap: 12 }}>
-                            <div style={{ fontWeight: 700 }}>Project Workers (Read-only)</div>
-                            <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
-                                Laborers are managed by the foreman in `Foreman &gt; Workers`. This section is record-view only. Use `Edit Project` to assign one or more foremen.
+                        {!isDesignPhase && (
+                            <div style={{ ...cardStyle, display: 'grid', gap: 12 }}>
+                                <div style={{ fontWeight: 700 }}>Project Workers (Read-only)</div>
+                                <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+                                    {isHeadAdmin
+                                        ? 'Laborers are managed by the foreman in `Foreman > Workers`. This section is record-view only. Use `Edit Project` to assign one or more foremen.'
+                                        : 'Laborers are managed by the foreman in `Foreman > Workers`. This section is record-view only. Foreman assignment is managed in project setup by Head Admin.'}
+                                </div>
+                                <DataTable
+                                    columns={teamColumns}
+                                    rows={assignedTeam}
+                                    rowKey={(row) => String(row.id)}
+                                    searchPlaceholder="Search project workers..."
+                                    emptyMessage="No project workers yet."
+                                    serverSide
+                                    serverSearchValue={teamTableState.search}
+                                    serverPage={teamTableState.page}
+                                    serverPerPage={teamTableState.perPage}
+                                    serverTotalItems={teamTableState.total}
+                                    serverTotalPages={teamTableState.lastPage}
+                                    serverFrom={teamTableState.from}
+                                    serverTo={teamTableState.to}
+                                    onServerSearchChange={(value) => navigateProjectTable({ tab: 'overview', team_search: value, team_page: 1 })}
+                                    onServerPerPageChange={(value) => navigateProjectTable({ tab: 'overview', team_per_page: value, team_page: 1 })}
+                                    onServerPageChange={(value) => navigateProjectTable({ tab: 'overview', team_page: value })}
+                                />
                             </div>
-                            <DataTable
-                                columns={teamColumns}
-                                rows={assignedTeam}
-                                rowKey={(row) => String(row.id)}
-                                searchPlaceholder="Search project workers..."
-                                emptyMessage="No project workers yet."
-                                serverSide
-                                serverSearchValue={teamTableState.search}
-                                serverPage={teamTableState.page}
-                                serverPerPage={teamTableState.perPage}
-                                serverTotalItems={teamTableState.total}
-                                serverTotalPages={teamTableState.lastPage}
-                                serverFrom={teamTableState.from}
-                                serverTo={teamTableState.to}
-                                onServerSearchChange={(value) => navigateProjectTable({ tab: 'overview', team_search: value, team_page: 1 })}
-                                onServerPerPageChange={(value) => navigateProjectTable({ tab: 'overview', team_per_page: value, team_page: 1 })}
-                                onServerPageChange={(value) => navigateProjectTable({ tab: 'overview', team_page: value })}
-                            />
-                        </div>
+                        )}
                     </div>
                 )}
 
@@ -710,11 +814,11 @@ export default function HeadAdminProjectsShow({
                         <form onSubmit={uploadFile} style={{ ...cardStyle, display: 'grid', gap: 10 }}>
                             <div style={{ fontWeight: 700 }}>Upload Plan/File (max {MAX_UPLOAD_SIZE_LABEL})</div>
                             <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>Files over {MAX_UPLOAD_SIZE_LABEL} will be rejected.</div>
-                            <input type="file" onChange={handleFileInputChange} />
+                            <input type="file" onChange={handleFileInputChange} disabled={isLocked} />
                             {clientFileError && <div style={{ color: '#f87171', fontSize: 12 }}>{clientFileError}</div>}
                             {fileErrors.file && <div style={{ color: '#f87171', fontSize: 12 }}>{fileErrors.file}</div>}
                             <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-                                <ActionButton type="submit" variant="success" disabled={uploading} style={{ padding: '8px 12px' }}>
+                                <ActionButton type="submit" variant="success" disabled={uploading || isLocked} style={{ padding: '8px 12px' }}>
                                     {uploading ? 'Uploading...' : 'Upload'}
                                 </ActionButton>
                             </div>
@@ -747,10 +851,10 @@ export default function HeadAdminProjectsShow({
                     <div style={{ display: 'grid', gap: 14 }}>
                         <form onSubmit={addUpdate} style={{ ...cardStyle, display: 'grid', gap: 10 }}>
                             <div style={{ fontWeight: 700 }}>Add Remark/Update</div>
-                            <textarea value={updateData.note} onChange={(e) => setUpdateData('note', e.target.value)} style={{ ...inputStyle, minHeight: 90 }} />
+                            <textarea value={updateData.note} onChange={(e) => setUpdateData('note', e.target.value)} style={{ ...inputStyle, minHeight: 90 }} disabled={isLocked} />
                             {updateErrors.note && <div style={{ color: '#f87171', fontSize: 12 }}>{updateErrors.note}</div>}
                             <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-                                <ActionButton type="submit" variant="success" disabled={postingUpdate} style={{ padding: '8px 12px' }}>
+                                <ActionButton type="submit" variant="success" disabled={postingUpdate || isLocked} style={{ padding: '8px 12px' }}>
                                     {postingUpdate ? 'Posting...' : 'Post Update'}
                                 </ActionButton>
                             </div>
@@ -872,6 +976,16 @@ export default function HeadAdminProjectsShow({
                     message={fileToDelete ? `Delete "${fileToDelete.original_name}" from this project?` : 'Delete this file?'}
                     confirmLabel={deletingFile ? 'Deleting...' : 'Delete'}
                     processing={deletingFile}
+                    danger
+                />
+                <ConfirmationModal
+                    open={!!updateToDelete}
+                    onClose={() => (deletingUpdate ? null : setUpdateToDelete(null))}
+                    onConfirm={() => (updateToDelete ? deleteUpdate(updateToDelete.id) : null)}
+                    title="Delete Update"
+                    message={updateToDelete ? `Delete this project update?` : 'Delete this update?'}
+                    confirmLabel={deletingUpdate ? 'Deleting...' : 'Delete'}
+                    processing={deletingUpdate}
                     danger
                 />
             </Layout>

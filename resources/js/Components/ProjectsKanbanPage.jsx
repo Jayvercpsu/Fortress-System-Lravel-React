@@ -438,7 +438,11 @@ export default function ProjectsKanbanPage({
                                                         type="button"
                                                         variant="success"
                                                         onClick={() => transferProject(project, 'completed')}
-                                                        disabled={transferringId === project.id || !project.can_transfer_to_completed}
+                                                        disabled={
+                                                            transferringId === project.id ||
+                                                            !project.can_transfer_to_completed ||
+                                                            String(project.status || '').trim().toLowerCase() !== 'completed'
+                                                        }
                                                         loading={transferringId === project.id}
                                                         style={{ padding: '6px 10px', minHeight: 30, marginLeft: 'auto' }}
                                                     >

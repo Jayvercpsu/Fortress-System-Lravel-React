@@ -149,11 +149,16 @@ export default function HeadAdminProjectsEdit({ project, foremen = [], clientOpt
     const [assignedRoles, setAssignedRoles] = useState(() => parseAssignedRoles(project.assigned_role ?? ''));
     const [projectTypeOption, setProjectTypeOption] = useState(() => (initialProjectTypeIsPreset ? initialProjectType : OTHER_PROJECT_TYPE_OPTION));
     const [customProjectType, setCustomProjectType] = useState(() => (initialProjectTypeIsPreset ? '' : initialProjectType));
+    const projectStatus = String(project.status || '').trim().toLowerCase();
+    const isLocked = projectStatus === 'completed' || projectStatus === 'cancelled';
 
     const submit = (e) => {
         e.preventDefault();
+        if (isLocked) return;
         patch(`/projects/${project.id}`, {
             onError: () => toast.error('Please check required fields.'),
+            onSuccess: () => toast.success('Project saved successfully.'),
+            preserveScroll: true,
         });
     };
 
@@ -230,6 +235,7 @@ export default function HeadAdminProjectsEdit({ project, foremen = [], clientOpt
                 </div>
 
                 <form onSubmit={submit} style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 14, background: 'var(--surface-1)', border: '1px solid var(--border-color)', borderRadius: 12, padding: 16, marginBottom: 16 }}>
+                    <fieldset disabled={isLocked} style={{ border: 'none', padding: 0, margin: 0, gridColumn: '1 / -1', display: 'contents' }}>
                     <label>
                         <div style={{ fontSize: 12, marginBottom: 6 }}>Project Name</div>
                         <TextInput value={data.name} onChange={(e) => setData('name', e.target.value)} style={inputStyle} />
@@ -286,6 +292,7 @@ export default function HeadAdminProjectsEdit({ project, foremen = [], clientOpt
                                 value={pendingAssignedRole}
                                 onChange={(e) => setPendingAssignedRole(e.target.value)}
                                 style={inputStyle}
+                                disabled={isLocked}
                             >
                                 <option value="">Select role</option>
                                 {PROJECT_ASSIGNED_ROLE_OPTIONS.map((role) => (
@@ -297,11 +304,12 @@ export default function HeadAdminProjectsEdit({ project, foremen = [], clientOpt
                                 onChange={(e) => setPendingAssignedRoleName(e.target.value)}
                                 placeholder="Enter name"
                                 style={inputStyle}
+                                disabled={isLocked}
                             />
                             <ActionButton
                                 type="button"
                                 onClick={addAssignedRole}
-                                disabled={!pendingAssignedRole || !String(pendingAssignedRoleName || '').trim()}
+                                disabled={isLocked || !pendingAssignedRole || !String(pendingAssignedRoleName || '').trim()}
                                 style={{ padding: '10px 12px' }}
                             >
                                 Add
@@ -323,19 +331,20 @@ export default function HeadAdminProjectsEdit({ project, foremen = [], clientOpt
                                                 <button
                                                     type="button"
                                                     onClick={() => removeAssignedRole(entry)}
-                                            style={{
-                                                border: 'none',
-                                                background: 'transparent',
-                                                color: 'var(--text-muted)',
-                                                cursor: 'pointer',
-                                                fontSize: 12,
-                                                padding: 0,
-                                            }}
-                                            aria-label={`Remove ${entry.label}`}
-                                        >
-                                            x
-                                        </button>
-                                    </div>
+                                                    disabled={isLocked}
+                                                    style={{
+                                                        border: 'none',
+                                                        background: 'transparent',
+                                                        color: 'var(--text-muted)',
+                                                        cursor: 'pointer',
+                                                        fontSize: 12,
+                                                        padding: 0,
+                                                    }}
+                                                    aria-label={`Remove ${entry.label}`}
+                                                >
+                                                    x
+                                                </button>
+                                            </div>
                                 ))
                             )}
                         </div>
@@ -354,19 +363,19 @@ export default function HeadAdminProjectsEdit({ project, foremen = [], clientOpt
                                 placeholder={foremen.length === 0 ? 'No foreman users available' : 'Select foreman'}
                                 searchPlaceholder="Search foremen..."
                                 emptyMessage="No foremen found"
-                                disabled={foremen.length === 0}
+                                disabled={isLocked || foremen.length === 0}
                                 clearable
                                 style={{ ...inputStyle, minHeight: 40, padding: '8px 10px' }}
                                 dropdownWidth={340}
                             />
-                            <ActionButton
-                                type="button"
-                                onClick={addAssignedForeman}
-                                disabled={!pendingAssignedForeman}
-                                style={{ padding: '10px 12px' }}
-                            >
-                                Add Foreman
-                            </ActionButton>
+                        <ActionButton
+                            type="button"
+                            onClick={addAssignedForeman}
+                                disabled={isLocked || !pendingAssignedForeman}
+                            style={{ padding: '10px 12px' }}
+                        >
+                            Add Foreman
+                        </ActionButton>
                         </div>
                         <div style={{ color: 'var(--text-muted)', fontSize: 12 }}>
                             One project can have multiple foremen.
@@ -386,6 +395,7 @@ export default function HeadAdminProjectsEdit({ project, foremen = [], clientOpt
                                         <button
                                             type="button"
                                             onClick={() => removeAssignedForeman(name)}
+                                disabled={isLocked}
                                             style={{
                                                 border: 'none',
                                                 background: 'transparent',
@@ -429,10 +439,11 @@ export default function HeadAdminProjectsEdit({ project, foremen = [], clientOpt
                         {errors.phase && <div style={{ color: '#f87171', fontSize: 12, marginTop: 4 }}>{errors.phase}</div>}
                     </label>
                     <div style={{ gridColumn: '1 / -1', display: 'flex', justifyContent: 'flex-end' }}>
-                        <ActionButton type="submit" variant="success" disabled={processing} style={{ padding: '10px 16px', fontSize: 13 }}>
+                        <ActionButton type="submit" variant="success" disabled={processing || isLocked} style={{ padding: '10px 16px', fontSize: 13 }}>
                             {processing ? 'Saving...' : 'Save Project'}
                         </ActionButton>
                     </div>
+                    </fieldset>
                 </form>
 
             </Layout>

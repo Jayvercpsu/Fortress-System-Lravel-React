@@ -242,7 +242,28 @@ export default function ProgressSubmit({ submitToken }) {
             : {};
         return source;
     }, [submitToken?.weekly_saved_by_week]);
+    useEffect(() => {
+        const timer = setTimeout(() => {
+            setSectionLoading({
+                attendance: false,
+                delivery: false,
+                materials: false,
+                weekly: false,
+                photos: false,
+                issues: false,
+            });
+        }, 500);
+        return () => clearTimeout(timer);
+    }, []);
     const [expanded, setExpanded] = useState({ attendance: false, delivery: false, materials: false, weekly: false, photos: false, issues: false });
+    const [sectionLoading, setSectionLoading] = useState({
+        attendance: true,
+        delivery: true,
+        materials: true,
+        weekly: true,
+        photos: true,
+        issues: true,
+    });
     const [attendanceWeek, setAttendanceWeek] = useState(monday);
     const [attendanceWeekDrafts, setAttendanceWeekDrafts] = useState(initialAttendanceDrafts);
     const [delivery, setDelivery] = useState({ delivery_date: today(), status: 'complete', item_delivered: '', quantity: '', supplier: '', note: '', photo: null });
@@ -336,7 +357,16 @@ export default function ProgressSubmit({ submitToken }) {
     const rowTotal = (row) => DAYS.reduce((sum, d) => sum + (POINTS[row?.days?.[d.key] || ''] || 0), 0);
     const dayTotal = (key) => attendanceRows.reduce((sum, row) => sum + (POINTS[row?.days?.[key] || ''] || 0), 0);
 
-    const toggle = (key) => setExpanded((prev) => ({ ...prev, [key]: !prev[key] }));
+    const toggle = (key) => {
+        setExpanded((prev) => {
+            const nextState = !prev[key];
+            if (nextState) {
+                setSectionLoading((p) => ({ ...p, [key]: true }));
+                setTimeout(() => setSectionLoading((p) => ({ ...p, [key]: false })), 600);
+            }
+            return { ...prev, [key]: nextState };
+        });
+    };
     const openPhotoPreview = (photoPath, title = 'Photo Preview', meta = '') => {
         const normalizedPath = String(photoPath || '').trim();
         if (normalizedPath === '') return;
@@ -460,7 +490,13 @@ export default function ProgressSubmit({ submitToken }) {
                 setIssueKey((k) => k + 1);
                 toast.success('Jotform submitted successfully.');
             },
-            onError: () => toast.error('Unable to submit. Please review the form and try again.'),
+            onError: (errors) => {
+                const firstError =
+                    (errors && Object.values(errors).flat().find(Boolean)) ||
+                    (errors && Object.values(errors).find((e) => typeof e === 'string')) ||
+                    'Unable to submit. Please review the form and try again.';
+                toast.error(firstError);
+            },
             onFinish: () => setSubmitting(false),
         });
     };
@@ -883,13 +919,22 @@ export default function ProgressSubmit({ submitToken }) {
         </>
     );
 
+    const skeletonSection = (
+        <div style={{ display: 'grid', gap: 10 }}>
+            <div className="jf-skel box" />
+            <div className="jf-skel line" />
+            <div className="jf-skel line" />
+            <div className="jf-skel table" />
+        </div>
+    );
+
     const contentByKey = {
-        attendance: attendanceContent,
-        delivery: deliveryContent,
-        materials: materialContent,
-        weekly: weeklyContent,
-        photos: photosContent,
-        issues: issueContent,
+        attendance: sectionLoading.attendance ? skeletonSection : attendanceContent,
+        delivery: sectionLoading.delivery ? skeletonSection : deliveryContent,
+        materials: sectionLoading.materials ? skeletonSection : materialContent,
+        weekly: sectionLoading.weekly ? skeletonSection : weeklyContent,
+        photos: sectionLoading.photos ? skeletonSection : photosContent,
+        issues: sectionLoading.issues ? skeletonSection : issueContent,
     };
 
     return (
@@ -941,6 +986,11 @@ export default function ProgressSubmit({ submitToken }) {
                     .jf-submit-wrap{max-width:760px;margin:14px auto 0;display:flex;justify-content:center}
                     .jf-submit-btn{width:100%;max-width:420px;border:none;border-radius:10px;min-height:50px;background:#2f70d4;color:#fff;font-size:18px;font-weight:800;cursor:pointer}
                     .jf-submit-btn:disabled{opacity:.7;cursor:not-allowed}
+                    .jf-skel{background:linear-gradient(90deg,#ececec,#f5f5f5,#ececec);background-size:200% 100%;animation:jf-shimmer 1.1s linear infinite;border-radius:8px}
+                    .jf-skel.line{height:14px;margin:6px 0}
+                    .jf-skel.box{height:38px}
+                    .jf-skel.table{height:120px;margin-top:8px}
+                    @keyframes jf-shimmer{0%{background-position:200% 0}100%{background-position:-200% 0}}
                     @media (max-width:980px){.jf-photo-layout{grid-template-columns:1fr}}
                     @media (max-width:760px){.jf-grid2{grid-template-columns:1fr}.jf-recent-list-two{grid-template-columns:1fr}.jf-acc-title{font-size:20px}.jf-acc-head{min-height:68px}.jf-submit-btn{font-size:16px;min-height:46px}}
                 `}</style>

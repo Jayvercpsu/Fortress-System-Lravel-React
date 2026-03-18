@@ -73,6 +73,8 @@ export default function Layout({ children, title }) {
         typeof window !== 'undefined'
             ? window.location.pathname.replace(/\/+$/, '') || '/'
             : '/';
+    const isHrSpecialProjectPage =
+        user?.role === 'hr' && /^\/projects\/\d+\/(payments|financials)$/.test(currentPath);
 
     const [showLogoutModal, setShowLogoutModal] = useState(false);
     const [isLoggingOut, setIsLoggingOut] = useState(false);
@@ -154,7 +156,8 @@ export default function Layout({ children, title }) {
                             const active =
                                 currentPath === itemPath ||
                                 aliases.includes(currentPath) ||
-                                (!exactOnly && itemPath !== '/' && currentPath.startsWith(`${itemPath}/`));
+                                (!exactOnly && itemPath !== '/' && currentPath.startsWith(`${itemPath}/`)) ||
+                                (isHrSpecialProjectPage && itemPath === '/hr');
 
                             return (
                                 <Link

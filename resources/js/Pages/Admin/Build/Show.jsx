@@ -51,13 +51,31 @@ export default function AdminBuildShow({
     const [editExpense, setEditExpense] = useState(null);
     const [expenseToDelete, setExpenseToDelete] = useState(null);
     const [deletingExpense, setDeletingExpense] = useState(false);
+    const [otherCategory, setOtherCategory] = useState('');
+    const [otherEditCategory, setOtherEditCategory] = useState('');
+    const status = String(build?.project_status || build?.status || '').trim().toLowerCase();
+    const isLocked = status === 'completed' || status === 'cancelled';
 
     const { data, setData, patch, processing, errors } = useForm({
         construction_contract: build.construction_contract ?? 0,
         total_client_payment: build.total_client_payment ?? 0,
     });
 
-    const availableCategories = Array.isArray(materialOptions) ? materialOptions : [];
+    const expenseCategoryNames = Array.isArray(expenses)
+        ? expenses.map((e) => String(e.category || '').trim()).filter(Boolean)
+        : [];
+    const breakdownCategoryNames = Array.isArray(expenseCategoryTotals)
+        ? expenseCategoryTotals.map((e) => String(e.category || '').trim()).filter(Boolean)
+        : [];
+    const defaultCategories = ['Materials', 'Labor', 'Equipment', 'Miscellaneous', 'Others'];
+    const availableCategories = Array.from(
+        new Set([
+            ...(Array.isArray(materialOptions) ? materialOptions : []),
+            ...expenseCategoryNames,
+            ...breakdownCategoryNames,
+            ...defaultCategories,
+        ].filter(Boolean))
+    ).filter((name) => String(name).trim().toLowerCase() !== 'uncategorized');
 
     const {
         data: expenseData,
@@ -66,6 +84,7 @@ export default function AdminBuildShow({
         processing: creatingExpense,
         errors: expenseErrors,
         reset: resetExpense,
+        transform: transformExpense,
     } = useForm({
         category: availableCategories[0] ?? '',
         amount: '',
@@ -80,6 +99,7 @@ export default function AdminBuildShow({
         processing: updatingExpense,
         errors: editErrors,
         clearErrors: clearEditErrors,
+        transform: transformEditExpense,
     } = useForm({
         category: '',
         amount: '',
@@ -123,7 +143,10 @@ export default function AdminBuildShow({
     useEffect(() => {
         if (availableCategories.length === 0) return;
         if (!expenseData.category || !availableCategories.includes(expenseData.category)) {
-            setExpenseData('category', availableCategories[0]);
+            setExpenseData('category', availableCategories[0] ?? 'Others');
+        }
+        if (expenseData.category !== 'Others') {
+            setOtherCategory('');
         }
     }, [availableCategories, expenseData.category]);
 
@@ -158,6 +181,7 @@ export default function AdminBuildShow({
 
     const submit = (e) => {
         e.preventDefault();
+        if (isLocked) return;
         patch(`/projects/${projectId}/build`, {
             preserveScroll: true,
             onSuccess: () => toast.success('Build tracker updated successfully.'),
@@ -167,26 +191,37 @@ export default function AdminBuildShow({
 
     const submitExpense = (e) => {
         e.preventDefault();
+        if (isLocked) return;
+        const resolvedCategory = expenseData.category === 'Others' ? otherCategory.trim() : expenseData.category;
+        if (!resolvedCategory) {
+            toast.error('Please enter a category.');
+            return;
+        }
+        transformExpense((data) => ({ ...data, category: resolvedCategory }));
         postExpense(`/projects/${projectId}/expenses${expenseActionQuery({ expense_page: 1 })}`, {
             preserveScroll: true,
             onSuccess: () => {
                 resetExpense('category', 'amount', 'note');
                 setExpenseData('date', today());
+                setOtherCategory('');
                 toast.success('Expense added successfully.');
             },
             onError: () => toast.error('Unable to add expense. Check the form fields.'),
+            onFinish: () => transformExpense((data) => data),
         });
     };
 
     const startEditExpense = (expense) => {
         setEditExpense(expense);
         if (clearEditErrors) clearEditErrors();
+        const isCustomCategory = expense.category && !availableCategories.includes(expense.category);
         setEditData({
-            category: expense.category ?? '',
+            category: isCustomCategory ? 'Others' : expense.category ?? '',
             amount: expense.amount ?? '',
             note: expense.note ?? '',
             date: expense.date ?? today(),
         });
+        setOtherEditCategory(isCustomCategory ? expense.category : '');
     };
 
     const closeEditExpense = () => {
@@ -198,17 +233,27 @@ export default function AdminBuildShow({
     const submitEditExpense = (e) => {
         e.preventDefault();
         if (!editExpense) return;
+        if (isLocked) return;
+        const resolvedCategory = editData.category === 'Others' ? otherEditCategory.trim() : editData.category;
+        if (!resolvedCategory) {
+            toast.error('Please enter a category.');
+            return;
+        }
+        transformEditExpense((data) => ({ ...data, category: resolvedCategory }));
         patchExpense(`/expenses/${editExpense.id}${expenseActionQuery()}`, {
             preserveScroll: true,
             onSuccess: () => {
                 setEditExpense(null);
+                setOtherEditCategory('');
                 toast.success('Expense updated successfully.');
             },
             onError: () => toast.error('Unable to update expense.'),
+            onFinish: () => transformEditExpense((data) => data),
         });
     };
 
     const deleteExpense = (expenseId) => {
+        if (isLocked) return;
         setDeletingExpense(true);
         router.delete(`/expenses/${expenseId}${expenseActionQuery()}`, {
             preserveScroll: true,
@@ -253,16 +298,16 @@ export default function AdminBuildShow({
             key: 'actions',
             label: 'Actions',
             align: 'right',
-            render: (expense) => (
-                <div style={{ display: 'inline-flex', gap: 8 }}>
-                    <ActionButton type="button" variant="edit" onClick={() => startEditExpense(expense)}>
+                render: (expense) => (
+                    <div style={{ display: 'inline-flex', gap: 8 }}>
+                    <ActionButton type="button" variant="edit" onClick={() => startEditExpense(expense)} disabled={isLocked}>
                         Edit
                     </ActionButton>
                     <ActionButton
                         type="button"
                         variant="danger"
                         onClick={() => setExpenseToDelete(expense)}
-                        disabled={deletingExpense}
+                        disabled={isLocked || deletingExpense}
                         loading={deletingExpense && expenseToDelete?.id === expense.id}
                     >
                         {deletingExpense && expenseToDelete?.id === expense.id ? 'Deleting...' : 'Delete'}
@@ -311,13 +356,13 @@ export default function AdminBuildShow({
                         <div style={{ ...cardStyle, display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 14 }}>
                             <label>
                                 <div style={{ fontSize: 12, marginBottom: 6 }}>Construction Contract</div>
-                                <TextInput type="number" step="0.01" min="0" value={data.construction_contract} onChange={(e) => setData('construction_contract', e.target.value)} style={inputStyle} />
+                                <TextInput type="number" step="0.01" min="0" value={data.construction_contract} onChange={(e) => setData('construction_contract', e.target.value)} style={inputStyle} disabled={isLocked} />
                                 {errors.construction_contract && <div style={{ color: '#f87171', fontSize: 12, marginTop: 4 }}>{errors.construction_contract}</div>}
                             </label>
 
                             <label>
                                 <div style={{ fontSize: 12, marginBottom: 6 }}>Total Client Payment</div>
-                                <TextInput type="number" step="0.01" min="0" value={data.total_client_payment} onChange={(e) => setData('total_client_payment', e.target.value)} style={inputStyle} />
+                                <TextInput type="number" step="0.01" min="0" value={data.total_client_payment} onChange={(e) => setData('total_client_payment', e.target.value)} style={inputStyle} disabled={isLocked} />
                                 {errors.total_client_payment && <div style={{ color: '#f87171', fontSize: 12, marginTop: 4 }}>{errors.total_client_payment}</div>}
                             </label>
                             <div style={{ gridColumn: '1 / -1', border: '1px dashed var(--border-color)', borderRadius: 10, padding: 12 }}>
@@ -343,7 +388,7 @@ export default function AdminBuildShow({
                             <ActionButton
                                 type="submit"
                                 variant="success"
-                                disabled={processing}
+                                disabled={processing || isLocked}
                                 style={{ padding: '10px 16px', fontSize: 13 }}
                             >
                                 {processing ? 'Saving...' : 'Save Build Tracker'}
@@ -386,40 +431,51 @@ export default function AdminBuildShow({
                                     onChange={(value) => setExpenseData('category', value)}
                                     getOptionLabel={(option) => option}
                                     getOptionValue={(option) => option}
-                                    placeholder={availableCategories.length === 0 ? 'No materials yet' : 'Select category'}
+                                    placeholder={availableCategories.length === 0 ? 'No categories yet' : 'Select category'}
                                     searchPlaceholder="Search categories..."
                                     emptyMessage="No categories found"
                                     disabled={availableCategories.length === 0}
                                     style={{ ...inputStyle, minHeight: 40, padding: '8px 10px' }}
                                     dropdownWidth={320}
                                 />
-                                {expenseErrors.category && <div style={{ color: '#f87171', fontSize: 12, marginTop: 4 }}>{expenseErrors.category}</div>}
-                                {availableCategories.length === 0 && (
-                                    <div style={{ color: 'var(--text-muted)', fontSize: 12, marginTop: 4 }}>
-                                        Add categories in the `Materials` page first.
-                                    </div>
+                            {expenseData.category === 'Others' && (
+                                <div style={{ marginTop: 6 }}>
+                                    <TextInput
+                                        value={otherCategory}
+                                        onChange={(e) => setOtherCategory(e.target.value)}
+                                        placeholder="Enter category"
+                                        style={inputStyle}
+                                        disabled={isLocked || creatingExpense}
+                                    />
+                                </div>
+                            )}
+                            {expenseErrors.category && <div style={{ color: '#f87171', fontSize: 12, marginTop: 4 }}>{expenseErrors.category}</div>}
+                            {availableCategories.length === 0 && (
+                                <div style={{ color: 'var(--text-muted)', fontSize: 12, marginTop: 4 }}>
+                                    Add categories in the `Materials` page first.
+                                </div>
                                 )}
                             </label>
                             <label>
                                 <div style={{ fontSize: 12, marginBottom: 6 }}>Amount</div>
-                                <TextInput type="number" step="0.01" min="0" value={expenseData.amount} onChange={(e) => setExpenseData('amount', e.target.value)} style={inputStyle} />
+                                <TextInput type="number" step="0.01" min="0" value={expenseData.amount} onChange={(e) => setExpenseData('amount', e.target.value)} style={inputStyle} disabled={isLocked} />
                                 {expenseErrors.amount && <div style={{ color: '#f87171', fontSize: 12, marginTop: 4 }}>{expenseErrors.amount}</div>}
                             </label>
                             <label>
                                 <div style={{ fontSize: 12, marginBottom: 6 }}>Date</div>
-                                <DatePickerInput value={expenseData.date} onChange={(value) => setExpenseData('date', value)} style={inputStyle} />
+                                <DatePickerInput value={expenseData.date} onChange={(value) => setExpenseData('date', value)} style={inputStyle} disabled={isLocked} />
                                 {expenseErrors.date && <div style={{ color: '#f87171', fontSize: 12, marginTop: 4 }}>{expenseErrors.date}</div>}
                             </label>
                             <label>
                                 <div style={{ fontSize: 12, marginBottom: 6 }}>Note</div>
-                                <TextInput value={expenseData.note} onChange={(e) => setExpenseData('note', e.target.value)} style={inputStyle} />
+                                <TextInput value={expenseData.note} onChange={(e) => setExpenseData('note', e.target.value)} style={inputStyle} disabled={isLocked} />
                                 {expenseErrors.note && <div style={{ color: '#f87171', fontSize: 12, marginTop: 4 }}>{expenseErrors.note}</div>}
                             </label>
                             <div style={{ gridColumn: '1 / -1', display: 'flex', justifyContent: 'flex-end' }}>
                                 <ActionButton
                                     type="submit"
                                     variant="success"
-                                    disabled={creatingExpense || availableCategories.length === 0}
+                                    disabled={isLocked || creatingExpense || availableCategories.length === 0}
                                     style={{ padding: '10px 16px', fontSize: 13 }}
                                 >
                                     {creatingExpense ? 'Adding...' : 'Add Expense'}
@@ -473,6 +529,17 @@ export default function AdminBuildShow({
                                 style={{ ...inputStyle, minHeight: 40, padding: '8px 10px' }}
                                 dropdownWidth={320}
                             />
+                            {editData.category === 'Others' && (
+                                <div style={{ marginTop: 6 }}>
+                                    <TextInput
+                                        value={otherEditCategory}
+                                        onChange={(e) => setOtherEditCategory(e.target.value)}
+                                        placeholder="Enter category"
+                                        style={inputStyle}
+                                        disabled={isLocked || updatingExpense}
+                                    />
+                                </div>
+                            )}
                             {editErrors.category && <div style={{ color: '#f87171', fontSize: 12, marginTop: 4 }}>{editErrors.category}</div>}
                         </label>
 

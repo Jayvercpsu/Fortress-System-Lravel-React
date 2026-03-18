@@ -21,10 +21,11 @@ use App\Models\User;
 use App\Models\WeeklyAccomplishment;
 use App\Models\Worker;
 use App\Support\DesignComputation;
+use Illuminate\Support\Facades\DB;
+use App\Enums\ProjectStatus;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 use Illuminate\Validation\Rule;
@@ -333,6 +334,17 @@ class ProjectController extends Controller
             ->first(['user_id']);
 
         $foremanId = $assignment->user_id ?? null;
+
+        // If this Construction project was cloned from a Design project, fall back to the source project's foreman
+        if ($foremanId === null && $project->source_project_id) {
+            $sourceAssignment = ProjectAssignment::query()
+                ->where('project_id', $project->source_project_id)
+                ->where('role_in_project', 'foreman')
+                ->latest('id')
+                ->first(['user_id']);
+
+            $foremanId = $sourceAssignment?->user_id;
+        }
         if ($foremanId === null) {
             abort(404, 'No foreman assigned to this project.');
         }
@@ -666,15 +678,17 @@ class ProjectController extends Controller
                 'assigned_role' => $source->assigned_role,
                 'assigned' => $source->assigned,
                 'target' => $source->target,
+                // Keep Construction copy in planning regardless of Design status
                 'status' => 'PLANNING',
                 'phase' => 'Construction',
-                'overall_progress' => 0,
-                'contract_amount' => 0,
-                'design_fee' => 0,
-                'construction_cost' => 0,
-                'total_client_payment' => 0,
-                'remaining_balance' => 0,
-                'last_paid_date' => null,
+                'overall_progress' => (int) ($source->overall_progress ?? 0),
+                // Carry over financial snapshot from the Design project so values remain intact after transfer
+                'contract_amount' => (float) ($source->contract_amount ?? 0),
+                'design_fee' => (float) ($source->design_fee ?? 0),
+                'construction_cost' => (float) ($source->construction_cost ?? 0),
+                'total_client_payment' => (float) ($source->total_client_payment ?? 0),
+                'remaining_balance' => (float) ($source->remaining_balance ?? 0),
+                'last_paid_date' => $source->last_paid_date,
             ]);
 
             BuildProject::firstOrCreate(
@@ -687,6 +701,17 @@ class ProjectController extends Controller
                     'equipment_cost' => 0,
                 ]
             );
+
+            // Copy payment history so Financials/Payments pages retain values after transfer
+            Payment::query()
+                ->where('project_id', $source->id)
+                ->orderBy('id')
+                ->get()
+                ->each(function (Payment $payment) use ($duplicate) {
+                    $clone = $payment->replicate(['project_id']);
+                    $clone->project_id = $duplicate->id;
+                    $clone->save();
+                });
 
             return $duplicate;
         });
@@ -739,6 +764,7 @@ class ProjectController extends Controller
             'target' => optional($project->target)->toDateString(),
             'status' => $this->normalizeProjectStatus($project->status),
             'phase' => $this->normalizeProjectPhase($project->phase),
+            'source_project_id' => $project->source_project_id !== null ? (int) $project->source_project_id : null,
             'overall_progress' => $computed['overall_progress'],
             'contract_amount' => $computed['contract_amount'],
             'design_fee' => (float) ($project->design_fee ?? 0),
@@ -747,6 +773,9 @@ class ProjectController extends Controller
             'remaining_balance' => $computed['remaining_balance'],
             'last_paid_date' => $computed['last_paid_date'],
             'computation_sources' => $computed['computation_sources'] ?? [],
+            'can_transfer_to_construction' => $computed['can_transfer_to_construction'] ?? false,
+            'transfer_to_construction_used' => $computed['transfer_to_construction_used'] ?? false,
+            'can_transfer_to_completed' => $computed['can_transfer_to_completed'] ?? false,
         ];
     }
 
@@ -890,7 +919,7 @@ class ProjectController extends Controller
             && $project->source_project_id === null
             && !$hasTransferredConstruction
             && $status === 'COMPLETED';
-        $canTransferToCompleted = $phase === 'Construction';
+        $canTransferToCompleted = $phase === 'Construction' && $status === 'COMPLETED';
 
         return [
             'id' => $project->id,
@@ -1010,20 +1039,7 @@ class ProjectController extends Controller
 
     private function normalizeProjectStatus(?string $status): string
     {
-        $key = strtoupper((string) preg_replace('/[^a-z0-9]+/i', '_', trim((string) $status)));
-        $key = preg_replace('/_+/', '_', $key ?? '');
-        $key = trim((string) $key, '_');
-
-        return match ($key) {
-            'PLANNING' => 'PLANNING',
-            'ACTIVE' => 'ACTIVE',
-            'ONGOING', 'IN_PROGRESS', 'INPROGRESS' => 'ONGOING',
-            'ON_HOLD', 'ONHOLD', 'HOLD' => 'ON_HOLD',
-            'DELAYED' => 'DELAYED',
-            'COMPLETED' => 'COMPLETED',
-            'CANCELLED', 'CANCELED' => 'CANCELLED',
-            default => 'PLANNING',
-        };
+        return ProjectStatus::fromMixed($status)->value;
     }
 
     private function invalidProjectAssignedRoles($roles): array
@@ -1206,6 +1222,18 @@ class ProjectController extends Controller
         $constructionContract = (float) ($build?->construction_contract ?? 0);
         $expenseConstructionCost = (float) Expense::where('project_id', $projectId)->sum('amount');
         $constructionCost = $expenseConstructionCost > 0 ? $expenseConstructionCost : $manualConstructionCost;
+        $expenseCategoryTotals = Expense::query()
+            ->where('project_id', $projectId)
+            ->select(DB::raw("COALESCE(NULLIF(TRIM(category), ''), 'Uncategorized') as category"), DB::raw('SUM(amount) as total'))
+            ->groupBy('category')
+            ->get()
+            ->map(function ($row) {
+                return [
+                    'category' => (string) $row->category,
+                    'amount' => (float) $row->total,
+                ];
+            })
+            ->values();
 
         $contractAmount = $designContractAmount + $constructionContract;
         if ($contractAmount <= 0 && $manualContractAmount > 0) {
@@ -1246,9 +1274,17 @@ class ProjectController extends Controller
         $buildVarianceFromTrackerBudget = $constructionContract - $constructionCost;
         $collectionProgressPct = $contractAmount > 0 ? ($totalClientPayment / $contractAmount) * 100 : 0;
         $phase = $this->normalizeProjectPhase($project->phase);
+        $transferredCount = (int) ($project->transferred_projects_count ?? Project::where('source_project_id', $project->id)->count());
         $overallProgress = $phase === 'Design'
             ? (int) max(0, min(100, (int) $designPayloadProgress))
             : (int) max(0, min(100, (int) ($project->overall_progress ?? 0)));
+        $normalizedStatus = $this->normalizeProjectStatus($project->status);
+        $hasTransferredConstruction = $phase === 'Design' && $transferredCount > 0;
+        $canTransferToConstruction = $phase === 'Design'
+            && $project->source_project_id === null
+            && !$hasTransferredConstruction
+            && $normalizedStatus === 'COMPLETED';
+        $canTransferToCompleted = $phase === 'Construction' && $normalizedStatus === 'COMPLETED';
 
         if ($resolvedDesign && (int) $resolvedDesign->design_progress !== $designPayloadProgress) {
             $resolvedDesign->design_progress = $designPayloadProgress;
@@ -1263,6 +1299,9 @@ class ProjectController extends Controller
             'remaining_balance' => $remainingBalance,
             'last_paid_date' => $lastPaidDate,
             'overall_progress' => $overallProgress,
+            'can_transfer_to_construction' => $canTransferToConstruction,
+            'transfer_to_construction_used' => $hasTransferredConstruction,
+            'can_transfer_to_completed' => $canTransferToCompleted,
             'computation_sources' => [
                 'design_tracker' => [
                     'design_contract_amount' => $designPayloadContractAmount,
@@ -1289,6 +1328,7 @@ class ProjectController extends Controller
                     'tracker_cost_subtotal' => $buildTrackerSubtotalCosts,
                     'actual_expenses_total' => $constructionCost,
                     'variance_vs_actual_expenses' => $buildVarianceFromTrackerBudget,
+                    'actual_expenses_by_category' => $expenseCategoryTotals,
                 ],
                 'finance_actuals' => [
                     'payments_total' => $totalClientPayment,
