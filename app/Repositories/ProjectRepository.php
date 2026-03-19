@@ -69,6 +69,24 @@ class ProjectRepository implements ProjectRepositoryInterface
                 'last_paid_date' => $source->last_paid_date,
             ]);
 
+            $sourceDesign = DesignProject::query()
+                ->where('project_id', $source->id)
+                ->first();
+
+            if ($sourceDesign) {
+                DesignProject::query()->updateOrCreate(
+                    ['project_id' => $duplicate->id],
+                    [
+                        'design_contract_amount' => (float) ($sourceDesign->design_contract_amount ?? 0),
+                        'downpayment' => (float) ($sourceDesign->downpayment ?? 0),
+                        'total_received' => (float) ($sourceDesign->total_received ?? 0),
+                        'office_payroll_deduction' => (float) ($sourceDesign->office_payroll_deduction ?? 0),
+                        'design_progress' => (int) ($sourceDesign->design_progress ?? 0),
+                        'client_approval_status' => (string) ($sourceDesign->client_approval_status ?? DesignProject::CLIENT_APPROVAL_PENDING),
+                    ]
+                );
+            }
+
             BuildProject::query()->firstOrCreate(
                 ['project_id' => $duplicate->id],
                 [
