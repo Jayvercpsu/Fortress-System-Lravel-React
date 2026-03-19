@@ -4,6 +4,7 @@ import toast from 'react-hot-toast';
 import ActionButton from '../../Components/ActionButton';
 import BrandIcon from '../../Components/BrandIcon';
 import TextInput from '../../Components/TextInput';
+import { toastMessages } from '../../constants/toastMessages';
 
 const inputStyle = {
     width: '100%',
@@ -37,7 +38,7 @@ export default function ClientLogin() {
                 }
             },
             onSuccess: () => {
-                toast.success('Signed in successfully.', { id: 'client-login-success' });
+                toast.success(toastMessages.auth.loginSuccess, { id: 'client-login-success' });
             },
         });
     };

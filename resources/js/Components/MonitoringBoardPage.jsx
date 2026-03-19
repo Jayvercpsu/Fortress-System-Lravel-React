@@ -13,6 +13,7 @@ import { useEffect, useMemo, useState } from 'react';
 import toast from 'react-hot-toast';
 import { ArrowLeft, Trash2 } from 'lucide-react';
 import OptimizedImage from './OptimizedImage';
+import { toastMessages } from '../constants/toastMessages';
 
 const cardStyle = {
     background: 'var(--surface-1)',
@@ -131,9 +132,9 @@ export default function MonitoringBoardPage({
                 setCreateData('start_date', '');
                 setCreateData('target_completion', '');
                 setShowCreateModal(false);
-                toast.success('Scope added successfully.');
+                toast.success(toastMessages.monitoringScopes.addSuccess);
             },
-            onError: () => toast.error('Unable to add scope.'),
+            onError: () => toast.error(toastMessages.monitoringScopes.addError),
         });
     };
 
@@ -166,9 +167,9 @@ export default function MonitoringBoardPage({
             preserveScroll: true,
             onSuccess: () => {
                 setEditScope(null);
-                toast.success('Scope updated successfully.');
+                toast.success(toastMessages.monitoringScopes.updateSuccess);
             },
-            onError: () => toast.error('Unable to update scope.'),
+            onError: () => toast.error(toastMessages.monitoringScopes.updateError),
         });
     };
 
@@ -189,9 +190,9 @@ export default function MonitoringBoardPage({
             preserveScroll: true,
             onSuccess: () => {
                 setScopeToDelete(null);
-                toast.success('Scope deleted successfully.');
+                toast.success(toastMessages.monitoringScopes.deleteSuccess);
             },
-            onError: () => toast.error('Unable to delete scope.'),
+            onError: () => toast.error(toastMessages.monitoringScopes.deleteError),
             onFinish: () => setDeleting(false),
         });
     };
@@ -216,9 +217,9 @@ export default function MonitoringBoardPage({
             preserveScroll: true,
             onSuccess: () => {
                 setPhotoToDelete(null);
-                toast.success('Scope photo deleted successfully.');
+                toast.success(toastMessages.monitoringScopes.photoDeleteSuccess);
             },
-            onError: () => toast.error('Unable to delete scope photo.'),
+            onError: () => toast.error(toastMessages.monitoringScopes.photoDeleteError),
             onFinish: () => setDeletingPhoto(false),
         });
     };
@@ -247,9 +248,9 @@ export default function MonitoringBoardPage({
                 setUploadScopeId(null);
                 resetPhotoData();
                 setPhotoInputKey((value) => value + 1);
-                toast.success('Scope photo uploaded successfully.');
+                toast.success(toastMessages.monitoringScopes.photoUploadSuccess);
             },
-            onError: () => toast.error('Unable to upload scope photo.'),
+            onError: () => toast.error(toastMessages.monitoringScopes.photoUploadError),
         });
     };
 

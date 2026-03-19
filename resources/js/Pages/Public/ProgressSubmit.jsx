@@ -5,6 +5,7 @@ import toast from 'react-hot-toast';
 import DatePickerInput from '../../Components/DatePickerInput';
 import Modal from '../../Components/Modal';
 import OptimizedImage from '../../Components/OptimizedImage';
+import { toastMessages } from '../../constants/toastMessages';
 
 const DAYS = [
     { key: 'mon', label: 'Mon' },
@@ -522,13 +523,13 @@ export default function ProgressSubmit({ submitToken }) {
                 setMaterialKey((k) => k + 1);
                 setPhotoKey((k) => k + 1);
                 setIssueKey((k) => k + 1);
-                toast.success('Jotform submitted successfully.');
+                toast.success(toastMessages.jotform.submitSuccess);
             },
             onError: (errors) => {
                 const firstError =
                     (errors && Object.values(errors).flat().find(Boolean)) ||
                     (errors && Object.values(errors).find((e) => typeof e === 'string')) ||
-                    'Unable to submit. Please review the form and try again.';
+                    toastMessages.jotform.submitError;
                 toast.error(firstError);
             },
             onFinish: () => setSubmitting(false),
@@ -548,7 +549,7 @@ export default function ProgressSubmit({ submitToken }) {
                             return;
                         }
                         if (!isMondayDate(next)) {
-                            toast.error('Please select a Monday only.');
+                            toast.error(toastMessages.jotform.mondayOnly);
                             return;
                         }
                         setAttendanceWeek(next);
@@ -750,7 +751,7 @@ export default function ProgressSubmit({ submitToken }) {
                             return;
                         }
                         if (!isMondayDate(next)) {
-                            toast.error('Please select a Monday only.');
+                            toast.error(toastMessages.jotform.mondayOnly);
                             return;
                         }
                         setWeekStart(next);

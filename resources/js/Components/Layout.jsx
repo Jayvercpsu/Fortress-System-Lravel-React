@@ -4,6 +4,7 @@ import { LoaderCircle, Moon, Sun } from 'lucide-react';
 import toast from 'react-hot-toast';
 import BrandIcon from './BrandIcon';
 import OptimizedImage from './OptimizedImage';
+import { toastMessages } from '../constants/toastMessages';
 
 const navByRole = {
     head_admin: [
@@ -96,7 +97,7 @@ export default function Layout({ children, title }) {
         router.post('/logout', {}, {
             preserveScroll: true,
             onError: () => setIsLoggingOut(false),
-            onSuccess: () => toast.success('Signed out successfully.', { id: 'logout-success' }),
+            onSuccess: () => toast.success(toastMessages.auth.logoutSuccess, { id: 'logout-success' }),
             onFinish: () => setIsLoggingOut(false),
         });
     };

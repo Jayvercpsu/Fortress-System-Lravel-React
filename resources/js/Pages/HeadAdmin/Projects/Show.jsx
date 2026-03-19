@@ -9,6 +9,7 @@ import { Head, router, useForm, usePage } from '@inertiajs/react';
 import { useEffect, useState } from 'react';
 import toast from 'react-hot-toast';
 import OptimizedImage from '../../../Components/OptimizedImage';
+import { toastMessages } from '../../../constants/toastMessages';
 
 const cardStyle = {
     background: 'var(--surface-1)',
@@ -272,8 +273,8 @@ export default function HeadAdminProjectsShow({
             {
                 preserveScroll: true,
                 replace: true,
-                onSuccess: () => toast.success(`Project transferred to ${target === 'completed' ? 'Completed' : 'Construction'}.`),
-                onError: (errors) => toast.error(errors.transfer || 'Unable to transfer project.'),
+                onSuccess: () => toast.success(toastMessages.projects.transferSuccess(target === 'completed' ? 'Completed' : 'Construction')),
+                onError: (errors) => toast.error(errors.transfer || toastMessages.projects.transferError),
                 onFinish: () => {
                     setTransferring(false);
                     setTransferTarget(null);
@@ -308,8 +309,8 @@ export default function HeadAdminProjectsShow({
 
         postFile(`/projects/${project.id}/files${projectShowQueryString({ tab: 'files', files_page: 1 })}`, {
             forceFormData: true,
-            onSuccess: () => toast.success('Project file uploaded successfully.'),
-            onError: () => toast.error('Upload failed.'),
+            onSuccess: () => toast.success(toastMessages.projects.fileUploadSuccess),
+            onError: () => toast.error(toastMessages.projects.uploadFailed),
         });
     };
 
@@ -334,17 +335,17 @@ export default function HeadAdminProjectsShow({
         postUpdate(`/projects/${project.id}/updates${projectShowQueryString({ tab: 'updates', updates_page: 1 })}`, {
             onSuccess: () => {
                 resetUpdate('note');
-                toast.success('Project update added successfully.');
+                toast.success(toastMessages.projects.updateAdded);
             },
-            onError: () => toast.error('Unable to add update.'),
+            onError: () => toast.error(toastMessages.projects.updateAddError),
         });
     };
 
     const deleteFile = (id) => {
         setDeletingFile(true);
         router.delete(`/project-files/${id}${projectShowQueryString({ tab: 'files' })}`, {
-            onError: () => toast.error('Unable to delete file.'),
-            onSuccess: () => toast.success('File deleted successfully.'),
+            onError: () => toast.error(toastMessages.projects.fileDeleteError),
+            onSuccess: () => toast.success(toastMessages.projects.fileDeleteSuccess),
             onFinish: () => {
                 setDeletingFile(false);
                 setFileToDelete(null);
@@ -356,8 +357,8 @@ export default function HeadAdminProjectsShow({
         setDeletingUpdate(true);
         router.delete(`/project-updates/${id}${projectShowQueryString({ tab: 'updates' })}`, {
             preserveScroll: true,
-            onError: () => toast.error('Unable to delete update.'),
-            onSuccess: () => toast.success('Project update deleted.'),
+            onError: () => toast.error(toastMessages.projects.updateDeleteError),
+            onSuccess: () => toast.success(toastMessages.projects.updateDeleteSuccess),
             onFinish: () => {
                 setDeletingUpdate(false);
                 setUpdateToDelete(null);
@@ -393,8 +394,8 @@ export default function HeadAdminProjectsShow({
             { foreman_names: assignedForemenDraft },
             {
                 preserveScroll: true,
-                onSuccess: () => toast.success('Assigned foremen updated successfully.'),
-                onError: () => toast.error('Unable to update assigned foremen.'),
+                onSuccess: () => toast.success(toastMessages.projects.assignedUpdateSuccess),
+                onError: () => toast.error(toastMessages.projects.assignedUpdateError),
                 onFinish: () => setSavingAssignedForemen(false),
             }
         );

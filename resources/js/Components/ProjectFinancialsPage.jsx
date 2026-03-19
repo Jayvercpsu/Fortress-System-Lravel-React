@@ -4,6 +4,7 @@ import { Head, router, useForm, usePage } from '@inertiajs/react';
 import { ArrowLeft } from 'lucide-react';
 import { useEffect } from 'react';
 import toast from 'react-hot-toast';
+import { toastMessages } from '../constants/toastMessages';
 
 const cardStyle = {
     background: 'var(--surface-1)',
@@ -75,8 +76,8 @@ export default function ProjectFinancialsPage({ project }) {
         patch(`/projects/${project.id}/financials?return=financials`, {
             preserveScroll: true,
             replace: true,
-            onSuccess: () => toast.success('Project financials updated successfully.'),
-            onError: () => toast.error('Unable to update financials. Check the form fields.'),
+            onSuccess: () => toast.success(toastMessages.financials.updateSuccess),
+            onError: () => toast.error(toastMessages.financials.updateError),
         });
     };
 

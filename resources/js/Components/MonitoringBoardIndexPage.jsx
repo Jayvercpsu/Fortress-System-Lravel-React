@@ -14,6 +14,7 @@ import { useEffect, useMemo, useState } from 'react';
 import toast from 'react-hot-toast';
 import { Check, Trash2 } from 'lucide-react';
 import OptimizedImage from './OptimizedImage';
+import { toastMessages } from '../constants/toastMessages';
 
 const inputStyle = {
     width: '100%',
@@ -674,9 +675,9 @@ export default function MonitoringBoardIndexPage({
                 setCreateData('status', resolvedStatusOptions[0]);
                 setCreateData('project_type', PROJECT_TYPE_OPTIONS[0]);
                 setShowCreateModal(false);
-                toast.success('Monitoring entry added.');
+                toast.success(toastMessages.monitoringBoard.entryAdded);
             },
-            onError: () => toast.error('Unable to add entry.'),
+            onError: () => toast.error(toastMessages.monitoringBoard.entryAddError),
         });
     };
 
@@ -725,9 +726,9 @@ export default function MonitoringBoardIndexPage({
             preserveScroll: true,
             onSuccess: () => {
                 setEditItem(null);
-                toast.success('Monitoring entry updated.');
+                toast.success(toastMessages.monitoringBoard.entryUpdated);
             },
-            onError: () => toast.error('Unable to update entry.'),
+            onError: () => toast.error(toastMessages.monitoringBoard.entryUpdateError),
         });
     };
 
@@ -738,9 +739,9 @@ export default function MonitoringBoardIndexPage({
             preserveScroll: true,
             onSuccess: () => {
                 setItemToDelete(null);
-                toast.success('Monitoring entry deleted.');
+                toast.success(toastMessages.monitoringBoard.entryDeleted);
             },
-            onError: () => toast.error('Unable to delete entry.'),
+            onError: () => toast.error(toastMessages.monitoringBoard.entryDeleteError),
             onFinish: () => setDeletingId(null),
         });
     };
@@ -764,7 +765,7 @@ export default function MonitoringBoardIndexPage({
                     clearDepartmentSelection(bulkDeleteDepartment);
                 }
                 setBulkDeleteDepartment(null);
-                toast.success('Selected entries deleted.');
+                toast.success(toastMessages.monitoringBoard.selectedDeleted);
                 return;
             }
 
@@ -776,7 +777,7 @@ export default function MonitoringBoardIndexPage({
                     setBulkDeleting(false);
                     setBulkDeleteIds([]);
                     setBulkDeleteDepartment(null);
-                    toast.error('Unable to delete selected entries.');
+                    toast.error(toastMessages.monitoringBoard.selectedDeleteError);
                 },
             });
         };
@@ -804,11 +805,11 @@ export default function MonitoringBoardIndexPage({
         event.preventDefault();
         if (!filesItem) return;
         if (!fileData.file) {
-            toast.error('Please choose a file.');
+            toast.error(toastMessages.monitoringBoard.fileChoose);
             return;
         }
         if (fileData.file.size > 5 * 1024 * 1024) {
-            toast.error('File must be 5MB or smaller.');
+            toast.error(toastMessages.monitoringBoard.fileTooLarge);
             return;
         }
         const filesItemId = filesItem.id;
@@ -822,9 +823,9 @@ export default function MonitoringBoardIndexPage({
                     const updated = page.props.items.find((item) => item.id === filesItemId);
                     if (updated) setFilesItem(updated);
                 }
-                toast.success('File uploaded.');
+                toast.success(toastMessages.monitoringBoard.fileUploaded);
             },
-            onError: () => toast.error('Unable to upload file.'),
+            onError: () => toast.error(toastMessages.monitoringBoard.fileUploadError),
         });
     };
 
@@ -843,9 +844,9 @@ export default function MonitoringBoardIndexPage({
                     const updated = page.props.items.find((item) => item.id === filesItemId);
                     if (updated) setFilesItem(updated);
                 }
-                toast.success('File deleted.');
+                toast.success(toastMessages.monitoringBoard.fileDeleted);
             },
-            onError: () => toast.error('Unable to delete file.'),
+            onError: () => toast.error(toastMessages.monitoringBoard.fileDeleteError),
             onFinish: () => setDeletingFileId(null),
         });
     };

@@ -8,6 +8,7 @@ import TextInput from '../../../Components/TextInput';
 import { Head, router, useForm } from '@inertiajs/react';
 import { useMemo, useState } from 'react';
 import toast from 'react-hot-toast';
+import { toastMessages } from '../../../constants/toastMessages';
 
 const cardStyle = {
     background: 'var(--surface-1)',
@@ -126,11 +127,11 @@ export default function ClientsIndex({ clients = [], clientTable = {}, projectOp
         post('/clients', {
             preserveScroll: true,
             onSuccess: () => {
-                toast.success('Client created successfully.');
+                toast.success(toastMessages.clients.createSuccess);
                 reset('client_name', 'project_id', 'location', 'email', 'phone', 'username', 'password', 'password_confirmation');
             },
             onError: () => {
-                toast.error('Unable to create client. Check the form fields.');
+                toast.error(toastMessages.clients.createError);
             },
         });
     };
@@ -174,12 +175,12 @@ export default function ClientsIndex({ clients = [], clientTable = {}, projectOp
         patch(`/clients/${editTarget.id}${listQueryString()}`, {
             preserveScroll: true,
             onSuccess: () => {
-                toast.success('Client updated successfully.');
+                toast.success(toastMessages.clients.updateSuccess);
                 setEditTarget(null);
                 resetEditData();
             },
             onError: () => {
-                toast.error('Unable to update client. Check the form fields.');
+                toast.error(toastMessages.clients.updateError);
             },
         });
     };

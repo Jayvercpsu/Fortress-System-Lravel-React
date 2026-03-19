@@ -5,6 +5,7 @@ import { Head, useForm } from '@inertiajs/react';
 import { useEffect, useRef, useState } from 'react';
 import toast from 'react-hot-toast';
 import OptimizedImage from '../../Components/OptimizedImage';
+import { toastMessages } from '../../constants/toastMessages';
 
 const cardStyle = {
     background: 'var(--surface-1)',
@@ -108,7 +109,7 @@ export default function SettingsIndex({ account }) {
 
     useEffect(() => {
         if (wasSuccessful) {
-            toast.success('Settings updated successfully.');
+            toast.success(toastMessages.settings.updateSuccess);
         }
     }, [wasSuccessful]);
 
@@ -134,7 +135,7 @@ export default function SettingsIndex({ account }) {
                 setSelectedPhoto(null);
                 setPhotoError('');
             },
-            onError: () => toast.error('Unable to update settings. Check the form fields.'),
+            onError: () => toast.error(toastMessages.settings.updateError),
         });
     };
 

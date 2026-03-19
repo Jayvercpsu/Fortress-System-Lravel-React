@@ -4,6 +4,7 @@ import toast from 'react-hot-toast';
 import ActionButton from '../../Components/ActionButton';
 import BrandIcon from '../../Components/BrandIcon';
 import TextInput from '../../Components/TextInput';
+import { toastMessages } from '../../constants/toastMessages';
 
 export default function Login() {
     useEffect(() => {
@@ -25,7 +26,7 @@ export default function Login() {
                 }
             },
             onSuccess: () => {
-                toast.success('Signed in successfully.', { id: 'admin-login-success' });
+                toast.success(toastMessages.auth.loginSuccess, { id: 'admin-login-success' });
             },
         });
     };

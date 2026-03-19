@@ -11,6 +11,7 @@ import TextareaInput from '../../../Components/TextareaInput';
 import { Head, router, useForm } from '@inertiajs/react';
 import { useEffect, useMemo, useState } from 'react';
 import toast from 'react-hot-toast';
+import { toastMessages } from '../../../constants/toastMessages';
 
 const cardStyle = {
     background: 'var(--surface-1)',
@@ -115,7 +116,7 @@ export default function ForemanWorkersIndex({ workers = [], workerTable = {}, as
         e.preventDefault();
         if (isDuplicateName(createForm.data.name)) {
             if (createForm.setError) createForm.setError('name', 'Worker name already exists.');
-            toast.error('Worker name already exists.');
+            toast.error(toastMessages.workers.nameExists);
             return;
         }
         createForm.post(`/foreman/workers${queryString({ page: 1 })}`, {
@@ -132,9 +133,9 @@ export default function ForemanWorkersIndex({ workers = [], workerTable = {}, as
                     phone: '',
                     address: '',
                 });
-                toast.success('Worker added successfully.');
+                toast.success(toastMessages.workers.addSuccess);
             },
-            onError: () => toast.error('Unable to add worker. Check the form fields.'),
+            onError: () => toast.error(toastMessages.workers.addError),
         });
     };
 
@@ -165,16 +166,16 @@ export default function ForemanWorkersIndex({ workers = [], workerTable = {}, as
         if (!editTarget) return;
         if (isDuplicateName(editForm.data.name, editTarget.id)) {
             if (editForm.setError) editForm.setError('name', 'Worker name already exists.');
-            toast.error('Worker name already exists.');
+            toast.error(toastMessages.workers.nameExists);
             return;
         }
         editForm.patch(`/foreman/workers/${editTarget.id}${queryString()}`, {
             preserveScroll: true,
             onSuccess: () => {
                 setEditTarget(null);
-                toast.success('Worker updated successfully.');
+                toast.success(toastMessages.workers.updateSuccess);
             },
-            onError: () => toast.error('Unable to update worker.'),
+            onError: () => toast.error(toastMessages.workers.updateError),
         });
     };
 
@@ -182,8 +183,8 @@ export default function ForemanWorkersIndex({ workers = [], workerTable = {}, as
         setDeleting(true);
         router.delete(`/foreman/workers/${workerId}${queryString()}`, {
             preserveScroll: true,
-            onError: () => toast.error('Unable to delete worker.'),
-            onSuccess: () => toast.success('Worker deleted successfully.'),
+            onError: () => toast.error(toastMessages.workers.deleteError),
+            onSuccess: () => toast.success(toastMessages.workers.deleteSuccess),
             onFinish: () => {
                 setDeleting(false);
                 setDeleteTarget(null);

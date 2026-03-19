@@ -6,6 +6,7 @@ import { Head, router, useForm } from '@inertiajs/react';
 import { useMemo, useState } from 'react';
 import toast from 'react-hot-toast';
 import { ArrowLeft } from 'lucide-react';
+import { toastMessages } from '../../constants/toastMessages';
 
 const cardStyle = {
     background: 'var(--surface-1)',
@@ -98,9 +99,9 @@ export default function WorkerRates({ workerRates = [], workerRateTable = {} }) 
             preserveState: true,
             onSuccess: () => {
                 closeEdit();
-                toast.success('Worker rate updated successfully.');
+                toast.success(toastMessages.workerRates.updateSuccess);
             },
-            onError: () => toast.error('Unable to update worker rate.'),
+            onError: () => toast.error(toastMessages.workerRates.updateError),
         });
     };
 

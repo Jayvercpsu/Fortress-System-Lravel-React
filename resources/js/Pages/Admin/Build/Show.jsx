@@ -11,6 +11,7 @@ import { Head, router, useForm } from '@inertiajs/react';
 import { useEffect, useState } from 'react';
 import toast from 'react-hot-toast';
 import { ArrowLeft } from 'lucide-react';
+import { toastMessages } from '../../../constants/toastMessages';
 
 const money = (value) =>
     `P ${Number(value || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -184,8 +185,8 @@ export default function AdminBuildShow({
         if (isLocked) return;
         patch(`/projects/${projectId}/build`, {
             preserveScroll: true,
-            onSuccess: () => toast.success('Build tracker updated successfully.'),
-            onError: () => toast.error('Please fix the highlighted fields and try again.'),
+            onSuccess: () => toast.success(toastMessages.build.trackerUpdateSuccess),
+            onError: () => toast.error(toastMessages.build.fixHighlighted),
         });
     };
 
@@ -194,7 +195,7 @@ export default function AdminBuildShow({
         if (isLocked) return;
         const resolvedCategory = expenseData.category === 'Others' ? otherCategory.trim() : expenseData.category;
         if (!resolvedCategory) {
-            toast.error('Please enter a category.');
+            toast.error(toastMessages.build.categoryRequired);
             return;
         }
         transformExpense((data) => ({ ...data, category: resolvedCategory }));
@@ -204,9 +205,9 @@ export default function AdminBuildShow({
                 resetExpense('category', 'amount', 'note');
                 setExpenseData('date', today());
                 setOtherCategory('');
-                toast.success('Expense added successfully.');
+                toast.success(toastMessages.build.expenseAddSuccess);
             },
-            onError: () => toast.error('Unable to add expense. Check the form fields.'),
+            onError: () => toast.error(toastMessages.build.expenseAddError),
             onFinish: () => transformExpense((data) => data),
         });
     };
@@ -236,7 +237,7 @@ export default function AdminBuildShow({
         if (isLocked) return;
         const resolvedCategory = editData.category === 'Others' ? otherEditCategory.trim() : editData.category;
         if (!resolvedCategory) {
-            toast.error('Please enter a category.');
+            toast.error(toastMessages.build.categoryRequired);
             return;
         }
         transformEditExpense((data) => ({ ...data, category: resolvedCategory }));
@@ -245,9 +246,9 @@ export default function AdminBuildShow({
             onSuccess: () => {
                 setEditExpense(null);
                 setOtherEditCategory('');
-                toast.success('Expense updated successfully.');
+                toast.success(toastMessages.build.expenseUpdateSuccess);
             },
-            onError: () => toast.error('Unable to update expense.'),
+            onError: () => toast.error(toastMessages.build.expenseUpdateError),
             onFinish: () => transformEditExpense((data) => data),
         });
     };
@@ -257,8 +258,8 @@ export default function AdminBuildShow({
         setDeletingExpense(true);
         router.delete(`/expenses/${expenseId}${expenseActionQuery()}`, {
             preserveScroll: true,
-            onSuccess: () => toast.success('Expense deleted successfully.'),
-            onError: () => toast.error('Unable to delete expense.'),
+            onSuccess: () => toast.success(toastMessages.build.expenseDeleteSuccess),
+            onError: () => toast.error(toastMessages.build.expenseDeleteError),
             onFinish: () => {
                 setDeletingExpense(false);
                 setExpenseToDelete(null);

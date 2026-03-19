@@ -5,6 +5,7 @@ import SelectInput from '../../../Components/SelectInput';
 import { Head, useForm } from '@inertiajs/react';
 import toast from 'react-hot-toast';
 import { ArrowLeft } from 'lucide-react';
+import { toastMessages } from '../../../constants/toastMessages';
 import {
     computeDesignCollectionPercent,
     computeDesignMilestoneBreakdown,
@@ -87,8 +88,8 @@ export default function HeadAdminDesignShow({ projectId, design }) {
         if (isLocked) return;
         patch(`/projects/${projectId}/design`, {
             preserveScroll: true,
-            onSuccess: () => toast.success('Design tracker updated successfully.'),
-            onError: () => toast.error('Please fix the highlighted fields and try again.'),
+            onSuccess: () => toast.success(toastMessages.design.trackerUpdateSuccess),
+            onError: () => toast.error(toastMessages.design.fixHighlighted),
         });
     };
 

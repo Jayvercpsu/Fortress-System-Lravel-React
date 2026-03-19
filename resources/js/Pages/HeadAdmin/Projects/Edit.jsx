@@ -9,6 +9,7 @@ import { Head, useForm } from '@inertiajs/react';
 import { ArrowLeft } from 'lucide-react';
 import { useState } from 'react';
 import toast from 'react-hot-toast';
+import { toastMessages } from '../../../constants/toastMessages';
 
 const inputStyle = {
     width: '100%',
@@ -156,8 +157,8 @@ export default function HeadAdminProjectsEdit({ project, foremen = [], clientOpt
         e.preventDefault();
         if (isLocked) return;
         patch(`/projects/${project.id}`, {
-            onError: () => toast.error('Please check required fields.'),
-            onSuccess: () => toast.success('Project saved successfully.'),
+            onError: () => toast.error(toastMessages.projects.requiredFields),
+            onSuccess: () => toast.success(toastMessages.projects.savedSuccess),
             preserveScroll: true,
         });
     };

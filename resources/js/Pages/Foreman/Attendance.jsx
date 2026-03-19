@@ -8,6 +8,7 @@ import TimePickerInput from '../../Components/TimePickerInput';
 import { Head, router } from '@inertiajs/react';
 import { useEffect, useMemo, useState } from 'react';
 import toast from 'react-hot-toast';
+import { toastMessages } from '../../constants/toastMessages';
 
 const cardStyle = {
     background: 'var(--surface-1)',
@@ -217,7 +218,7 @@ export default function ForemanAttendance({
 
         const payloadRows = rows.filter((row) => row.worker_name);
         if (payloadRows.length === 0) {
-            toast.error('Add at least one attendance row with worker name.');
+            toast.error(toastMessages.attendance.addRowRequired);
             return;
         }
         const payload = payloadRows.map(({ hours, ...row }) => row);
@@ -230,10 +231,10 @@ export default function ForemanAttendance({
             { attendance: payload },
             {
                 preserveScroll: true,
-                onError: () => toast.error('Unable to submit attendance. Check the form fields.'),
+                onError: () => toast.error(toastMessages.attendance.submitError),
                 onSuccess: () => {
                     setRows([{ worker_name: '', worker_role: 'Labor', project_id: '', time_in: '', time_out: '', hours: 0 }]);
-                    toast.success('Attendance submitted successfully.');
+                    toast.success(toastMessages.attendance.submitSuccess);
                 },
             }
         );
@@ -277,9 +278,9 @@ export default function ForemanAttendance({
                 preserveScroll: true,
                 onSuccess: () => {
                     setEditingId(null);
-                    toast.success('Attendance log updated successfully.');
+                    toast.success(toastMessages.attendance.updateSuccess);
                 },
-                onError: () => toast.error('Unable to update attendance log.'),
+                onError: () => toast.error(toastMessages.attendance.updateError),
             }
         );
     };

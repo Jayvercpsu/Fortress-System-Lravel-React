@@ -8,6 +8,7 @@ import { Head, Link, router } from '@inertiajs/react';
 import { Fragment, useEffect, useMemo, useState } from 'react';
 import toast from 'react-hot-toast';
 import OptimizedImage from '../../Components/OptimizedImage';
+import { toastMessages } from '../../constants/toastMessages';
 
 const cardStyle = {
     background: 'var(--surface-1)',
@@ -222,7 +223,7 @@ export default function ForemanDashboard({
 
     const submitForemanTimeIn = () => {
         if (!foremanProjectId) {
-            toast.error('Select a project before time in.');
+            toast.error(toastMessages.foremanDashboard.selectProject);
             return;
         }
         router.post(
@@ -230,8 +231,8 @@ export default function ForemanDashboard({
             { project_id: foremanProjectId },
             {
                 preserveScroll: true,
-                onSuccess: () => toast.success('Time in recorded successfully.'),
-                onError: () => toast.error('Unable to record time in.'),
+                onSuccess: () => toast.success(toastMessages.foremanDashboard.timeInSuccess),
+                onError: () => toast.error(toastMessages.foremanDashboard.timeInError),
             }
         );
     };
@@ -239,8 +240,8 @@ export default function ForemanDashboard({
     const submitForemanTimeOut = () => {
         router.post('/foreman/attendance/time-out', {}, {
             preserveScroll: true,
-            onSuccess: () => toast.success('Time out recorded successfully.'),
-            onError: () => toast.error('Unable to record time out.'),
+            onSuccess: () => toast.success(toastMessages.foremanDashboard.timeOutSuccess),
+            onError: () => toast.error(toastMessages.foremanDashboard.timeOutError),
         });
     };
 

@@ -6,6 +6,7 @@ import TextInput from './TextInput';
 import { Head, router, useForm } from '@inertiajs/react';
 import { useState } from 'react';
 import toast from 'react-hot-toast';
+import { toastMessages } from '../constants/toastMessages';
 
 const cardStyle = {
     background: 'var(--surface-1)',
@@ -92,9 +93,9 @@ export default function MaterialsManagerPage({ materials = [], materialTable = {
             preserveScroll: true,
             onSuccess: () => {
                 resetCreate();
-                toast.success('Material added successfully.');
+                toast.success(toastMessages.materials.addSuccess);
             },
-            onError: () => toast.error('Unable to add material.'),
+            onError: () => toast.error(toastMessages.materials.addError),
         });
     };
 
@@ -120,9 +121,9 @@ export default function MaterialsManagerPage({ materials = [], materialTable = {
             preserveScroll: true,
             onSuccess: () => {
                 setEditTarget(null);
-                toast.success('Material updated successfully.');
+                toast.success(toastMessages.materials.updateSuccess);
             },
-            onError: () => toast.error('Unable to update material.'),
+            onError: () => toast.error(toastMessages.materials.updateError),
         });
     };
 
@@ -130,8 +131,8 @@ export default function MaterialsManagerPage({ materials = [], materialTable = {
         setDeletingId(materialId);
         router.delete(`/materials/${materialId}${queryString()}`, {
             preserveScroll: true,
-            onSuccess: () => toast.success('Material deleted successfully.'),
-            onError: () => toast.error('Unable to delete material.'),
+            onSuccess: () => toast.success(toastMessages.materials.deleteSuccess),
+            onError: () => toast.error(toastMessages.materials.deleteError),
             onFinish: () => setDeletingId(null),
         });
     };

@@ -3,6 +3,7 @@ import Modal from './Modal';
 import { router } from '@inertiajs/react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import toast from 'react-hot-toast';
+import { toastMessages } from '../constants/toastMessages';
 
 const phaseAccent = {
     Design: '#60a5fa',
@@ -132,8 +133,8 @@ export default function ProjectsKanbanPage({
         setDeletingProject(true);
         router.delete(`/projects/${projectToDelete.id}${buildQueryString()}`, {
             preserveScroll: true,
-            onSuccess: () => toast.success('Project deleted successfully.'),
-            onError: () => toast.error('Unable to delete project.'),
+            onSuccess: () => toast.success(toastMessages.projectsKanban.deleteSuccess),
+            onError: () => toast.error(toastMessages.projectsKanban.deleteError),
             onFinish: () => {
                 setDeletingProject(false);
                 setProjectToDelete(null);
@@ -154,8 +155,8 @@ export default function ProjectsKanbanPage({
             preserveState: true,
             preserveScroll: true,
             replace: true,
-            onSuccess: () => toast.success(`Project transferred to ${targetLabel}.`),
-            onError: (errors) => toast.error(errors.transfer || `Unable to transfer project to ${targetLabel}.`),
+            onSuccess: () => toast.success(toastMessages.projectsKanban.transferSuccess(targetLabel)),
+            onError: (errors) => toast.error(errors.transfer || toastMessages.projectsKanban.transferError(targetLabel)),
             onFinish: () => setTransferringId(null),
         });
     };

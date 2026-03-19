@@ -3,6 +3,7 @@ import DatePickerInput from './DatePickerInput';
 import ActionButton from './ActionButton';
 import { Head, useForm } from '@inertiajs/react';
 import toast from 'react-hot-toast';
+import { toastMessages } from '../constants/toastMessages';
 
 const cardStyle = {
     background: 'var(--surface-1)',
@@ -60,16 +61,16 @@ export default function UserFormPage({ mode = 'create', user = {} }) {
             const qs = window.location.search || '';
             patch(`/users/${user.id}${qs}`, {
                 preserveScroll: true,
-                onSuccess: () => toast.success('User updated successfully.'),
-                onError: () => toast.error('Unable to update user. Check the form fields.'),
+                onSuccess: () => toast.success(toastMessages.users.updated),
+                onError: () => toast.error(toastMessages.users.updateError),
             });
             return;
         }
 
         post('/users', {
             preserveScroll: true,
-            onSuccess: () => toast.success('User created successfully.'),
-            onError: () => toast.error('Unable to create user. Check the form fields.'),
+            onSuccess: () => toast.success(toastMessages.users.created),
+            onError: () => toast.error(toastMessages.users.createError),
         });
     };
 

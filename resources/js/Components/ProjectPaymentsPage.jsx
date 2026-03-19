@@ -7,6 +7,7 @@ import { Head, router, useForm, usePage } from '@inertiajs/react';
 import { useState } from 'react';
 import toast from 'react-hot-toast';
 import { ArrowLeft } from 'lucide-react';
+import { toastMessages } from '../constants/toastMessages';
 
 const cardStyle = {
     background: 'var(--surface-1)',
@@ -94,9 +95,9 @@ export default function ProjectPaymentsPage({ project, payments = [], paymentTab
             preserveScroll: true,
             onSuccess: () => {
                 reset();
-                toast.success('Payment saved successfully.');
+                toast.success(toastMessages.payments.saveSuccess);
             },
-            onError: () => toast.error('Unable to save payment.'),
+            onError: () => toast.error(toastMessages.payments.saveError),
         });
     };
 
@@ -108,9 +109,9 @@ export default function ProjectPaymentsPage({ project, payments = [], paymentTab
             preserveScroll: true,
             onSuccess: () => {
                 setPaymentToDelete(null);
-                toast.success('Payment deleted successfully.');
+                toast.success(toastMessages.payments.deleteSuccess);
             },
-            onError: () => toast.error('Unable to delete payment.'),
+            onError: () => toast.error(toastMessages.payments.deleteError),
             onFinish: () => {
                 setDeletingPaymentId(null);
                 setPaymentToDelete(null);

@@ -8,6 +8,7 @@ import ConfirmationModal from '../../Components/ConfirmationModal';
 import { Head, router, useForm } from '@inertiajs/react';
 import { useEffect, useMemo, useState } from 'react';
 import toast from 'react-hot-toast';
+import { toastMessages } from '../../constants/toastMessages';
 
 const cardStyle = {
     background: 'var(--surface-1)',
@@ -145,8 +146,8 @@ export default function PayrollRun({
         e.preventDefault();
         generateForm.post('/payroll/run/generate', {
             preserveScroll: true,
-            onSuccess: () => toast.success('Payroll generated from attendance successfully.'),
-            onError: () => toast.error('Unable to generate payroll. Check cutoff dates and attendance records.'),
+            onSuccess: () => toast.success(toastMessages.payrollRun.generateSuccess),
+            onError: () => toast.error(toastMessages.payrollRun.generateError),
         });
     };
 
@@ -167,9 +168,9 @@ export default function PayrollRun({
             onSuccess: () => {
                 deductionForm.reset();
                 deductionForm.setData({ type: 'cash_advance', amount: '', note: '' });
-                toast.success('Deduction added successfully.');
+                toast.success(toastMessages.payrollRun.deductionAddSuccess);
             },
-            onError: () => toast.error('Unable to add deduction.'),
+            onError: () => toast.error(toastMessages.payrollRun.deductionAddError),
         });
     };
 
@@ -180,8 +181,8 @@ export default function PayrollRun({
         router.delete(`/payroll-deductions/${deductionId}${queryString()}`, {
             preserveScroll: true,
             preserveState: true,
-            onSuccess: () => toast.success('Deduction removed successfully.'),
-            onError: () => toast.error('Unable to remove deduction.'),
+            onSuccess: () => toast.success(toastMessages.payrollRun.deductionRemoveSuccess),
+            onError: () => toast.error(toastMessages.payrollRun.deductionRemoveError),
             onFinish: () => {
                 setDeletingDeduction(false);
                 setDeductionToDelete(null);
@@ -198,9 +199,9 @@ export default function PayrollRun({
             preserveState: true,
             onSuccess: () => {
                 setShowMarkPaidModal(false);
-                toast.success('Payroll cutoff marked as paid successfully.');
+                toast.success(toastMessages.payrollRun.cutoffPaidSuccess);
             },
-            onError: () => toast.error('Unable to mark cutoff as paid.'),
+            onError: () => toast.error(toastMessages.payrollRun.cutoffPaidError),
         });
     };
 

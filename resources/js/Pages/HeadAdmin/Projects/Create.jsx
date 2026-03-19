@@ -9,6 +9,7 @@ import { Head, useForm } from '@inertiajs/react';
 import { useState } from 'react';
 import toast from 'react-hot-toast';
 import { ArrowLeft } from 'lucide-react';
+import { toastMessages } from '../../../constants/toastMessages';
 
 const inputStyle = {
     width: '100%',
@@ -177,7 +178,7 @@ export default function HeadAdminProjectsCreate({ foremen = [], clientOptions = 
     const submit = (e) => {
         e.preventDefault();
         post('/projects', {
-            onError: () => toast.error('Please check required fields.'),
+            onError: () => toast.error(toastMessages.projects.requiredFields),
         });
     };
 
