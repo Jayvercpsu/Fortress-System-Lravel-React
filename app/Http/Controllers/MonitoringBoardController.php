@@ -83,6 +83,7 @@ class MonitoringBoardController extends Controller
             'items' => $items,
             'status_options' => self::STATUS_OPTIONS,
             'clientOptions' => $this->clientOptionsPayload(),
+            'foremanOptions' => $this->foremanOptionsPayload(),
         ]);
     }
 
@@ -252,6 +253,46 @@ class MonitoringBoardController extends Controller
                 ->map(fn ($rows) => $rows->first());
 
         return $clients
+            ->map(function (User $user) use ($assignments) {
+                $assignment = $assignments->get($user->id);
+                $projectName = $assignment?->project?->name;
+                $label = $projectName
+                    ? "{$user->fullname} ({$projectName})"
+                    : "{$user->fullname} (Unassigned)";
+
+                return [
+                    'id' => (int) $user->id,
+                    'label' => $label,
+                    'value' => $user->fullname,
+                ];
+            })
+            ->values()
+            ->all();
+    }
+
+    private function foremanOptionsPayload(): array
+    {
+        $foremen = User::query()
+            ->where('role', 'foreman')
+            ->orderBy('fullname')
+            ->get(['id', 'fullname']);
+
+        $foremanIds = $foremen->pluck('id')
+            ->map(fn ($id) => (int) $id)
+            ->values();
+
+        $assignments = $foremanIds->isEmpty()
+            ? collect()
+            : ProjectAssignment::query()
+                ->with('project:id,name')
+                ->whereIn('user_id', $foremanIds->all())
+                ->where('role_in_project', 'foreman')
+                ->latest('id')
+                ->get()
+                ->groupBy('user_id')
+                ->map(fn ($rows) => $rows->first());
+
+        return $foremen
             ->map(function (User $user) use ($assignments) {
                 $assignment = $assignments->get($user->id);
                 $projectName = $assignment?->project?->name;

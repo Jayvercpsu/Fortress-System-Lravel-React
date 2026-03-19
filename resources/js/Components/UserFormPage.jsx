@@ -35,12 +35,16 @@ function Field({ label, error, children }) {
 
 export default function UserFormPage({ mode = 'create', user = {} }) {
     const isEdit = mode === 'edit';
+    const queryRole = typeof window === 'undefined' ? '' : new URLSearchParams(window.location.search).get('role') || '';
+    const normalizedRole = ['admin', 'hr', 'foreman'].includes(String(queryRole).toLowerCase())
+        ? String(queryRole).toLowerCase()
+        : '';
 
     const { data, setData, post, patch, errors, processing } = useForm({
         fullname: user?.fullname ?? '',
         email: user?.email ?? '',
         password: '',
-        role: user?.role ?? 'foreman',
+        role: user?.role ?? normalizedRole ?? 'foreman',
         birth_date: user?.birth_date ?? '',
         place_of_birth: user?.place_of_birth ?? '',
         sex: user?.sex ?? '',

@@ -1,4 +1,4 @@
-﻿import ActionButton from './ActionButton';
+import ActionButton from './ActionButton';
 import EditModal from './EditModal';
 import ConfirmationModal from './ConfirmationModal';
 import Modal from './Modal';
@@ -154,6 +154,9 @@ const progressCircleStroke = 4;
 const progressCircleRadius = 16;
 const progressCircleCircumference = 2 * Math.PI * progressCircleRadius;
 const progressCircleCenter = progressCircleSize / 2;
+const PROJECT_TYPE_OPTIONS = ['2Storey', '3Storey', 'w/ Roofdeck', 'Bungalow', 'Commercial', 'Renovation'];
+const OTHER_PROJECT_TYPE_OPTION = '__OTHER__';
+const OTHER_DEPARTMENT_OPTION = '__OTHER_DEPARTMENT__';
 
 const statusBadgeBase = {
     display: 'inline-flex',
@@ -220,7 +223,7 @@ const normalizeProgressValue = (value) => {
 const parseTimelineRange = (value) => {
     const raw = String(value || '').trim();
     if (!raw) return { start: '', end: '' };
-    const match = raw.split(/\s+(?:to|â€“|â€”|-)\s+/i);
+    const match = raw.split(/\s+(?:to|–|—|-)\s+/i);
     if (match.length >= 2) {
         const start = match[0]?.trim() || '';
         const end = match.slice(1).join(' - ').trim();
@@ -315,8 +318,22 @@ const isImageFile = (file) => {
     return ['.png', '.jpg', '.jpeg', '.gif', '.webp', '.bmp', '.svg'].some((ext) => name.endsWith(ext));
 };
 
-export default function MonitoringBoardIndexPage({ items = [], status_options: statusOptions = [], clientOptions = [] }) {
+export default function MonitoringBoardIndexPage({
+    items = [],
+    status_options: statusOptions = [],
+    clientOptions = [],
+    foremanOptions = [],
+}) {
     const resolvedStatusOptions = statusOptions.length > 0 ? statusOptions : ['PROPOSAL', 'IN_REVIEW', 'APPROVED', 'DONE'];
+    const resolveOptionLabel = (option) => option?.label ?? option?.name ?? option?.fullname ?? String(option ?? '');
+    const resolveOptionValue = (option) => option?.value ?? option?.label ?? option?.fullname ?? option?.name ?? option;
+    const withCurrentOption = (options, value) => {
+        const normalizedValue = String(value ?? '').trim();
+        if (!normalizedValue) return options;
+        const hasValue = options.some((option) => String(resolveOptionValue(option)) === normalizedValue);
+        if (hasValue) return options;
+        return [{ label: normalizedValue, value: normalizedValue, missing: true }, ...options];
+    };
 
     const {
         data: createData,
@@ -329,7 +346,7 @@ export default function MonitoringBoardIndexPage({ items = [], status_options: s
         department: '',
         client_name: '',
         project_name: '',
-        project_type: '',
+        project_type: PROJECT_TYPE_OPTIONS[0],
         location: '',
         assigned_to: '',
         status: resolvedStatusOptions[0],
@@ -363,7 +380,7 @@ export default function MonitoringBoardIndexPage({ items = [], status_options: s
         department: '',
         client_name: '',
         project_name: '',
-        project_type: '',
+        project_type: PROJECT_TYPE_OPTIONS[0],
         location: '',
         assigned_to: '',
         status: resolvedStatusOptions[0],
@@ -374,6 +391,78 @@ export default function MonitoringBoardIndexPage({ items = [], status_options: s
         progress_percent: 0,
         remarks: '',
     });
+    const baseForemanOptions = Array.isArray(foremanOptions) ? foremanOptions : [];
+    const foremanSelectOptions = withCurrentOption(baseForemanOptions, createData.assigned_to);
+    const foremanEditOptions = withCurrentOption(baseForemanOptions, editData.assigned_to);
+    const foremanFooter = (
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
+            <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>Can&apos;t find a foreman?</span>
+            <ActionButton href="/users/create?role=foreman" variant="view" style={{ padding: '6px 10px', fontSize: 11 }}>
+                Add foreman
+            </ActionButton>
+        </div>
+    );
+    const [projectTypeOption, setProjectTypeOption] = useState(PROJECT_TYPE_OPTIONS[0]);
+    const [customProjectType, setCustomProjectType] = useState('');
+    const [editProjectTypeOption, setEditProjectTypeOption] = useState(PROJECT_TYPE_OPTIONS[0]);
+    const [editCustomProjectType, setEditCustomProjectType] = useState('');
+    const [departmentOption, setDepartmentOption] = useState('');
+    const [customDepartment, setCustomDepartment] = useState('');
+    const [editDepartmentOption, setEditDepartmentOption] = useState('');
+    const [editCustomDepartment, setEditCustomDepartment] = useState('');
+
+    const departmentOptions = useMemo(() => {
+        const map = new Map();
+        items.forEach((item) => {
+            const raw = String(item?.department || '').trim();
+            if (!raw) return;
+            const key = raw.toLowerCase();
+            if (!map.has(key)) {
+                map.set(key, raw);
+            }
+        });
+        return Array.from(map.values()).sort((a, b) => a.localeCompare(b));
+    }, [items]);
+
+    const handleProjectTypeOptionChange = (value) => {
+        setProjectTypeOption(value);
+        if (value === OTHER_PROJECT_TYPE_OPTION) {
+            setCreateData('project_type', customProjectType.trim());
+            return;
+        }
+        setCustomProjectType('');
+        setCreateData('project_type', value);
+    };
+
+    const handleEditProjectTypeOptionChange = (value) => {
+        setEditProjectTypeOption(value);
+        if (value === OTHER_PROJECT_TYPE_OPTION) {
+            setEditData('project_type', editCustomProjectType.trim());
+            return;
+        }
+        setEditCustomProjectType('');
+        setEditData('project_type', value);
+    };
+
+    const handleDepartmentOptionChange = (value) => {
+        setDepartmentOption(value);
+        if (value === OTHER_DEPARTMENT_OPTION) {
+            setCreateData('department', customDepartment.trim());
+            return;
+        }
+        setCustomDepartment('');
+        setCreateData('department', value);
+    };
+
+    const handleEditDepartmentOptionChange = (value) => {
+        setEditDepartmentOption(value);
+        if (value === OTHER_DEPARTMENT_OPTION) {
+            setEditData('department', editCustomDepartment.trim());
+            return;
+        }
+        setEditCustomDepartment('');
+        setEditData('department', value);
+    };
 
     const [search, setSearch] = useState('');
     const [editItem, setEditItem] = useState(null);
@@ -459,8 +548,19 @@ export default function MonitoringBoardIndexPage({ items = [], status_options: s
         });
 
         return Array.from(groups.entries())
-            .sort(([a], [b]) => a.localeCompare(b))
-            .map(([department, rows]) => ({ department, rows }));
+            .map(([department, rows]) => {
+                const latestCreated = rows.reduce((maxValue, row) => {
+                    const timestamp = row?.created_at ? Date.parse(row.created_at) : NaN;
+                    if (!Number.isFinite(timestamp)) return maxValue;
+                    return Math.max(maxValue, timestamp);
+                }, 0);
+                return { department, rows, latestCreated };
+            })
+            .sort((a, b) => {
+                if (b.latestCreated !== a.latestCreated) return b.latestCreated - a.latestCreated;
+                return a.department.localeCompare(b.department);
+            })
+            .map(({ department, rows }) => ({ department, rows }));
     }, [items, search]);
 
     useEffect(() => {
@@ -509,6 +609,21 @@ export default function MonitoringBoardIndexPage({ items = [], status_options: s
         });
     }, [groupedItems, selectedRowsByDepartment]);
 
+    useEffect(() => {
+        if (departmentOptions.length === 0) return;
+        if (departmentOption === OTHER_DEPARTMENT_OPTION) return;
+        if (!createData.department) {
+            const first = departmentOptions[0];
+            setDepartmentOption(first);
+            setCustomDepartment('');
+            setCreateData('department', first);
+            return;
+        }
+        const isPreset = departmentOptions.includes(createData.department);
+        setDepartmentOption(isPreset ? createData.department : OTHER_DEPARTMENT_OPTION);
+        setCustomDepartment(isPreset ? '' : createData.department);
+    }, [departmentOptions, createData.department, setCreateData, departmentOption]);
+
     const toggleDepartment = (department) => {
         setCollapsedDepartments((prev) => ({ ...prev, [department]: !prev[department] }));
     };
@@ -551,8 +666,13 @@ export default function MonitoringBoardIndexPage({ items = [], status_options: s
             preserveScroll: true,
             onSuccess: () => {
                 resetCreateData();
+                setProjectTypeOption(PROJECT_TYPE_OPTIONS[0]);
+                setCustomProjectType('');
+                setDepartmentOption(departmentOptions[0] ?? '');
+                setCustomDepartment('');
                 setCreateData('progress_percent', 0);
                 setCreateData('status', resolvedStatusOptions[0]);
+                setCreateData('project_type', PROJECT_TYPE_OPTIONS[0]);
                 setShowCreateModal(false);
                 toast.success('Monitoring entry added.');
             },
@@ -561,8 +681,20 @@ export default function MonitoringBoardIndexPage({ items = [], status_options: s
     };
 
     const openEdit = (item) => {
+        const initialProjectType = String(item.project_type ?? '').trim();
+        const isPresetType = PROJECT_TYPE_OPTIONS.includes(initialProjectType);
+        const initialDepartment = String(item.department ?? '').trim();
+        const isPresetDepartment = departmentOptions.includes(initialDepartment);
         setEditItem(item);
         if (clearEditErrors) clearEditErrors();
+        setEditProjectTypeOption(isPresetType ? initialProjectType : OTHER_PROJECT_TYPE_OPTION);
+        setEditCustomProjectType(isPresetType ? '' : initialProjectType);
+        setEditDepartmentOption(
+            departmentOptions.length > 0
+                ? (isPresetDepartment ? initialDepartment : OTHER_DEPARTMENT_OPTION)
+                : ''
+        );
+        setEditCustomDepartment(isPresetDepartment ? '' : initialDepartment);
         setEditData({
             department: item.department ?? '',
             client_name: item.client_name ?? '',
@@ -898,8 +1030,8 @@ export default function MonitoringBoardIndexPage({ items = [], status_options: s
                                                     </button>
                                                 </th>
                                                 {[
-                                                    'Client',
                                                     'Project',
+                                                    'Client',
                                                     'Type',
                                                     'Location',
                                                     'Assigned',
@@ -946,8 +1078,8 @@ export default function MonitoringBoardIndexPage({ items = [], status_options: s
                                                                 {selectedIds.includes(item.id) ? <Check size={12} /> : null}
                                                             </button>
                                                         </td>
-                                                        <td style={boardTableCell}>{item.client_name}</td>
                                                         <td style={{ ...boardTableCell, fontWeight: 600 }}>{item.project_name}</td>
+                                                        <td style={boardTableCell}>{item.client_name}</td>
                                                         <td style={boardTableCell}>{item.project_type}</td>
                                                         <td style={boardTableCell}>{item.location}</td>
                                                         <td style={boardTableCell}>{item.assigned_to || '-'}</td>
@@ -1132,7 +1264,7 @@ export default function MonitoringBoardIndexPage({ items = [], status_options: s
                                             <div style={{ minWidth: 0 }}>
                                                 <div style={{ fontWeight: 600, fontSize: 13 }}>{file.original_name || 'File'}</div>
                                                 <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>
-                                                    {(file.mime_type || 'file').toUpperCase()} â€¢ {file.created_at || 'Uploaded'}
+                                                    {(file.mime_type || 'file').toUpperCase()} • {file.created_at || 'Uploaded'}
                                                 </div>
                                             </div>
                                             <div style={{ display: 'flex', gap: 8 }}>
@@ -1209,12 +1341,38 @@ export default function MonitoringBoardIndexPage({ items = [], status_options: s
                         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 12 }}>
                             <label>
                                 <div style={{ fontSize: 12, marginBottom: 6 }}>Department</div>
-                                <TextInput
-                                    value={createData.department}
-                                    onChange={(event) => setCreateData('department', event.target.value)}
-                                    placeholder="Autocad"
-                                    style={boardInputStyle}
-                                />
+                                {departmentOptions.length === 0 ? (
+                                    <TextInput
+                                        value={createData.department}
+                                        onChange={(event) => setCreateData('department', event.target.value)}
+                                        placeholder="Autocad"
+                                        style={boardInputStyle}
+                                    />
+                                ) : (
+                                    <div style={{ display: 'grid', gap: 6 }}>
+                                        <SelectInput
+                                            value={departmentOption}
+                                            onChange={(event) => handleDepartmentOptionChange(event.target.value)}
+                                            style={boardInputStyle}
+                                        >
+                                            {departmentOptions.map((department) => (
+                                                <option key={department} value={department}>{department}</option>
+                                            ))}
+                                            <option value={OTHER_DEPARTMENT_OPTION}>Other (manual)</option>
+                                        </SelectInput>
+                                        {departmentOption === OTHER_DEPARTMENT_OPTION ? (
+                                            <TextInput
+                                                value={customDepartment}
+                                                onChange={(event) => {
+                                                    setCustomDepartment(event.target.value);
+                                                    setCreateData('department', event.target.value);
+                                                }}
+                                                placeholder="Enter department"
+                                                style={boardInputStyle}
+                                            />
+                                        ) : null}
+                                    </div>
+                                )}
                                 {createErrors.department && <div style={{ color: '#f87171', fontSize: 12, marginTop: 4 }}>{createErrors.department}</div>}
                             </label>
 
@@ -1241,11 +1399,29 @@ export default function MonitoringBoardIndexPage({ items = [], status_options: s
 
                             <label>
                                 <div style={{ fontSize: 12, marginBottom: 6 }}>Type</div>
-                                <TextInput
-                                    value={createData.project_type}
-                                    onChange={(event) => setCreateData('project_type', event.target.value)}
-                                    style={boardInputStyle}
-                                />
+                                <div style={{ display: 'grid', gap: 6 }}>
+                                    <SelectInput
+                                        value={projectTypeOption}
+                                        onChange={(event) => handleProjectTypeOptionChange(event.target.value)}
+                                        style={boardInputStyle}
+                                    >
+                                        {PROJECT_TYPE_OPTIONS.map((type) => (
+                                            <option key={type} value={type}>{type}</option>
+                                        ))}
+                                        <option value={OTHER_PROJECT_TYPE_OPTION}>Other (manual)</option>
+                                    </SelectInput>
+                                    {projectTypeOption === OTHER_PROJECT_TYPE_OPTION ? (
+                                        <TextInput
+                                            value={customProjectType}
+                                            onChange={(event) => {
+                                                setCustomProjectType(event.target.value);
+                                                setCreateData('project_type', event.target.value);
+                                            }}
+                                            placeholder="Enter project type"
+                                            style={boardInputStyle}
+                                        />
+                                    ) : null}
+                                </div>
                                 {createErrors.project_type && <div style={{ color: '#f87171', fontSize: 12, marginTop: 4 }}>{createErrors.project_type}</div>}
                             </label>
 
@@ -1261,10 +1437,19 @@ export default function MonitoringBoardIndexPage({ items = [], status_options: s
 
                             <label>
                                 <div style={{ fontSize: 12, marginBottom: 6 }}>Assigned</div>
-                                <TextInput
+                                <SearchableDropdown
+                                    options={foremanSelectOptions}
                                     value={createData.assigned_to}
-                                    onChange={(event) => setCreateData('assigned_to', event.target.value)}
+                                    onChange={(value) => setCreateData('assigned_to', value)}
+                                    placeholder="Select foreman"
+                                    searchPlaceholder="Search foremen..."
+                                    emptyMessage="No foremen found"
+                                    pageSize={10}
+                                    loadMoreLabel="Show more"
                                     style={boardInputStyle}
+                                    footer={foremanFooter}
+                                    getOptionLabel={resolveOptionLabel}
+                                    getOptionValue={resolveOptionValue}
                                 />
                                 {createErrors.assigned_to && <div style={{ color: '#f87171', fontSize: 12, marginTop: 4 }}>{createErrors.assigned_to}</div>}
                             </label>
@@ -1435,11 +1620,37 @@ export default function MonitoringBoardIndexPage({ items = [], status_options: s
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 12 }}>
                         <label>
                             <div style={{ fontSize: 12, marginBottom: 6 }}>Department</div>
-                            <TextInput
-                                value={editData.department}
-                                onChange={(event) => setEditData('department', event.target.value)}
-                                style={inputStyle}
-                            />
+                            {departmentOptions.length === 0 ? (
+                                <TextInput
+                                    value={editData.department}
+                                    onChange={(event) => setEditData('department', event.target.value)}
+                                    style={inputStyle}
+                                />
+                            ) : (
+                                <div style={{ display: 'grid', gap: 6 }}>
+                                    <SelectInput
+                                        value={editDepartmentOption}
+                                        onChange={(event) => handleEditDepartmentOptionChange(event.target.value)}
+                                        style={inputStyle}
+                                    >
+                                        {departmentOptions.map((department) => (
+                                            <option key={department} value={department}>{department}</option>
+                                        ))}
+                                        <option value={OTHER_DEPARTMENT_OPTION}>Other (manual)</option>
+                                    </SelectInput>
+                                    {editDepartmentOption === OTHER_DEPARTMENT_OPTION ? (
+                                        <TextInput
+                                            value={editCustomDepartment}
+                                            onChange={(event) => {
+                                                setEditCustomDepartment(event.target.value);
+                                                setEditData('department', event.target.value);
+                                            }}
+                                            placeholder="Enter department"
+                                            style={inputStyle}
+                                        />
+                                    ) : null}
+                                </div>
+                            )}
                             {editErrors.department && <div style={{ color: '#f87171', fontSize: 12, marginTop: 4 }}>{editErrors.department}</div>}
                         </label>
 
@@ -1466,11 +1677,29 @@ export default function MonitoringBoardIndexPage({ items = [], status_options: s
 
                         <label>
                             <div style={{ fontSize: 12, marginBottom: 6 }}>Type</div>
-                            <TextInput
-                                value={editData.project_type}
-                                onChange={(event) => setEditData('project_type', event.target.value)}
-                                style={inputStyle}
-                            />
+                            <div style={{ display: 'grid', gap: 6 }}>
+                                <SelectInput
+                                    value={editProjectTypeOption}
+                                    onChange={(event) => handleEditProjectTypeOptionChange(event.target.value)}
+                                    style={inputStyle}
+                                >
+                                    {PROJECT_TYPE_OPTIONS.map((type) => (
+                                        <option key={type} value={type}>{type}</option>
+                                    ))}
+                                    <option value={OTHER_PROJECT_TYPE_OPTION}>Other (manual)</option>
+                                </SelectInput>
+                                {editProjectTypeOption === OTHER_PROJECT_TYPE_OPTION ? (
+                                    <TextInput
+                                        value={editCustomProjectType}
+                                        onChange={(event) => {
+                                            setEditCustomProjectType(event.target.value);
+                                            setEditData('project_type', event.target.value);
+                                        }}
+                                        placeholder="Enter project type"
+                                        style={inputStyle}
+                                    />
+                                ) : null}
+                            </div>
                             {editErrors.project_type && <div style={{ color: '#f87171', fontSize: 12, marginTop: 4 }}>{editErrors.project_type}</div>}
                         </label>
 
@@ -1486,10 +1715,19 @@ export default function MonitoringBoardIndexPage({ items = [], status_options: s
 
                         <label>
                             <div style={{ fontSize: 12, marginBottom: 6 }}>Assigned</div>
-                            <TextInput
+                            <SearchableDropdown
+                                options={foremanEditOptions}
                                 value={editData.assigned_to}
-                                onChange={(event) => setEditData('assigned_to', event.target.value)}
+                                onChange={(value) => setEditData('assigned_to', value)}
+                                placeholder="Select foreman"
+                                searchPlaceholder="Search foremen..."
+                                emptyMessage="No foremen found"
+                                pageSize={10}
+                                loadMoreLabel="Show more"
                                 style={inputStyle}
+                                footer={foremanFooter}
+                                getOptionLabel={resolveOptionLabel}
+                                getOptionValue={resolveOptionValue}
                             />
                             {editErrors.assigned_to && <div style={{ color: '#f87171', fontSize: 12, marginTop: 4 }}>{editErrors.assigned_to}</div>}
                         </label>
@@ -1629,4 +1867,5 @@ export default function MonitoringBoardIndexPage({ items = [], status_options: s
         </>
     );
 }
+
 
