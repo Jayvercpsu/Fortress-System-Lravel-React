@@ -59,27 +59,48 @@ const SECTIONS = [
     { key: 'issues', label: 'Issue Reports' },
 ];
 
-const today = () => new Date().toISOString().slice(0, 10);
+const formatLocalDate = (date) => {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+};
+const today = () => formatLocalDate(new Date());
 const monday = () => {
     const d = new Date();
     d.setDate(d.getDate() - ((d.getDay() + 6) % 7));
-    return d.toISOString().slice(0, 10);
+    return formatLocalDate(d);
 };
 const isMondayDate = (value) => {
     if (!value) return false;
     const parts = String(value).split('-').map((v) => Number(v));
     if (parts.length !== 3 || parts.some((v) => Number.isNaN(v))) return false;
-    const d = new Date(Date.UTC(parts[0], parts[1] - 1, parts[2]));
-    return d.getUTCDay() === 1;
+    const d = new Date(parts[0], parts[1] - 1, parts[2]);
+    if (Number.isNaN(d.getTime())) return false;
+    return d.getDay() === 1;
 };
 const normalizeToMonday = (value) => {
     if (!value) return '';
     const parts = String(value).split('-').map((v) => Number(v));
     if (parts.length !== 3 || parts.some((v) => Number.isNaN(v))) return String(value);
-    const d = new Date(Date.UTC(parts[0], parts[1] - 1, parts[2]));
-    const mondayOffset = (d.getUTCDay() + 6) % 7;
-    d.setUTCDate(d.getUTCDate() - mondayOffset);
-    return d.toISOString().slice(0, 10);
+    const d = new Date(parts[0], parts[1] - 1, parts[2]);
+    if (Number.isNaN(d.getTime())) return String(value);
+    const mondayOffset = (d.getDay() + 6) % 7;
+    d.setDate(d.getDate() - mondayOffset);
+    return formatLocalDate(d);
+};
+const parseYmdDate = (value) => {
+    if (!value) return null;
+    const parts = String(value).split('-').map((v) => Number(v));
+    if (parts.length !== 3 || parts.some((v) => Number.isNaN(v))) return null;
+    const d = new Date(parts[0], parts[1] - 1, parts[2]);
+    if (Number.isNaN(d.getTime())) return null;
+    return d;
+};
+const addDays = (date, days) => {
+    const clone = new Date(date.getTime());
+    clone.setDate(clone.getDate() + days);
+    return clone;
 };
 const blankDays = () => DAYS.reduce((a, d) => ({ ...a, [d.key]: '' }), {});
 const workerIdentity = (name, role) => {
@@ -221,12 +242,6 @@ export default function ProgressSubmit({ submitToken }) {
             return acc;
         }, {});
     }, [submitToken?.attendance_saved_by_week]);
-    const attendanceSavedByWeek = useMemo(() => {
-        const source = submitToken?.attendance_saved_by_week && typeof submitToken.attendance_saved_by_week === 'object'
-            ? submitToken.attendance_saved_by_week
-            : {};
-        return source;
-    }, [submitToken?.attendance_saved_by_week]);
     const initialWeeklyDrafts = useMemo(() => {
         const source = submitToken?.weekly_saved_by_week && typeof submitToken.weekly_saved_by_week === 'object'
             ? submitToken.weekly_saved_by_week
@@ -242,6 +257,9 @@ export default function ProgressSubmit({ submitToken }) {
             : {};
         return source;
     }, [submitToken?.weekly_saved_by_week]);
+    const currentDateFromServer = String(submitToken?.current_date || '').trim();
+    const currentWeekStartFromServer = normalizeToMonday(String(submitToken?.current_week_start || ''));
+    const currentWeekStart = currentWeekStartFromServer || monday();
     useEffect(() => {
         const timer = setTimeout(() => {
             setSectionLoading({
@@ -264,7 +282,7 @@ export default function ProgressSubmit({ submitToken }) {
         photos: true,
         issues: true,
     });
-    const [attendanceWeek, setAttendanceWeek] = useState(monday);
+    const [attendanceWeek, setAttendanceWeek] = useState(currentWeekStart);
     const [attendanceWeekDrafts, setAttendanceWeekDrafts] = useState(initialAttendanceDrafts);
     const [delivery, setDelivery] = useState({ delivery_date: today(), status: 'complete', item_delivered: '', quantity: '', supplier: '', note: '', photo: null });
     const [material, setMaterial] = useState({ material_name: '', quantity: '', unit: '', remarks: '', photo: null });
@@ -320,10 +338,17 @@ export default function ProgressSubmit({ submitToken }) {
     const photoInputRef = useRef(null);
     const attendanceWeekKey = normalizeToMonday(attendanceWeek) || '__attendance_empty__';
     const weeklyWeekKey = normalizeToMonday(weekStart) || '__weekly_empty__';
-    const currentWeekStart = monday();
-    const attendanceWeekHasSavedData = Array.isArray(attendanceSavedByWeek[attendanceWeekKey]) && attendanceSavedByWeek[attendanceWeekKey].length > 0;
     const weeklyWeekHasSavedData = Array.isArray(weeklySavedByWeek[weeklyWeekKey]) && weeklySavedByWeek[weeklyWeekKey].length > 0;
-    const attendanceLocked = attendanceWeekKey < currentWeekStart && attendanceWeekHasSavedData;
+    const attendanceWeekStartDate = parseYmdDate(attendanceWeekKey === '__attendance_empty__' ? '' : attendanceWeekKey);
+    const attendanceWeekEndDate = attendanceWeekStartDate ? addDays(attendanceWeekStartDate, 6) : null;
+    const currentDate = parseYmdDate(currentDateFromServer) || parseYmdDate(today());
+    const attendanceLocked = !(
+        attendanceWeekStartDate &&
+        attendanceWeekEndDate &&
+        currentDate &&
+        currentDate >= attendanceWeekStartDate &&
+        currentDate <= attendanceWeekEndDate
+    );
     const weeklyLocked = weeklyWeekKey < currentWeekStart && weeklyWeekHasSavedData;
     const attendanceRows = useMemo(() => {
         const currentRows = cloneAttendanceRows(attendanceWeekDrafts[attendanceWeekKey] ?? defaultAttendanceRows)
@@ -400,11 +425,20 @@ export default function ProgressSubmit({ submitToken }) {
     };
     const setCurrentAttendanceRows = (updater) => {
         setAttendanceWeekDrafts((prev) => {
-            const currentRows = cloneAttendanceRows(prev[attendanceWeekKey] ?? defaultAttendanceRows);
+            const currentRows = cloneAttendanceRows(prev[attendanceWeekKey] ?? attendanceRows);
             const nextRows = typeof updater === 'function' ? updater(currentRows) : updater;
             return { ...prev, [attendanceWeekKey]: cloneAttendanceRows(nextRows) };
         });
     };
+    useEffect(() => {
+        if (attendanceWeekKey === '__attendance_empty__') return;
+        setAttendanceWeekDrafts((prev) => {
+            if (Array.isArray(prev[attendanceWeekKey]) && prev[attendanceWeekKey].length > 0) {
+                return prev;
+            }
+            return { ...prev, [attendanceWeekKey]: cloneAttendanceRows(attendanceRows) };
+        });
+    }, [attendanceWeekKey, attendanceRows]);
     const setCurrentWeeklyRows = (updater) => {
         setWeeklyWeekDrafts((prev) => {
             const currentRows = (prev[weeklyWeekKey] ?? defaultWeeklyRows).map((row) => ({ ...row }));
@@ -522,7 +556,7 @@ export default function ProgressSubmit({ submitToken }) {
                     style={jfDateInputStyle}
                 />
             </label>
-            {attendanceLocked ? <div className="jf-note" style={{ marginBottom: 8, fontWeight: 700 }}>Past submitted week is locked and cannot be edited.</div> : null}
+            {attendanceLocked ? <div className="jf-note" style={{ marginBottom: 8, fontWeight: 700 }}>Only the current week is editable for attendance. Previous and future weeks are locked.</div> : null}
             <div className="jf-note" style={{ marginBottom: 8, lineHeight: 1.45 }}>
                 <strong>Attendance Codes:</strong> {ATTENDANCE_LEGEND.join(' | ')}
             </div>
@@ -548,7 +582,31 @@ export default function ProgressSubmit({ submitToken }) {
                                     <td><input disabled className="jf-input" value={row.worker_role} readOnly /></td>
                                     {DAYS.map((d) => (
                                         <td key={d.key}>
-                                            <select disabled={attendanceLocked} className="jf-input" value={row.days[d.key] || ''} onChange={(e) => setCurrentAttendanceRows((prev) => prev.map((r, idx) => idx === i ? { ...r, days: { ...r.days, [d.key]: e.target.value } } : r))}>
+                                            <select
+                                                disabled={attendanceLocked}
+                                                className="jf-input"
+                                                value={row.days[d.key] || ''}
+                                                onChange={(e) => {
+                                                    const nextValue = String(e.target.value || '');
+                                                    const targetIdentity = workerIdentity(row.worker_name, row.worker_role);
+                                                    setCurrentAttendanceRows((prev) => {
+                                                        const rows = cloneAttendanceRows(prev);
+                                                        const matchIndex = rows.findIndex((candidate) => {
+                                                            const sameRowKey = candidate.row_key && row.row_key && candidate.row_key === row.row_key;
+                                                            const sameIdentity = targetIdentity !== '' && workerIdentity(candidate.worker_name, candidate.worker_role) === targetIdentity;
+                                                            return sameRowKey || sameIdentity;
+                                                        });
+                                                        const fallbackIndex = i >= 0 && i < rows.length ? i : -1;
+                                                        const targetIndex = matchIndex >= 0 ? matchIndex : fallbackIndex;
+                                                        if (targetIndex < 0) return rows;
+                                                        rows[targetIndex] = {
+                                                            ...rows[targetIndex],
+                                                            days: { ...rows[targetIndex].days, [d.key]: nextValue },
+                                                        };
+                                                        return rows;
+                                                    });
+                                                }}
+                                            >
                                                 {STATUS.map((s) => <option key={s || 'x'} value={s}>{s || '-'}</option>)}
                                             </select>
                                         </td>

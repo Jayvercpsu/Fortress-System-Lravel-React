@@ -343,6 +343,10 @@ class PublicProgressController extends Controller
                 'project_name' => $submitToken->project->name,
                 'foreman_name' => $submitToken->foreman->fullname,
                 'expires_at' => optional($submitToken->expires_at)?->toDateTimeString(),
+                'current_date' => Carbon::now('Asia/Manila')->toDateString(),
+                'current_week_start' => Carbon::now('Asia/Manila')
+                    ->startOfWeek(Carbon::MONDAY)
+                    ->toDateString(),
                 'receipt_url' => route('public.progress-receipt', ['token' => $submitToken->token]),
                 'workers' => $workers,
                 'weekly_scope_of_works' => $weeklyScopeOfWorks,
@@ -660,9 +664,22 @@ class PublicProgressController extends Controller
                 ]);
             }
 
+            $selectedWeekStart = Carbon::parse($attendanceWeekStart)
+                ->startOfWeek(Carbon::MONDAY)
+                ->toDateString();
+            $currentWeekStart = Carbon::now('Asia/Manila')
+                ->startOfWeek(Carbon::MONDAY)
+                ->toDateString();
+
+            if ($selectedWeekStart !== $currentWeekStart) {
+                throw ValidationException::withMessages([
+                    'attendance_week_start' => 'Attendance can only be submitted for the current week.',
+                ]);
+            }
+
             $this->syncWorkersFromAttendanceEntries($submitToken, $attendanceEntries);
 
-            $weekStart = Carbon::parse($attendanceWeekStart)->startOfWeek(Carbon::MONDAY);
+            $weekStart = Carbon::parse($selectedWeekStart, 'Asia/Manila');
 
             foreach ($attendanceEntries as $entry) {
                 foreach (self::ATTENDANCE_DAY_KEYS as $dayKey) {
@@ -696,9 +713,9 @@ class PublicProgressController extends Controller
             $submittedAny = true;
         }
 
+        // Ignore default form values (date/status). Only create delivery rows when
+        // the user actually enters delivery details or uploads a delivery photo.
         $deliveryTouched = $this->hasAnyText([
-            $validated['delivery_date'] ?? null,
-            $validated['delivery_status'] ?? null,
             $validated['delivery_item_delivered'] ?? null,
             $validated['delivery_quantity'] ?? null,
             $validated['delivery_supplier'] ?? null,

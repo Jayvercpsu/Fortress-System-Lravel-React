@@ -702,6 +702,21 @@ class ProjectController extends Controller
                 ]
             );
 
+            // Copy project assignments (especially foremen) to the new Construction project.
+            ProjectAssignment::query()
+                ->where('project_id', $source->id)
+                ->get(['user_id', 'role_in_project'])
+                ->each(function (ProjectAssignment $assignment) use ($duplicate) {
+                    ProjectAssignment::query()->updateOrCreate(
+                        [
+                            'project_id' => $duplicate->id,
+                            'user_id' => (int) $assignment->user_id,
+                            'role_in_project' => (string) $assignment->role_in_project,
+                        ],
+                        []
+                    );
+                });
+
             // Copy payment history so Financials/Payments pages retain values after transfer
             Payment::query()
                 ->where('project_id', $source->id)

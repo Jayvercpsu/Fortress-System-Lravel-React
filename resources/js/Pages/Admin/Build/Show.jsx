@@ -370,7 +370,18 @@ export default function AdminBuildShow({
                                     Expense totals below are automatically linked to the Expenses tab and Project Overview.
                                 </div>
                                 {expenseBreakdown.length === 0 ? (
-                                    <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>No expense entries yet.</div>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
+                                        <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>No expense entries yet.</div>
+                                        <ActionButton
+                                            type="button"
+                                            variant="success"
+                                            onClick={() => setActiveTab('expenses')}
+                                            disabled={isLocked}
+                                            style={{ padding: '8px 12px', fontSize: 12 }}
+                                        >
+                                            Add Expense
+                                        </ActionButton>
+                                    </div>
                                 ) : (
                                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}>
                                         {expenseBreakdown.map((item) => (

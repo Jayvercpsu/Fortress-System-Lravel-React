@@ -848,7 +848,7 @@ class DashboardController extends Controller
             ->values();
 
         if ($assigned->isNotEmpty()) {
-            return $this->excludeDesignPhaseIds($assigned);
+            return $this->excludeDesignPhaseIds($this->includeTransferredProjectIds($assigned));
         }
 
         $fullname = trim((string) ($user->fullname ?? ''));
@@ -872,7 +872,30 @@ class DashboardController extends Controller
             ->unique()
             ->values();
 
-        return $this->excludeDesignPhaseIds($fallback);
+        return $this->excludeDesignPhaseIds($this->includeTransferredProjectIds($fallback));
+    }
+
+    private function includeTransferredProjectIds(Collection $projectIds): Collection
+    {
+        if ($projectIds->isEmpty()) {
+            return $projectIds;
+        }
+
+        $transferredIds = Project::query()
+            ->whereIn('source_project_id', $projectIds->all())
+            ->pluck('id')
+            ->map(fn ($projectId) => (int) $projectId)
+            ->values();
+
+        if ($transferredIds->isEmpty()) {
+            return $projectIds;
+        }
+
+        return $projectIds
+            ->merge($transferredIds)
+            ->map(fn ($projectId) => (int) $projectId)
+            ->unique()
+            ->values();
     }
 
     private function excludeDesignPhaseIds(Collection $projectIds): Collection
