@@ -61,6 +61,14 @@ class PublicProgressService
         $recentPhotos = $this->foremanProgressRepository->progressPhotos()
             ->where('foreman_id', $submitToken->foreman_id)
             ->where('project_id', $submitToken->project_id)
+            ->where(function ($query) {
+                $query->whereNull('caption')
+                    ->orWhere(function ($inner) {
+                        $inner->where('caption', 'not like', '[Material]%')
+                            ->where('caption', 'not like', '[Delivery]%')
+                            ->where('caption', 'not like', '[Issue]%');
+                    });
+            })
             ->latest()
             ->take(8)
             ->get(['id', 'photo_path', 'caption', 'created_at'])

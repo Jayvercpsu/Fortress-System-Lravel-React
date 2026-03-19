@@ -24,6 +24,7 @@ class ProgressPhotoRepository implements ProgressPhotoRepositoryInterface
     public function paginatePhotoProjectIds(string $search, int $perPage): LengthAwarePaginator
     {
         $query = ProgressPhoto::query();
+        $this->applyExcludeMaterialPhotos($query);
         $this->applySearch($query, $search);
 
         return (clone $query)
@@ -42,6 +43,7 @@ class ProgressPhotoRepository implements ProgressPhotoRepositoryInterface
 
         $query = ProgressPhoto::query()
             ->with(['foreman:id,fullname', 'project:id,name']);
+        $this->applyExcludeMaterialPhotos($query);
         $this->applySearch($query, $search);
 
         $nonNullProjectIds = array_values(array_filter($projectIds, fn ($value) => $value !== null));
@@ -73,6 +75,18 @@ class ProgressPhotoRepository implements ProgressPhotoRepositoryInterface
             $query->where('caption', 'like', "%{$search}%")
                 ->orWhereHas('foreman', fn ($q) => $q->where('fullname', 'like', "%{$search}%"))
                 ->orWhereHas('project', fn ($q) => $q->where('name', 'like', "%{$search}%"));
+        });
+    }
+
+    private function applyExcludeMaterialPhotos(Builder $builder): void
+    {
+        $builder->where(function ($query) {
+            $query->whereNull('caption')
+                ->orWhere(function ($inner) {
+                    $inner->where('caption', 'not like', '[Material]%')
+                        ->where('caption', 'not like', '[Delivery]%')
+                        ->where('caption', 'not like', '[Issue]%');
+                });
         });
     }
 }
