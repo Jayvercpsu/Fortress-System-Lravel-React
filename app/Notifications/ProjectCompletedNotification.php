@@ -24,7 +24,7 @@ class ProjectCompletedNotification extends Notification
         return [
             'project_id' => $this->project->id,
             'project_name' => $this->project->name,
-            'message' => 'Project marked as COMPLETED.',
+            'message' => __('messages.notifications.project_completed'),
         ];
     }
 }

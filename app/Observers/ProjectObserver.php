@@ -2,6 +2,7 @@
 
 namespace App\Observers;
 
+use App\Enums\ProjectStatus;
 use App\Models\BuildProject;
 use App\Models\DesignProject;
 use App\Models\Project;
@@ -20,7 +21,7 @@ class ProjectObserver
                 'total_received' => 0,
                 'office_payroll_deduction' => 0,
                 'design_progress' => 0,
-                'client_approval_status' => 'pending',
+                'client_approval_status' => DesignProject::CLIENT_APPROVAL_PENDING,
             ]
         );
     }
@@ -43,12 +44,12 @@ class ProjectObserver
         if (
             $project->wasChanged('overall_progress')
             && (int) $project->overall_progress >= 100
-            && $project->status !== (string) config('fortress.project_status_completed', 'COMPLETED')
+            && $project->status !== (string) config('fortress.project_status_completed', ProjectStatus::COMPLETED->value)
         ) {
-            $project->status = (string) config('fortress.project_status_completed', 'COMPLETED');
+            $project->status = (string) config('fortress.project_status_completed', ProjectStatus::COMPLETED->value);
             $project->saveQuietly();
 
-            $recipients = User::whereIn('role', ['hr', 'head_admin'])->get();
+            $recipients = User::whereIn('role', [User::ROLE_HR, User::ROLE_HEAD_ADMIN])->get();
             foreach ($recipients as $user) {
                 $user->notify(new ProjectCompletedNotification($project));
             }

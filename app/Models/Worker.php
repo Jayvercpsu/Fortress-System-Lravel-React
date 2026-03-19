@@ -9,6 +9,16 @@ class Worker extends Model
 {
     use SoftDeletes;
 
+    public const JOB_TYPE_WORKER = 'Worker';
+    public const JOB_TYPE_SKILLED_WORKER = 'Skilled Worker';
+    public const JOB_TYPE_LABORER = 'Laborer';
+
+    public const JOB_TYPE_OPTIONS = [
+        self::JOB_TYPE_WORKER,
+        self::JOB_TYPE_SKILLED_WORKER,
+        self::JOB_TYPE_LABORER,
+    ];
+
     protected $fillable = [
         'foreman_id',
         'project_id',
@@ -27,6 +37,11 @@ class Worker extends Model
         'birth_date' => 'date',
         'default_rate_per_hour' => 'decimal:2',
     ];
+
+    public static function jobTypeOptions(): array
+    {
+        return self::JOB_TYPE_OPTIONS;
+    }
 
     public function foreman()
     {

@@ -9,6 +9,17 @@ class Expense extends Model
 {
     use SoftDeletes;
 
+    public const CATEGORY_UNCATEGORIZED = 'Uncategorized';
+    public const CATEGORY_UNCATEGORIZED_KEY = 'uncategorized';
+
+    public const DEFAULT_CATEGORIES = [
+        'Materials',
+        'Labor',
+        'Equipment',
+        'Miscellaneous',
+        'Others',
+    ];
+
     protected $fillable = [
         'project_id',
         'category',
@@ -21,4 +32,9 @@ class Expense extends Model
         'amount' => 'decimal:2',
         'date' => 'date',
     ];
+
+    public static function defaultCategories(): array
+    {
+        return self::DEFAULT_CATEGORIES;
+    }
 }

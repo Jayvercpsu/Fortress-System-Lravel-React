@@ -8,6 +8,25 @@ use Illuminate\Notifications\Notifiable;
 class User extends Authenticatable {
     use HasFactory, Notifiable;
 
+    public const ROLE_HEAD_ADMIN = 'head_admin';
+    public const ROLE_ADMIN = 'admin';
+    public const ROLE_HR = 'hr';
+    public const ROLE_FOREMAN = 'foreman';
+    public const ROLE_CLIENT = 'client';
+
+    public const ROLE_OPTIONS = [
+        self::ROLE_HEAD_ADMIN,
+        self::ROLE_ADMIN,
+        self::ROLE_HR,
+        self::ROLE_FOREMAN,
+        self::ROLE_CLIENT,
+    ];
+
+    public const MANAGE_ROLES = [
+        self::ROLE_HEAD_ADMIN,
+        self::ROLE_ADMIN,
+    ];
+
     protected $fillable = ['fullname', 'username', 'email', 'password', 'role', 'default_rate_per_hour'];
     protected $hidden   = ['password', 'remember_token'];
 
@@ -26,4 +45,14 @@ class User extends Authenticatable {
     public function detail()            { return $this->hasOne(UserDetail::class); }
     public function projectAssignments(){ return $this->hasMany(ProjectAssignment::class); }
     public function projectTeams()      { return $this->hasMany(ProjectWorker::class); }
+
+    public static function roleOptions(): array
+    {
+        return self::ROLE_OPTIONS;
+    }
+
+    public static function manageableRoles(): array
+    {
+        return self::MANAGE_ROLES;
+    }
 }

@@ -6,6 +6,18 @@ use Illuminate\Database\Eloquent\Model;
 
 class MonitoringBoardItem extends Model
 {
+    public const STATUS_PROPOSAL = 'PROPOSAL';
+    public const STATUS_IN_REVIEW = 'IN_REVIEW';
+    public const STATUS_APPROVED = 'APPROVED';
+    public const STATUS_DONE = 'DONE';
+
+    public const STATUS_OPTIONS = [
+        self::STATUS_PROPOSAL,
+        self::STATUS_IN_REVIEW,
+        self::STATUS_APPROVED,
+        self::STATUS_DONE,
+    ];
+
     protected $fillable = [
         'department',
         'client_name',
@@ -46,5 +58,10 @@ class MonitoringBoardItem extends Model
     public function creator()
     {
         return $this->belongsTo(User::class, 'created_by');
+    }
+
+    public static function statusOptions(): array
+    {
+        return self::STATUS_OPTIONS;
     }
 }

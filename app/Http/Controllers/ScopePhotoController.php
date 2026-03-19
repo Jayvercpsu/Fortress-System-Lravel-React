@@ -2,49 +2,42 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Requests\ScopePhotos\StoreScopePhotoRequest;
 use App\Models\ProjectScope;
 use App\Models\ScopePhoto;
-use App\Support\Uploads\UploadManager;
+use App\Services\ScopePhotoService;
 use Illuminate\Http\Request;
 
 class ScopePhotoController extends Controller
 {
-    public function store(Request $request, ProjectScope $scope)
+    public function __construct(
+        private readonly ScopePhotoService $scopePhotoService
+    ) {
+    }
+
+    public function store(StoreScopePhotoRequest $request, ProjectScope $scope)
     {
-        $this->authorizeRole($request);
-
-        $validated = $request->validate([
-            'photo' => ['required', 'image', UploadManager::maxRule()],
-            'caption' => ['nullable', 'string', 'max:255'],
-        ]);
-
-        $path = UploadManager::store($validated['photo'], 'scope-photos/' . $scope->id);
-
-        $scope->photos()->create([
-            'photo_path' => $path,
-            'caption' => $validated['caption'] ?? null,
-        ]);
+        $this->scopePhotoService->ensureAuthorized($request->user());
+        $this->scopePhotoService->createScopePhoto(
+            $scope,
+            $request->file('photo'),
+            $request->validated('caption')
+        );
 
         return redirect()
             ->route('monitoring.show', ['project' => $scope->project_id])
-            ->with('success', 'Scope photo uploaded successfully.');
+            ->with('success', __('messages.scope_photos.created'));
     }
 
     public function destroy(Request $request, ScopePhoto $photo)
     {
-        $this->authorizeRole($request);
+        $this->scopePhotoService->ensureAuthorized($request->user());
 
         $projectId = $photo->scope?->project_id;
-        UploadManager::delete($photo->photo_path);
-        $photo->delete();
+        $this->scopePhotoService->deleteScopePhoto($photo);
 
         return redirect()
             ->route('monitoring.show', ['project' => $projectId])
-            ->with('success', 'Scope photo deleted successfully.');
-    }
-
-    private function authorizeRole(Request $request): void
-    {
-        abort_unless(in_array($request->user()->role, ['head_admin', 'admin'], true), 403);
+            ->with('success', __('messages.scope_photos.deleted'));
     }
 }

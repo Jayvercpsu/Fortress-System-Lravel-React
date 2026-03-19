@@ -2,6 +2,8 @@
 
 namespace App\Support;
 
+use App\Models\DesignProject;
+
 final class DesignComputation
 {
     private const MILESTONE_BASIS = [
@@ -85,7 +87,7 @@ final class DesignComputation
 
     public static function computeProgress(float $designContractAmount, float $totalReceived, string $clientApprovalStatus): int
     {
-        if (strtolower(trim($clientApprovalStatus)) === 'approved') {
+        if (strtolower(trim($clientApprovalStatus)) === DesignProject::CLIENT_APPROVAL_APPROVED) {
             return self::totalBasisPercent();
         }
 

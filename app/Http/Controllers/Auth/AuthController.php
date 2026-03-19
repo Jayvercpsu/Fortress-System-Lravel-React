@@ -2,6 +2,7 @@
 namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
+use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Inertia\Inertia;
@@ -29,7 +30,7 @@ class AuthController extends Controller {
         ]);
 
         if (!Auth::attempt($credentials)) {
-            return back()->withErrors(['email' => 'Invalid credentials.']);
+            return back()->withErrors(['email' => __('messages.auth.invalid_credentials')]);
         }
 
         $request->session()->regenerate();
@@ -45,9 +46,9 @@ class AuthController extends Controller {
         if (!Auth::attempt([
             'username' => $credentials['username'],
             'password' => $credentials['password'],
-            'role' => 'client',
+            'role' => User::ROLE_CLIENT,
         ])) {
-            return back()->withErrors(['username' => 'Invalid client credentials.']);
+            return back()->withErrors(['username' => __('messages.auth.invalid_client_credentials')]);
         }
 
         $request->session()->regenerate();
@@ -61,7 +62,7 @@ class AuthController extends Controller {
         $request->session()->invalidate();
         $request->session()->regenerateToken();
 
-        if ($role === 'client') {
+        if ($role === User::ROLE_CLIENT) {
             return redirect()->route('client.login');
         }
 
@@ -70,11 +71,11 @@ class AuthController extends Controller {
 
     private function redirectByRole(string $role) {
         return match($role) {
-            'head_admin' => redirect()->route('head_admin.dashboard'),
-            'admin'      => redirect()->route('admin.dashboard'),
-            'hr'         => redirect()->route('hr.dashboard'),
-            'foreman'    => redirect()->route('foreman.dashboard'),
-            'client'     => redirect()->route('client.dashboard'),
+            User::ROLE_HEAD_ADMIN => redirect()->route('head_admin.dashboard'),
+            User::ROLE_ADMIN      => redirect()->route('admin.dashboard'),
+            User::ROLE_HR         => redirect()->route('hr.dashboard'),
+            User::ROLE_FOREMAN    => redirect()->route('foreman.dashboard'),
+            User::ROLE_CLIENT     => redirect()->route('client.dashboard'),
             default      => redirect()->route('login'),
         };
     }

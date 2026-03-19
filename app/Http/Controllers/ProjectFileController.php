@@ -2,80 +2,51 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Requests\ProjectFiles\StoreProjectFileRequest;
 use App\Models\Project;
 use App\Models\ProjectFile;
-use App\Support\Uploads\UploadManager;
+use App\Services\ProjectFileService;
 use Illuminate\Http\Request;
 
 class ProjectFileController extends Controller
 {
-    public function index(Request $request, Project $project)
-    {
-        $this->authorizeRole($request);
-
-        return response()->json([
-            'files' => $project->files()->latest()->get(),
-        ]);
+    public function __construct(
+        private readonly ProjectFileService $projectFileService
+    ) {
     }
 
-    public function store(Request $request, Project $project)
+    public function index(Request $request, Project $project)
     {
-        $this->authorizeRole($request);
+        $this->projectFileService->ensureAuthorized($request->user());
 
-        $validated = $request->validate([
-            'file' => ['required', 'file', UploadManager::maxRule()],
-        ]);
+        return response()->json($this->projectFileService->filesPayload($project));
+    }
 
-        $uploaded = $validated['file'];
-        $path = UploadManager::store($uploaded, 'project-files/' . $project->id);
-
-        ProjectFile::create([
-            'project_id' => $project->id,
-            'file_path' => $path,
-            'original_name' => $uploaded->getClientOriginalName(),
-            'uploaded_by' => $request->user()->id,
-        ]);
+    public function store(StoreProjectFileRequest $request, Project $project)
+    {
+        $this->projectFileService->ensureAuthorized($request->user());
+        $this->projectFileService->createFile($project, $request->file('file'), (int) $request->user()->id);
 
         return redirect()
             ->route('projects.show', [
                 'project' => $project->id,
-                ...$this->projectShowQueryParams($request),
+                ...$this->projectFileService->projectShowQueryParams($request),
             ])
-            ->with('success', 'Project file uploaded successfully.');
+            ->with('success', __('messages.project_files.created'));
     }
 
     public function destroy(Request $request, ProjectFile $projectFile)
     {
-        $this->authorizeRole($request);
-
-        UploadManager::delete($projectFile->file_path);
+        $this->projectFileService->ensureAuthorized($request->user());
 
         $projectId = $projectFile->project_id;
-        $projectFile->delete();
+        $this->projectFileService->deleteFile($projectFile);
 
         return redirect()
             ->route('projects.show', [
                 'project' => $projectId,
-                ...$this->projectShowQueryParams($request),
+                ...$this->projectFileService->projectShowQueryParams($request),
             ])
-            ->with('success', 'Project file deleted successfully.');
-    }
-
-    private function authorizeRole(Request $request): void
-    {
-        abort_unless(in_array($request->user()->role, ['head_admin', 'admin'], true), 403);
-    }
-
-    private function projectShowQueryParams(Request $request): array
-    {
-        return array_filter([
-            'tab' => $request->query('tab'),
-            'files_search' => $request->query('files_search'),
-            'files_per_page' => $request->query('files_per_page'),
-            'files_page' => $request->query('files_page'),
-            'updates_search' => $request->query('updates_search'),
-            'updates_per_page' => $request->query('updates_per_page'),
-            'updates_page' => $request->query('updates_page'),
-        ], fn ($value) => $value !== null && $value !== '');
+            ->with('success', __('messages.project_files.deleted'));
     }
 }

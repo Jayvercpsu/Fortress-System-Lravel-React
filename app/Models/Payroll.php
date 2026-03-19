@@ -6,6 +6,27 @@ use Illuminate\Database\Eloquent\Model;
 
 class Payroll extends Model
 {
+    public const STATUS_PENDING = 'pending';
+    public const STATUS_READY = 'ready';
+    public const STATUS_APPROVED = 'approved';
+    public const STATUS_PAID = 'paid';
+
+    public const PAYABLE_STATUSES = [
+        self::STATUS_PENDING,
+        self::STATUS_READY,
+        self::STATUS_APPROVED,
+    ];
+
+    public const STATUS_OPTIONS = [
+        self::STATUS_PENDING,
+        self::STATUS_READY,
+        self::STATUS_APPROVED,
+        self::STATUS_PAID,
+    ];
+
+    public const ROLE_FOREMAN = 'Foreman';
+    public const ROLE_WORKER = 'Worker';
+
     protected $fillable = [
         'user_id',
         'cutoff_id',
@@ -52,5 +73,15 @@ class Payroll extends Model
     public function releasedBy()
     {
         return $this->belongsTo(User::class, 'released_by');
+    }
+
+    public static function payableStatuses(): array
+    {
+        return self::PAYABLE_STATUSES;
+    }
+
+    public static function statusOptions(): array
+    {
+        return self::STATUS_OPTIONS;
     }
 }

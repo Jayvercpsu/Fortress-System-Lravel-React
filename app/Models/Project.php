@@ -9,6 +9,26 @@ class Project extends Model
 {
     use SoftDeletes;
 
+    public const PHASE_DESIGN = 'Design';
+    public const PHASE_CONSTRUCTION = 'Construction';
+    public const PHASE_COMPLETED = 'Completed';
+
+    public const PHASE_OPTIONS = [
+        self::PHASE_DESIGN,
+        self::PHASE_CONSTRUCTION,
+        self::PHASE_COMPLETED,
+    ];
+
+    public const ASSIGNED_ROLE_ARCHITECT = 'Architect';
+    public const ASSIGNED_ROLE_ENGINEER = 'Engineer';
+    public const ASSIGNED_ROLE_PM = 'PM';
+
+    public const ASSIGNED_ROLE_OPTIONS = [
+        self::ASSIGNED_ROLE_ARCHITECT,
+        self::ASSIGNED_ROLE_ENGINEER,
+        self::ASSIGNED_ROLE_PM,
+    ];
+
     protected $fillable = [
         'source_project_id',
         'name',
@@ -84,5 +104,15 @@ class Project extends Model
     public function transferredProjects()
     {
         return $this->hasMany(Project::class, 'source_project_id')->withTrashed();
+    }
+
+    public static function phaseOptions(): array
+    {
+        return self::PHASE_OPTIONS;
+    }
+
+    public static function assignedRoleOptions(): array
+    {
+        return self::ASSIGNED_ROLE_OPTIONS;
     }
 }

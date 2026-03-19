@@ -9,6 +9,10 @@ class ProjectScope extends Model
 {
     use SoftDeletes;
 
+    public const STATUS_COMPLETED = 'COMPLETED';
+    public const STATUS_NOT_STARTED = 'NOT_STARTED';
+    public const STATUS_IN_PROGRESS = 'IN_PROGRESS';
+
     protected $fillable = [
         'project_id',
         'scope_name',
@@ -38,5 +42,18 @@ class ProjectScope extends Model
     public function photos()
     {
         return $this->hasMany(ScopePhoto::class, 'project_scope_id');
+    }
+
+    public static function statusFromProgress(int $progress): string
+    {
+        if ($progress >= 100) {
+            return self::STATUS_COMPLETED;
+        }
+
+        if ($progress <= 0) {
+            return self::STATUS_NOT_STARTED;
+        }
+
+        return self::STATUS_IN_PROGRESS;
     }
 }

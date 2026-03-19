@@ -2,15 +2,22 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\BuildProject;
+use App\Http\Requests\Expenses\StoreExpenseRequest;
+use App\Http\Requests\Expenses\UpdateExpenseRequest;
 use App\Models\Expense;
+use App\Services\ExpenseService;
 use Illuminate\Http\Request;
 
 class ExpenseController extends Controller
 {
+    public function __construct(
+        private readonly ExpenseService $expenseService
+    ) {
+    }
+
     public function index(Request $request, string $project)
     {
-        $this->ensureAuthorized($request);
+        $this->expenseService->ensureAuthorized($request->user());
 
         if (!$request->expectsJson()) {
             return redirect()->route('build.show', [
@@ -19,108 +26,49 @@ class ExpenseController extends Controller
             ]);
         }
 
-        $expenses = Expense::where('project_id', $project)
-            ->orderByDesc('date')
-            ->orderByDesc('id')
-            ->get();
-
-        $totalExpenses = (float) $expenses->sum('amount');
-        $constructionContract = (float) (BuildProject::where('project_id', $project)->value('construction_contract') ?? 0);
-
-        return response()->json([
-            'project_id' => (string) $project,
-            'expenses' => $expenses,
-            'total_expenses' => $totalExpenses,
-            'remaining_income' => $constructionContract - $totalExpenses,
-        ]);
+        return response()->json($this->expenseService->indexJsonPayload($project));
     }
 
-    public function store(Request $request, string $project)
+    public function store(StoreExpenseRequest $request, string $project)
     {
-        $this->ensureAuthorized($request);
-
-        $validated = $request->validate([
-            'category' => 'required|string|max:100',
-            'amount' => 'required|numeric|min:0',
-            'note' => 'nullable|string|max:1000',
-            'date' => 'required|date',
-        ]);
-
-        Expense::create([
-            'project_id' => $project,
-            ...$validated,
-        ]);
-
-        $this->syncProjectFinancials($project);
+        $this->expenseService->ensureAuthorized($request->user());
+        $this->expenseService->createExpense($project, $request->validated());
 
         return redirect()
             ->route('build.show', [
                 'project' => $project,
                 'tab' => 'expenses',
-                ...$this->expenseTableQueryParams($request),
+                ...$this->expenseService->expenseTableQueryParams($request),
             ])
-            ->with('success', 'Expense added successfully.');
+            ->with('success', __('messages.expenses.created'));
     }
 
-    public function update(Request $request, Expense $expense)
+    public function update(UpdateExpenseRequest $request, Expense $expense)
     {
-        $this->ensureAuthorized($request);
-
-        $validated = $request->validate([
-            'category' => 'required|string|max:100',
-            'amount' => 'required|numeric|min:0',
-            'note' => 'nullable|string|max:1000',
-            'date' => 'required|date',
-        ]);
-
-        $expense->update($validated);
-
-        $this->syncProjectFinancials((string) $expense->project_id);
+        $this->expenseService->ensureAuthorized($request->user());
+        $this->expenseService->updateExpense($expense, $request->validated());
 
         return redirect()
             ->route('build.show', [
                 'project' => $expense->project_id,
                 'tab' => 'expenses',
-                ...$this->expenseTableQueryParams($request),
+                ...$this->expenseService->expenseTableQueryParams($request),
             ])
-            ->with('success', 'Expense updated successfully.');
+            ->with('success', __('messages.expenses.updated'));
     }
 
     public function destroy(Request $request, Expense $expense)
     {
-        $this->ensureAuthorized($request);
-
+        $this->expenseService->ensureAuthorized($request->user());
         $projectId = $expense->project_id;
-        $expense->delete();
-        $this->syncProjectFinancials((string) $projectId);
+        $this->expenseService->deleteExpense($expense);
 
         return redirect()
             ->route('build.show', [
                 'project' => $projectId,
                 'tab' => 'expenses',
-                ...$this->expenseTableQueryParams($request),
+                ...$this->expenseService->expenseTableQueryParams($request),
             ])
-            ->with('success', 'Expense deleted successfully.');
-    }
-
-    private function ensureAuthorized(Request $request): void
-    {
-        abort_unless(in_array($request->user()->role, ['head_admin', 'admin'], true), 403);
-    }
-
-    private function expenseTableQueryParams(Request $request): array
-    {
-        return array_filter([
-            'expense_search' => $request->query('expense_search'),
-            'expense_per_page' => $request->query('expense_per_page'),
-            'expense_page' => $request->query('expense_page'),
-        ], fn ($value) => $value !== null && $value !== '');
-    }
-
-    private function syncProjectFinancials(string $projectId): void
-    {
-        // Financial fields are managed from Project Financials / Payments.
-        // Expense updates should not overwrite manual financial snapshots.
-        return;
+            ->with('success', __('messages.expenses.deleted'));
     }
 }

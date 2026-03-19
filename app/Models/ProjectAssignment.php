@@ -9,6 +9,14 @@ class ProjectAssignment extends Model
 {
     use SoftDeletes;
 
+    public const ROLE_FOREMAN = 'foreman';
+    public const ROLE_CLIENT = 'client';
+
+    public const ROLE_OPTIONS = [
+        self::ROLE_FOREMAN,
+        self::ROLE_CLIENT,
+    ];
+
     protected $fillable = [
         'project_id',
         'user_id',
@@ -23,5 +31,10 @@ class ProjectAssignment extends Model
     public function user()
     {
         return $this->belongsTo(User::class);
+    }
+
+    public static function roleOptions(): array
+    {
+        return self::ROLE_OPTIONS;
     }
 }
