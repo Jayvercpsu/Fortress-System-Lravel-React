@@ -1057,6 +1057,8 @@ export default function ProgressSubmit({ submitToken }) {
                     </tbody>
                 </table>
             </div>
+            {/*
+            // Add Other Scope button disabled for now
             <div className="jf-actions">
                 <button
                     type="button"
@@ -1075,6 +1077,7 @@ export default function ProgressSubmit({ submitToken }) {
                     <Plus size={15} /> Add Other Scope
                 </button>
             </div>
+            */}
         </>
     );
 
