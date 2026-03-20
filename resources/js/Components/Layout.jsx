@@ -126,8 +126,14 @@ export default function Layout({ children, title }) {
         };
 
         const handleStart = (event) => {
-            const nextPath = pathFromUrl(event?.detail?.visit?.url || '');
-            if (!nextPath || nextPath === currentPath) {
+            const visit = event?.detail?.visit;
+            const nextPath = pathFromUrl(visit?.url || '');
+            const shouldShowSkeleton =
+                visit?.method === 'get'
+                && !visit?.preserveState
+                && !visit?.preserveScroll;
+
+            if (!nextPath || nextPath === currentPath || !shouldShowSkeleton) {
                 return;
             }
 
