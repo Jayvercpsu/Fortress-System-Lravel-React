@@ -11,7 +11,7 @@ class StorageProxyRepository implements StorageProxyRepositoryInterface
 {
     public function fileExists(string $path): bool
     {
-        return Storage::disk($this->disk())->exists($path);
+        return Storage::disk($this->disk())->fileExists($path);
     }
 
     public function streamResponse(string $path): StreamedResponse

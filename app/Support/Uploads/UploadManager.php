@@ -80,7 +80,7 @@ class UploadManager
         foreach ($candidateDisks as $candidateDisk) {
             try {
                 $storage = Storage::disk((string) $candidateDisk);
-                if (!$storage->exists($normalizedPath)) {
+                if (!$storage->fileExists($normalizedPath)) {
                     continue;
                 }
 
