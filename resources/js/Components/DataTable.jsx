@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import ActionButton from './ActionButton';
+import TextInput from './TextInput';
+import SelectInput from './SelectInput';
 
 const controlStyle = {
     background: 'var(--surface-2)',
@@ -33,16 +35,24 @@ export default function DataTable({
     topLeftExtra = null,
     topRightExtra = null,
     getRowStyle,
+    loading = false,
+    skeletonRowCount = 5,
 }) {
     const [query, setQuery] = useState('');
     const [page, setPage] = useState(1);
     const [perPage, setPerPage] = useState(initialPageSize);
     const [serverQueryDraft, setServerQueryDraft] = useState(serverSearchValue || '');
+    const [serverLoading, setServerLoading] = useState(false);
 
     useEffect(() => {
         if (!serverSide) return;
         setServerQueryDraft(serverSearchValue || '');
     }, [serverSide, serverSearchValue]);
+
+    useEffect(() => {
+        if (!serverSide) return;
+        setServerLoading(false);
+    }, [serverSide, serverPage, serverPerPage, serverSearchValue, rows, serverTotalItems]);
 
     const normalizedQuery = query.trim().toLowerCase();
 
@@ -83,6 +93,7 @@ export default function DataTable({
 
         const handle = window.setTimeout(() => {
             if ((serverSearchValue || '') !== serverQueryDraft) {
+                setServerLoading(true);
                 onServerSearchChange(serverQueryDraft);
             }
         }, 300);
@@ -101,15 +112,35 @@ export default function DataTable({
         return row?.[rowKey] ?? index;
     };
 
+    const showSkeleton = !!loading || (serverSide && serverLoading);
+    const skeletonRows = Math.max(1, Math.min(10, Number(serverSide ? serverPerPage : perPage) || Number(skeletonRowCount) || 5));
+    const skeletonBaseStyle = {
+        width: '100%',
+        height: 14,
+        borderRadius: 6,
+        background: 'linear-gradient(90deg, var(--datatable-skeleton-base) 25%, var(--datatable-skeleton-highlight) 37%, var(--datatable-skeleton-base) 63%)',
+        backgroundSize: '300% 100%',
+        animation: 'dataTableShimmer 1.35s ease-in-out infinite',
+    };
+
     return (
-        <div style={{ display: 'grid', gap: 12 }}>
+        <div
+            style={{
+                display: 'grid',
+                gap: 12,
+                '--datatable-skeleton-base': 'var(--surface-2, #f1f5f9)',
+                '--datatable-skeleton-highlight': 'var(--border-color, #e2e8f0)',
+            }}
+        >
+            <style>{'@keyframes dataTableShimmer{0%{background-position:100% 0}100%{background-position:-100% 0}}'}</style>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', flex: 1, minWidth: 0 }}>
-                    <input
+                    <TextInput
                         type="text"
                         value={serverSide ? serverQueryDraft : query}
                         onChange={(e) => (serverSide ? setServerQueryDraft(e.target.value) : setQuery(e.target.value))}
                         placeholder={searchPlaceholder}
+                        disabled={showSkeleton}
                         style={{ ...controlStyle, minWidth: 220, maxWidth: 420, flex: '0 1 420px', width: '100%' }}
                     />
                     {topLeftExtra}
@@ -118,13 +149,17 @@ export default function DataTable({
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                     {topRightExtra}
                     <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>Per page</span>
-                    <select
+                    <SelectInput
                         value={serverSide ? serverPerPage : perPage}
                         onChange={(e) =>
                             serverSide
-                                ? onServerPerPageChange?.(Number(e.target.value))
+                                ? (() => {
+                                    setServerLoading(true);
+                                    onServerPerPageChange?.(Number(e.target.value));
+                                })()
                                 : setPerPage(Number(e.target.value))
                         }
+                        disabled={showSkeleton}
                         style={controlStyle}
                     >
                         {pageSizeOptions.map((size) => (
@@ -132,7 +167,7 @@ export default function DataTable({
                                 {size}
                             </option>
                         ))}
-                    </select>
+                    </SelectInput>
                 </div>
             </div>
 
@@ -161,7 +196,7 @@ export default function DataTable({
                     </thead>
 
                     <tbody>
-                        {pagedRows.length === 0 && (
+                        {!showSkeleton && pagedRows.length === 0 && (
                             <tr>
                                 <td colSpan={Math.max(columns.length, 1)} style={{ padding: 14, fontSize: 13, color: 'var(--text-muted)' }}>
                                     {emptyMessage}
@@ -169,7 +204,33 @@ export default function DataTable({
                             </tr>
                         )}
 
-                        {pagedRows.map((row, index) => (
+                        {showSkeleton && Array.from({ length: skeletonRows }).map((_, rowIndex) => (
+                            <tr key={`skeleton-${rowIndex}`}>
+                                {columns.map((column) => (
+                                    <td
+                                        key={`skeleton-${rowIndex}-${column.key}`}
+                                        style={{
+                                            padding: '10px 12px',
+                                            borderBottom: '1px solid var(--border-color)',
+                                            verticalAlign: 'top',
+                                            textAlign: column.align === 'right' ? 'right' : 'left',
+                                            width: column.width,
+                                            minWidth: column.width,
+                                        }}
+                                    >
+                                        <div
+                                            style={{
+                                                ...skeletonBaseStyle,
+                                                maxWidth: rowIndex % 2 === 0 ? '92%' : '76%',
+                                                marginLeft: column.align === 'right' ? 'auto' : 0,
+                                            }}
+                                        />
+                                    </td>
+                                ))}
+                            </tr>
+                        ))}
+
+                        {!showSkeleton && pagedRows.map((row, index) => (
                             <tr
                                 key={resolveRowKey(row, index)}
                                 style={typeof getRowStyle === 'function' ? getRowStyle(row, index) : undefined}
@@ -197,7 +258,9 @@ export default function DataTable({
 
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
                 <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
-                    {serverSide ? (
+                    {showSkeleton ? (
+                        <>Loading records...</>
+                    ) : serverSide ? (
                         <>
                             Showing {serverTotalItems === 0 ? 0 : serverFrom ?? 0}-{serverTotalItems === 0 ? 0 : serverTo ?? 0} of {serverTotalItems}
                         </>
@@ -214,10 +277,13 @@ export default function DataTable({
                         type="button"
                         onClick={() =>
                             serverSide
-                                ? onServerPageChange?.(Math.max(1, serverPage - 1))
+                                ? (() => {
+                                    setServerLoading(true);
+                                    onServerPageChange?.(Math.max(1, serverPage - 1));
+                                })()
                                 : setPage((p) => Math.max(1, p - 1))
                         }
-                        disabled={serverSide ? serverPage <= 1 : page <= 1}
+                        disabled={showSkeleton || (serverSide ? serverPage <= 1 : page <= 1)}
                         style={controlStyle}
                     >
                         Prev
@@ -229,10 +295,13 @@ export default function DataTable({
                         type="button"
                         onClick={() =>
                             serverSide
-                                ? onServerPageChange?.(Math.min(totalPages, serverPage + 1))
+                                ? (() => {
+                                    setServerLoading(true);
+                                    onServerPageChange?.(Math.min(totalPages, serverPage + 1));
+                                })()
                                 : setPage((p) => Math.min(totalPages, p + 1))
                         }
-                        disabled={serverSide ? serverPage >= totalPages : page >= totalPages}
+                        disabled={showSkeleton || (serverSide ? serverPage >= totalPages : page >= totalPages)}
                         style={controlStyle}
                     >
                         Next
