@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Enums\ProjectStatus;
 use App\Models\DesignProject;
 use App\Models\Project;
+use App\Models\ProjectAssignment;
 use App\Models\ProjectWorker;
 use App\Models\User;
 use App\Models\Worker;
@@ -763,6 +764,45 @@ class ProjectService
         }
 
         return (string) $token->token;
+    }
+
+    public function resolveJotformLink(Project $project, int $foremanId): string
+    {
+        $foreman = User::query()
+            ->whereKey($foremanId)
+            ->where('role', User::ROLE_FOREMAN)
+            ->first();
+
+        if (!$foreman) {
+            throw ValidationException::withMessages([
+                'foreman_id' => 'Selected foreman is not assigned to this project.',
+            ]);
+        }
+
+        $assignedNames = collect(preg_split('/[,;]+/', (string) ($project->assigned ?? '')))
+            ->map(fn ($name) => trim((string) $name))
+            ->filter()
+            ->values();
+
+        $isAssignedByName = $assignedNames
+            ->contains(fn ($name) => mb_strtolower($name) === mb_strtolower((string) $foreman->fullname));
+
+        $isAssignedByProject = ProjectAssignment::query()
+            ->where('project_id', $project->id)
+            ->where('user_id', $foremanId)
+            ->where('role_in_project', ProjectAssignment::ROLE_FOREMAN)
+            ->exists();
+
+        if ($assignedNames->isNotEmpty() && !$isAssignedByName && !$isAssignedByProject) {
+            throw ValidationException::withMessages([
+                'foreman_id' => 'Selected foreman is not assigned to this project.',
+            ]);
+        }
+
+        $token = $this->projectRepository->findActiveProgressToken((int) $project->id, $foremanId)
+            ?? $this->projectRepository->createProgressToken((int) $project->id, $foremanId);
+
+        return route('public.progress-submit.show', ['token' => $token->token]);
     }
 
     public function updateProjectPhase(Project $project, string $phase): void

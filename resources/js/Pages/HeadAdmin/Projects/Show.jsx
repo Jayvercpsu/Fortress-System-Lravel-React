@@ -6,6 +6,7 @@ import ConfirmationModal from '../../../Components/ConfirmationModal';
 import ProjectComputationsPanel from '../../../Components/ProjectComputationsPanel';
 import SearchableDropdown from '../../../Components/SearchableDropdown';
 import { Head, router, useForm, usePage } from '@inertiajs/react';
+import { Copy } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import toast from 'react-hot-toast';
 import OptimizedImage from '../../../Components/OptimizedImage';
@@ -157,6 +158,10 @@ export default function HeadAdminProjectsShow({
     const [pendingAssignedForeman, setPendingAssignedForeman] = useState('');
     const [assignedForemenDraft, setAssignedForemenDraft] = useState(() => parseAssignedForemen(project?.assigned ?? ''));
     const [savingAssignedForemen, setSavingAssignedForemen] = useState(false);
+    const [jotformForemanId, setJotformForemanId] = useState('');
+    const [jotformResolvedLink, setJotformResolvedLink] = useState('');
+    const [jotformResolving, setJotformResolving] = useState(false);
+    const [jotformOpening, setJotformOpening] = useState(false);
     const [clientFileError, setClientFileError] = useState('');
     const [fileToDelete, setFileToDelete] = useState(null);
     const [deletingFile, setDeletingFile] = useState(false);
@@ -424,6 +429,85 @@ export default function HeadAdminProjectsShow({
     };
 
     const foremanOptions = Array.isArray(foremen) ? foremen : [];
+    const assignedForemanNames = parseProjectDisplayList(project?.assigned);
+    const filteredForemen = assignedForemanNames.length
+        ? foremanOptions.filter((foreman) =>
+            assignedForemanNames.some((name) => String(name || '').toLowerCase() === String(foreman.fullname || '').toLowerCase())
+        )
+        : foremanOptions;
+    const jotformForemanOptions = filteredForemen.map((foreman) => ({
+        id: String(foreman.id),
+        name: foreman.fullname,
+    }));
+    const jotformLink = jotformResolvedLink;
+    const resolveJotformLink = async (foremanId) => {
+        if (!foremanId || !project?.id) {
+            setJotformResolvedLink('');
+            return;
+        }
+
+        setJotformResolving(true);
+        try {
+            const response = await fetch(
+                `/projects/${project.id}/jotform?foreman_id=${encodeURIComponent(foremanId)}&mode=link`,
+                { headers: { 'X-Requested-With': 'XMLHttpRequest' } }
+            );
+            if (!response.ok) {
+                throw new Error('Unable to generate link');
+            }
+            const data = await response.json();
+            setJotformResolvedLink(String(data?.link || ''));
+            toast.success('Jotform link generated.');
+        } catch (error) {
+            setJotformResolvedLink('');
+            toast.error('Unable to generate the Jotform link.');
+        } finally {
+            setJotformResolving(false);
+        }
+    };
+    const copyJotformLink = async () => {
+        if (!jotformLink || jotformResolving) {
+            toast.error('Generate the Jotform link first.');
+            return;
+        }
+
+        try {
+            if (navigator?.clipboard?.writeText) {
+                await navigator.clipboard.writeText(jotformLink);
+            } else {
+                const tempInput = document.createElement('input');
+                tempInput.value = jotformLink;
+                document.body.appendChild(tempInput);
+                tempInput.select();
+                document.execCommand('copy');
+                document.body.removeChild(tempInput);
+            }
+            toast.success('Jotform link copied.');
+        } catch (error) {
+            toast.error('Unable to copy the link.');
+        }
+    };
+    const generateJotformLink = () => {
+        if (!jotformForemanId || jotformResolving) {
+            toast.error('Select a foreman first.');
+            return;
+        }
+        resolveJotformLink(jotformForemanId);
+    };
+
+    useEffect(() => {
+        if (jotformForemanOptions.length === 0) {
+            setJotformForemanId('');
+            return;
+        }
+        if (!jotformForemanOptions.some((option) => option.id === String(jotformForemanId))) {
+            setJotformForemanId(jotformForemanOptions[0]?.id ?? '');
+        }
+    }, [jotformForemanOptions, jotformForemanId]);
+
+    useEffect(() => {
+        setJotformResolvedLink('');
+    }, [jotformForemanId, project?.id]);
 
     const syncAssignedForemenDraft = (nextNames) => {
         setAssignedForemenDraft(normalizeAssignedForemen(nextNames));
@@ -830,6 +914,89 @@ export default function HeadAdminProjectsShow({
                                 </div>
                             </div>
                         </div>
+
+                        {['head_admin', 'admin'].includes(role) && (
+                            <div style={{ ...cardStyle, display: 'grid', gap: 10 }}>
+                                <div style={{ fontWeight: 700 }}>Jotform Access</div>
+                                <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+                                    Generate a foreman Jotform link for this project.
+                                </div>
+                                {jotformForemanOptions.length === 0 ? (
+                                    <div style={{ fontSize: 12, color: '#f87171' }}>
+                                        No assigned foremen found. Assign a foreman first.
+                                    </div>
+                                ) : (
+                                    <div style={{ display: 'grid', gridTemplateColumns: 'minmax(220px, 1fr) auto auto', gap: 10, alignItems: 'end' }}>
+                                        <div>
+                                            <div style={sectionLabelStyle}>Foreman</div>
+                                            <SearchableDropdown
+                                                options={jotformForemanOptions}
+                                                value={jotformForemanId}
+                                                onChange={(value) => setJotformForemanId(value || '')}
+                                                getOptionLabel={(option) => option.name}
+                                                getOptionValue={(option) => option.id}
+                                                placeholder="Select foreman"
+                                                searchPlaceholder="Search foremen..."
+                                                emptyMessage="No foremen found"
+                                                style={{ ...inputStyle, minHeight: 38, padding: '7px 9px' }}
+                                                dropdownWidth={280}
+                                            />
+                                        </div>
+                                        <ActionButton
+                                            variant="success"
+                                            type="button"
+                                            onClick={generateJotformLink}
+                                            disabled={!jotformForemanId || jotformResolving}
+                                            loading={jotformResolving}
+                                            style={shortcutButtonStyle}
+                                        >
+                                            Generate Jotform
+                                        </ActionButton>
+                                    </div>
+                                )}
+                                {jotformLink && (
+                                    <div style={{ display: 'grid', gap: 6 }}>
+                                    <div style={sectionLabelStyle}>Jotform Link</div>
+                                        <div
+                                            style={{
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                justifyContent: 'space-between',
+                                                gap: 10,
+                                                border: '1px solid var(--border-color)',
+                                                borderRadius: 8,
+                                                background: 'var(--surface-2)',
+                                                padding: '8px 10px',
+                                                fontSize: 12,
+                                                color: 'var(--text-main)',
+                                                wordBreak: 'break-all',
+                                            }}
+                                        >
+                                            <span style={{ minWidth: 0 }}>{jotformLink}</span>
+                                            <button
+                                                type="button"
+                                                onClick={copyJotformLink}
+                                                disabled={jotformResolving}
+                                                title="Copy link"
+                                                style={{
+                                                    border: '1px solid var(--border-color)',
+                                                    background: 'var(--button-bg)',
+                                                    color: 'var(--text-main)',
+                                                    borderRadius: 8,
+                                                    padding: '6px',
+                                                    display: 'inline-flex',
+                                                    alignItems: 'center',
+                                                    justifyContent: 'center',
+                                                    cursor: jotformResolving ? 'not-allowed' : 'pointer',
+                                                }}
+                                            >
+                                                <Copy size={14} />
+                                            </button>
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        )}
 
                         <ProjectComputationsPanel project={project} />
 

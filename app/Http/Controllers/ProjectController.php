@@ -12,6 +12,7 @@ use App\Models\ProjectWorker;
 use App\Models\User;
 use App\Services\ProjectService;
 use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 
 class ProjectController extends Controller
@@ -83,6 +84,26 @@ class ProjectController extends Controller
         $token = $this->projectService->resolveProjectReceiptToken($project);
 
         return redirect()->route('public.progress-receipt', ['token' => $token]);
+    }
+
+    public function generateJotform(Request $request, Project $project)
+    {
+        abort_unless(in_array($request->user()->role, User::manageableRoles(), true), 403);
+
+        $validated = $request->validate([
+            'foreman_id' => [
+                'required',
+                Rule::exists('users', 'id')->where(fn ($query) => $query->where('role', User::ROLE_FOREMAN)),
+            ],
+        ]);
+
+        $link = $this->projectService->resolveJotformLink($project, (int) $validated['foreman_id']);
+
+        if ((string) $request->query('mode') === 'link') {
+            return response()->json(['link' => $link]);
+        }
+
+        return redirect()->to($link);
     }
 
     public function updatePhase(UpdateProjectPhaseRequest $request, Project $project)

@@ -183,6 +183,7 @@ Route::middleware(['auth', 'role:head_admin,admin'])->group(function () {
     Route::post('/projects/{project}/updates', [ProjectUpdateController::class, 'store'])->name('project-updates.store');
     Route::delete('/project-updates/{projectUpdate}', [ProjectUpdateController::class, 'destroy'])->name('project-updates.destroy');
     Route::get('/projects/{project}/client-receipt', [ProjectController::class, 'projectReceipt'])->name('projects.client_receipt');
+    Route::get('/projects/{project}/jotform', [ProjectController::class, 'generateJotform'])->name('projects.jotform.generate');
     Route::get('/projects/{project}', [ProjectController::class, 'show'])->name('projects.show');
 });
 
