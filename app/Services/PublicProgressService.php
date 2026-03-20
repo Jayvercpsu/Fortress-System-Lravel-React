@@ -199,14 +199,30 @@ class PublicProgressService
             ->get(['week_start', 'scope_of_work', 'percent_completed'])
             ->values();
 
+        $weeklySavedScopeKeys = $weeklySavedByWeek
+            ->map(fn (WeeklyAccomplishment $row) => Str::lower(trim((string) ($row->scope_of_work ?? ''))))
+            ->filter(fn (string $scope) => $scope !== '')
+            ->unique()
+            ->values();
+
         $foremanName = trim((string) ($submitToken->foreman->fullname ?? ''));
         $normalizedForemanName = Str::lower($foremanName);
 
-        $projectScopes = $this->foremanProgressRepository->projectScopes()
+        $projectScopeRows = $this->foremanProgressRepository->projectScopes()
             ->where('project_id', $submitToken->project_id)
             ->orderBy('scope_name')
-            ->get(['id', 'scope_name', 'assigned_personnel'])
-            ->filter(function (ProjectScope $scopeRow) use ($normalizedForemanName) {
+            ->get(['id', 'scope_name', 'assigned_personnel']);
+
+        $assignedPersonnelForScope = function (ProjectScope $scopeRow) {
+            return collect(preg_split('/[,;]+/', (string) ($scopeRow->assigned_personnel ?? '')))
+                ->map(fn ($name) => trim((string) $name))
+                ->filter(fn (string $name) => $name !== '')
+                ->map(fn (string $name) => Str::lower($name))
+                ->values();
+        };
+
+        $projectScopes = $projectScopeRows
+            ->filter(function (ProjectScope $scopeRow) use ($normalizedForemanName, $assignedPersonnelForScope) {
                 $assignedPersonnel = collect(preg_split('/[,;]+/', (string) ($scopeRow->assigned_personnel ?? '')))
                     ->map(fn ($name) => trim((string) $name))
                     ->filter(fn (string $name) => $name !== '')
@@ -214,7 +230,26 @@ class PublicProgressService
                     ->values();
 
                 if ($assignedPersonnel->isEmpty()) {
+                    return false;
+                }
+
+                if ($normalizedForemanName === '') {
+                    return false;
+                }
+
+                return $assignedPersonnel->contains($normalizedForemanName);
+            });
+
+        $projectScopesForPhotos = $projectScopeRows
+            ->filter(function (ProjectScope $scopeRow) use ($normalizedForemanName, $weeklySavedScopeKeys, $assignedPersonnelForScope) {
+                $scopeName = Str::lower(trim((string) ($scopeRow->scope_name ?? '')));
+                if ($scopeName !== '' && $weeklySavedScopeKeys->contains($scopeName)) {
                     return true;
+                }
+
+                $assignedPersonnel = $assignedPersonnelForScope($scopeRow);
+                if ($assignedPersonnel->isEmpty()) {
+                    return false;
                 }
 
                 if ($normalizedForemanName === '') {
@@ -231,16 +266,17 @@ class PublicProgressService
             ->unique(fn (string $scope) => Str::lower($scope))
             ->values();
 
+        $weeklyScopeDefaultsEnabled = $projectScopeRows->isEmpty();
         $weeklyScopeOfWorks = $projectScopeNames->isNotEmpty()
             ? $projectScopeNames->all()
-            : WeeklyAccomplishment::defaultScopeOfWorks();
+            : ($weeklyScopeDefaultsEnabled ? WeeklyAccomplishment::defaultScopeOfWorks() : []);
 
         $weeklyScopeLookup = collect($weeklyScopeOfWorks)
             ->mapWithKeys(fn (string $scope) => [Str::lower($scope) => true])
             ->all();
 
         $weeklyScopePhotoMap = [];
-        $projectScopesById = $projectScopes->keyBy(fn (ProjectScope $scope) => (int) $scope->id);
+        $projectScopesById = $projectScopesForPhotos->keyBy(fn (ProjectScope $scope) => (int) $scope->id);
 
         if ($projectScopesById->isNotEmpty()) {
             $scopePhotos = $this->foremanProgressRepository->scopePhotos()
@@ -290,6 +326,18 @@ class PublicProgressService
             })
             ->all();
 
+        $weeklyScopeOfWorksByWeek = collect($weeklySavedByWeek)
+            ->map(function ($rows) {
+                return collect($rows)
+                    ->map(fn ($row) => trim((string) ($row['scope_of_work'] ?? '')))
+                    ->filter(fn (string $scope) => $scope !== '')
+                    ->unique(fn (string $scope) => Str::lower($scope))
+                    ->values()
+                    ->all();
+            })
+            ->filter(fn ($scopes) => !empty($scopes))
+            ->all();
+
         return Inertia::render('Public/ProgressSubmit', [
             'submitToken' => [
                 'token' => $submitToken->token,
@@ -304,6 +352,8 @@ class PublicProgressService
                 'receipt_url' => route('public.progress-receipt', ['token' => $submitToken->token]),
                 'workers' => $workers,
                 'weekly_scope_of_works' => $weeklyScopeOfWorks,
+                'weekly_scope_of_works_by_week' => $weeklyScopeOfWorksByWeek,
+                'weekly_scope_defaults_enabled' => $weeklyScopeDefaultsEnabled,
                 'weekly_scope_photo_map' => $weeklyScopePhotoMap,
                 'photo_categories' => ProgressPhoto::categories(),
                 'recent_photos' => $recentPhotos,
@@ -830,6 +880,44 @@ class PublicProgressService
             }
 
             $weekStart = Carbon::parse($weeklyWeekStart)->startOfWeek(Carbon::MONDAY)->toDateString();
+            $normalizedForemanName = Str::lower(trim((string) ($submitToken->foreman->fullname ?? '')));
+            $assignedScopeKeys = $this->foremanProgressRepository->projectScopes()
+                ->where('project_id', $submitToken->project_id)
+                ->get(['scope_name', 'assigned_personnel'])
+                ->filter(function (ProjectScope $scopeRow) use ($normalizedForemanName) {
+                    $assignedPersonnel = collect(preg_split('/[,;]+/', (string) ($scopeRow->assigned_personnel ?? '')))
+                        ->map(fn ($name) => trim((string) $name))
+                        ->filter(fn (string $name) => $name !== '')
+                        ->map(fn (string $name) => Str::lower($name))
+                        ->values();
+
+                    if ($assignedPersonnel->isEmpty()) {
+                        return false;
+                    }
+
+                    if ($normalizedForemanName === '') {
+                        return false;
+                    }
+
+                    return $assignedPersonnel->contains($normalizedForemanName);
+                })
+                ->mapWithKeys(function (ProjectScope $scopeRow) {
+                    $scopeName = trim((string) ($scopeRow->scope_name ?? ''));
+                    if ($scopeName === '') {
+                        return [];
+                    }
+
+                    return [Str::lower($scopeName) => true];
+                })
+                ->all();
+            $allowedWeeklyScopes = $weeklyScopes
+                ->filter(fn (array $scope) => isset($assignedScopeKeys[Str::lower($scope['scope_of_work'])]))
+                ->values();
+            $allowedWeeklyScopePhotos = $weeklyScopePhotos
+                ->filter(fn (array $scope) => isset($assignedScopeKeys[Str::lower($scope['scope_of_work'])]))
+                ->values();
+            $weeklyScopes = $allowedWeeklyScopes;
+            $weeklyScopePhotos = $allowedWeeklyScopePhotos;
             $submittedScopeKeys = $weeklyScopes
                 ->pluck('scope_of_work')
                 ->map(fn (string $scope) => Str::lower($scope))

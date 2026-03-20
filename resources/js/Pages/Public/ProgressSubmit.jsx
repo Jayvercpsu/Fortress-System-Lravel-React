@@ -1,5 +1,5 @@
 ﻿import { Head, router, usePage } from '@inertiajs/react';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Camera, Check, ChevronDown, Plus, Trash2 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import ConfirmationModal from '../../Components/ConfirmationModal';
@@ -147,6 +147,7 @@ const buildWeeklyRows = (scopeRows = []) => scopeRows.map((scope) => ({
     scope_of_work: scope,
     percent_completed: '',
     is_manual: false,
+    is_unassigned: false,
     weekly_photos: [],
     weekly_photo_caption: '',
 }));
@@ -155,6 +156,7 @@ const cloneWeeklyRows = (rows = []) => rows.map((row) => ({
     scope_of_work: String(row?.scope_of_work || ''),
     percent_completed: String(row?.percent_completed || ''),
     is_manual: !!row?.is_manual,
+    is_unassigned: !!row?.is_unassigned,
     weekly_photos: [],
     weekly_photo_caption: String(row?.weekly_photo_caption || ''),
 }));
@@ -180,10 +182,13 @@ const mergeWeeklyRowsWithScopeList = (rows = [], scopeRows = []) => {
                 ...row,
                 scope_of_work: scopeMap.get(scopeKey),
                 is_manual: false,
+                is_unassigned: false,
             };
         }
 
-        return row;
+        return scopeName !== ''
+            ? { ...row, is_manual: true, is_unassigned: true }
+            : row;
     });
 
     scopeMap.forEach((scopeName, scopeKey) => {
@@ -193,6 +198,7 @@ const mergeWeeklyRowsWithScopeList = (rows = [], scopeRows = []) => {
             scope_of_work: scopeName,
             percent_completed: '',
             is_manual: false,
+            is_unassigned: false,
             weekly_photos: [],
             weekly_photo_caption: '',
         });
@@ -201,14 +207,6 @@ const mergeWeeklyRowsWithScopeList = (rows = [], scopeRows = []) => {
     return mergedRows;
 };
 const isIsoWeekKey = (value) => /^\d{4}-\d{2}-\d{2}$/.test(String(value || '').trim());
-const latestWeekKeyOnOrBefore = (keys = [], targetWeekKey = '') => {
-    if (!isIsoWeekKey(targetWeekKey)) return '';
-    return [...keys]
-        .map((key) => String(key || '').trim())
-        .filter((key) => isIsoWeekKey(key) && key <= targetWeekKey)
-        .sort()
-        .pop() || '';
-};
 const scopePhotosForWeek = (photoRows = [], targetWeekKey = '') => {
     const normalizedTarget = String(targetWeekKey || '').trim();
     return (Array.isArray(photoRows) ? photoRows : []).filter((photo) => {
@@ -256,7 +254,10 @@ export default function ProgressSubmit({ submitToken }) {
     const base = typeof window === 'undefined' ? `/progress-submit/${submitToken?.token || ''}` : window.location.pathname.replace(/\/$/, '');
     const receiptUrl = String(submitToken?.receipt_url || '').trim() || `/progress-receipt/${submitToken?.token || ''}`;
     const workers = Array.isArray(submitToken?.workers) ? submitToken.workers : [];
-    const scopes = Array.isArray(submitToken?.weekly_scope_of_works) && submitToken.weekly_scope_of_works.length ? submitToken.weekly_scope_of_works : SCOPES;
+    const assignedScopes = Array.isArray(submitToken?.weekly_scope_of_works) ? submitToken.weekly_scope_of_works : [];
+    const defaultScopeFallbackEnabled = !!submitToken?.weekly_scope_defaults_enabled;
+    const fallbackScopes = defaultScopeFallbackEnabled ? SCOPES : [];
+    const baseWeeklyScopes = assignedScopes.length ? assignedScopes : fallbackScopes;
     const weeklyScopePhotoMap = submitToken?.weekly_scope_photo_map && typeof submitToken.weekly_scope_photo_map === 'object'
         ? submitToken.weekly_scope_photo_map
         : {};
@@ -265,6 +266,38 @@ export default function ProgressSubmit({ submitToken }) {
     const recentDeliveries = Array.isArray(submitToken?.recent_deliveries) ? submitToken.recent_deliveries : [];
     const recentMaterialRequests = Array.isArray(submitToken?.recent_material_requests) ? submitToken.recent_material_requests : [];
     const recentIssueReports = Array.isArray(submitToken?.recent_issue_reports) ? submitToken.recent_issue_reports : [];
+    const currentDateFromServer = String(submitToken?.current_date || '').trim();
+    const currentWeekStartFromServer = normalizeToMonday(String(submitToken?.current_week_start || ''));
+    const weeklyScopeByWeek = useMemo(() => {
+        const source = submitToken?.weekly_scope_of_works_by_week && typeof submitToken.weekly_scope_of_works_by_week === 'object'
+            ? submitToken.weekly_scope_of_works_by_week
+            : {};
+        return Object.entries(source).reduce((acc, [weekKey, scopeRows]) => {
+            const normalizedKey = normalizeToMonday(String(weekKey || '').trim());
+            if (!normalizedKey) return acc;
+            acc[normalizedKey] = Array.isArray(scopeRows) ? scopeRows : [];
+            return acc;
+        }, {});
+    }, [submitToken?.weekly_scope_of_works_by_week]);
+    const resolveWeeklyScopeList = useCallback((weekKey) => {
+        const normalizedKey = normalizeToMonday(String(weekKey || '').trim());
+        const savedScopes = Array.isArray(weeklyScopeByWeek[normalizedKey]) ? weeklyScopeByWeek[normalizedKey] : [];
+        const hasComparableWeek = isIsoWeekKey(normalizedKey) && isIsoWeekKey(currentWeekStartFromServer);
+
+        if (hasComparableWeek && normalizedKey < currentWeekStartFromServer && savedScopes.length) {
+            return savedScopes;
+        }
+
+        if (baseWeeklyScopes.length) {
+            return baseWeeklyScopes;
+        }
+
+        if (savedScopes.length) {
+            return savedScopes;
+        }
+
+        return fallbackScopes;
+    }, [weeklyScopeByWeek, baseWeeklyScopes, fallbackScopes, currentWeekStartFromServer]);
     const initialAttendanceDrafts = useMemo(() => {
         const source = submitToken?.attendance_saved_by_week && typeof submitToken.attendance_saved_by_week === 'object'
             ? submitToken.attendance_saved_by_week
@@ -279,12 +312,10 @@ export default function ProgressSubmit({ submitToken }) {
             ? submitToken.weekly_saved_by_week
             : {};
         return Object.entries(source).reduce((acc, [weekKey, rows]) => {
-            acc[weekKey] = mergeWeeklyRowsWithScopeList(Array.isArray(rows) ? rows : [], scopes);
+            acc[weekKey] = mergeWeeklyRowsWithScopeList(Array.isArray(rows) ? rows : [], resolveWeeklyScopeList(weekKey));
             return acc;
         }, {});
-    }, [submitToken?.weekly_saved_by_week, scopes]);
-    const currentDateFromServer = String(submitToken?.current_date || '').trim();
-    const currentWeekStartFromServer = normalizeToMonday(String(submitToken?.current_week_start || ''));
+    }, [submitToken?.weekly_saved_by_week, resolveWeeklyScopeList]);
     const currentWeekStart = currentWeekStartFromServer || monday();
     useEffect(() => {
         const timer = setTimeout(() => {
@@ -363,7 +394,6 @@ export default function ProgressSubmit({ submitToken }) {
             .map(([, value]) => value);
     }, [workers, initialAttendanceDrafts, attendanceWeekDrafts, removedAttendanceWorkerIds]);
     const defaultAttendanceRows = useMemo(() => buildAttendanceRows(attendanceWorkerPool), [attendanceWorkerPool]);
-    const defaultWeeklyRows = useMemo(() => buildWeeklyRows(scopes), [scopes]);
 
     const [deliveryKey, setDeliveryKey] = useState(0);
     const [materialKey, setMaterialKey] = useState(0);
@@ -391,6 +421,7 @@ export default function ProgressSubmit({ submitToken }) {
         currentDate >= weeklyWeekStartDate &&
         currentDate <= weeklyWeekEndDate
     );
+    const defaultWeeklyRowsForWeek = useMemo(() => buildWeeklyRows(resolveWeeklyScopeList(weeklyWeekKey)), [resolveWeeklyScopeList, weeklyWeekKey]);
     const attendanceRows = useMemo(() => {
         const currentRows = cloneAttendanceRows(attendanceWeekDrafts[attendanceWeekKey] ?? defaultAttendanceRows)
             .filter((row) => !isForemanRole(row.worker_role));
@@ -409,7 +440,7 @@ export default function ProgressSubmit({ submitToken }) {
             }));
         return [...currentRows, ...missingWorkers];
     }, [attendanceWeekDrafts, attendanceWeekKey, defaultAttendanceRows, attendanceWorkerPool]);
-    const weeklyRows = weeklyWeekDrafts[weeklyWeekKey] ?? defaultWeeklyRows;
+    const weeklyRows = weeklyWeekDrafts[weeklyWeekKey] ?? defaultWeeklyRowsForWeek;
 
     const firstError = useMemo(() => {
         const values = Object.values(errors || {});
@@ -539,22 +570,16 @@ export default function ProgressSubmit({ submitToken }) {
                 return prev;
             }
 
-            const previousDraftWeek = latestWeekKeyOnOrBefore(Object.keys(prev), weeklyWeekKey);
-            if (previousDraftWeek && Array.isArray(prev[previousDraftWeek]) && prev[previousDraftWeek].length > 0) {
-                return { ...prev, [weeklyWeekKey]: cloneWeeklyRows(prev[previousDraftWeek]) };
+            if (Array.isArray(initialWeeklyDrafts[weeklyWeekKey]) && initialWeeklyDrafts[weeklyWeekKey].length > 0) {
+                return { ...prev, [weeklyWeekKey]: cloneWeeklyRows(initialWeeklyDrafts[weeklyWeekKey]) };
             }
 
-            const previousSavedWeek = latestWeekKeyOnOrBefore(Object.keys(initialWeeklyDrafts), weeklyWeekKey);
-            if (previousSavedWeek && Array.isArray(initialWeeklyDrafts[previousSavedWeek]) && initialWeeklyDrafts[previousSavedWeek].length > 0) {
-                return { ...prev, [weeklyWeekKey]: cloneWeeklyRows(initialWeeklyDrafts[previousSavedWeek]) };
-            }
-
-            return { ...prev, [weeklyWeekKey]: cloneWeeklyRows(defaultWeeklyRows) };
+            return { ...prev, [weeklyWeekKey]: cloneWeeklyRows(defaultWeeklyRowsForWeek) };
         });
-    }, [weeklyWeekKey, initialWeeklyDrafts, defaultWeeklyRows]);
+    }, [weeklyWeekKey, initialWeeklyDrafts, defaultWeeklyRowsForWeek]);
     const setCurrentWeeklyRows = (updater) => {
         setWeeklyWeekDrafts((prev) => {
-            const currentRows = (prev[weeklyWeekKey] ?? defaultWeeklyRows).map((row) => ({ ...row }));
+            const currentRows = (prev[weeklyWeekKey] ?? defaultWeeklyRowsForWeek).map((row) => ({ ...row }));
             const nextRows = typeof updater === 'function' ? updater(currentRows) : updater;
             return { ...prev, [weeklyWeekKey]: (nextRows || []).map((row) => ({ ...row })) };
         });
@@ -890,6 +915,13 @@ export default function ProgressSubmit({ submitToken }) {
                 />
             </label>
             {weeklyLocked ? <div className="jf-note" style={{ marginBottom: 8, fontWeight: 700 }}>Only the current week is editable. Previous and upcoming weeks are locked.</div> : null}
+            {weeklyRows.length === 0 ? (
+                <div className="jf-note" style={{ marginBottom: 8, fontWeight: 700 }}>
+                    {weeklyLocked
+                        ? 'No scopes were assigned for the selected week.'
+                        : 'No scopes are assigned for this week. Please contact your admin to update assignments.'}
+                </div>
+            ) : null}
             <div className="jf-table-wrap" style={{ marginTop: 10 }}>
                 <table className="jf-table" style={{ minWidth: 980 }}>
                     <thead><tr><th>SCOPE OF WORKS</th><th>% COMPLETE</th><th>SCOPE PHOTOS</th><th>ACTION</th></tr></thead>
@@ -899,7 +931,7 @@ export default function ProgressSubmit({ submitToken }) {
                                 <td>
                                     {row.is_manual ? (
                                         <input
-                                            disabled={weeklyLocked}
+                                            disabled={weeklyLocked || row.is_unassigned}
                                             className="jf-input"
                                             placeholder="Enter other scope of work"
                                             value={row.scope_of_work}
@@ -909,7 +941,7 @@ export default function ProgressSubmit({ submitToken }) {
                                 </td>
                                 <td>
                                     <input
-                                        disabled={weeklyLocked}
+                                        disabled={weeklyLocked || row.is_unassigned}
                                         className="jf-input"
                                         type="number"
                                         min="0"
@@ -964,6 +996,7 @@ export default function ProgressSubmit({ submitToken }) {
                                                                 type="file"
                                                                 accept="image/*"
                                                                 multiple
+                                                                disabled={row.is_unassigned}
                                                                 onChange={(e) => {
                                                                     const files = Array.from(e.target.files || []);
                                                                     setCurrentWeeklyRows((prev) => prev.map((r, idx) => idx === i ? { ...r, weekly_photos: files } : r));
@@ -972,6 +1005,7 @@ export default function ProgressSubmit({ submitToken }) {
                                                             <input
                                                                 className="jf-input"
                                                                 placeholder="Caption for new photos (optional)"
+                                                                disabled={row.is_unassigned}
                                                                 value={row.weekly_photo_caption || ''}
                                                                 onChange={(e) => setCurrentWeeklyRows((prev) => prev.map((r, idx) => idx === i ? { ...r, weekly_photo_caption: e.target.value } : r))}
                                                             />
@@ -1014,6 +1048,9 @@ export default function ProgressSubmit({ submitToken }) {
                                             Remove
                                         </button>
                                     ) : <span className="jf-note">Default</span>}
+                                    {row.is_unassigned ? (
+                                        <div className="jf-note" style={{ marginTop: 6 }}>Assigned to another foreman.</div>
+                                    ) : null}
                                 </td>
                             </tr>
                         ))}
@@ -1025,7 +1062,15 @@ export default function ProgressSubmit({ submitToken }) {
                     type="button"
                     className="jf-btn jf-btn-light"
                     disabled={weeklyLocked}
-                    onClick={() => setCurrentWeeklyRows((prev) => [...prev, { row_key: nextWeeklyRowKey(), scope_of_work: '', percent_completed: '', is_manual: true, weekly_photos: [], weekly_photo_caption: '' }])}
+                    onClick={() => setCurrentWeeklyRows((prev) => [...prev, {
+                        row_key: nextWeeklyRowKey(),
+                        scope_of_work: '',
+                        percent_completed: '',
+                        is_manual: true,
+                        is_unassigned: false,
+                        weekly_photos: [],
+                        weekly_photo_caption: '',
+                    }])}
                 >
                     <Plus size={15} /> Add Other Scope
                 </button>
