@@ -1,5 +1,6 @@
 import ActionButton from './ActionButton';
 import Modal from './Modal';
+import TextInput from './TextInput';
 import { router } from '@inertiajs/react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import toast from 'react-hot-toast';
@@ -64,6 +65,14 @@ const statusTone = (status) => {
     return { color: 'var(--text-muted)', border: '1px solid rgba(148,163,184,0.35)', background: 'rgba(148,163,184,0.12)' };
 };
 
+const skeletonLineBase = {
+    height: 10,
+    borderRadius: 6,
+    background: 'linear-gradient(90deg, var(--surface-2, #f1f5f9) 25%, var(--border-color, #e2e8f0) 37%, var(--surface-2, #f1f5f9) 63%)',
+    backgroundSize: '300% 100%',
+    animation: 'projectsKanbanShimmer 1.35s ease-in-out infinite',
+};
+
 export default function ProjectsKanbanPage({
     projectBoard = {},
     canCreate = false,
@@ -77,6 +86,7 @@ export default function ProjectsKanbanPage({
     const [transferringId, setTransferringId] = useState(null);
     const [creatingProject, setCreatingProject] = useState(false);
     const createTimeoutRef = useRef(null);
+    const [boardLoading, setBoardLoading] = useState(false);
 
     useEffect(() => {
         return () => {
@@ -89,6 +99,33 @@ export default function ProjectsKanbanPage({
     useEffect(() => {
         setSearch(projectBoard.search ?? '');
     }, [projectBoard.search]);
+
+    useEffect(() => {
+        const handleStart = (event) => {
+            const url = event?.detail?.visit?.url || '';
+            if (String(url).includes('/projects')) {
+                setBoardLoading(true);
+            }
+        };
+        const handleFinish = (event) => {
+            const url = event?.detail?.visit?.url || '';
+            if (String(url).includes('/projects')) {
+                setBoardLoading(false);
+            }
+        };
+
+        const removeStart = router.on('start', handleStart);
+        const removeFinish = router.on('finish', handleFinish);
+
+        return () => {
+            if (typeof removeStart === 'function') removeStart();
+            if (typeof removeFinish === 'function') removeFinish();
+        };
+    }, []);
+
+    useEffect(() => {
+        setBoardLoading(false);
+    }, [projectBoard.columns, projectBoard.search]);
 
     const pageParams = useMemo(() => {
         const params = {};
@@ -111,6 +148,7 @@ export default function ProjectsKanbanPage({
     const resetPages = () => Object.fromEntries(columns.map((column) => [column.page_param, 1]));
 
     const reloadBoard = (overrides = {}) => {
+        setBoardLoading(true);
         router.get('/projects', buildParams(overrides), {
             preserveState: true,
             preserveScroll: true,
@@ -165,10 +203,11 @@ export default function ProjectsKanbanPage({
         <div style={{ display: 'grid', gridTemplateRows: 'auto auto minmax(0, 1fr)', gap: 14, height: '100%', minHeight: 0 }}>
                 <div style={{ ...panel, padding: 14, display: 'flex', gap: 12, justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap' }}>
                     <form onSubmit={onSearchSubmit} style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', flex: '1 1 640px' }}>
-                        <input
+                        <TextInput
                             value={search}
                             onChange={(e) => setSearch(e.target.value)}
                             placeholder="Search projects..."
+                            disabled={boardLoading}
                             style={{ ...input, minWidth: 320, flex: '1 1 100%', maxWidth: 640 }}
                         />
                         <ActionButton type="submit" variant="success" style={{ padding: '9px 14px', fontSize: 13 }}>
@@ -209,6 +248,7 @@ export default function ProjectsKanbanPage({
                     overflow: 'auto',
                 }}
             >
+                <style>{'@keyframes projectsKanbanShimmer{0%{background-position:100% 0}100%{background-position:-100% 0}}'}</style>
                 <div
                     style={{
                         display: 'grid',
@@ -249,7 +289,34 @@ export default function ProjectsKanbanPage({
                                 </div>
 
                                 <div style={{ padding: 12, display: 'grid', gap: 10, alignContent: 'start', minHeight: 0, overflowY: 'auto' }}>
-                                    {Array.isArray(column.projects) && column.projects.length > 0 ? column.projects.map((project) => (
+                                    {boardLoading ? (
+                                        Array.from({ length: 3 }).map((_, idx) => (
+                                            <div
+                                                key={`kanban-skeleton-${column.key}-${idx}`}
+                                                style={{
+                                                    background: 'var(--surface-2)',
+                                                    border: '1px solid var(--border-color)',
+                                                    borderRadius: 12,
+                                                    padding: 12,
+                                                    display: 'grid',
+                                                    gap: 10,
+                                                    minHeight: 180,
+                                                }}
+                                            >
+                                                <div style={{ ...skeletonLineBase, width: '70%', height: 12 }} />
+                                                <div style={{ ...skeletonLineBase, width: '45%' }} />
+                                                <div style={{ display: 'grid', gap: 8 }}>
+                                                    <div style={{ ...skeletonLineBase, width: '90%' }} />
+                                                    <div style={{ ...skeletonLineBase, width: '80%' }} />
+                                                    <div style={{ ...skeletonLineBase, width: '60%' }} />
+                                                </div>
+                                                <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
+                                                    <div style={{ ...skeletonLineBase, width: 80, height: 26, borderRadius: 999 }} />
+                                                    <div style={{ ...skeletonLineBase, width: 90, height: 26, borderRadius: 999 }} />
+                                                </div>
+                                            </div>
+                                        ))
+                                    ) : Array.isArray(column.projects) && column.projects.length > 0 ? column.projects.map((project) => (
                                         <div
                                             key={project.id}
                                             className="kanban-project-card"
@@ -473,6 +540,7 @@ export default function ProjectsKanbanPage({
                                         <ActionButton
                                             type="button"
                                             onClick={() => reloadBoard({ [column.page_param]: Number(column.current_page || 1) + 1 })}
+                                            disabled={boardLoading}
                                             style={{ width: '100%', padding: '9px 12px' }}
                                         >
                                             Load more projects ({column.remaining} left)

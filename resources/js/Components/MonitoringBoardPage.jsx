@@ -54,6 +54,8 @@ export default function MonitoringBoardPage({
     const [showCreateModal, setShowCreateModal] = useState(false);
     const [scopeSearch, setScopeSearch] = useState('');
     const [scopePage, setScopePage] = useState(1);
+    const [scopePerPage, setScopePerPage] = useState(10);
+    const [scopeTableLoading, setScopeTableLoading] = useState(false);
     const showBackButton = !embedded;
     const assignedPersonnelOptions = useMemo(() => {
         const rows = Array.isArray(foremanOptions) ? foremanOptions : [];
@@ -281,7 +283,6 @@ export default function MonitoringBoardPage({
         });
     }, [scopeSearch, scopes]);
 
-    const scopePerPage = 10;
     const totalScopePages = Math.max(1, Math.ceil(filteredScopes.length / scopePerPage));
     const clampedScopePage = Math.min(scopePage, totalScopePages);
     const scopeStartIndex = (clampedScopePage - 1) * scopePerPage;
@@ -289,13 +290,19 @@ export default function MonitoringBoardPage({
 
     useEffect(() => {
         setScopePage(1);
-    }, [scopeSearch]);
+    }, [scopeSearch, scopePerPage]);
 
     useEffect(() => {
         if (scopePage > totalScopePages) {
             setScopePage(totalScopePages);
         }
     }, [scopePage, totalScopePages]);
+
+    useEffect(() => {
+        setScopeTableLoading(true);
+        const timer = window.setTimeout(() => setScopeTableLoading(false), 350);
+        return () => window.clearTimeout(timer);
+    }, [scopeSearch, scopePage, scopePerPage, scopes.length]);
 
     const content = (
         <>
@@ -334,18 +341,35 @@ export default function MonitoringBoardPage({
                         disabled={readOnly}
                         style={{ ...inputStyle, maxWidth: 320, width: '100%' }}
                     />
-                    <ActionButton
-                        type="button"
-                        variant="success"
-                        onClick={() => setShowCreateModal(true)}
-                        disabled={readOnly}
-                        style={{ padding: '10px 16px', fontSize: 13 }}
-                    >
-                        Add Scope
-                    </ActionButton>
+                    <div style={{ display: 'inline-flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                        <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+                            <span style={{ fontSize: 12, color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>Per page</span>
+                            <SelectInput
+                                value={scopePerPage}
+                                onChange={(event) => setScopePerPage(Number(event.target.value))}
+                                style={{ ...inputStyle, minWidth: 90, padding: '8px 10px' }}
+                            >
+                                {[5, 10, 25, 50].map((size) => (
+                                    <option key={size} value={size}>
+                                        {size}
+                                    </option>
+                                ))}
+                            </SelectInput>
+                        </div>
+                        <ActionButton
+                            type="button"
+                            variant="success"
+                            onClick={() => setShowCreateModal(true)}
+                            disabled={readOnly}
+                            style={{ padding: '10px 16px', fontSize: 13 }}
+                        >
+                            Add Scope
+                        </ActionButton>
+                    </div>
                 </div>
 
                 <div style={{ ...cardStyle, overflowX: 'auto' }}>
+                    <style>{'@keyframes scopeTableShimmer{0%{background-position:100% 0}100%{background-position:-100% 0}}'}</style>
                     <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
                         <thead>
                             <tr>
@@ -367,14 +391,35 @@ export default function MonitoringBoardPage({
                             </tr>
                         </thead>
                         <tbody>
-                            {visibleScopes.length === 0 && (
+                            {scopeTableLoading && Array.from({ length: Math.min(scopePerPage, 10) }).map((_, rowIndex) => (
+                                <tr key={`scope-skeleton-${rowIndex}`}>
+                                    {['Scope', 'Contract', 'Weight', 'Start', 'Target', 'Assigned', 'Progress', 'Status', 'Remarks', 'Photos', 'Updated', 'Actions'].map((label, colIndex) => (
+                                        <td
+                                            key={`scope-skeleton-${rowIndex}-${colIndex}`}
+                                            style={{ padding: '10px 8px', borderBottom: '1px solid var(--border-color)' }}
+                                        >
+                                            <div
+                                                style={{
+                                                    height: 12,
+                                                    width: colIndex % 3 === 0 ? '70%' : '90%',
+                                                    borderRadius: 6,
+                                                    background: 'linear-gradient(90deg, var(--surface-2, #f1f5f9) 25%, var(--border-color, #e2e8f0) 37%, var(--surface-2, #f1f5f9) 63%)',
+                                                    backgroundSize: '300% 100%',
+                                                    animation: 'scopeTableShimmer 1.35s ease-in-out infinite',
+                                                }}
+                                            />
+                                        </td>
+                                    ))}
+                                </tr>
+                            ))}
+                            {!scopeTableLoading && visibleScopes.length === 0 && (
                                 <tr>
                                     <td colSpan={12} style={{ padding: '14px 8px', color: 'var(--text-muted)' }}>
                                         No scope rows yet.
                                     </td>
                                 </tr>
                             )}
-                            {visibleScopes.map((scope) => (
+                            {!scopeTableLoading && visibleScopes.map((scope) => (
                                 <tr key={scope.id}>
                                     <td style={{ padding: '10px 8px', borderBottom: '1px solid var(--border-color)' }}>
                                         {scope.scope_name}
