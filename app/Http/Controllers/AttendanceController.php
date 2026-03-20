@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Requests\Attendances\StoreAttendanceRequest;
 use App\Services\AttendanceService;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -31,5 +32,14 @@ class AttendanceController extends Controller
             $this->attendanceService->pageByRole($request->user(), 'Summary'),
             $this->attendanceService->summaryPayload($request)
         );
+    }
+
+    public function store(StoreAttendanceRequest $request)
+    {
+        $this->attendanceService->ensureAuthorized($request->user());
+
+        $this->attendanceService->storeDailyAttendance($request->user(), $request->validated());
+
+        return redirect()->route('attendance.index');
     }
 }

@@ -3,10 +3,15 @@
 namespace App\Services;
 
 use App\Models\Attendance;
+use App\Enums\ProjectStatus;
+use App\Models\Project;
 use App\Models\User;
+use App\Models\Worker;
 use App\Repositories\Contracts\AttendanceRepositoryInterface;
 use App\Support\ProjectSelection;
+use Illuminate\Support\Carbon;
 use Illuminate\Http\Request;
+use Illuminate\Support\Str;
 
 class AttendanceService
 {
@@ -81,10 +86,69 @@ class AttendanceService
             'attendanceTable' => $this->tableMeta($paginator, $search),
             'filters' => $filters,
             'foremen' => $this->attendanceRepository->foremanOptions(),
-            'projects' => ProjectSelection::familyFilterOptions()->values(),
+            'projects' => ProjectSelection::familyFilterOptions()
+                ->filter(function (array $project) {
+                    $phase = Str::lower(trim((string) ($project['phase'] ?? '')));
+                    if ($phase !== Str::lower(Project::PHASE_CONSTRUCTION)) {
+                        return false;
+                    }
+
+                    $status = ProjectStatus::fromMixed((string) ($project['status'] ?? ''));
+                    return !in_array($status, [ProjectStatus::COMPLETED, ProjectStatus::CANCELLED], true);
+                })
+                ->values(),
             'workerRoles' => $this->attendanceRepository->workerRoleOptions(),
+            'workerRoleOptions' => Worker::jobTypeOptions(),
+            'workers' => Worker::query()
+                ->orderBy('name')
+                ->get(['id', 'foreman_id', 'project_id', 'name', 'job_type'])
+                ->map(fn (Worker $worker) => [
+                    'id' => $worker->id,
+                    'foreman_id' => $worker->foreman_id,
+                    'project_id' => $worker->project_id,
+                    'name' => $worker->name,
+                    'job_type' => $worker->job_type ?: Worker::JOB_TYPE_WORKER,
+                ])
+                ->values(),
             'attendanceCodes' => collect(Attendance::codes())->values(),
         ];
+    }
+
+    public function storeDailyAttendance(User $user, array $validated): void
+    {
+        $this->ensureAuthorized($user);
+
+        $today = Carbon::now(Attendance::PH_TIMEZONE)->toDateString();
+        $foremanIds = collect($validated['attendance'])
+            ->pluck('foreman_id')
+            ->filter()
+            ->map(fn ($id) => (int) $id)
+            ->unique()
+            ->values();
+        $foremen = User::query()
+            ->whereIn('id', $foremanIds)
+            ->get(['id', 'fullname'])
+            ->keyBy('id');
+
+        foreach ($validated['attendance'] as $entry) {
+            $timeIn = $entry['time_in'] ?? null;
+            $timeOut = $entry['time_out'] ?? null;
+            $hours = $this->resolveAttendanceHours($timeIn, $timeOut);
+            $foremanId = (int) $entry['foreman_id'];
+            $foremanName = $foremen->get($foremanId)?->fullname ?: 'Foreman';
+
+            Attendance::query()->create([
+                'foreman_id' => $foremanId,
+                'project_id' => $entry['project_id'] ?? null,
+                'worker_name' => $foremanName,
+                'worker_role' => 'Foreman',
+                'date' => $today,
+                'time_in' => $timeIn ?: null,
+                'time_out' => $timeOut ?: null,
+                'hours' => $hours,
+                'attendance_code' => null,
+            ]);
+        }
     }
 
     public function summaryPayload(Request $request): array
@@ -127,7 +191,17 @@ class AttendanceService
             'summaryTable' => $this->tableMeta($paginator, $search),
             'filters' => $filters,
             'foremen' => $this->attendanceRepository->foremanOptions(),
-            'projects' => ProjectSelection::familyFilterOptions()->values(),
+            'projects' => ProjectSelection::familyFilterOptions()
+                ->filter(function (array $project) {
+                    $phase = Str::lower(trim((string) ($project['phase'] ?? '')));
+                    if ($phase !== Str::lower(Project::PHASE_CONSTRUCTION)) {
+                        return false;
+                    }
+
+                    $status = ProjectStatus::fromMixed((string) ($project['status'] ?? ''));
+                    return !in_array($status, [ProjectStatus::COMPLETED, ProjectStatus::CANCELLED], true);
+                })
+                ->values(),
             'workerRoles' => $this->attendanceRepository->workerRoleOptions(),
             'attendanceCodes' => collect(Attendance::codes())->values(),
             'summaryTotals' => $summaryTotals,
@@ -203,5 +277,26 @@ class AttendanceService
             'from' => $paginator->firstItem(),
             'to' => $paginator->lastItem(),
         ];
+    }
+
+    private function resolveAttendanceHours(?string $timeIn, ?string $timeOut): float
+    {
+        $start = trim((string) $timeIn);
+        $end = trim((string) $timeOut);
+        if ($start === '' || $end === '') {
+            return 0.0;
+        }
+
+        try {
+            $timeInAt = Carbon::createFromFormat('H:i', $start);
+            $timeOutAt = Carbon::createFromFormat('H:i', $end);
+            if ($timeOutAt->lessThanOrEqualTo($timeInAt)) {
+                return 0.0;
+            }
+
+            return round($timeInAt->diffInMinutes($timeOutAt) / 60, 1);
+        } catch (\Throwable $e) {
+            return 0.0;
+        }
     }
 }

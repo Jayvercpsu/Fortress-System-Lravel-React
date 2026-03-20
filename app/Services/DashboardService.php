@@ -426,21 +426,37 @@ class DashboardService
 
         $allProjectOptions = ProjectSelection::actualOptionsForIds($assignedProjectIds->all())->values();
         $projects = $allProjectOptions
-            ->filter(fn (array $project) => Str::lower(trim((string) ($project['phase'] ?? ''))) !== Str::lower(Project::PHASE_DESIGN))
+            ->filter(function (array $project) {
+                $phase = Str::lower(trim((string) ($project['phase'] ?? '')));
+                if ($phase !== Str::lower(Project::PHASE_CONSTRUCTION)) {
+                    return false;
+                }
+
+                $status = ProjectStatus::fromMixed((string) ($project['status'] ?? ''));
+                return !in_array($status, [ProjectStatus::COMPLETED, ProjectStatus::CANCELLED], true);
+            })
             ->values();
         $phaseById = $allProjectOptions->mapWithKeys(fn (array $project) => [
             (int) ($project['id'] ?? 0) => Str::lower(trim((string) ($project['phase'] ?? ''))),
         ]);
+        $statusById = $allProjectOptions->mapWithKeys(fn (array $project) => [
+            (int) ($project['id'] ?? 0) => ProjectStatus::fromMixed((string) ($project['status'] ?? '')),
+        ]);
         $projectFilters = ProjectSelection::familyFilterOptionsForIds($assignedProjectIds->all())
-            ->filter(function (array $option) use ($phaseById) {
+            ->filter(function (array $option) use ($phaseById, $statusById) {
                 $projectIds = collect($option['project_ids'] ?? []);
                 if ($projectIds->isEmpty()) {
                     return false;
                 }
 
-                return $projectIds->contains(function ($projectId) use ($phaseById) {
+                return $projectIds->contains(function ($projectId) use ($phaseById, $statusById) {
                     $phase = (string) ($phaseById->get((int) $projectId, '') ?? '');
-                    return $phase !== Str::lower(Project::PHASE_DESIGN);
+                    if ($phase !== Str::lower(Project::PHASE_CONSTRUCTION)) {
+                        return false;
+                    }
+
+                    $status = $statusById->get((int) $projectId);
+                    return !in_array($status, [ProjectStatus::COMPLETED, ProjectStatus::CANCELLED], true);
                 });
             })
             ->values();
@@ -640,6 +656,7 @@ class DashboardService
             ->orderBy('name')
             ->get([
                 'id',
+                'source_project_id',
                 'name',
                 'client',
                 'status',
@@ -651,14 +668,20 @@ class DashboardService
                 'updated_at',
             ]);
 
-        $totalProjects = $projects->count();
+        $mainProjects = $projects
+            ->groupBy(fn (Project $project) => $project->source_project_id ?: $project->id)
+            ->map(fn ($family) => $this->selectFamilyProject($family))
+            ->filter()
+            ->values();
+
+        $totalProjects = $mainProjects->count();
         $moneyProjects = $excludeCompletedFromMoney
-            ? $projects->reject(fn (Project $project) => $this->isCompletedStatus($project->status))
-            : $projects;
+            ? $mainProjects->reject(fn (Project $project) => $this->isCompletedStatus($project->status))
+            : $mainProjects;
         $contractSum = round((float) $moneyProjects->sum(fn (Project $project) => (float) $project->contract_amount), 2);
         $collectedSum = round((float) $moneyProjects->sum(fn (Project $project) => (float) $project->total_client_payment), 2);
         $remainingSum = round((float) $moneyProjects->sum(fn (Project $project) => (float) $project->remaining_balance), 2);
-        $progressBase = $excludeCompletedFromMoney ? $moneyProjects : $projects;
+        $progressBase = $excludeCompletedFromMoney ? $moneyProjects : $mainProjects;
         $progressCount = $progressBase->count();
         $companyProgressPercent = $progressCount > 0
             ? round((float) $progressBase->avg(fn (Project $project) => (int) $project->overall_progress), 1)
@@ -667,8 +690,8 @@ class DashboardService
         return [
             'project_counts' => [
                 'total' => $totalProjects,
-                'by_status' => $this->aggregateLabelCounts($projects, 'status'),
-                'by_phase' => $this->aggregateLabelCounts($projects, 'phase'),
+                'by_status' => $this->aggregateLabelCounts($mainProjects, 'status'),
+                'by_phase' => $this->aggregateLabelCounts($mainProjects, 'phase'),
             ],
             'financial_totals' => [
                 'contract_sum' => $contractSum,
@@ -676,7 +699,7 @@ class DashboardService
                 'remaining_sum' => $remainingSum,
             ],
             'company_progress_percent' => $companyProgressPercent,
-            'projects' => $projects
+            'projects' => $mainProjects
                 ->sortByDesc(fn (Project $project) => optional($project->updated_at)?->timestamp ?? 0)
                 ->values()
                 ->map(fn (Project $project) => $this->projectSummaryRow($project))
@@ -823,6 +846,25 @@ class DashboardService
     private function isCompletedStatus(?string $status): bool
     {
         return ProjectStatus::fromMixed($status) === ProjectStatus::COMPLETED;
+    }
+
+    private function selectFamilyProject(Collection $family): ?Project
+    {
+        if ($family->isEmpty()) {
+            return null;
+        }
+
+        return $family
+            ->sortByDesc(function (Project $project) {
+                $phaseRank = match (ProjectFlow::normalizePhase($project->phase)) {
+                    Project::PHASE_COMPLETED => 3,
+                    Project::PHASE_CONSTRUCTION => 2,
+                    default => 1,
+                };
+                $updatedAt = optional($project->updated_at)?->timestamp ?? 0;
+                return ($phaseRank * 1_000_000_000) + $updatedAt;
+            })
+            ->first();
     }
 
     private function projectSummaryRow(Project $project): array

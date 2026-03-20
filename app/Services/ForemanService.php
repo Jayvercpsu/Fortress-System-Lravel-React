@@ -8,6 +8,7 @@ use App\Models\IssueReport;
 use App\Models\MaterialRequest;
 use App\Models\ProgressPhoto;
 use App\Models\Project;
+use App\Enums\ProjectStatus;
 use App\Models\ProjectAssignment;
 use App\Models\ProjectScope;
 use App\Models\User;
@@ -36,6 +37,7 @@ class ForemanService
         $foremanId = $foreman?->id;
         $foremanName = trim((string) ($foreman?->fullname ?? ''));
         $assignedProjectIds = $foreman ? $this->foremanAssignedProjectIds($foreman) : collect();
+        $attendanceProjectIds = $this->filterConstructionPhaseIds($assignedProjectIds);
         $manilaNow = Carbon::now(Attendance::PH_TIMEZONE);
         $phToday = $manilaNow->toDateString();
         $phWeekStart = $manilaNow->copy()->startOfWeek()->toDateString();
@@ -91,15 +93,23 @@ class ForemanService
         })->values();
 
         $projects = ProjectSelection::actualOptionsForIds($assignedProjectIds->all())
-            ->filter(fn (array $project) => Str::lower(trim((string) ($project['phase'] ?? ''))) !== Str::lower(Project::PHASE_DESIGN))
+            ->filter(function (array $project) {
+                $phase = Str::lower(trim((string) ($project['phase'] ?? '')));
+                if ($phase !== Str::lower(Project::PHASE_CONSTRUCTION)) {
+                    return false;
+                }
+
+                $status = ProjectStatus::fromMixed((string) ($project['status'] ?? ''));
+                return !in_array($status, [ProjectStatus::COMPLETED, ProjectStatus::CANCELLED], true);
+            })
             ->values();
 
         $workers = $this->foremanProgressRepository->workers()
             ->where('foreman_id', $foremanId)
             ->with('project:id,name')
             ->when(
-                $assignedProjectIds->isNotEmpty(),
-                fn ($query) => $query->whereIn('project_id', $assignedProjectIds->all())
+                $attendanceProjectIds->isNotEmpty(),
+                fn ($query) => $query->whereIn('project_id', $attendanceProjectIds->all())
             )
             ->orderBy('name')
             ->get(['id', 'project_id', 'name', 'job_type'])
@@ -169,7 +179,9 @@ class ForemanService
         $foreman = $request->user();
         abort_unless($foreman && $foreman->role === User::ROLE_FOREMAN, 403);
 
-        $assignedProjectIds = $this->foremanAssignedProjectIds($foreman)->all();
+        $assignedProjectIds = $this->filterConstructionPhaseIds(
+            $this->foremanAssignedProjectIds($foreman)
+        )->all();
 
         $validated = $request->validate([
             'project_id' => ['required', Rule::in($assignedProjectIds)],
@@ -264,7 +276,9 @@ class ForemanService
     {
         $foremanId = $request->user()->id;
         $foreman = $request->user();
-        $assignedProjectIds = $foreman ? $this->foremanAssignedProjectIds($foreman)->all() : [];
+        $assignedProjectIds = $foreman
+            ? $this->filterConstructionPhaseIds($this->foremanAssignedProjectIds($foreman))->all()
+            : [];
         abort_unless((int) $attendance->foreman_id === (int) $foremanId, 403);
 
         if ((string) optional($attendance->date)?->toDateString() !== Carbon::now(Attendance::PH_TIMEZONE)->toDateString()) {
@@ -301,7 +315,9 @@ class ForemanService
     {
         $foreman = $request->user();
         abort_unless($foreman && $foreman->role === User::ROLE_FOREMAN, 403);
-        $assignedProjectIds = $this->foremanAssignedProjectIds($foreman)->all();
+        $assignedProjectIds = $this->filterConstructionPhaseIds(
+            $this->foremanAssignedProjectIds($foreman)
+        )->all();
 
         $validated = $request->validate([
             'attendance' => 'required|array|min:1',
@@ -666,6 +682,29 @@ class ForemanService
 
         return $projectIds
             ->reject(fn (int $projectId) => $designIds->contains($projectId))
+            ->values();
+    }
+
+    private function filterConstructionPhaseIds(Collection $projectIds): Collection
+    {
+        if ($projectIds->isEmpty()) {
+            return $projectIds;
+        }
+
+        return $this->foremanProgressRepository->projects()
+            ->whereIn('id', $projectIds->all())
+            ->get(['id', 'phase', 'status'])
+            ->filter(function (Project $project) {
+                $phase = Str::lower(trim((string) ($project->phase ?? '')));
+                if ($phase !== Str::lower(Project::PHASE_CONSTRUCTION)) {
+                    return false;
+                }
+
+                $status = ProjectStatus::fromMixed((string) ($project->status ?? ''));
+                return !in_array($status, [ProjectStatus::COMPLETED, ProjectStatus::CANCELLED], true);
+            })
+            ->pluck('id')
+            ->map(fn ($projectId) => (int) $projectId)
             ->values();
     }
 

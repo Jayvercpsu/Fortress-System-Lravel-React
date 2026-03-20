@@ -139,6 +139,7 @@ Route::middleware(['auth', 'role:head_admin,admin'])->group(function () {
 
     Route::get('/attendance/summary', [AttendanceController::class, 'summary'])->name('attendance.summary');
     Route::get('/attendance', [AttendanceController::class, 'index'])->name('attendance.index');
+    Route::post('/attendance', [AttendanceController::class, 'store'])->name('attendance.store');
     Route::get('/reports', [ReportsController::class, 'index'])->name('reports.index');
     Route::get('/weekly-accomplishments', [WeeklyAccomplishmentController::class, 'index'])->name('weekly-accomplishments.index');
     Route::get('/materials', [MaterialRequestController::class, 'index'])->name('materials.index');

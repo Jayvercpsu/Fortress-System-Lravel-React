@@ -4,6 +4,10 @@ import Layout from './Layout';
 import DataTable from './DataTable';
 import DatePickerInput from './DatePickerInput';
 import ActionButton from './ActionButton';
+import SearchableDropdown from './SearchableDropdown';
+import TimeInput from './TimeInput';
+import toast from 'react-hot-toast';
+import { toastMessages } from '../constants/toastMessages';
 
 const cardStyle = {
     background: 'var(--surface-1)',
@@ -22,6 +26,46 @@ const inputStyle = {
     fontSize: 13,
     boxSizing: 'border-box',
 };
+
+const PH_TIMEZONE = 'Asia/Manila';
+
+function getPhNowParts(nowValue = Date.now()) {
+    const parts = new Intl.DateTimeFormat('en-US', {
+        timeZone: PH_TIMEZONE,
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+        hour12: false,
+    }).formatToParts(new Date(nowValue));
+
+    const read = (type) => Number(parts.find((p) => p.type === type)?.value ?? 0);
+
+    return {
+        year: read('year'),
+        month: read('month'),
+        day: read('day'),
+        hour: read('hour'),
+        minute: read('minute'),
+        second: read('second'),
+    };
+}
+
+function getPhDateIso(nowValue = Date.now()) {
+    const { year, month, day } = getPhNowParts(nowValue);
+    return `${String(year).padStart(4, '0')}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+}
+
+function getPhTodayLabel(nowValue = Date.now()) {
+    return new Intl.DateTimeFormat(undefined, {
+        timeZone: PH_TIMEZONE,
+        year: 'numeric',
+        month: 'short',
+        day: '2-digit',
+    }).format(new Date(nowValue));
+}
 
 function timeLabel(time) {
     if (!time) return '-';
@@ -45,8 +89,10 @@ export default function AttendanceLogsPage({
     foremen = [],
     projects = [],
     workerRoles = [],
+    workerRoleOptions = [],
     attendanceCodes = [],
 }) {
+    const defaultRole = workerRoleOptions?.[0] || 'Worker';
     const table = useMemo(
         () => ({
             search: attendanceTable?.search ?? '',
@@ -81,6 +127,106 @@ export default function AttendanceLogsPage({
             attendance_code: String(filters?.attendance_code ?? ''),
         });
     }, [filters]);
+
+    const [dailyRows, setDailyRows] = useState([
+        { foreman_id: '', project_id: '', time_in: '', time_out: '' },
+    ]);
+    const [clockTick, setClockTick] = useState(Date.now());
+    const phTodayIso = useMemo(() => getPhDateIso(clockTick), [clockTick]);
+    const todayLabel = useMemo(() => getPhTodayLabel(clockTick), [clockTick]);
+
+    useEffect(() => {
+        const timer = setInterval(() => setClockTick(Date.now()), 60000);
+        return () => clearInterval(timer);
+    }, []);
+
+    const foremanOptions = useMemo(
+        () => (Array.isArray(foremen) ? foremen.map((foreman) => ({ id: String(foreman.id), name: foreman.fullname })) : []),
+        [foremen]
+    );
+    const projectOptions = useMemo(
+        () => (Array.isArray(projects) ? projects.map((project) => ({ id: String(project.id), name: project.label || project.name })) : []),
+        [projects]
+    );
+    const roleOptions = useMemo(() => {
+        const baseRoles = Array.isArray(workerRoleOptions) && workerRoleOptions.length > 0
+            ? workerRoleOptions
+            : [defaultRole, 'Skilled Worker', 'Laborer'];
+        const knownRoles = [
+            ...baseRoles,
+            'Foreman',
+            ...workerRoles,
+        ];
+        const uniqueRoles = Array.from(new Set(knownRoles.map((role) => String(role || '').trim()).filter(Boolean)));
+        return uniqueRoles.map((role) => ({ id: role, name: role }));
+    }, [workerRoleOptions, workerRoles]);
+
+    const entryModeOptions = useMemo(
+        () => [
+            { id: 'time_log', name: 'Time Log (with in/out)' },
+            { id: 'status_based', name: 'Status-Based (weekly/day-code)' },
+        ],
+        []
+    );
+
+    const attendanceCodeOptions = useMemo(
+        () =>
+            (attendanceCodes.length ? attendanceCodes : ['P', 'A', 'H', 'R', 'F']).map((code) => ({
+                id: code,
+                name: code,
+            })),
+        [attendanceCodes]
+    );
+
+    const updateDailyRow = (idx, field, value, option = null) => {
+        setDailyRows((prev) => {
+            const next = [...prev];
+            next[idx] = { ...next[idx], [field]: value };
+
+            return next;
+        });
+    };
+
+    const addDailyRow = () =>
+        setDailyRows((prev) => [...prev, { foreman_id: '', project_id: '', time_in: '', time_out: '' }]);
+
+    const removeDailyRow = (idx) => setDailyRows((prev) => prev.filter((_, i) => i !== idx));
+
+    const submitDailyAttendance = (e) => {
+        e.preventDefault();
+        const payloadRows = dailyRows.filter((row) => row.foreman_id);
+        if (payloadRows.length === 0) {
+            toast.error(toastMessages.attendance.addRowRequired);
+            return;
+        }
+        if (payloadRows.some((row) => !row.foreman_id)) {
+            toast.error('Select a foreman for each row.');
+            return;
+        }
+
+        const payload = payloadRows.map((row) => ({
+            foreman_id: row.foreman_id,
+            project_id: row.project_id || null,
+            time_in: row.time_in || null,
+            time_out: row.time_out || null,
+        }));
+
+        const params = new URLSearchParams(buildParams());
+        const qs = params.toString();
+
+        router.post(
+            `/attendance${qs ? `?${qs}` : ''}`,
+            { attendance: payload },
+            {
+                preserveScroll: true,
+                onError: () => toast.error(toastMessages.attendance.submitError),
+                onSuccess: () => {
+                    setDailyRows([{ foreman_id: '', project_id: '', time_in: '', time_out: '' }]);
+                    toast.success(toastMessages.attendance.submitSuccess);
+                },
+            }
+        );
+    };
 
     const buildParams = (overrides = {}) => {
         const params = {
@@ -192,6 +338,110 @@ export default function AttendanceLogsPage({
             <Head title="Attendance" />
             <Layout title="Attendance Logs">
                 <div style={{ display: 'grid', gap: 16 }}>
+                    <form onSubmit={submitDailyAttendance} style={cardStyle}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap', marginBottom: 12 }}>
+                            <div style={{ fontWeight: 700 }}>Foreman Daily Attendance</div>
+                            <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+                                Attendance Date: <span style={{ color: 'var(--text-main)', fontWeight: 600 }}>{todayLabel}</span> (today)
+                            </div>
+                        </div>
+
+                        <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: 12 }}>
+                            <thead>
+                                <tr>
+                                    {['Company / Project', 'Foreman', 'Time In', 'Time Out', ''].map((h, i) => (
+                                        <th
+                                            key={i}
+                                            style={{
+                                                fontSize: 11,
+                                                color: 'var(--text-muted-2)',
+                                                textAlign: 'left',
+                                                padding: '8px',
+                                                borderBottom: '1px solid var(--border-color)',
+                                                textTransform: 'uppercase',
+                                            }}
+                                        >
+                                            {h}
+                                        </th>
+                                    ))}
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {dailyRows.map((entry, idx) => {
+                                    return (
+                                        <tr key={idx} style={{ borderBottom: '1px solid var(--row-divider)' }}>
+                                            <td style={{ padding: '6px 8px', minWidth: 220 }}>
+                                                <SearchableDropdown
+                                                    options={projectOptions}
+                                                    value={entry.project_id ?? ''}
+                                                    onChange={(value) => updateDailyRow(idx, 'project_id', value || '')}
+                                                    getOptionLabel={(option) => option.name}
+                                                    getOptionValue={(option) => option.id}
+                                                    placeholder="Select company / project"
+                                                    searchPlaceholder="Search projects..."
+                                                    emptyMessage="No projects found"
+                                                    clearable
+                                                    style={{ ...inputStyle, minHeight: 38, padding: '7px 9px' }}
+                                                    dropdownWidth={320}
+                                                />
+                                            </td>
+                                            <td style={{ padding: '6px 8px', minWidth: 200 }}>
+                                                <SearchableDropdown
+                                                    options={foremanOptions}
+                                                    value={entry.foreman_id ?? ''}
+                                                    onChange={(value) => updateDailyRow(idx, 'foreman_id', value || '')}
+                                                    getOptionLabel={(option) => option.name}
+                                                    getOptionValue={(option) => option.id}
+                                                    placeholder="Select foreman"
+                                                    searchPlaceholder="Search foremen..."
+                                                    emptyMessage="No foremen found"
+                                                    clearable
+                                                    style={{ ...inputStyle, minHeight: 38, padding: '7px 9px' }}
+                                                    dropdownWidth={280}
+                                                />
+                                            </td>
+                                            <td style={{ padding: '6px 8px', minWidth: 220 }}>
+                                                <TimeInput
+                                                    value={entry.time_in ?? ''}
+                                                    onChange={(value) => updateDailyRow(idx, 'time_in', value || '')}
+                                                    style={{ ...inputStyle, minWidth: 110 }}
+                                                />
+                                            </td>
+                                            <td style={{ padding: '6px 8px' }}>
+                                                <TimeInput
+                                                    value={entry.time_out ?? ''}
+                                                    onChange={(value) => updateDailyRow(idx, 'time_out', value || '')}
+                                                    style={{ ...inputStyle, minWidth: 110 }}
+                                                />
+                                            </td>
+                                            <td style={{ padding: '6px 8px' }}>
+                                                {dailyRows.length > 1 && (
+                                                    <ActionButton type="button" variant="danger" onClick={() => removeDailyRow(idx)}>
+                                                        Delete
+                                                    </ActionButton>
+                                                )}
+                                            </td>
+                                        </tr>
+                                    );
+                                })}
+                            </tbody>
+                        </table>
+
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+                            <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+                                Hours are auto-calculated when both Time In and Time Out are provided.
+                            </div>
+                            <div style={{ display: 'flex', gap: 8 }}>
+                                <ActionButton type="button" variant="neutral" onClick={addDailyRow} style={{ padding: '8px 12px', fontSize: 13 }}>
+                                    + Add Row
+                                </ActionButton>
+                                <ActionButton type="submit" variant="success" style={{ padding: '8px 12px', fontSize: 13 }}>
+                                    Submit Attendance
+                                </ActionButton>
+                            </div>
+                        </div>
+                    </form>
+
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
                         <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
                             Browse attendance logs with role and entry type filters. Status-based rows come from weekly/day-code submissions and may not have time in/out.
@@ -221,75 +471,83 @@ export default function AttendanceLogsPage({
                             </div>
                             <div>
                                 <div style={{ fontSize: 12, marginBottom: 6, color: 'var(--text-muted)' }}>Foreman</div>
-                                <select
+                                <SearchableDropdown
+                                    options={foremanOptions}
                                     value={draftFilters.foreman_id}
-                                    onChange={(e) => setDraftFilters((prev) => ({ ...prev, foreman_id: e.target.value }))}
-                                    style={inputStyle}
-                                >
-                                    <option value="">All foremen</option>
-                                    {foremen.map((foreman) => (
-                                        <option key={foreman.id} value={foreman.id}>
-                                            {foreman.fullname}
-                                        </option>
-                                    ))}
-                                </select>
+                                    onChange={(value) => setDraftFilters((prev) => ({ ...prev, foreman_id: value || '' }))}
+                                    getOptionLabel={(option) => option.name}
+                                    getOptionValue={(option) => option.id}
+                                    placeholder="All foremen"
+                                    searchPlaceholder="Search foremen..."
+                                    emptyMessage="No foremen found"
+                                    clearable
+                                    style={{ ...inputStyle, minHeight: 38, padding: '7px 9px' }}
+                                    dropdownWidth={280}
+                                />
                             </div>
                             <div>
                                 <div style={{ fontSize: 12, marginBottom: 6, color: 'var(--text-muted)' }}>Project</div>
-                                <select
+                                <SearchableDropdown
+                                    options={projectOptions}
                                     value={draftFilters.project_id}
-                                    onChange={(e) => setDraftFilters((prev) => ({ ...prev, project_id: e.target.value }))}
-                                    style={inputStyle}
-                                >
-                                    <option value="">All projects</option>
-                                    {projects.map((project) => (
-                                        <option key={project.id} value={project.id}>
-                                            {project.label || project.name}
-                                        </option>
-                                    ))}
-                                </select>
+                                    onChange={(value) => setDraftFilters((prev) => ({ ...prev, project_id: value || '' }))}
+                                    getOptionLabel={(option) => option.name}
+                                    getOptionValue={(option) => option.id}
+                                    placeholder="All projects"
+                                    searchPlaceholder="Search projects..."
+                                    emptyMessage="No projects found"
+                                    clearable
+                                    style={{ ...inputStyle, minHeight: 38, padding: '7px 9px' }}
+                                    dropdownWidth={320}
+                                />
                             </div>
                             <div>
                                 <div style={{ fontSize: 12, marginBottom: 6, color: 'var(--text-muted)' }}>Worker Role</div>
-                                <select
+                                <SearchableDropdown
+                                    options={roleOptions}
                                     value={draftFilters.worker_role}
-                                    onChange={(e) => setDraftFilters((prev) => ({ ...prev, worker_role: e.target.value }))}
-                                    style={inputStyle}
-                                >
-                                    <option value="">All roles</option>
-                                    {workerRoles.map((role) => (
-                                        <option key={role} value={role}>
-                                            {role}
-                                        </option>
-                                    ))}
-                                </select>
+                                    onChange={(value) => setDraftFilters((prev) => ({ ...prev, worker_role: value || '' }))}
+                                    getOptionLabel={(option) => option.name}
+                                    getOptionValue={(option) => option.id}
+                                    placeholder="All roles"
+                                    searchPlaceholder="Search roles..."
+                                    emptyMessage="No roles found"
+                                    clearable
+                                    style={{ ...inputStyle, minHeight: 38, padding: '7px 9px' }}
+                                    dropdownWidth={240}
+                                />
                             </div>
                             <div>
                                 <div style={{ fontSize: 12, marginBottom: 6, color: 'var(--text-muted)' }}>Entry Type</div>
-                                <select
+                                <SearchableDropdown
+                                    options={entryModeOptions}
                                     value={draftFilters.entry_mode}
-                                    onChange={(e) => setDraftFilters((prev) => ({ ...prev, entry_mode: e.target.value }))}
-                                    style={inputStyle}
-                                >
-                                    <option value="">All entry types</option>
-                                    <option value="time_log">Time Log (with in/out)</option>
-                                    <option value="status_based">Status-Based (weekly/day-code)</option>
-                                </select>
+                                    onChange={(value) => setDraftFilters((prev) => ({ ...prev, entry_mode: value || '' }))}
+                                    getOptionLabel={(option) => option.name}
+                                    getOptionValue={(option) => option.id}
+                                    placeholder="All entry types"
+                                    searchPlaceholder="Search entry types..."
+                                    emptyMessage="No entry types found"
+                                    clearable
+                                    style={{ ...inputStyle, minHeight: 38, padding: '7px 9px' }}
+                                    dropdownWidth={260}
+                                />
                             </div>
                             <div>
                                 <div style={{ fontSize: 12, marginBottom: 6, color: 'var(--text-muted)' }}>Attendance Code</div>
-                                <select
+                                <SearchableDropdown
+                                    options={attendanceCodeOptions}
                                     value={draftFilters.attendance_code}
-                                    onChange={(e) => setDraftFilters((prev) => ({ ...prev, attendance_code: e.target.value }))}
-                                    style={inputStyle}
-                                >
-                                    <option value="">All codes</option>
-                                    {(attendanceCodes.length ? attendanceCodes : ['P', 'A', 'H', 'R', 'F']).map((code) => (
-                                        <option key={code} value={code}>
-                                            {code}
-                                        </option>
-                                    ))}
-                                </select>
+                                    onChange={(value) => setDraftFilters((prev) => ({ ...prev, attendance_code: value || '' }))}
+                                    getOptionLabel={(option) => option.name}
+                                    getOptionValue={(option) => option.id}
+                                    placeholder="All codes"
+                                    searchPlaceholder="Search codes..."
+                                    emptyMessage="No codes found"
+                                    clearable
+                                    style={{ ...inputStyle, minHeight: 38, padding: '7px 9px' }}
+                                    dropdownWidth={200}
+                                />
                             </div>
                         </div>
 

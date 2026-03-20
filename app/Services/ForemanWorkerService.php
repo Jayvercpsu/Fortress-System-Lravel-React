@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\Project;
 use App\Models\User;
 use App\Models\Worker;
+use App\Enums\ProjectStatus;
 use App\Repositories\Contracts\ForemanWorkerRepositoryInterface;
 use App\Support\ProjectSelection;
 use Illuminate\Http\Request;
@@ -142,7 +143,15 @@ class ForemanWorkerService
         }
 
         return ProjectSelection::actualOptionsForIds($assignedProjectIds->all())
-            ->filter(fn (array $project) => Str::lower(trim((string) ($project['phase'] ?? ''))) !== Str::lower(Project::PHASE_DESIGN))
+            ->filter(function (array $project) {
+                $phase = Str::lower(trim((string) ($project['phase'] ?? '')));
+                if ($phase !== Str::lower(Project::PHASE_CONSTRUCTION)) {
+                    return false;
+                }
+
+                $status = ProjectStatus::fromMixed((string) ($project['status'] ?? ''));
+                return !in_array($status, [ProjectStatus::COMPLETED, ProjectStatus::CANCELLED], true);
+            })
             ->values();
     }
 
