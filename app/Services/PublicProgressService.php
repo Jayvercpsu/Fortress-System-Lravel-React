@@ -264,15 +264,12 @@ class PublicProgressService
                     $weeklyScopePhotoMap[$scopeKey] = [];
                 }
 
-                if (count($weeklyScopePhotoMap[$scopeKey]) >= 8) {
-                    continue;
-                }
-
                 $weeklyScopePhotoMap[$scopeKey][] = [
                     'id' => (int) $scopePhoto->id,
                     'photo_path' => $scopePhoto->photo_path,
                     'caption' => $scopePhoto->caption,
                     'created_at' => optional($scopePhoto->created_at)?->toDateTimeString(),
+                    'week_start' => $this->extractWeekStartFromScopePhoto($scopePhoto->caption),
                 ];
             }
         }
@@ -789,9 +786,11 @@ class PublicProgressService
 
         $weeklyScopes = collect($validated['weekly_scopes'] ?? [])
             ->map(function (array $scope) {
+                $percent = $this->normalizePercentCompleted($scope['percent_completed'] ?? null);
+
                 return [
                     'scope_of_work' => trim((string) ($scope['scope_of_work'] ?? '')),
-                    'percent_completed' => trim((string) ($scope['percent_completed'] ?? '')),
+                    'percent_completed' => $percent,
                     'photo_caption' => trim((string) ($scope['photo_caption'] ?? '')),
                     'photos' => collect($scope['photos'] ?? [])
                         ->filter(fn ($photo) => $photo instanceof UploadedFile)
@@ -799,7 +798,7 @@ class PublicProgressService
                         ->all(),
                 ];
             })
-            ->filter(fn (array $scope) => $scope['scope_of_work'] !== '' && $scope['percent_completed'] !== '')
+            ->filter(fn (array $scope) => $scope['scope_of_work'] !== '')
             ->values();
 
         $weeklyScopePhotos = collect($validated['weekly_scopes'] ?? [])
@@ -1102,6 +1101,31 @@ class PublicProgressService
             ->with('success', __('messages.public_progress.delivery_submitted'));
     }
 
+    public function deleteDelivery(Request $request, string $token, DeliveryConfirmation $deliveryConfirmation)
+    {
+        $submitToken = $this->resolveActiveToken($token);
+
+        if ((int) $deliveryConfirmation->project_id !== (int) $submitToken->project_id
+            || (int) $deliveryConfirmation->foreman_id !== (int) $submitToken->foreman_id) {
+            abort(403);
+        }
+
+        $photoPath = $deliveryConfirmation->photo_path;
+        $deliveryConfirmation->delete();
+
+        if ($photoPath) {
+            $this->foremanProgressRepository->progressPhotos()
+                ->where('foreman_id', $submitToken->foreman_id)
+                ->where('project_id', $submitToken->project_id)
+                ->where('photo_path', $photoPath)
+                ->where('caption', 'like', '[Delivery]%')
+                ->delete();
+        }
+
+        return redirect()
+            ->route('public.progress-submit.show', ['token' => $token]);
+    }
+
     public function storeMaterialRequest(Request $request, string $token)
     {
         $submitToken = $this->resolveActiveToken($token);
@@ -1155,6 +1179,31 @@ class PublicProgressService
             ->with('success', __('messages.public_progress.material_submitted'));
     }
 
+    public function deleteMaterialRequest(Request $request, string $token, MaterialRequest $materialRequest)
+    {
+        $submitToken = $this->resolveActiveToken($token);
+
+        if ((int) $materialRequest->project_id !== (int) $submitToken->project_id
+            || (int) $materialRequest->foreman_id !== (int) $submitToken->foreman_id) {
+            abort(403);
+        }
+
+        $photoPath = $materialRequest->photo_path;
+        $materialRequest->delete();
+
+        if ($photoPath) {
+            $this->foremanProgressRepository->progressPhotos()
+                ->where('foreman_id', $submitToken->foreman_id)
+                ->where('project_id', $submitToken->project_id)
+                ->where('photo_path', $photoPath)
+                ->where('caption', 'like', '[Material]%')
+                ->delete();
+        }
+
+        return redirect()
+            ->route('public.progress-submit.show', ['token' => $token]);
+    }
+
     public function storeWeeklyProgress(Request $request, string $token)
     {
         $submitToken = $this->resolveActiveToken($token);
@@ -1163,7 +1212,7 @@ class PublicProgressService
             'week_start' => ['required', 'date'],
             'scopes' => ['required', 'array', 'min:1'],
             'scopes.*.scope_of_work' => ['required', 'string', 'max:255'],
-            'scopes.*.percent_completed' => ['required', 'numeric', 'min:0', 'max:100'],
+            'scopes.*.percent_completed' => ['nullable', 'numeric', 'min:0', 'max:100'],
             'scopes.*.photo_caption' => ['nullable', 'string', 'max:255'],
             'scopes.*.photos' => ['nullable', 'array'],
             'scopes.*.photos.*' => UploadManager::imageRules(),
@@ -1187,7 +1236,7 @@ class PublicProgressService
                     'scope_of_work' => $scopeName,
                 ],
                 [
-                    'percent_completed' => (float) $scope['percent_completed'],
+                    'percent_completed' => $this->normalizePercentCompleted($scope['percent_completed'] ?? null),
                 ]
             );
         }
@@ -1247,6 +1296,26 @@ class PublicProgressService
             ->with('success', __('messages.public_progress.photo_uploaded'));
     }
 
+    public function deletePhoto(Request $request, string $token, ProgressPhoto $progressPhoto)
+    {
+        $submitToken = $this->resolveActiveToken($token);
+
+        if ((int) $progressPhoto->project_id !== (int) $submitToken->project_id
+            || (int) $progressPhoto->foreman_id !== (int) $submitToken->foreman_id) {
+            abort(403);
+        }
+
+        $caption = trim((string) ($progressPhoto->caption ?? ''));
+        if (Str::startsWith($caption, ['[Material]', '[Delivery]', '[Issue]'])) {
+            abort(403);
+        }
+
+        $progressPhoto->delete();
+
+        return redirect()
+            ->route('public.progress-submit.show', ['token' => $token]);
+    }
+
     public function storeIssueReport(Request $request, string $token)
     {
         $submitToken = $this->resolveActiveToken($token);
@@ -1292,6 +1361,31 @@ class PublicProgressService
         return redirect()
             ->route('public.progress-submit.show', ['token' => $token])
             ->with('success', __('messages.public_progress.issue_submitted'));
+    }
+
+    public function deleteIssueReport(Request $request, string $token, IssueReport $issueReport)
+    {
+        $submitToken = $this->resolveActiveToken($token);
+
+        if ((int) $issueReport->project_id !== (int) $submitToken->project_id
+            || (int) $issueReport->foreman_id !== (int) $submitToken->foreman_id) {
+            abort(403);
+        }
+
+        $photoPath = $issueReport->photo_path;
+        $issueReport->delete();
+
+        if ($photoPath) {
+            $this->foremanProgressRepository->progressPhotos()
+                ->where('foreman_id', $submitToken->foreman_id)
+                ->where('project_id', $submitToken->project_id)
+                ->where('photo_path', $photoPath)
+                ->where('caption', 'like', '[Issue]%')
+                ->delete();
+        }
+
+        return redirect()
+            ->route('public.progress-submit.show', ['token' => $token]);
     }
 
     private function resolveActiveToken(string $token): ProgressSubmitToken
@@ -1455,6 +1549,22 @@ class PublicProgressService
         return false;
     }
 
+    private function normalizePercentCompleted(mixed $value): float
+    {
+        $raw = trim((string) ($value ?? ''));
+        if ($raw === '') {
+            return 0.0;
+        }
+
+        if (!is_numeric($raw)) {
+            return 0.0;
+        }
+
+        $numeric = (float) $raw;
+
+        return max(0.0, min(100.0, $numeric));
+    }
+
     private function submittedPhotoName(string $extension): string
     {
         $safeExtension = $extension !== '' ? strtolower($extension) : 'jpg';
@@ -1585,6 +1695,20 @@ class PublicProgressService
         }
 
         return implode(' | ', $parts);
+    }
+
+    private function extractWeekStartFromScopePhoto(?string $caption): ?string
+    {
+        $text = trim((string) ($caption ?? ''));
+        if ($text === '') {
+            return null;
+        }
+
+        if (preg_match('/Week:\\s*(\\d{4}-\\d{2}-\\d{2})/i', $text, $matches) === 1) {
+            return $matches[1];
+        }
+
+        return null;
     }
 
     private function syncProjectOverallProgressFromWeekly(int $projectId): void

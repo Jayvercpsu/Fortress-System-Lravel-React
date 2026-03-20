@@ -1,7 +1,8 @@
 ﻿import { Head, router, usePage } from '@inertiajs/react';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Camera, Check, ChevronDown, Plus } from 'lucide-react';
+import { Camera, Check, ChevronDown, Plus, Trash2 } from 'lucide-react';
 import toast from 'react-hot-toast';
+import ConfirmationModal from '../../Components/ConfirmationModal';
 import DatePickerInput from '../../Components/DatePickerInput';
 import Modal from '../../Components/Modal';
 import OptimizedImage from '../../Components/OptimizedImage';
@@ -199,6 +200,24 @@ const mergeWeeklyRowsWithScopeList = (rows = [], scopeRows = []) => {
 
     return mergedRows;
 };
+const isIsoWeekKey = (value) => /^\d{4}-\d{2}-\d{2}$/.test(String(value || '').trim());
+const latestWeekKeyOnOrBefore = (keys = [], targetWeekKey = '') => {
+    if (!isIsoWeekKey(targetWeekKey)) return '';
+    return [...keys]
+        .map((key) => String(key || '').trim())
+        .filter((key) => isIsoWeekKey(key) && key <= targetWeekKey)
+        .sort()
+        .pop() || '';
+};
+const scopePhotosForWeek = (photoRows = [], targetWeekKey = '') => {
+    const normalizedTarget = String(targetWeekKey || '').trim();
+    return (Array.isArray(photoRows) ? photoRows : []).filter((photo) => {
+        const weekStart = String(photo?.week_start || '').trim();
+        if (!isIsoWeekKey(normalizedTarget)) return true;
+        if (!isIsoWeekKey(weekStart)) return true;
+        return weekStart <= normalizedTarget;
+    });
+};
 const jfDateInputStyle = {
     width: '100%',
     boxSizing: 'border-box',
@@ -217,6 +236,18 @@ const humanize = (value) => {
         .filter(Boolean)
         .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
         .join(' ');
+};
+const normalizePercentInput = (value) => {
+    const raw = String(value ?? '').trim();
+    if (raw === '') return '';
+    const numeric = Number(raw);
+    if (Number.isNaN(numeric)) return '';
+    const clamped = Math.max(0, Math.min(100, numeric));
+    return String(clamped);
+};
+const displayPercent = (value) => {
+    const raw = String(value ?? '').trim();
+    return raw === '' ? '0' : raw;
 };
 const isForemanRole = (role) => String(role || '').trim().toLowerCase() === 'foreman';
 
@@ -252,12 +283,6 @@ export default function ProgressSubmit({ submitToken }) {
             return acc;
         }, {});
     }, [submitToken?.weekly_saved_by_week, scopes]);
-    const weeklySavedByWeek = useMemo(() => {
-        const source = submitToken?.weekly_saved_by_week && typeof submitToken.weekly_saved_by_week === 'object'
-            ? submitToken.weekly_saved_by_week
-            : {};
-        return source;
-    }, [submitToken?.weekly_saved_by_week]);
     const currentDateFromServer = String(submitToken?.current_date || '').trim();
     const currentWeekStartFromServer = normalizeToMonday(String(submitToken?.current_week_start || ''));
     const currentWeekStart = currentWeekStartFromServer || monday();
@@ -294,6 +319,14 @@ export default function ProgressSubmit({ submitToken }) {
     const [issue, setIssue] = useState({ issue_title: '', description: '', urgency: 'normal', photo: null });
     const [previewPhoto, setPreviewPhoto] = useState(null);
     const [submitting, setSubmitting] = useState(false);
+    const [deletingMaterialId, setDeletingMaterialId] = useState(null);
+    const [materialDeleteTarget, setMaterialDeleteTarget] = useState(null);
+    const [deletingDeliveryId, setDeletingDeliveryId] = useState(null);
+    const [deliveryDeleteTarget, setDeliveryDeleteTarget] = useState(null);
+    const [deletingPhotoId, setDeletingPhotoId] = useState(null);
+    const [photoDeleteTarget, setPhotoDeleteTarget] = useState(null);
+    const [deletingIssueId, setDeletingIssueId] = useState(null);
+    const [issueDeleteTarget, setIssueDeleteTarget] = useState(null);
     const [removedAttendanceWorkerIds, setRemovedAttendanceWorkerIds] = useState([]);
     const attendanceWorkerPool = useMemo(() => {
         const pool = new Map();
@@ -339,9 +372,10 @@ export default function ProgressSubmit({ submitToken }) {
     const photoInputRef = useRef(null);
     const attendanceWeekKey = normalizeToMonday(attendanceWeek) || '__attendance_empty__';
     const weeklyWeekKey = normalizeToMonday(weekStart) || '__weekly_empty__';
-    const weeklyWeekHasSavedData = Array.isArray(weeklySavedByWeek[weeklyWeekKey]) && weeklySavedByWeek[weeklyWeekKey].length > 0;
     const attendanceWeekStartDate = parseYmdDate(attendanceWeekKey === '__attendance_empty__' ? '' : attendanceWeekKey);
     const attendanceWeekEndDate = attendanceWeekStartDate ? addDays(attendanceWeekStartDate, 6) : null;
+    const weeklyWeekStartDate = parseYmdDate(weeklyWeekKey === '__weekly_empty__' ? '' : weeklyWeekKey);
+    const weeklyWeekEndDate = weeklyWeekStartDate ? addDays(weeklyWeekStartDate, 6) : null;
     const currentDate = parseYmdDate(currentDateFromServer) || parseYmdDate(today());
     const attendanceLocked = !(
         attendanceWeekStartDate &&
@@ -350,7 +384,13 @@ export default function ProgressSubmit({ submitToken }) {
         currentDate >= attendanceWeekStartDate &&
         currentDate <= attendanceWeekEndDate
     );
-    const weeklyLocked = weeklyWeekKey < currentWeekStart && weeklyWeekHasSavedData;
+    const weeklyLocked = !(
+        weeklyWeekStartDate &&
+        weeklyWeekEndDate &&
+        currentDate &&
+        currentDate >= weeklyWeekStartDate &&
+        currentDate <= weeklyWeekEndDate
+    );
     const attendanceRows = useMemo(() => {
         const currentRows = cloneAttendanceRows(attendanceWeekDrafts[attendanceWeekKey] ?? defaultAttendanceRows)
             .filter((row) => !isForemanRole(row.worker_role));
@@ -402,6 +442,58 @@ export default function ProgressSubmit({ submitToken }) {
             meta: String(meta || '').trim(),
         });
     };
+    const deleteMaterialRequest = (rowId) => {
+        if (!rowId) return;
+        setDeletingMaterialId(rowId);
+        router.delete(`${base}/material-request/${rowId}`, {
+            preserveScroll: true,
+            onSuccess: () => toast.success(toastMessages.jotform.materialDeleteSuccess),
+            onError: () => toast.error(toastMessages.jotform.materialDeleteError),
+            onFinish: () => {
+                setDeletingMaterialId(null);
+                setMaterialDeleteTarget(null);
+            },
+        });
+    };
+    const deleteDeliveryConfirmation = (rowId) => {
+        if (!rowId) return;
+        setDeletingDeliveryId(rowId);
+        router.delete(`${base}/delivery/${rowId}`, {
+            preserveScroll: true,
+            onSuccess: () => toast.success(toastMessages.jotform.deliveryDeleteSuccess),
+            onError: () => toast.error(toastMessages.jotform.deliveryDeleteError),
+            onFinish: () => {
+                setDeletingDeliveryId(null);
+                setDeliveryDeleteTarget(null);
+            },
+        });
+    };
+    const deletePhoto = (rowId) => {
+        if (!rowId) return;
+        setDeletingPhotoId(rowId);
+        router.delete(`${base}/photo/${rowId}`, {
+            preserveScroll: true,
+            onSuccess: () => toast.success(toastMessages.jotform.photoDeleteSuccess),
+            onError: () => toast.error(toastMessages.jotform.photoDeleteError),
+            onFinish: () => {
+                setDeletingPhotoId(null);
+                setPhotoDeleteTarget(null);
+            },
+        });
+    };
+    const deleteIssueReport = (rowId) => {
+        if (!rowId) return;
+        setDeletingIssueId(rowId);
+        router.delete(`${base}/issue-report/${rowId}`, {
+            preserveScroll: true,
+            onSuccess: () => toast.success(toastMessages.jotform.issueDeleteSuccess),
+            onError: () => toast.error(toastMessages.jotform.issueDeleteError),
+            onFinish: () => {
+                setDeletingIssueId(null);
+                setIssueDeleteTarget(null);
+            },
+        });
+    };
     const unhideAttendanceWorker = (name, role) => {
         const id = workerIdentity(name, role);
         if (!id) return;
@@ -440,6 +532,26 @@ export default function ProgressSubmit({ submitToken }) {
             return { ...prev, [attendanceWeekKey]: cloneAttendanceRows(attendanceRows) };
         });
     }, [attendanceWeekKey, attendanceRows]);
+    useEffect(() => {
+        if (weeklyWeekKey === '__weekly_empty__') return;
+        setWeeklyWeekDrafts((prev) => {
+            if (Array.isArray(prev[weeklyWeekKey]) && prev[weeklyWeekKey].length > 0) {
+                return prev;
+            }
+
+            const previousDraftWeek = latestWeekKeyOnOrBefore(Object.keys(prev), weeklyWeekKey);
+            if (previousDraftWeek && Array.isArray(prev[previousDraftWeek]) && prev[previousDraftWeek].length > 0) {
+                return { ...prev, [weeklyWeekKey]: cloneWeeklyRows(prev[previousDraftWeek]) };
+            }
+
+            const previousSavedWeek = latestWeekKeyOnOrBefore(Object.keys(initialWeeklyDrafts), weeklyWeekKey);
+            if (previousSavedWeek && Array.isArray(initialWeeklyDrafts[previousSavedWeek]) && initialWeeklyDrafts[previousSavedWeek].length > 0) {
+                return { ...prev, [weeklyWeekKey]: cloneWeeklyRows(initialWeeklyDrafts[previousSavedWeek]) };
+            }
+
+            return { ...prev, [weeklyWeekKey]: cloneWeeklyRows(defaultWeeklyRows) };
+        });
+    }, [weeklyWeekKey, initialWeeklyDrafts, defaultWeeklyRows]);
     const setCurrentWeeklyRows = (updater) => {
         setWeeklyWeekDrafts((prev) => {
             const currentRows = (prev[weeklyWeekKey] ?? defaultWeeklyRows).map((row) => ({ ...row }));
@@ -658,6 +770,15 @@ export default function ProgressSubmit({ submitToken }) {
                         <div className="jf-note">No recent delivery confirmations yet.</div>
                     ) : recentDeliveries.map((row) => (
                         <div key={row.id} className="jf-recent-card">
+                            <button
+                                type="button"
+                                className="jf-card-action"
+                                title="Delete delivery confirmation"
+                                disabled={deletingDeliveryId === row.id}
+                                onClick={() => setDeliveryDeleteTarget(row)}
+                            >
+                                <Trash2 size={16} />
+                            </button>
                             {row.photo_path ? (
                                 <button
                                     type="button"
@@ -707,6 +828,15 @@ export default function ProgressSubmit({ submitToken }) {
                         <div className="jf-note">No recent material requests yet.</div>
                     ) : recentMaterialRequests.map((row) => (
                         <div key={row.id} className="jf-recent-card">
+                            <button
+                                type="button"
+                                className="jf-card-action"
+                                title="Delete material request"
+                                disabled={deletingMaterialId === row.id}
+                                onClick={() => setMaterialDeleteTarget(row)}
+                            >
+                                <Trash2 size={16} />
+                            </button>
                             {row.photo_path ? (
                                 <button
                                     type="button"
@@ -759,7 +889,7 @@ export default function ProgressSubmit({ submitToken }) {
                     style={jfDateInputStyle}
                 />
             </label>
-            {weeklyLocked ? <div className="jf-note" style={{ marginBottom: 8, fontWeight: 700 }}>Past submitted week is locked and cannot be edited.</div> : null}
+            {weeklyLocked ? <div className="jf-note" style={{ marginBottom: 8, fontWeight: 700 }}>Only the current week is editable. Previous and upcoming weeks are locked.</div> : null}
             <div className="jf-table-wrap" style={{ marginTop: 10 }}>
                 <table className="jf-table" style={{ minWidth: 980 }}>
                     <thead><tr><th>SCOPE OF WORKS</th><th>% COMPLETE</th><th>SCOPE PHOTOS</th><th>ACTION</th></tr></thead>
@@ -777,13 +907,26 @@ export default function ProgressSubmit({ submitToken }) {
                                         />
                                     ) : row.scope_of_work}
                                 </td>
-                                <td><input disabled={weeklyLocked} className="jf-input" type="number" min="0" max="100" value={row.percent_completed} onChange={(e) => setCurrentWeeklyRows((prev) => prev.map((r, idx) => idx === i ? { ...r, percent_completed: e.target.value } : r))} /></td>
+                                <td>
+                                    <input
+                                        disabled={weeklyLocked}
+                                        className="jf-input"
+                                        type="number"
+                                        min="0"
+                                        max="100"
+                                        value={displayPercent(row.percent_completed)}
+                                        onChange={(e) => {
+                                            const nextValue = normalizePercentInput(e.target.value);
+                                            setCurrentWeeklyRows((prev) => prev.map((r, idx) => idx === i ? { ...r, percent_completed: nextValue } : r));
+                                        }}
+                                    />
+                                </td>
                                 <td>
                                     <div style={{ display: 'grid', gap: 6, minWidth: 240 }}>
                                         {(() => {
                                             const scopeKey = String(row.scope_of_work || '').trim().toLowerCase();
                                             const existingScopePhotos = scopeKey !== '' && Array.isArray(weeklyScopePhotoMap[scopeKey])
-                                                ? weeklyScopePhotoMap[scopeKey]
+                                                ? scopePhotosForWeek(weeklyScopePhotoMap[scopeKey], weeklyWeekKey)
                                                 : [];
                                             const selectedWeeklyPhotos = Array.isArray(row.weekly_photos) ? row.weekly_photos : [];
 
@@ -912,6 +1055,15 @@ export default function ProgressSubmit({ submitToken }) {
                         <div key={photo.id} className="jf-photo-item">
                             <button
                                 type="button"
+                                className="jf-photo-action"
+                                title="Delete photo"
+                                disabled={deletingPhotoId === photo.id}
+                                onClick={() => setPhotoDeleteTarget(photo)}
+                            >
+                                <Trash2 size={16} />
+                            </button>
+                            <button
+                                type="button"
                                 onClick={() => openPhotoPreview(photo.photo_path, photo.caption || 'Photo', photo.created_at || '')}
                                 style={{ border: 'none', background: 'transparent', padding: 0, cursor: 'pointer', width: 90, justifySelf: 'start' }}
                             >
@@ -947,6 +1099,15 @@ export default function ProgressSubmit({ submitToken }) {
                         <div className="jf-note">No recent issue reports yet.</div>
                     ) : recentIssueReports.map((row) => (
                         <div key={row.id} className="jf-recent-card">
+                            <button
+                                type="button"
+                                className="jf-card-action"
+                                title="Delete issue report"
+                                disabled={deletingIssueId === row.id}
+                                onClick={() => setIssueDeleteTarget(row)}
+                            >
+                                <Trash2 size={16} />
+                            </button>
                             {row.photo_path ? (
                                 <button
                                     type="button"
@@ -1033,12 +1194,16 @@ export default function ProgressSubmit({ submitToken }) {
                     .jf-toggle.on{background:#3d3e45;color:#fff;border-color:#3d3e45}
                     .jf-grid2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
                     .jf-photo-layout{display:grid;grid-template-columns:minmax(260px,360px) minmax(320px,1fr);gap:12px}
-                    .jf-photo-item{display:grid;grid-template-columns:90px 1fr;gap:10px;align-items:center}
+                    .jf-photo-item{display:grid;grid-template-columns:90px 1fr;gap:10px;align-items:center;position:relative}
                     .jf-photo-item img{width:90px;height:70px;object-fit:cover;border-radius:8px;border:1px solid #d3ccbd}
+                    .jf-photo-action{position:absolute;top:4px;right:4px;border:1px solid #e7b6b6;background:#fff7f7;color:#b02020;padding:4px;border-radius:6px;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;box-shadow:0 1px 3px rgba(0,0,0,.08);z-index:2}
+                    .jf-photo-action:disabled{opacity:.6;cursor:not-allowed}
                     .jf-small-title{font-size:18px;font-weight:700;margin-bottom:8px}
                     .jf-recent-list{display:grid;gap:8px;max-height:220px;overflow:auto;padding-right:2px}
                     .jf-recent-list-two{grid-template-columns:repeat(2,minmax(0,1fr))}
-                    .jf-recent-card{border:1px solid #d9d2c2;background:#fff;border-radius:8px;padding:8px;display:grid;gap:2px}
+                    .jf-recent-card{border:1px solid #d9d2c2;background:#fff;border-radius:8px;padding:8px;display:grid;gap:2px;position:relative}
+                    .jf-card-action{position:absolute;top:6px;right:6px;border:1px solid #e7b6b6;background:#fff7f7;color:#b02020;padding:4px;border-radius:6px;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;box-shadow:0 1px 3px rgba(0,0,0,.08);z-index:2}
+                    .jf-card-action:disabled{opacity:.6;cursor:not-allowed}
                     .jf-recent-chip{display:inline-flex;align-items:center;justify-content:center;border-radius:999px;padding:2px 8px;font-size:11px;font-weight:700;background:#ece7db;border:1px solid #d1c7b4;color:#2f3a4a;text-transform:uppercase;white-space:nowrap}
                     .jf-radio-row{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px;border:1px solid #cfd3db;border-radius:8px;background:#fff;padding:10px 8px}
                     .jf-radio-row label{display:inline-flex;align-items:center;justify-content:center;gap:6px;font-size:16px}
@@ -1118,6 +1283,54 @@ export default function ProgressSubmit({ submitToken }) {
                     </div>
                 ) : null}
             </Modal>
+            <ConfirmationModal
+                open={!!materialDeleteTarget}
+                title="Delete Material Request"
+                message={materialDeleteTarget?.material_name
+                    ? `Are you sure you want to delete "${materialDeleteTarget.material_name}"?`
+                    : 'Are you sure you want to delete this material request?'}
+                confirmLabel={deletingMaterialId ? 'Deleting...' : 'Delete'}
+                danger
+                processing={!!deletingMaterialId}
+                onClose={() => setMaterialDeleteTarget(null)}
+                onConfirm={() => deleteMaterialRequest(materialDeleteTarget?.id)}
+            />
+            <ConfirmationModal
+                open={!!deliveryDeleteTarget}
+                title="Delete Delivery Confirmation"
+                message={deliveryDeleteTarget?.item_delivered
+                    ? `Are you sure you want to delete "${deliveryDeleteTarget.item_delivered}"?`
+                    : 'Are you sure you want to delete this delivery confirmation?'}
+                confirmLabel={deletingDeliveryId ? 'Deleting...' : 'Delete'}
+                danger
+                processing={!!deletingDeliveryId}
+                onClose={() => setDeliveryDeleteTarget(null)}
+                onConfirm={() => deleteDeliveryConfirmation(deliveryDeleteTarget?.id)}
+            />
+            <ConfirmationModal
+                open={!!photoDeleteTarget}
+                title="Delete Photo"
+                message={photoDeleteTarget?.caption
+                    ? `Are you sure you want to delete "${photoDeleteTarget.caption}"?`
+                    : 'Are you sure you want to delete this photo?'}
+                confirmLabel={deletingPhotoId ? 'Deleting...' : 'Delete'}
+                danger
+                processing={!!deletingPhotoId}
+                onClose={() => setPhotoDeleteTarget(null)}
+                onConfirm={() => deletePhoto(photoDeleteTarget?.id)}
+            />
+            <ConfirmationModal
+                open={!!issueDeleteTarget}
+                title="Delete Issue Report"
+                message={issueDeleteTarget?.issue_title
+                    ? `Are you sure you want to delete "${issueDeleteTarget.issue_title}"?`
+                    : 'Are you sure you want to delete this issue report?'}
+                confirmLabel={deletingIssueId ? 'Deleting...' : 'Delete'}
+                danger
+                processing={!!deletingIssueId}
+                onClose={() => setIssueDeleteTarget(null)}
+                onConfirm={() => deleteIssueReport(issueDeleteTarget?.id)}
+            />
         </>
     );
 }

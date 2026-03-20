@@ -47,9 +47,19 @@ class PublicProgressController extends Controller
         return $this->publicProgressService->storeDelivery($request, $token);
     }
 
+    public function deleteDelivery(Request $request, string $token, \App\Models\DeliveryConfirmation $deliveryConfirmation)
+    {
+        return $this->publicProgressService->deleteDelivery($request, $token, $deliveryConfirmation);
+    }
+
     public function storeMaterialRequest(Request $request, string $token)
     {
         return $this->publicProgressService->storeMaterialRequest($request, $token);
+    }
+
+    public function deleteMaterialRequest(Request $request, string $token, \App\Models\MaterialRequest $materialRequest)
+    {
+        return $this->publicProgressService->deleteMaterialRequest($request, $token, $materialRequest);
     }
 
     public function storeWeeklyProgress(Request $request, string $token)
@@ -62,8 +72,18 @@ class PublicProgressController extends Controller
         return $this->publicProgressService->storePhoto($request, $token);
     }
 
+    public function deletePhoto(Request $request, string $token, \App\Models\ProgressPhoto $progressPhoto)
+    {
+        return $this->publicProgressService->deletePhoto($request, $token, $progressPhoto);
+    }
+
     public function storeIssueReport(Request $request, string $token)
     {
         return $this->publicProgressService->storeIssueReport($request, $token);
+    }
+
+    public function deleteIssueReport(Request $request, string $token, \App\Models\IssueReport $issueReport)
+    {
+        return $this->publicProgressService->deleteIssueReport($request, $token, $issueReport);
     }
 }

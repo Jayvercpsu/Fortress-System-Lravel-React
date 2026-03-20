@@ -48,10 +48,14 @@ Route::post('/progress-submit/{token}', [PublicProgressController::class, 'store
 Route::post('/progress-submit/{token}/submit-all', [PublicProgressController::class, 'storeAll'])->name('public.progress-submit.submit_all');
 Route::post('/progress-submit/{token}/attendance', [PublicProgressController::class, 'storeAttendance'])->name('public.progress-submit.attendance');
 Route::post('/progress-submit/{token}/delivery', [PublicProgressController::class, 'storeDelivery'])->name('public.progress-submit.delivery');
+Route::delete('/progress-submit/{token}/delivery/{deliveryConfirmation}', [PublicProgressController::class, 'deleteDelivery'])->name('public.progress-submit.delivery.delete');
 Route::post('/progress-submit/{token}/material-request', [PublicProgressController::class, 'storeMaterialRequest'])->name('public.progress-submit.material');
+Route::delete('/progress-submit/{token}/material-request/{materialRequest}', [PublicProgressController::class, 'deleteMaterialRequest'])->name('public.progress-submit.material.delete');
 Route::post('/progress-submit/{token}/weekly-progress', [PublicProgressController::class, 'storeWeeklyProgress'])->name('public.progress-submit.weekly');
 Route::post('/progress-submit/{token}/photo', [PublicProgressController::class, 'storePhoto'])->name('public.progress-submit.photo');
+Route::delete('/progress-submit/{token}/photo/{progressPhoto}', [PublicProgressController::class, 'deletePhoto'])->name('public.progress-submit.photo.delete');
 Route::post('/progress-submit/{token}/issue-report', [PublicProgressController::class, 'storeIssueReport'])->name('public.progress-submit.issue');
+Route::delete('/progress-submit/{token}/issue-report/{issueReport}', [PublicProgressController::class, 'deleteIssueReport'])->name('public.progress-submit.issue.delete');
 
 Route::middleware(['auth', 'role:head_admin,admin,hr,foreman'])->group(function () {
     Route::get('/settings', [SettingsController::class, 'index'])->name('settings.index');
