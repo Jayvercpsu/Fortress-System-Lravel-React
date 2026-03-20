@@ -22,6 +22,8 @@ interface MonitoringRepositoryInterface
 
     public function averageScopeProgress(Project $project): float;
 
+    public function updateWeeklyProgressForScope(int $projectId, string $scopeName, float $progressPercent, string $weekStart): void;
+
     public function saveProjectOverallProgress(Project $project, int $overallProgress): void;
 
     public function assignedForemanIdsForProject(int $projectId): Collection;

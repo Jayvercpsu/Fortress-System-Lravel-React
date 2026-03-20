@@ -9,6 +9,7 @@ use App\Models\User;
 use App\Models\WeeklyAccomplishment;
 use App\Repositories\Contracts\MonitoringRepositoryInterface;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Str;
 
 class MonitoringRepository implements MonitoringRepositoryInterface
 {
@@ -53,6 +54,20 @@ class MonitoringRepository implements MonitoringRepositoryInterface
     public function averageScopeProgress(Project $project): float
     {
         return (float) ($project->scopes()->avg('progress_percent') ?? 0);
+    }
+
+    public function updateWeeklyProgressForScope(int $projectId, string $scopeName, float $progressPercent, string $weekStart): void
+    {
+        $normalizedScope = trim($scopeName);
+        if ($projectId <= 0 || $normalizedScope === '' || trim($weekStart) === '') {
+            return;
+        }
+
+        WeeklyAccomplishment::query()
+            ->where('project_id', $projectId)
+            ->whereDate('week_start', $weekStart)
+            ->whereRaw('LOWER(scope_of_work) = ?', [Str::lower($normalizedScope)])
+            ->update(['percent_completed' => $progressPercent]);
     }
 
     public function saveProjectOverallProgress(Project $project, int $overallProgress): void

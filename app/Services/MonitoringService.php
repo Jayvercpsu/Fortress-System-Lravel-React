@@ -74,8 +74,21 @@ class MonitoringService
 
     public function updateScope(ProjectScope $scope, array $validated): void
     {
+        $previousScopeName = (string) ($scope->scope_name ?? '');
         $this->validateAssignedPersonnel($scope->project, $validated);
         $this->monitoringRepository->updateScope($scope, $validated);
+        $latestWeekStart = $this->monitoringRepository->latestWeeklyWeekStart((int) $scope->project_id);
+        if ($latestWeekStart !== null) {
+            $progressPercent = array_key_exists('progress_percent', $validated)
+                ? (float) $validated['progress_percent']
+                : (float) ($scope->progress_percent ?? 0);
+            $this->monitoringRepository->updateWeeklyProgressForScope(
+                (int) $scope->project_id,
+                $previousScopeName,
+                $progressPercent,
+                $latestWeekStart
+            );
+        }
         $this->recomputeOverallProgress($scope->project);
     }
 
