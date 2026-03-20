@@ -240,8 +240,7 @@ export default function ClientDashboard({
                         />
                         <StatCard
                             label="Downpayment"
-                            value={money(assignedProject?.downpayment_amount)}
-                            subtext={`${Number(assignedProject?.downpayment_percent || 0).toFixed(2)}% of contract`}
+                            value={money(assignedProject?.total_client_payment)}
                         />
                         <StatCard
                             label="Remaining Balance"
