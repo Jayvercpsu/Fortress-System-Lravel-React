@@ -132,6 +132,7 @@ class BuildService
                     'name' => $project->name,
                     'overall_progress' => (int) $project->overall_progress,
                     'status' => $project->status,
+                    'phase' => $project->phase,
                 ],
                 'scopes' => $scopes,
                 'foreman_options' => $this->buildRepository->projectForemanOptions($project),

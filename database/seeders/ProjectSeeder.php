@@ -18,7 +18,7 @@ class ProjectSeeder extends Seeder
                 'assigned' => 'Team A',
                 'target' => now()->addMonths(4)->toDateString(),
                 'status' => 'PLANNING',
-                'phase' => 'DESIGN',
+                'phase' => 'Design',
                 'overall_progress' => 0,
             ]
         );

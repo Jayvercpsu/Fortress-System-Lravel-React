@@ -221,6 +221,63 @@ export default function HeadAdminProjectsShow({
     };
     const phaseKey = String(project?.phase || '').trim().toLowerCase();
     const statusKey = String(project?.status || '').trim().toLowerCase();
+    const statusPillStyle = (() => {
+        switch (statusKey) {
+            case 'cancelled':
+                return {
+                    ...pillStyle,
+                    background: 'rgba(239,68,68,0.12)',
+                    border: '1px solid rgba(239,68,68,0.35)',
+                    color: '#b91c1c',
+                };
+            case 'on_hold':
+            case 'on-hold':
+                return {
+                    ...pillStyle,
+                    background: 'rgba(245,158,11,0.16)',
+                    border: '1px solid rgba(245,158,11,0.35)',
+                    color: '#b45309',
+                };
+            case 'delayed':
+                return {
+                    ...pillStyle,
+                    background: 'rgba(234,88,12,0.16)',
+                    border: '1px solid rgba(234,88,12,0.35)',
+                    color: '#c2410c',
+                };
+            case 'proposal':
+            case 'planning':
+                return {
+                    ...pillStyle,
+                    background: 'rgba(148,163,184,0.2)',
+                    border: '1px solid rgba(148,163,184,0.45)',
+                    color: '#475569',
+                };
+            case 'active':
+            case 'ongoing':
+                return {
+                    ...pillStyle,
+                    background: 'rgba(59,130,246,0.12)',
+                    border: '1px solid rgba(59,130,246,0.28)',
+                    color: '#1d4ed8',
+                };
+            case 'completed':
+            case 'done':
+                return {
+                    ...pillStyle,
+                    background: 'rgba(34,197,94,0.12)',
+                    border: '1px solid rgba(34,197,94,0.25)',
+                    color: '#047857',
+                };
+            default:
+                return {
+                    ...pillStyle,
+                    background: 'rgba(34,197,94,0.12)',
+                    border: '1px solid rgba(34,197,94,0.25)',
+                    color: '#047857',
+                };
+        }
+    })();
     const isDesignPhase = phaseKey === 'design';
     const isLocked = ['completed', 'cancelled'].includes(statusKey);
     const canTransferToConstructionFlag = project?.can_transfer_to_construction;
@@ -696,10 +753,7 @@ export default function HeadAdminProjectsShow({
                                     {project.status && (
                                         <span
                                             style={{
-                                                ...pillStyle,
-                                                background: 'rgba(34,197,94,0.12)',
-                                                border: '1px solid rgba(34,197,94,0.25)',
-                                                color: '#047857',
+                                                ...statusPillStyle,
                                             }}
                                         >
                                             {project.status}

@@ -41,6 +41,7 @@ export default function MonitoringBoardPage({
     scopes = [],
     foreman_options: foremanOptions = [],
     embedded = false,
+    readOnly = false,
 }) {
     const [editScope, setEditScope] = useState(null);
     const [scopeToDelete, setScopeToDelete] = useState(null);
@@ -121,6 +122,7 @@ export default function MonitoringBoardPage({
 
     const submitCreate = (event) => {
         event.preventDefault();
+        if (readOnly) return;
         post(`/projects/${project.id}/scopes`, {
             preserveScroll: true,
             onSuccess: () => {
@@ -139,6 +141,7 @@ export default function MonitoringBoardPage({
     };
 
     const startEdit = (scope) => {
+        if (readOnly) return;
         setEditScope(scope);
         if (clearEditErrors) clearEditErrors();
         setEditData({
@@ -163,6 +166,7 @@ export default function MonitoringBoardPage({
     const saveEdit = (event) => {
         event.preventDefault();
         if (!editScope) return;
+        if (readOnly) return;
         patch(`/scopes/${editScope.id}`, {
             preserveScroll: true,
             onSuccess: () => {
@@ -174,6 +178,7 @@ export default function MonitoringBoardPage({
     };
 
     const requestDeleteScope = (scope) => {
+        if (readOnly) return;
         setScopeToDelete(scope);
     };
 
@@ -184,6 +189,7 @@ export default function MonitoringBoardPage({
 
     const confirmDeleteScope = () => {
         if (!scopeToDelete) return;
+        if (readOnly) return;
 
         setDeleting(true);
         router.delete(`/scopes/${scopeToDelete.id}`, {
@@ -198,6 +204,7 @@ export default function MonitoringBoardPage({
     };
 
     const requestDeletePhoto = (photo, scope) => {
+        if (readOnly) return;
         setPhotoToDelete({
             ...photo,
             scope_name: scope?.scope_name || '',
@@ -211,6 +218,7 @@ export default function MonitoringBoardPage({
 
     const confirmDeletePhoto = () => {
         if (!photoToDelete) return;
+        if (readOnly) return;
 
         setDeletingPhoto(true);
         router.delete(`/scope-photos/${photoToDelete.id}`, {
@@ -225,6 +233,7 @@ export default function MonitoringBoardPage({
     };
 
     const openPhotoUploader = (scopeId) => {
+        if (readOnly) return;
         if (uploadingPhoto) return;
         setUploadScopeId(scopeId);
         resetPhotoData();
@@ -322,9 +331,16 @@ export default function MonitoringBoardPage({
                         value={scopeSearch}
                         onChange={(event) => setScopeSearch(event.target.value)}
                         placeholder="Search scopes..."
+                        disabled={readOnly}
                         style={{ ...inputStyle, maxWidth: 320, width: '100%' }}
                     />
-                    <ActionButton type="button" variant="success" onClick={() => setShowCreateModal(true)} style={{ padding: '10px 16px', fontSize: 13 }}>
+                    <ActionButton
+                        type="button"
+                        variant="success"
+                        onClick={() => setShowCreateModal(true)}
+                        disabled={readOnly}
+                        style={{ padding: '10px 16px', fontSize: 13 }}
+                    >
                         Add Scope
                     </ActionButton>
                 </div>
@@ -439,15 +455,15 @@ export default function MonitoringBoardPage({
                                                                         </div>
                                                                     </div>
                                                                 </button>
-                                                                <button
-                                                                    type="button"
-                                                                    aria-label="Delete photo"
-                                                                    disabled={deletingPhoto}
-                                                                    onClick={(event) => {
-                                                                        event.stopPropagation();
-                                                                        requestDeletePhoto(photo, scope);
-                                                                    }}
-                                                                    style={{
+                                                            <button
+                                                                type="button"
+                                                                aria-label="Delete photo"
+                                                                disabled={deletingPhoto || readOnly}
+                                                                onClick={(event) => {
+                                                                    event.stopPropagation();
+                                                                    requestDeletePhoto(photo, scope);
+                                                                }}
+                                                                style={{
                                                                         position: 'absolute',
                                                                         top: 6,
                                                                         right: 6,
@@ -491,12 +507,14 @@ export default function MonitoringBoardPage({
                                                             key={`photo-input-${scope.id}-${photoInputKey}`}
                                                             type="file"
                                                             accept="image/*"
+                                                            disabled={readOnly || uploadingPhoto}
                                                             onChange={(event) => setPhotoData('photo', event.target.files?.[0] ?? null)}
                                                         />
                                                         <TextInput
                                                             value={photoData.caption}
                                                             onChange={(event) => setPhotoData('caption', event.target.value)}
                                                             placeholder="Caption (optional)"
+                                                            disabled={readOnly || uploadingPhoto}
                                                             style={inputStyle}
                                                         />
                                                         {(photoErrors.photo || photoErrors.caption) && (
@@ -506,13 +524,18 @@ export default function MonitoringBoardPage({
                                                         )}
                                                         <div style={{ display: 'inline-flex', gap: 8 }}>
                                                             <ActionButton type="button" onClick={cancelPhotoUpload} disabled={uploadingPhoto} style={{ padding: '8px 10px' }}>Cancel</ActionButton>
-                                                            <ActionButton type="submit" variant="success" disabled={uploadingPhoto} style={{ padding: '8px 10px' }}>
+                                                            <ActionButton type="submit" variant="success" disabled={uploadingPhoto || readOnly} style={{ padding: '8px 10px' }}>
                                                                 {uploadingPhoto ? 'Uploading...' : 'Upload Photo'}
                                                             </ActionButton>
                                                         </div>
                                                     </form>
                                                 ) : (
-                                                    <ActionButton type="button" onClick={() => openPhotoUploader(scope.id)} style={{ padding: '8px 10px', width: 'fit-content' }}>
+                                                    <ActionButton
+                                                        type="button"
+                                                        onClick={() => openPhotoUploader(scope.id)}
+                                                        disabled={readOnly}
+                                                        style={{ padding: '8px 10px', width: 'fit-content' }}
+                                                    >
                                                         Add Photo
                                                     </ActionButton>
                                                 )}
@@ -523,12 +546,12 @@ export default function MonitoringBoardPage({
                                         </td>
                                         <td style={{ padding: '10px 8px', borderBottom: '1px solid var(--border-color)' }}>
                                             <div style={{ display: 'inline-flex', gap: 8 }}>
-                                                <ActionButton type="button" variant="edit" onClick={() => startEdit(scope)} style={{ padding: '8px 10px' }}>Edit</ActionButton>
+                                                <ActionButton type="button" variant="edit" onClick={() => startEdit(scope)} disabled={readOnly} style={{ padding: '8px 10px' }}>Edit</ActionButton>
                                                 <ActionButton
                                                     type="button"
                                                     variant="danger"
                                                     onClick={() => requestDeleteScope(scope)}
-                                                    disabled={deleting}
+                                                    disabled={deleting || readOnly}
                                                     loading={deleting && scopeToDelete?.id === scope.id}
                                                     style={{ padding: '8px 10px' }}
                                                 >
@@ -585,6 +608,7 @@ export default function MonitoringBoardPage({
                             <TextInput
                                 value={editData.scope_name}
                                 onChange={(event) => setEditData('scope_name', event.target.value)}
+                                disabled={readOnly || updating}
                                 style={inputStyle}
                             />
                             {editErrors.scope_name && <div style={{ color: '#f87171', fontSize: 12, marginTop: 4 }}>{editErrors.scope_name}</div>}
@@ -597,6 +621,7 @@ export default function MonitoringBoardPage({
                                     options={assignedPersonnelOptions}
                                     value={editData.assigned_personnel}
                                     onChange={(value) => setEditData('assigned_personnel', value || '')}
+                                    disabled={readOnly || updating}
                                     placeholder="Select foreman"
                                     searchPlaceholder="Search foreman..."
                                     emptyMessage="No foreman found"
@@ -608,6 +633,7 @@ export default function MonitoringBoardPage({
                                 <TextInput
                                     value={editData.assigned_personnel}
                                     onChange={(event) => setEditData('assigned_personnel', event.target.value)}
+                                    disabled={readOnly || updating}
                                     style={inputStyle}
                                 />
                             )}
@@ -622,6 +648,7 @@ export default function MonitoringBoardPage({
                                 max="100"
                                 value={editData.progress_percent}
                                 onChange={(event) => setEditData('progress_percent', event.target.value)}
+                                disabled={readOnly || updating}
                                 style={inputStyle}
                             />
                             {editErrors.progress_percent && <div style={{ color: '#f87171', fontSize: 12, marginTop: 4 }}>{editErrors.progress_percent}</div>}
@@ -632,6 +659,7 @@ export default function MonitoringBoardPage({
                             <SelectInput
                                 value={editData.status}
                                 onChange={(event) => setEditData('status', event.target.value)}
+                                disabled={readOnly || updating}
                                 style={inputStyle}
                             >
                                 {STATUS_OPTIONS.map((status) => (
@@ -651,6 +679,7 @@ export default function MonitoringBoardPage({
                                 step="0.01"
                                 value={editData.contract_amount}
                                 onChange={(event) => setEditData('contract_amount', event.target.value)}
+                                disabled={readOnly || updating}
                                 style={inputStyle}
                             />
                             {editErrors.contract_amount && <div style={{ color: '#f87171', fontSize: 12, marginTop: 4 }}>{editErrors.contract_amount}</div>}
@@ -665,6 +694,7 @@ export default function MonitoringBoardPage({
                                 step="0.01"
                                 value={editData.weight_percent}
                                 onChange={(event) => setEditData('weight_percent', event.target.value)}
+                                disabled={readOnly || updating}
                                 style={inputStyle}
                             />
                             {editErrors.weight_percent && <div style={{ color: '#f87171', fontSize: 12, marginTop: 4 }}>{editErrors.weight_percent}</div>}
@@ -672,13 +702,23 @@ export default function MonitoringBoardPage({
 
                         <label>
                             <div style={{ fontSize: 12, marginBottom: 6 }}>Start Date</div>
-                            <DatePickerInput value={editData.start_date} onChange={(value) => setEditData('start_date', value)} style={inputStyle} />
+                            <DatePickerInput
+                                value={editData.start_date}
+                                onChange={(value) => setEditData('start_date', value)}
+                                style={inputStyle}
+                                disabled={readOnly || updating}
+                            />
                             {editErrors.start_date && <div style={{ color: '#f87171', fontSize: 12, marginTop: 4 }}>{editErrors.start_date}</div>}
                         </label>
 
                         <label>
                             <div style={{ fontSize: 12, marginBottom: 6 }}>Target Completion</div>
-                            <DatePickerInput value={editData.target_completion} onChange={(value) => setEditData('target_completion', value)} style={inputStyle} />
+                            <DatePickerInput
+                                value={editData.target_completion}
+                                onChange={(value) => setEditData('target_completion', value)}
+                                style={inputStyle}
+                                disabled={readOnly || updating}
+                            />
                             {editErrors.target_completion && <div style={{ color: '#f87171', fontSize: 12, marginTop: 4 }}>{editErrors.target_completion}</div>}
                         </label>
 
@@ -687,6 +727,7 @@ export default function MonitoringBoardPage({
                             <TextareaInput
                                 value={editData.remarks}
                                 onChange={(event) => setEditData('remarks', event.target.value)}
+                                disabled={readOnly || updating}
                                 style={{ ...inputStyle, minHeight: 90 }}
                             />
                             {editErrors.remarks && <div style={{ color: '#f87171', fontSize: 12, marginTop: 4 }}>{editErrors.remarks}</div>}
@@ -705,6 +746,7 @@ export default function MonitoringBoardPage({
                             <TextInput
                                 value={createData.scope_name}
                                 onChange={(event) => setCreateData('scope_name', event.target.value)}
+                                disabled={readOnly || creating}
                                 style={inputStyle}
                             />
                             {createErrors.scope_name && <div style={{ color: '#f87171', fontSize: 12, marginTop: 4 }}>{createErrors.scope_name}</div>}
@@ -717,6 +759,7 @@ export default function MonitoringBoardPage({
                                     options={assignedPersonnelOptions}
                                     value={createData.assigned_personnel}
                                     onChange={(value) => setCreateData('assigned_personnel', value || '')}
+                                    disabled={readOnly || creating}
                                     placeholder="Select foreman"
                                     searchPlaceholder="Search foreman..."
                                     emptyMessage="No foreman found"
@@ -728,6 +771,7 @@ export default function MonitoringBoardPage({
                                 <TextInput
                                     value={createData.assigned_personnel}
                                     onChange={(event) => setCreateData('assigned_personnel', event.target.value)}
+                                    disabled={readOnly || creating}
                                     style={inputStyle}
                                 />
                             )}
@@ -742,6 +786,7 @@ export default function MonitoringBoardPage({
                                 max="100"
                                 value={createData.progress_percent}
                                 onChange={(event) => setCreateData('progress_percent', event.target.value)}
+                                disabled={readOnly || creating}
                                 style={inputStyle}
                             />
                             {createErrors.progress_percent && <div style={{ color: '#f87171', fontSize: 12, marginTop: 4 }}>{createErrors.progress_percent}</div>}
@@ -752,6 +797,7 @@ export default function MonitoringBoardPage({
                             <SelectInput
                                 value={createData.status}
                                 onChange={(event) => setCreateData('status', event.target.value)}
+                                disabled={readOnly || creating}
                                 style={inputStyle}
                             >
                                 {STATUS_OPTIONS.map((status) => (
@@ -771,6 +817,7 @@ export default function MonitoringBoardPage({
                                 step="0.01"
                                 value={createData.contract_amount}
                                 onChange={(event) => setCreateData('contract_amount', event.target.value)}
+                                disabled={readOnly || creating}
                                 style={inputStyle}
                             />
                             {createErrors.contract_amount && <div style={{ color: '#f87171', fontSize: 12, marginTop: 4 }}>{createErrors.contract_amount}</div>}
@@ -785,6 +832,7 @@ export default function MonitoringBoardPage({
                                 step="0.01"
                                 value={createData.weight_percent}
                                 onChange={(event) => setCreateData('weight_percent', event.target.value)}
+                                disabled={readOnly || creating}
                                 style={inputStyle}
                             />
                             {createErrors.weight_percent && <div style={{ color: '#f87171', fontSize: 12, marginTop: 4 }}>{createErrors.weight_percent}</div>}
@@ -792,13 +840,23 @@ export default function MonitoringBoardPage({
 
                         <label>
                             <div style={{ fontSize: 12, marginBottom: 6 }}>Start Date</div>
-                            <DatePickerInput value={createData.start_date} onChange={(value) => setCreateData('start_date', value)} style={inputStyle} />
+                            <DatePickerInput
+                                value={createData.start_date}
+                                onChange={(value) => setCreateData('start_date', value)}
+                                style={inputStyle}
+                                disabled={readOnly || creating}
+                            />
                             {createErrors.start_date && <div style={{ color: '#f87171', fontSize: 12, marginTop: 4 }}>{createErrors.start_date}</div>}
                         </label>
 
                         <label>
                             <div style={{ fontSize: 12, marginBottom: 6 }}>Target Completion</div>
-                            <DatePickerInput value={createData.target_completion} onChange={(value) => setCreateData('target_completion', value)} style={inputStyle} />
+                            <DatePickerInput
+                                value={createData.target_completion}
+                                onChange={(value) => setCreateData('target_completion', value)}
+                                style={inputStyle}
+                                disabled={readOnly || creating}
+                            />
                             {createErrors.target_completion && <div style={{ color: '#f87171', fontSize: 12, marginTop: 4 }}>{createErrors.target_completion}</div>}
                         </label>
 
@@ -807,6 +865,7 @@ export default function MonitoringBoardPage({
                             <TextareaInput
                                 value={createData.remarks}
                                 onChange={(event) => setCreateData('remarks', event.target.value)}
+                                disabled={readOnly || creating}
                                 style={{ ...inputStyle, minHeight: 90 }}
                             />
                             {createErrors.remarks && <div style={{ color: '#f87171', fontSize: 12, marginTop: 4 }}>{createErrors.remarks}</div>}
@@ -816,7 +875,7 @@ export default function MonitoringBoardPage({
                             <ActionButton type="button" onClick={() => setShowCreateModal(false)} disabled={creating} style={{ padding: '10px 16px', fontSize: 13 }}>
                                 Cancel
                             </ActionButton>
-                            <ActionButton type="submit" variant="success" disabled={creating} style={{ padding: '10px 16px', fontSize: 13 }}>
+                            <ActionButton type="submit" variant="success" disabled={creating || readOnly} style={{ padding: '10px 16px', fontSize: 13 }}>
                                 {creating ? 'Adding...' : 'Add Scope'}
                             </ActionButton>
                         </div>

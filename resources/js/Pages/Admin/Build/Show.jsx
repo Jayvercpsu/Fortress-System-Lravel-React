@@ -54,8 +54,9 @@ export default function AdminBuildShow({
     const [deletingExpense, setDeletingExpense] = useState(false);
     const [otherCategory, setOtherCategory] = useState('');
     const [otherEditCategory, setOtherEditCategory] = useState('');
-    const status = String(build?.project_status || build?.status || '').trim().toLowerCase();
-    const isLocked = status === 'completed' || status === 'cancelled';
+    const projectStatus = String(monitoring?.project?.status || build?.project_status || build?.status || '').trim().toLowerCase();
+    const projectPhase = String(monitoring?.project?.phase || '').trim().toLowerCase();
+    const isLocked = projectPhase === 'completed' || projectStatus === 'completed' || projectStatus === 'cancelled';
 
     const { data, setData, patch, processing, errors } = useForm({
         construction_contract: build.construction_contract ?? 0,
@@ -415,6 +416,7 @@ export default function AdminBuildShow({
                                     project={monitoringProject}
                                     scopes={monitoringScopes}
                                     foreman_options={monitoringForemen}
+                                    readOnly={isLocked}
                                 />
                             </div>
                         )}
@@ -446,7 +448,7 @@ export default function AdminBuildShow({
                                     placeholder={availableCategories.length === 0 ? 'No categories yet' : 'Select category'}
                                     searchPlaceholder="Search categories..."
                                     emptyMessage="No categories found"
-                                    disabled={availableCategories.length === 0}
+                                    disabled={isLocked || availableCategories.length === 0}
                                     style={{ ...inputStyle, minHeight: 40, padding: '8px 10px' }}
                                     dropdownWidth={320}
                                 />
@@ -538,6 +540,7 @@ export default function AdminBuildShow({
                                 placeholder="Select category"
                                 searchPlaceholder="Search categories..."
                                 emptyMessage="No categories found"
+                                disabled={isLocked || updatingExpense}
                                 style={{ ...inputStyle, minHeight: 40, padding: '8px 10px' }}
                                 dropdownWidth={320}
                             />
@@ -557,19 +560,37 @@ export default function AdminBuildShow({
 
                         <label>
                             <div style={{ fontSize: 12, marginBottom: 6 }}>Amount</div>
-                            <TextInput type="number" step="0.01" min="0" value={editData.amount} onChange={(e) => setEditData('amount', e.target.value)} style={inputStyle} />
+                            <TextInput
+                                type="number"
+                                step="0.01"
+                                min="0"
+                                value={editData.amount}
+                                onChange={(e) => setEditData('amount', e.target.value)}
+                                style={inputStyle}
+                                disabled={isLocked || updatingExpense}
+                            />
                             {editErrors.amount && <div style={{ color: '#f87171', fontSize: 12, marginTop: 4 }}>{editErrors.amount}</div>}
                         </label>
 
                         <label>
                             <div style={{ fontSize: 12, marginBottom: 6 }}>Date</div>
-                            <DatePickerInput value={editData.date} onChange={(value) => setEditData('date', value)} style={inputStyle} />
+                            <DatePickerInput
+                                value={editData.date}
+                                onChange={(value) => setEditData('date', value)}
+                                style={inputStyle}
+                                disabled={isLocked || updatingExpense}
+                            />
                             {editErrors.date && <div style={{ color: '#f87171', fontSize: 12, marginTop: 4 }}>{editErrors.date}</div>}
                         </label>
 
                         <label>
                             <div style={{ fontSize: 12, marginBottom: 6 }}>Note</div>
-                            <TextInput value={editData.note} onChange={(e) => setEditData('note', e.target.value)} style={inputStyle} />
+                            <TextInput
+                                value={editData.note}
+                                onChange={(e) => setEditData('note', e.target.value)}
+                                style={inputStyle}
+                                disabled={isLocked || updatingExpense}
+                            />
                             {editErrors.note && <div style={{ color: '#f87171', fontSize: 12, marginTop: 4 }}>{editErrors.note}</div>}
                         </label>
                     </div>
