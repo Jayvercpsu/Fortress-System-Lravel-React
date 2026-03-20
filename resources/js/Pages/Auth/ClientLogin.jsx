@@ -20,7 +20,7 @@ const inputStyle = {
 
 export default function ClientLogin() {
     useEffect(() => {
-        const savedTheme = localStorage.getItem('bb_theme') || 'dark';
+        const savedTheme = localStorage.getItem('bb_theme') || 'light';
         document.documentElement.setAttribute('data-theme', savedTheme);
     }, []);
 

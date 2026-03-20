@@ -7,7 +7,7 @@ import { createRoot } from 'react-dom/client';
 import { Toaster } from 'react-hot-toast';
 
 if (typeof window !== 'undefined') {
-    const savedTheme = window.localStorage.getItem('bb_theme') || 'dark';
+    const savedTheme = window.localStorage.getItem('bb_theme') || 'light';
     document.documentElement.setAttribute('data-theme', savedTheme);
 }
 

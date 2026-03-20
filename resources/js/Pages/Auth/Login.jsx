@@ -8,7 +8,7 @@ import { toastMessages } from '../../constants/toastMessages';
 
 export default function Login() {
     useEffect(() => {
-        const savedTheme = localStorage.getItem('bb_theme') || 'dark';
+        const savedTheme = localStorage.getItem('bb_theme') || 'light';
         document.documentElement.setAttribute('data-theme', savedTheme);
     }, []);
 

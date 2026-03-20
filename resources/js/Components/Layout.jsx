@@ -101,7 +101,7 @@ export default function Layout({ children, title }) {
     const activeVisitPathRef = useRef('');
 
     // âœ… Theme state (persisted)
-    const [theme, setTheme] = useState(() => localStorage.getItem('bb_theme') || 'dark');
+    const [theme, setTheme] = useState(() => localStorage.getItem('bb_theme') || 'light');
     const isDark = theme === 'dark';
 
     // âœ… Apply theme globally to <html>
@@ -451,4 +451,3 @@ export default function Layout({ children, title }) {
         </>
     );
 }
-
