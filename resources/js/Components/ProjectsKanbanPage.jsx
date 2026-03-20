@@ -101,15 +101,25 @@ export default function ProjectsKanbanPage({
     }, [projectBoard.search]);
 
     useEffect(() => {
+        const isProjectsIndex = (rawUrl) => {
+            if (!rawUrl) return false;
+            try {
+                const nextUrl = new URL(String(rawUrl), window.location.origin);
+                return nextUrl.pathname === '/projects';
+            } catch (error) {
+                return String(rawUrl).startsWith('/projects');
+            }
+        };
+
         const handleStart = (event) => {
             const url = event?.detail?.visit?.url || '';
-            if (String(url).includes('/projects')) {
+            if (isProjectsIndex(url)) {
                 setBoardLoading(true);
             }
         };
         const handleFinish = (event) => {
             const url = event?.detail?.visit?.url || '';
-            if (String(url).includes('/projects')) {
+            if (isProjectsIndex(url)) {
                 setBoardLoading(false);
             }
         };
