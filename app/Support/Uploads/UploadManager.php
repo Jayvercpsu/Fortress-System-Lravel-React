@@ -71,7 +71,25 @@ class UploadManager
             return;
         }
 
-        Storage::disk($disk ?: self::disk())->delete($normalizedPath);
+        $preferredDisk = $disk ?: self::disk();
+        $candidateDisks = collect([$preferredDisk, 'public'])
+            ->when(self::hasS3Config(), fn ($disks) => $disks->push('s3'))
+            ->unique()
+            ->values();
+
+        foreach ($candidateDisks as $candidateDisk) {
+            try {
+                $storage = Storage::disk((string) $candidateDisk);
+                if (!$storage->exists($normalizedPath)) {
+                    continue;
+                }
+
+                $storage->delete($normalizedPath);
+                return;
+            } catch (\Throwable $e) {
+                // Ignore this disk and continue with fallbacks.
+            }
+        }
     }
 
     private static function isImage(UploadedFile $file): bool
@@ -102,5 +120,12 @@ class UploadManager
     private static function encodeForStorage(ImageInterface $image, UploadedFile $file): array
     {
         return [$image->toWebp(self::IMAGE_QUALITY), 'webp'];
+    }
+
+    private static function hasS3Config(): bool
+    {
+        return (string) config('filesystems.disks.s3.bucket') !== ''
+            && (string) config('filesystems.disks.s3.key') !== ''
+            && (string) config('filesystems.disks.s3.secret') !== '';
     }
 }

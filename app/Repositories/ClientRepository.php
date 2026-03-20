@@ -5,6 +5,7 @@ namespace App\Repositories;
 use App\Models\ProjectAssignment;
 use App\Models\User;
 use App\Repositories\Contracts\ClientRepositoryInterface;
+use App\Support\Uploads\UploadManager;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Collection;
 
@@ -107,6 +108,8 @@ class ClientRepository implements ClientRepositoryInterface
 
     public function deleteClient(User $user): void
     {
+        $user->loadMissing('detail');
+        UploadManager::delete($user->detail?->profile_photo_path);
         $user->delete();
     }
 }

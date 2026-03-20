@@ -82,6 +82,13 @@ class MonitoringBoardRepository implements MonitoringBoardRepositoryInterface
 
     public function deleteItem(MonitoringBoardItem $item): void
     {
+        $item->files()
+            ->pluck('file_path')
+            ->map(fn ($path) => trim((string) $path))
+            ->filter(fn (string $path) => $path !== '')
+            ->unique()
+            ->each(fn (string $path) => UploadManager::delete($path));
+
         $item->delete();
     }
 

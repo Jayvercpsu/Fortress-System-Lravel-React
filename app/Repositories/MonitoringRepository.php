@@ -8,6 +8,7 @@ use App\Models\ProjectScope;
 use App\Models\User;
 use App\Models\WeeklyAccomplishment;
 use App\Repositories\Contracts\MonitoringRepositoryInterface;
+use App\Support\Uploads\UploadManager;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Str;
 
@@ -33,6 +34,13 @@ class MonitoringRepository implements MonitoringRepositoryInterface
 
     public function deleteScope(ProjectScope $scope): void
     {
+        $scope->photos()
+            ->pluck('photo_path')
+            ->map(fn ($path) => trim((string) $path))
+            ->filter(fn (string $path) => $path !== '')
+            ->unique()
+            ->each(fn (string $path) => UploadManager::delete($path));
+
         $scope->delete();
     }
 

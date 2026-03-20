@@ -1120,6 +1120,8 @@ class PublicProgressService
                 ->where('photo_path', $photoPath)
                 ->where('caption', 'like', '[Delivery]%')
                 ->delete();
+
+            $this->deleteUploadedPath($photoPath);
         }
 
         return redirect()
@@ -1198,6 +1200,8 @@ class PublicProgressService
                 ->where('photo_path', $photoPath)
                 ->where('caption', 'like', '[Material]%')
                 ->delete();
+
+            $this->deleteUploadedPath($photoPath);
         }
 
         return redirect()
@@ -1310,7 +1314,9 @@ class PublicProgressService
             abort(403);
         }
 
+        $photoPath = $progressPhoto->photo_path;
         $progressPhoto->delete();
+        $this->deleteUploadedPath($photoPath);
 
         return redirect()
             ->route('public.progress-submit.show', ['token' => $token]);
@@ -1382,6 +1388,8 @@ class PublicProgressService
                 ->where('photo_path', $photoPath)
                 ->where('caption', 'like', '[Issue]%')
                 ->delete();
+
+            $this->deleteUploadedPath($photoPath);
         }
 
         return redirect()
@@ -1398,6 +1406,16 @@ class PublicProgressService
         abort_unless($submitToken->isActive(), 404);
 
         return $submitToken;
+    }
+
+    private function deleteUploadedPath(?string $path): void
+    {
+        $normalizedPath = trim((string) $path);
+        if ($normalizedPath === '') {
+            return;
+        }
+
+        UploadManager::delete($normalizedPath);
     }
 
     private function buildReceiptPayload(ProgressSubmitToken $submitToken): array

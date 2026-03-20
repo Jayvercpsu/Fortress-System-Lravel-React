@@ -23,6 +23,7 @@ use App\Models\WeeklyAccomplishment;
 use App\Models\Worker;
 use App\Repositories\Contracts\ProjectRepositoryInterface;
 use App\Support\Projects\ProjectFlow;
+use App\Support\Uploads\UploadManager;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -178,10 +179,29 @@ class ProjectRepository implements ProjectRepositoryInterface
             $scopeIds = ProjectScope::query()
                 ->where('project_id', $projectId)
                 ->pluck('id');
+            $uploadedPaths = collect();
 
             if ($scopeIds->isNotEmpty()) {
+                $uploadedPaths = $uploadedPaths->merge(
+                    ScopePhoto::query()
+                        ->whereIn('project_scope_id', $scopeIds->all())
+                        ->pluck('photo_path')
+                );
                 ScopePhoto::query()->whereIn('project_scope_id', $scopeIds->all())->delete();
             }
+
+            $uploadedPaths = $uploadedPaths
+                ->merge(MaterialRequest::query()->where('project_id', $projectId)->pluck('photo_path'))
+                ->merge(IssueReport::query()->where('project_id', $projectId)->pluck('photo_path'))
+                ->merge(DeliveryConfirmation::query()->where('project_id', $projectId)->pluck('photo_path'))
+                ->merge(ProgressPhoto::query()->where('project_id', $projectId)->pluck('photo_path'))
+                ->merge($project->files()->pluck('file_path'));
+
+            $uploadedPaths
+                ->map(fn ($path) => trim((string) $path))
+                ->filter(fn (string $path) => $path !== '')
+                ->unique()
+                ->each(fn (string $path) => UploadManager::delete($path));
 
             ProjectScope::query()->where('project_id', $projectId)->delete();
             ProgressSubmitToken::query()->where('project_id', $projectId)->delete();

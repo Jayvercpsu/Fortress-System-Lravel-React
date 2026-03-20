@@ -4,6 +4,7 @@ namespace App\Repositories;
 
 use App\Models\User;
 use App\Repositories\Contracts\UserRepositoryInterface;
+use App\Support\Uploads\UploadManager;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 
 class UserRepository implements UserRepositoryInterface
@@ -53,6 +54,8 @@ class UserRepository implements UserRepositoryInterface
 
     public function deleteUser(User $user): void
     {
+        $user->loadMissing('detail');
+        UploadManager::delete($user->detail?->profile_photo_path);
         $user->delete();
     }
 }
