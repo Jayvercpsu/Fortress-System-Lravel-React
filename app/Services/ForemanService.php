@@ -102,11 +102,12 @@ class ForemanService
                 fn ($query) => $query->whereIn('project_id', $assignedProjectIds->all())
             )
             ->orderBy('name')
-            ->get(['id', 'project_id', 'name'])
+            ->get(['id', 'project_id', 'name', 'job_type'])
             ->map(fn (Worker $worker) => [
                 'id' => $worker->id,
                 'name' => $worker->name,
-                'role' => null,
+                'role' => $worker->job_type ?: Worker::JOB_TYPE_WORKER,
+                'job_type' => $worker->job_type ?: Worker::JOB_TYPE_WORKER,
                 'project_id' => $worker->project_id,
                 'project_name' => $worker->project?->name,
             ])
@@ -146,6 +147,7 @@ class ForemanService
         return Inertia::render('Foreman/Attendance', [
             'projects' => $projects,
             'workers' => $workers,
+            'workerRoleOptions' => Worker::jobTypeOptions(),
             'foremanAttendanceToday' => $foremanAttendanceToday,
             'attendances' => $attendances,
             'attendanceTable' => [

@@ -4,7 +4,7 @@ import ActionButton from '../../Components/ActionButton';
 import SearchableDropdown from '../../Components/SearchableDropdown';
 import Modal from '../../Components/Modal';
 import DatePickerInput from '../../Components/DatePickerInput';
-import TimePickerInput from '../../Components/TimePickerInput';
+import TimeInput from '../../Components/TimeInput';
 import { Head, router } from '@inertiajs/react';
 import { useEffect, useMemo, useState } from 'react';
 import toast from 'react-hot-toast';
@@ -85,11 +85,13 @@ export default function ForemanAttendance({
     attendances = [],
     attendanceTable = {},
     stats = {},
+    workerRoleOptions = [],
 }) {
+    const defaultRole = 'Worker';
     const [editingId, setEditingId] = useState(null);
     const [editRow, setEditRow] = useState({
         worker_name: '',
-        worker_role: 'Labor',
+        worker_role: defaultRole,
         project_id: '',
         time_in: '',
         time_out: '',
@@ -111,7 +113,7 @@ export default function ForemanAttendance({
     );
 
     const [rows, setRows] = useState([
-        { worker_name: '', worker_role: 'Labor', project_id: '', time_in: '', time_out: '', hours: 0 },
+        { worker_name: '', worker_role: defaultRole, project_id: '', time_in: '', time_out: '', hours: 0 },
     ]);
     const [clockTick, setClockTick] = useState(Date.now());
     const phTodayIso = useMemo(() => getPhDateIso(clockTick), [clockTick]);
@@ -128,6 +130,7 @@ export default function ForemanAttendance({
                     ...worker,
                     id: String(worker.id),
                     project_id: worker.project_id ? String(worker.project_id) : '',
+                    role: worker.role || worker.job_type || defaultRole,
                 }))
                 : []),
         [workers]
@@ -150,10 +153,18 @@ export default function ForemanAttendance({
         });
         return map;
     }, [workerOptions]);
-    const roleOptions = useMemo(
-        () => ['Skilled', 'Labor'].map((role) => ({ id: role, name: role })),
-        []
-    );
+    const roleOptions = useMemo(() => {
+        const baseRoles = Array.isArray(workerRoleOptions) && workerRoleOptions.length > 0
+            ? workerRoleOptions
+            : [defaultRole, 'Skilled Worker', 'Laborer'];
+        const knownRoles = [
+            ...baseRoles,
+            ...workerOptions.map((worker) => worker.role),
+            ...attendances.map((row) => row.worker_role),
+        ];
+        const uniqueRoles = Array.from(new Set(knownRoles.map((role) => String(role || '').trim()).filter(Boolean)));
+        return uniqueRoles.map((role) => ({ id: role, name: role }));
+    }, [workerRoleOptions, workerOptions, attendances]);
 
     const computeHours = (entry) => {
         if (!entry?.time_in || !entry?.time_out) return null;
@@ -190,7 +201,7 @@ export default function ForemanAttendance({
     };
 
     const addRow = () =>
-        setRows((prev) => [...prev, { worker_name: '', worker_role: 'Labor', project_id: '', time_in: '', time_out: '', hours: 0 }]);
+        setRows((prev) => [...prev, { worker_name: '', worker_role: defaultRole, project_id: '', time_in: '', time_out: '', hours: 0 }]);
 
     const removeRow = (idx) => setRows((prev) => prev.filter((_, i) => i !== idx));
 
@@ -233,7 +244,7 @@ export default function ForemanAttendance({
                 preserveScroll: true,
                 onError: () => toast.error(toastMessages.attendance.submitError),
                 onSuccess: () => {
-                    setRows([{ worker_name: '', worker_role: 'Labor', project_id: '', time_in: '', time_out: '', hours: 0 }]);
+                    setRows([{ worker_name: '', worker_role: defaultRole, project_id: '', time_in: '', time_out: '', hours: 0 }]);
                     toast.success(toastMessages.attendance.submitSuccess);
                 },
             }
@@ -244,7 +255,7 @@ export default function ForemanAttendance({
         setEditingId(row.id);
         setEditRow({
             worker_name: row.worker_name ?? '',
-            worker_role: row.worker_role ?? 'Labor',
+            worker_role: row.worker_role ?? defaultRole,
             project_id: row.project_id ? String(row.project_id) : '',
             time_in: row.time_in ? String(row.time_in).slice(0, 5) : '',
             time_out: row.time_out ? String(row.time_out).slice(0, 5) : '',
@@ -452,7 +463,7 @@ export default function ForemanAttendance({
                                                 <SearchableDropdown
                                                     options={roleOptions}
                                                     value={entry.worker_role}
-                                                    onChange={(value) => updateRow(idx, 'worker_role', value || 'Labor')}
+                                                    onChange={(value) => updateRow(idx, 'worker_role', value || defaultRole)}
                                                     getOptionLabel={(option) => option.name}
                                                     getOptionValue={(option) => option.id}
                                                     placeholder="Select role"
@@ -464,18 +475,18 @@ export default function ForemanAttendance({
                                             </div>
                                         </td>
                                         <td style={{ padding: '6px 8px' }}>
-                                            <TimePickerInput
-                                                value={entry.time_in ?? ''}
-                                                onChange={(value) => updateRow(idx, 'time_in', value || '')}
-                                                style={{ ...inputStyle, minWidth: 110 }}
-                                            />
+                                        <TimeInput
+                                            value={entry.time_in ?? ''}
+                                            onChange={(value) => updateRow(idx, 'time_in', value || '')}
+                                            style={{ ...inputStyle, minWidth: 110 }}
+                                        />
                                         </td>
                                         <td style={{ padding: '6px 8px' }}>
-                                            <TimePickerInput
-                                                value={entry.time_out ?? ''}
-                                                onChange={(value) => updateRow(idx, 'time_out', value || '')}
-                                                style={{ ...inputStyle, minWidth: 110 }}
-                                            />
+                                        <TimeInput
+                                            value={entry.time_out ?? ''}
+                                            onChange={(value) => updateRow(idx, 'time_out', value || '')}
+                                            style={{ ...inputStyle, minWidth: 110 }}
+                                        />
                                         </td>
                                         <td style={{ padding: '6px 8px' }}>
                                             {rows.length > 1 && (
@@ -615,7 +626,7 @@ export default function ForemanAttendance({
                             <SearchableDropdown
                                 options={roleOptions}
                                 value={editRow.worker_role}
-                                onChange={(value) => updateEditRow('worker_role', value || 'Labor')}
+                                onChange={(value) => updateEditRow('worker_role', value || defaultRole)}
                                 getOptionLabel={(option) => option.name}
                                 getOptionValue={(option) => option.id}
                                 placeholder="Select role"
@@ -629,7 +640,7 @@ export default function ForemanAttendance({
                         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                             <div>
                                 <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 6 }}>Time In</div>
-                                <TimePickerInput
+                                <TimeInput
                                     value={editRow.time_in ?? ''}
                                     onChange={(value) => updateEditRow('time_in', value || '')}
                                     style={inputStyle}
@@ -637,7 +648,7 @@ export default function ForemanAttendance({
                             </div>
                             <div>
                                 <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 6 }}>Time Out</div>
-                                <TimePickerInput
+                                <TimeInput
                                     value={editRow.time_out ?? ''}
                                     onChange={(value) => updateEditRow('time_out', value || '')}
                                     style={inputStyle}
