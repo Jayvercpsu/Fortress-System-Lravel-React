@@ -29,7 +29,7 @@ const input = {
     boxSizing: 'border-box',
 };
 
-const KANBAN_CARD_HEIGHT = 365;
+const KANBAN_CARD_HEIGHT = 375;
 const KANBAN_BOARD_HEIGHT = 'calc(100dvh - 190px)';
 
 const singleLineClampStyle = {
@@ -415,12 +415,12 @@ export default function ProjectsKanbanPage({
                                             </div>
 
                                             {project.target ? (
-                                                <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', marginTop: -4, marginBottom: -2 }}>
                                                     <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>Target: {project.target}</span>
                                                 </div>
                                             ) : null}
 
-                                            <div style={{ display: 'grid', gap: 4, fontSize: 11, minHeight: 0, alignContent: 'start' }}>
+                                            <div style={{ display: 'grid', gap: 4, fontSize: 11, minHeight: 0, alignContent: 'start', marginTop: -2 }}>
                                                 <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, minWidth: 0 }}>
                                                     <span style={{ color: 'var(--text-muted)' }}>Location</span>
                                                     <span title={project.location || '-'} style={{ textAlign: 'right', ...singleLineClampStyle }}>{project.location || '-'}</span>

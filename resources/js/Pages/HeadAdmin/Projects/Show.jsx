@@ -915,7 +915,7 @@ export default function HeadAdminProjectsShow({
                             </div>
                         </div>
 
-                        {['head_admin', 'admin'].includes(role) && (
+                        {['head_admin', 'admin'].includes(role) && !isDesignPhase && (
                             <div style={{ ...cardStyle, display: 'grid', gap: 10 }}>
                                 <div style={{ fontWeight: 700 }}>Jotform Access</div>
                                 <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
