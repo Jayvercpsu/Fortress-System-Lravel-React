@@ -1,9 +1,10 @@
 ﻿import { Link, router, usePage } from '@inertiajs/react';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { LoaderCircle, Moon, Sun } from 'lucide-react';
 import toast from 'react-hot-toast';
 import BrandIcon from './BrandIcon';
 import OptimizedImage from './OptimizedImage';
+import PageShimmerSkeleton from './PageShimmerSkeleton';
 import { toastMessages } from '../constants/toastMessages';
 
 const navByRole = {
@@ -65,6 +66,21 @@ const roleLabels = {
     client: 'Client',
 };
 
+const DASHBOARD_PATHS = new Set(['/head-admin', '/admin', '/hr', '/foreman', '/client']);
+
+const normalizePath = (path) => {
+    const clean = String(path || '').replace(/\/+$/, '');
+    return clean || '/';
+};
+
+const pathFromUrl = (rawUrl) => {
+    try {
+        return normalizePath(new URL(String(rawUrl || ''), window.location.origin).pathname);
+    } catch (error) {
+        return normalizePath(String(rawUrl || '').split('?')[0]);
+    }
+};
+
 export default function Layout({ children, title }) {
     const { auth } = usePage().props;
     const user = auth?.user;
@@ -72,13 +88,17 @@ export default function Layout({ children, title }) {
     const navItems = navByRole[user?.role] || [];
     const currentPath =
         typeof window !== 'undefined'
-            ? window.location.pathname.replace(/\/+$/, '') || '/'
+            ? normalizePath(window.location.pathname)
             : '/';
     const isHrSpecialProjectPage =
         user?.role === 'hr' && /^\/projects\/\d+\/(payments|financials)$/.test(currentPath);
 
     const [showLogoutModal, setShowLogoutModal] = useState(false);
     const [isLoggingOut, setIsLoggingOut] = useState(false);
+    const [isPageLoading, setIsPageLoading] = useState(false);
+    const [loadingTargetPath, setLoadingTargetPath] = useState('');
+    const loadingTimerRef = useRef(null);
+    const activeVisitPathRef = useRef('');
 
     // âœ… Theme state (persisted)
     const [theme, setTheme] = useState(() => localStorage.getItem('bb_theme') || 'dark');
@@ -89,6 +109,59 @@ export default function Layout({ children, title }) {
         document.documentElement.setAttribute('data-theme', theme);
         localStorage.setItem('bb_theme', theme);
     }, [theme]);
+
+    useEffect(() => {
+        const clearLoadingTimer = () => {
+            if (loadingTimerRef.current) {
+                clearTimeout(loadingTimerRef.current);
+                loadingTimerRef.current = null;
+            }
+        };
+
+        const resetPageLoading = () => {
+            clearLoadingTimer();
+            activeVisitPathRef.current = '';
+            setLoadingTargetPath('');
+            setIsPageLoading(false);
+        };
+
+        const handleStart = (event) => {
+            const nextPath = pathFromUrl(event?.detail?.visit?.url || '');
+            if (!nextPath || nextPath === currentPath) {
+                return;
+            }
+
+            activeVisitPathRef.current = nextPath;
+            setLoadingTargetPath(nextPath);
+            clearLoadingTimer();
+            loadingTimerRef.current = setTimeout(() => setIsPageLoading(true), 120);
+        };
+
+        const handleFinish = (event) => {
+            const finishedPath = pathFromUrl(event?.detail?.visit?.url || '');
+            if (!finishedPath) {
+                resetPageLoading();
+                return;
+            }
+
+            if (activeVisitPathRef.current === '' || finishedPath === activeVisitPathRef.current) {
+                resetPageLoading();
+            }
+        };
+
+        const removeStart = router.on('start', handleStart);
+        const removeFinish = router.on('finish', handleFinish);
+
+        return () => {
+            clearLoadingTimer();
+            if (typeof removeStart === 'function') removeStart();
+            if (typeof removeFinish === 'function') removeFinish();
+        };
+    }, [currentPath]);
+
+    const skeletonVariant = DASHBOARD_PATHS.has(loadingTargetPath || currentPath)
+        ? 'dashboard'
+        : 'data';
 
     const confirmLogout = () => {
         if (isLoggingOut) return;
@@ -290,7 +363,9 @@ export default function Layout({ children, title }) {
                         </button>
                     </div>
 
-                    <div style={{ flex: 1, overflowY: 'auto', padding: 24 }}>{children}</div>
+                    <div style={{ flex: 1, overflowY: 'auto', padding: 24 }}>
+                        {isPageLoading ? <PageShimmerSkeleton variant={skeletonVariant} /> : children}
+                    </div>
                 </div>
             </div>
 
