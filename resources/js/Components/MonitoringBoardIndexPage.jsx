@@ -392,6 +392,7 @@ export default function MonitoringBoardIndexPage({
         progress_percent: 0,
         remarks: '',
     });
+    const baseClientOptions = Array.isArray(clientOptions) ? clientOptions : [];
     const baseForemanOptions = Array.isArray(foremanOptions) ? foremanOptions : [];
     const foremanSelectOptions = withCurrentOption(baseForemanOptions, createData.assigned_to);
     const foremanEditOptions = withCurrentOption(baseForemanOptions, editData.assigned_to);
@@ -411,6 +412,30 @@ export default function MonitoringBoardIndexPage({
     const [customDepartment, setCustomDepartment] = useState('');
     const [editDepartmentOption, setEditDepartmentOption] = useState('');
     const [editCustomDepartment, setEditCustomDepartment] = useState('');
+    const [editItem, setEditItem] = useState(null);
+
+    const filterClientOptionsForProject = (options, projectId) => {
+        const normalizedProjectId = projectId ? Number(projectId) : 0;
+        return options.filter((option) => {
+            const assignedProjectId = Number(option?.project_id || 0);
+            if (!assignedProjectId) {
+                return true;
+            }
+            if (!normalizedProjectId) {
+                return false;
+            }
+            return assignedProjectId === normalizedProjectId;
+        });
+    };
+
+    const createClientOptions = useMemo(
+        () => filterClientOptionsForProject(baseClientOptions, null),
+        [baseClientOptions]
+    );
+    const editClientOptions = useMemo(
+        () => filterClientOptionsForProject(baseClientOptions, editItem?.project_id),
+        [baseClientOptions, editItem?.project_id]
+    );
 
     const departmentOptions = useMemo(() => {
         const map = new Map();
@@ -466,7 +491,6 @@ export default function MonitoringBoardIndexPage({
     };
 
     const [search, setSearch] = useState('');
-    const [editItem, setEditItem] = useState(null);
     const [itemToDelete, setItemToDelete] = useState(null);
     const [deletingId, setDeletingId] = useState(null);
     const [filesItem, setFilesItem] = useState(null);
@@ -1380,7 +1404,7 @@ export default function MonitoringBoardIndexPage({
                             <label>
                                 <div style={{ fontSize: 12, marginBottom: 6 }}>Client Name</div>
                                 <ClientSelectInput
-                                    clients={clientOptions}
+                                    clients={createClientOptions}
                                     value={createData.client_name}
                                     onChange={(value) => setCreateData('client_name', value)}
                                     style={boardInputStyle}
@@ -1658,7 +1682,7 @@ export default function MonitoringBoardIndexPage({
                         <label>
                             <div style={{ fontSize: 12, marginBottom: 6 }}>Client Name</div>
                             <ClientSelectInput
-                                clients={clientOptions}
+                                clients={editClientOptions}
                                 value={editData.client_name}
                                 onChange={(value) => setEditData('client_name', value)}
                                 style={inputStyle}

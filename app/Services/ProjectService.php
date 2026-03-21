@@ -15,6 +15,7 @@ use App\Support\Projects\ProjectFlow;
 use Illuminate\Http\Request;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 
 class ProjectService
@@ -35,6 +36,7 @@ class ProjectService
 
         $project = $this->projectRepository->createProject($validated);
         $this->projectRepository->syncLegacyForemanAssignments($project);
+        $this->syncClientAssignmentFromProject($project->fresh());
 
         return $project;
     }
@@ -51,7 +53,7 @@ class ProjectService
             ->all();
     }
 
-    public function clientOptionsPayload(): array
+    public function clientOptionsPayload(?int $projectId = null): array
     {
         $clients = $this->projectRepository->clientUsers();
         $clientIds = $clients
@@ -63,6 +65,18 @@ class ProjectService
         $assignments = $this->projectRepository->latestClientAssignmentsByUserIds($clientIds);
 
         return $clients
+            ->filter(function ($user) use ($assignments, $projectId) {
+                $assignment = $assignments->get((int) $user->id);
+                if (!$assignment) {
+                    return true;
+                }
+
+                if ($projectId !== null && (int) $assignment->project_id === (int) $projectId) {
+                    return true;
+                }
+
+                return false;
+            })
             ->map(function ($user) use ($assignments) {
                 $assignment = $assignments->get((int) $user->id);
                 $projectName = $assignment?->project?->name;
@@ -74,6 +88,7 @@ class ProjectService
                     'id' => (int) $user->id,
                     'label' => $label,
                     'value' => (string) $user->fullname,
+                    'project_id' => $assignment?->project_id ? (int) $assignment->project_id : null,
                 ];
             })
             ->values()
@@ -306,7 +321,7 @@ class ProjectService
             'props' => [
                 'project' => $this->projectPayload($project),
                 'foremen' => $this->foremanOptionsPayload(),
-                'clientOptions' => $this->clientOptionsPayload(),
+                'clientOptions' => $this->clientOptionsPayload((int) $project->id),
             ],
         ];
     }
@@ -743,7 +758,48 @@ class ProjectService
         $validated['phase'] = ProjectFlow::normalizePhase($validated['phase'] ?? null);
 
         $this->projectRepository->updateProject($project, $validated);
-        $this->projectRepository->syncLegacyForemanAssignments($project->fresh());
+        $freshProject = $project->fresh();
+        $this->projectRepository->syncLegacyForemanAssignments($freshProject);
+        $this->syncClientAssignmentFromProject($freshProject);
+    }
+
+    private function syncClientAssignmentFromProject(Project $project): void
+    {
+        $clientName = trim((string) ($project->client ?? ''));
+        $projectId = (int) $project->id;
+
+        if ($clientName === '') {
+            ProjectAssignment::query()
+                ->where('project_id', $projectId)
+                ->where('role_in_project', ProjectAssignment::ROLE_CLIENT)
+                ->delete();
+            return;
+        }
+
+        $clientUser = User::query()
+            ->where('role', User::ROLE_CLIENT)
+            ->whereRaw('LOWER(fullname) = ?', [Str::lower($clientName)])
+            ->first();
+
+        if (!$clientUser) {
+            return;
+        }
+
+        ProjectAssignment::query()->updateOrCreate(
+            [
+                'project_id' => $projectId,
+                'user_id' => (int) $clientUser->id,
+            ],
+            [
+                'role_in_project' => ProjectAssignment::ROLE_CLIENT,
+            ]
+        );
+
+        ProjectAssignment::query()
+            ->where('user_id', (int) $clientUser->id)
+            ->where('role_in_project', ProjectAssignment::ROLE_CLIENT)
+            ->where('project_id', '!=', $projectId)
+            ->delete();
     }
 
     public function resolveProjectReceiptToken(Project $project): string
