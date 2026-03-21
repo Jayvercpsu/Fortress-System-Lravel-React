@@ -67,6 +67,11 @@ class PublicProgressController extends Controller
         return $this->publicProgressService->storeWeeklyProgress($request, $token);
     }
 
+    public function deleteWeeklyScopePhoto(Request $request, string $token, \App\Models\ScopePhoto $scopePhoto)
+    {
+        return $this->publicProgressService->deleteWeeklyScopePhoto($request, $token, $scopePhoto);
+    }
+
     public function storePhoto(Request $request, string $token)
     {
         return $this->publicProgressService->storePhoto($request, $token);

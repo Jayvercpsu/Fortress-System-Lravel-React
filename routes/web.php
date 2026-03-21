@@ -52,6 +52,7 @@ Route::delete('/progress-submit/{token}/delivery/{deliveryConfirmation}', [Publi
 Route::post('/progress-submit/{token}/material-request', [PublicProgressController::class, 'storeMaterialRequest'])->name('public.progress-submit.material');
 Route::delete('/progress-submit/{token}/material-request/{materialRequest}', [PublicProgressController::class, 'deleteMaterialRequest'])->name('public.progress-submit.material.delete');
 Route::post('/progress-submit/{token}/weekly-progress', [PublicProgressController::class, 'storeWeeklyProgress'])->name('public.progress-submit.weekly');
+Route::delete('/progress-submit/{token}/weekly-photos/{scopePhoto}', [PublicProgressController::class, 'deleteWeeklyScopePhoto'])->name('public.progress-submit.weekly-photo.delete');
 Route::post('/progress-submit/{token}/photo', [PublicProgressController::class, 'storePhoto'])->name('public.progress-submit.photo');
 Route::delete('/progress-submit/{token}/photo/{progressPhoto}', [PublicProgressController::class, 'deletePhoto'])->name('public.progress-submit.photo.delete');
 Route::post('/progress-submit/{token}/issue-report', [PublicProgressController::class, 'storeIssueReport'])->name('public.progress-submit.issue');

@@ -24,6 +24,8 @@ export const toastMessages = {
         deliveryDeleteError: 'Unable to delete delivery confirmation.',
         photoDeleteSuccess: 'Photo deleted successfully.',
         photoDeleteError: 'Unable to delete photo.',
+        weeklyPhotoDeleteSuccess: 'Weekly progress photo deleted successfully.',
+        weeklyPhotoDeleteError: 'Unable to delete weekly progress photo.',
         issueDeleteSuccess: 'Issue report deleted successfully.',
         issueDeleteError: 'Unable to delete issue report.',
     },

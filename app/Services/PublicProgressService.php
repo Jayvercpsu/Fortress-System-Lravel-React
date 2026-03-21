@@ -1352,6 +1352,49 @@ class PublicProgressService
             ->with('success', __('messages.public_progress.weekly_submitted'));
     }
 
+    public function deleteWeeklyScopePhoto(Request $request, string $token, ScopePhoto $scopePhoto)
+    {
+        $submitToken = $this->resolveActiveToken($token);
+        $scopePhoto->loadMissing('scope');
+
+        $scope = $scopePhoto->scope;
+        if (!$scope || (int) $scope->project_id !== (int) $submitToken->project_id) {
+            abort(403);
+        }
+
+        $scopeName = trim((string) ($scope->scope_name ?? ''));
+        $scopeKey = Str::lower($scopeName);
+
+        $normalizedForemanName = Str::lower(trim((string) ($submitToken->foreman->fullname ?? '')));
+        $assignedPersonnel = collect(preg_split('/[,;]+/', (string) ($scope->assigned_personnel ?? '')))
+            ->map(fn ($name) => trim((string) $name))
+            ->filter(fn (string $name) => $name !== '')
+            ->map(fn (string $name) => Str::lower($name))
+            ->values();
+
+        $weeklySavedScopeKeys = $this->foremanProgressRepository->weeklyAccomplishments()
+            ->where('foreman_id', $submitToken->foreman_id)
+            ->where('project_id', $submitToken->project_id)
+            ->pluck('scope_of_work')
+            ->map(fn ($name) => Str::lower(trim((string) $name)))
+            ->filter(fn (string $name) => $name !== '')
+            ->unique();
+
+        $isAssigned = $normalizedForemanName !== '' && $assignedPersonnel->contains($normalizedForemanName);
+        $isInWeekly = $scopeKey !== '' && $weeklySavedScopeKeys->contains($scopeKey);
+
+        if (!$isAssigned && !$isInWeekly) {
+            abort(403);
+        }
+
+        $photoPath = $scopePhoto->photo_path;
+        $scopePhoto->delete();
+        $this->deleteUploadedPath($photoPath);
+
+        return redirect()
+            ->route('public.progress-submit.show', ['token' => $token]);
+    }
+
     public function storePhoto(Request $request, string $token)
     {
         $submitToken = $this->resolveActiveToken($token);

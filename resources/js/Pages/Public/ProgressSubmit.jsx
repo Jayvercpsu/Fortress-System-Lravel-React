@@ -6,6 +6,7 @@ import ConfirmationModal from '../../Components/ConfirmationModal';
 import DatePickerInput from '../../Components/DatePickerInput';
 import Modal from '../../Components/Modal';
 import OptimizedImage from '../../Components/OptimizedImage';
+import TextInput from '../../Components/TextInput';
 import { toastMessages } from '../../constants/toastMessages';
 
 const DAYS = [
@@ -356,6 +357,8 @@ export default function ProgressSubmit({ submitToken }) {
     const [deliveryDeleteTarget, setDeliveryDeleteTarget] = useState(null);
     const [deletingPhotoId, setDeletingPhotoId] = useState(null);
     const [photoDeleteTarget, setPhotoDeleteTarget] = useState(null);
+    const [deletingWeeklyPhotoId, setDeletingWeeklyPhotoId] = useState(null);
+    const [weeklyPhotoDeleteTarget, setWeeklyPhotoDeleteTarget] = useState(null);
     const [deletingIssueId, setDeletingIssueId] = useState(null);
     const [issueDeleteTarget, setIssueDeleteTarget] = useState(null);
     const [removedAttendanceWorkerIds, setRemovedAttendanceWorkerIds] = useState([]);
@@ -399,6 +402,7 @@ export default function ProgressSubmit({ submitToken }) {
     const [materialKey, setMaterialKey] = useState(0);
     const [photoKey, setPhotoKey] = useState(0);
     const [issueKey, setIssueKey] = useState(0);
+    const [weeklyPhotoKey, setWeeklyPhotoKey] = useState(0);
     const photoInputRef = useRef(null);
     const attendanceWeekKey = normalizeToMonday(attendanceWeek) || '__attendance_empty__';
     const weeklyWeekKey = normalizeToMonday(weekStart) || '__weekly_empty__';
@@ -509,6 +513,19 @@ export default function ProgressSubmit({ submitToken }) {
             onFinish: () => {
                 setDeletingPhotoId(null);
                 setPhotoDeleteTarget(null);
+            },
+        });
+    };
+    const deleteWeeklyScopePhoto = (rowId) => {
+        if (!rowId) return;
+        setDeletingWeeklyPhotoId(rowId);
+        router.delete(`${base}/weekly-photos/${rowId}`, {
+            preserveScroll: true,
+            onSuccess: () => toast.success(toastMessages.jotform.weeklyPhotoDeleteSuccess),
+            onError: () => toast.error(toastMessages.jotform.weeklyPhotoDeleteError),
+            onFinish: () => {
+                setDeletingWeeklyPhotoId(null);
+                setWeeklyPhotoDeleteTarget(null);
             },
         });
     };
@@ -655,11 +672,19 @@ export default function ProgressSubmit({ submitToken }) {
                 setMaterial({ material_name: '', quantity: '', unit: '', remarks: '', photo: null });
                 setPhotoForm({ category: '', description: '', photo: null });
                 setIssue({ issue_title: '', description: '', urgency: 'normal', photo: null });
+                setWeeklyWeekDrafts((prev) => {
+                    const next = {};
+                    Object.entries(prev || {}).forEach(([key, rows]) => {
+                        next[key] = (rows || []).map((row) => ({ ...row, weekly_photos: [] }));
+                    });
+                    return next;
+                });
                 setWeeklyRemovedScopesByWeek((prev) => ({ ...prev, [weeklyWeekKey]: [] }));
                 setDeliveryKey((k) => k + 1);
                 setMaterialKey((k) => k + 1);
                 setPhotoKey((k) => k + 1);
                 setIssueKey((k) => k + 1);
+                setWeeklyPhotoKey((k) => k + 1);
                 toast.success(toastMessages.jotform.submitSuccess);
             },
             onError: (errors) => {
@@ -776,7 +801,7 @@ export default function ProgressSubmit({ submitToken }) {
                     style={jfDateInputStyle}
                 />
             </label>
-            <label className="jf-file-btn"><Camera size={20} /> Take Photo<input key={deliveryKey} type="file" accept="image/*" capture="environment" onChange={(e) => setDelivery((p) => ({ ...p, photo: e.target.files?.[0] || null }))} /></label>
+            <label className="jf-file-btn"><Camera size={20} /> Take Photo<TextInput key={deliveryKey} type="file" accept="image/*" capture="environment" onChange={(e) => setDelivery((p) => ({ ...p, photo: e.target.files?.[0] || null }))} /></label>
             <div className="jf-note">{delivery.photo?.name || 'No photo selected'}</div>
             <div className="jf-row">
                 <button type="button" className={`jf-toggle ${delivery.status === 'complete' ? 'on' : ''}`} onClick={() => setDelivery((p) => ({ ...p, status: 'complete' }))}>Complete</button>
@@ -844,7 +869,7 @@ export default function ProgressSubmit({ submitToken }) {
                 <label className="jf-label">Unit<input className="jf-input" value={material.unit} onChange={(e) => setMaterial((p) => ({ ...p, unit: e.target.value }))} /></label>
             </div>
             <label className="jf-label">Remarks<textarea className="jf-input" rows={3} value={material.remarks} onChange={(e) => setMaterial((p) => ({ ...p, remarks: e.target.value }))} /></label>
-            <label className="jf-file-btn"><Camera size={20} /> Take Photo<input key={materialKey} type="file" accept="image/*" capture="environment" onChange={(e) => setMaterial((p) => ({ ...p, photo: e.target.files?.[0] || null }))} /></label>
+            <label className="jf-file-btn"><Camera size={20} /> Take Photo<TextInput key={materialKey} type="file" accept="image/*" capture="environment" onChange={(e) => setMaterial((p) => ({ ...p, photo: e.target.files?.[0] || null }))} /></label>
             <div className="jf-note">{material.photo?.name || 'No photo selected'}</div>
             <div style={{ marginTop: 10 }}>
                 <div className="jf-small-title" style={{ fontSize: 16, marginBottom: 6 }}>Recent Material Requests</div>
@@ -969,29 +994,43 @@ export default function ProgressSubmit({ submitToken }) {
                                                     ) : (
                                                         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(72px, 1fr))', gap: 6 }}>
                                                             {existingScopePhotos.map((photo) => (
-                                                                <button
-                                                                    key={photo.id}
-                                                                    type="button"
-                                                                    onClick={() => openPhotoPreview(
-                                                                        photo.photo_path,
-                                                                        row.scope_of_work || photo.caption || 'Scope Photo',
-                                                                        photo.created_at || ''
-                                                                    )}
-                                                                    style={{ display: 'block', border: 'none', background: 'transparent', padding: 0, cursor: 'pointer' }}
-                                                                >
-                                                                    <OptimizedImage
-                                                                        src={`/files/${photo.photo_path}`}
-                                                                        alt={photo.caption || 'Scope photo'}
-                                                                        style={{ width: '100%', height: 58, objectFit: 'cover', borderRadius: 6, border: '1px solid #d4cec0' }}
-                                                                    />
-                                                                </button>
+                                                                <div key={photo.id} className="jf-scope-photo">
+                                                                    <button
+                                                                        type="button"
+                                                                        className="jf-scope-photo-delete"
+                                                                        title="Delete photo"
+                                                                        disabled={deletingWeeklyPhotoId === photo.id}
+                                                                        onClick={(event) => {
+                                                                            event.stopPropagation();
+                                                                            setWeeklyPhotoDeleteTarget(photo);
+                                                                        }}
+                                                                    >
+                                                                        <Trash2 size={14} />
+                                                                    </button>
+                                                                    <button
+                                                                        type="button"
+                                                                        onClick={() => openPhotoPreview(
+                                                                            photo.photo_path,
+                                                                            row.scope_of_work || photo.caption || 'Scope Photo',
+                                                                            photo.created_at || ''
+                                                                        )}
+                                                                        style={{ display: 'block', border: 'none', background: 'transparent', padding: 0, cursor: 'pointer' }}
+                                                                    >
+                                                                        <OptimizedImage
+                                                                            src={`/files/${photo.photo_path}`}
+                                                                            alt={photo.caption || 'Scope photo'}
+                                                                            style={{ width: '100%', height: 58, objectFit: 'cover', borderRadius: 6, border: '1px solid #d4cec0' }}
+                                                                        />
+                                                                    </button>
+                                                                </div>
                                                             ))}
                                                         </div>
                                                     )}
 
                                                     {weeklyLocked ? null : (
                                                         <>
-                                                            <input
+                                                            <TextInput
+                                                                key={`${weeklyPhotoKey}-${row.row_key || i}`}
                                                                 className="jf-input"
                                                                 type="file"
                                                                 accept="image/*"
@@ -1084,7 +1123,7 @@ export default function ProgressSubmit({ submitToken }) {
     const photosContent = (
         <div className="jf-photo-layout">
             <div>
-                <label className="jf-file-btn jf-file-blue"><Camera size={20} /> TAKE PHOTO<input ref={photoInputRef} key={photoKey} type="file" accept="image/*" capture="environment" onChange={(e) => setPhotoForm((p) => ({ ...p, photo: e.target.files?.[0] || null }))} /></label>
+                <label className="jf-file-btn jf-file-blue"><Camera size={20} /> TAKE PHOTO<TextInput ref={photoInputRef} key={photoKey} type="file" accept="image/*" capture="environment" onChange={(e) => setPhotoForm((p) => ({ ...p, photo: e.target.files?.[0] || null }))} /></label>
                 <div className="jf-note">{photoForm.photo?.name || 'No photo selected'}</div>
                 <label className="jf-label" style={{ marginTop: 10 }}>CHOOSE CATEGORY
                     <select className="jf-input" value={photoForm.category} onChange={(e) => setPhotoForm((p) => ({ ...p, category: e.target.value }))}>
@@ -1133,7 +1172,7 @@ export default function ProgressSubmit({ submitToken }) {
         <>
             <label className="jf-label">Issue Title<input className="jf-input" value={issue.issue_title} onChange={(e) => setIssue((p) => ({ ...p, issue_title: e.target.value }))} /></label>
             <label className="jf-label">Description<textarea className="jf-input" rows={4} value={issue.description} onChange={(e) => setIssue((p) => ({ ...p, description: e.target.value }))} /></label>
-            <label className="jf-file-btn"><Camera size={20} /> Take Photo<input key={issueKey} type="file" accept="image/*" capture="environment" onChange={(e) => setIssue((p) => ({ ...p, photo: e.target.files?.[0] || null }))} /></label>
+            <label className="jf-file-btn"><Camera size={20} /> Take Photo<TextInput key={issueKey} type="file" accept="image/*" capture="environment" onChange={(e) => setIssue((p) => ({ ...p, photo: e.target.files?.[0] || null }))} /></label>
             <div className="jf-note">{issue.photo?.name || 'No photo selected'}</div>
             <div className="jf-radio-row">
                 {['low', 'normal', 'high'].map((v) => (
@@ -1246,6 +1285,9 @@ export default function ProgressSubmit({ submitToken }) {
                     .jf-photo-item img{width:90px;height:70px;object-fit:cover;border-radius:8px;border:1px solid #d3ccbd}
                     .jf-photo-action{position:absolute;top:4px;right:4px;border:1px solid #e7b6b6;background:#fff7f7;color:#b02020;padding:4px;border-radius:6px;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;box-shadow:0 1px 3px rgba(0,0,0,.08);z-index:2}
                     .jf-photo-action:disabled{opacity:.6;cursor:not-allowed}
+                    .jf-scope-photo{position:relative}
+                    .jf-scope-photo-delete{position:absolute;top:4px;right:4px;border:1px solid #e7b6b6;background:#fff7f7;color:#b02020;padding:3px;border-radius:6px;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;box-shadow:0 1px 3px rgba(0,0,0,.08);z-index:2}
+                    .jf-scope-photo-delete:disabled{opacity:.6;cursor:not-allowed}
                     .jf-small-title{font-size:18px;font-weight:700;margin-bottom:8px}
                     .jf-recent-list{display:grid;gap:8px;max-height:220px;overflow:auto;padding-right:2px}
                     .jf-recent-list-two{grid-template-columns:repeat(2,minmax(0,1fr))}
@@ -1366,6 +1408,18 @@ export default function ProgressSubmit({ submitToken }) {
                 processing={!!deletingPhotoId}
                 onClose={() => setPhotoDeleteTarget(null)}
                 onConfirm={() => deletePhoto(photoDeleteTarget?.id)}
+            />
+            <ConfirmationModal
+                open={!!weeklyPhotoDeleteTarget}
+                title="Delete Weekly Photo"
+                message={weeklyPhotoDeleteTarget?.caption
+                    ? `Are you sure you want to delete "${weeklyPhotoDeleteTarget.caption}"?`
+                    : 'Are you sure you want to delete this weekly progress photo?'}
+                confirmLabel={deletingWeeklyPhotoId ? 'Deleting...' : 'Delete'}
+                danger
+                processing={!!deletingWeeklyPhotoId}
+                onClose={() => setWeeklyPhotoDeleteTarget(null)}
+                onConfirm={() => deleteWeeklyScopePhoto(weeklyPhotoDeleteTarget?.id)}
             />
             <ConfirmationModal
                 open={!!issueDeleteTarget}
