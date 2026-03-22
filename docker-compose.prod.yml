@@ -1,0 +1,96 @@
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: php_runtime
+    image: fortress-system/app:latest
+    restart: unless-stopped
+    env_file:
+      - ${APP_ENV_FILE:-.env.lightsail}
+    environment:
+      APP_ENV: production
+      APP_DEBUG: "false"
+      RUN_MIGRATIONS: ${RUN_MIGRATIONS:-false}
+      RUN_CONFIG_CACHE: ${RUN_CONFIG_CACHE:-false}
+    volumes:
+      - app_storage:/var/www/html/storage
+      - app_cache:/var/www/html/bootstrap/cache
+    depends_on:
+      db:
+        condition: service_healthy
+
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: nginx
+    image: fortress-system/web:latest
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    volumes:
+      - app_storage:/var/www/html/storage
+    depends_on:
+      - app
+
+  queue:
+    image: fortress-system/app:latest
+    restart: unless-stopped
+    env_file:
+      - ${APP_ENV_FILE:-.env.lightsail}
+    environment:
+      APP_ENV: production
+      APP_DEBUG: "false"
+      RUN_MIGRATIONS: "false"
+      RUN_CONFIG_CACHE: "false"
+    command: ["php", "artisan", "queue:work", "--sleep=3", "--tries=3", "--timeout=120", "--max-time=3600"]
+    volumes:
+      - app_storage:/var/www/html/storage
+      - app_cache:/var/www/html/bootstrap/cache
+    depends_on:
+      db:
+        condition: service_healthy
+
+  scheduler:
+    image: fortress-system/app:latest
+    restart: unless-stopped
+    env_file:
+      - ${APP_ENV_FILE:-.env.lightsail}
+    environment:
+      APP_ENV: production
+      APP_DEBUG: "false"
+      RUN_MIGRATIONS: "false"
+      RUN_CONFIG_CACHE: "false"
+    command: ["sh", "-lc", "while true; do php artisan schedule:run --verbose --no-interaction; sleep 60; done"]
+    volumes:
+      - app_storage:/var/www/html/storage
+      - app_cache:/var/www/html/bootstrap/cache
+    depends_on:
+      db:
+        condition: service_healthy
+
+  db:
+    image: mysql:8.0
+    restart: unless-stopped
+    environment:
+      MYSQL_DATABASE: ${DB_DATABASE:-fortress}
+      MYSQL_USER: ${DB_USERNAME:-fortress}
+      MYSQL_PASSWORD: ${DB_PASSWORD:-change-this}
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:-change-root-password}
+    command:
+      - --default-authentication-plugin=mysql_native_password
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+    volumes:
+      - mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h localhost -u root -p$$MYSQL_ROOT_PASSWORD --silent"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+
+volumes:
+  app_storage:
+  app_cache:
+  mysql_data:
