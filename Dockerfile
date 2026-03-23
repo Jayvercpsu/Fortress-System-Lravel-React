@@ -27,11 +27,12 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     libfreetype6-dev \
     libjpeg62-turbo-dev \
+    libwebp-dev \
     libonig-dev \
     libpng-dev \
     libxml2-dev \
     libzip-dev \
-    && docker-php-ext-configure gd --with-freetype --with-jpeg \
+    && docker-php-ext-configure gd --with-freetype --with-jpeg --with-webp \
     && docker-php-ext-install -j"$(nproc)" bcmath exif gd pcntl pdo_mysql \
     && rm -rf /var/lib/apt/lists/*
 
