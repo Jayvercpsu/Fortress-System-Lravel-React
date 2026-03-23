@@ -1,5 +1,18 @@
 <?php
 
+$normalizeUrl = static function ($value) {
+    $value = trim((string) $value);
+    if ($value === '') {
+        return null;
+    }
+
+    if (!preg_match('#^https?://#i', $value)) {
+        $value = 'https://' . $value;
+    }
+
+    return $value;
+};
+
 return [
 
     /*
@@ -53,8 +66,8 @@ return [
             'secret' => env('AWS_SECRET_ACCESS_KEY'),
             'region' => env('AWS_DEFAULT_REGION'),
             'bucket' => env('AWS_BUCKET'),
-            'url' => env('AWS_URL'),
-            'endpoint' => env('AWS_ENDPOINT'),
+            'url' => $normalizeUrl(env('AWS_URL')),
+            'endpoint' => $normalizeUrl(env('AWS_ENDPOINT')),
             'use_path_style_endpoint' => env('AWS_USE_PATH_STYLE_ENDPOINT', false),
             'throw' => false,
             'report' => false,

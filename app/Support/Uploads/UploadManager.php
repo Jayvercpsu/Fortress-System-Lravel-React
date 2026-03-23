@@ -3,6 +3,7 @@
 namespace App\Support\Uploads;
 
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Intervention\Image\Drivers\Gd\Driver;
@@ -57,8 +58,29 @@ class UploadManager
             $normalizedDirectory = 'uploads';
         }
 
+        $logContext = [
+            'disk' => $resolvedDisk,
+            'directory' => $normalizedDirectory,
+            'original_name' => $file->getClientOriginalName(),
+            'extension' => $file->getClientOriginalExtension(),
+            'mime' => $file->getMimeType(),
+            'size' => $file->getSize(),
+        ];
+
+        if ($resolvedDisk === 's3') {
+            $logContext['s3_bucket'] = (string) config('filesystems.disks.s3.bucket');
+            $logContext['s3_region'] = (string) config('filesystems.disks.s3.region');
+            $logContext['s3_endpoint'] = (string) config('filesystems.disks.s3.endpoint');
+            $logContext['s3_url'] = (string) config('filesystems.disks.s3.url');
+            $logContext['s3_path_style'] = (bool) config('filesystems.disks.s3.use_path_style_endpoint');
+        }
+
+        Log::info('UploadManager: upload started', $logContext);
+
         if (!self::isImage($file)) {
-            return $file->store($normalizedDirectory, $resolvedDisk);
+            $path = $file->store($normalizedDirectory, $resolvedDisk);
+            Log::info('UploadManager: upload stored (raw)', $logContext + ['path' => $path]);
+            return $path;
         }
 
         return self::storeCompressedImage($file, $normalizedDirectory, $resolvedDisk);
@@ -109,11 +131,73 @@ class UploadManager
             $path = $directory . '/' . $filename;
 
             Storage::disk($disk)->put($path, (string) $encoded);
+            $exists = null;
+            try {
+                $exists = Storage::disk($disk)->fileExists($path);
+            } catch (\Throwable $e) {
+                Log::warning('UploadManager: upload verification failed (compressed image)', [
+                    'disk' => $disk,
+                    'path' => $path,
+                    'error' => $e->getMessage(),
+                ]);
+            }
+
+            Log::info('UploadManager: upload stored (compressed image)', [
+                'disk' => $disk,
+                'path' => $path,
+                'original_name' => $file->getClientOriginalName(),
+                'extension' => $extension,
+                'mime' => $file->getMimeType(),
+                'size' => $file->getSize(),
+                'exists' => $exists,
+            ]);
+
+            if ($exists === false) {
+                Log::warning('UploadManager: upload verification failed (compressed image)', [
+                    'disk' => $disk,
+                    'path' => $path,
+                ]);
+            }
 
             return $path;
         } catch (\Throwable $e) {
+            Log::warning('UploadManager: compression failed, falling back to raw upload', [
+                'disk' => $disk,
+                'directory' => $directory,
+                'original_name' => $file->getClientOriginalName(),
+                'extension' => $file->getClientOriginalExtension(),
+                'mime' => $file->getMimeType(),
+                'size' => $file->getSize(),
+                'error' => $e->getMessage(),
+            ]);
             // Fall back to raw upload if runtime image tooling is unavailable.
-            return $file->store($directory, $disk);
+            $path = $file->store($directory, $disk);
+            $exists = null;
+            try {
+                $exists = Storage::disk($disk)->fileExists($path);
+            } catch (\Throwable $e) {
+                Log::warning('UploadManager: upload verification failed (raw fallback)', [
+                    'disk' => $disk,
+                    'path' => $path,
+                    'error' => $e->getMessage(),
+                ]);
+            }
+            Log::info('UploadManager: upload stored (raw fallback)', [
+                'disk' => $disk,
+                'path' => $path,
+                'original_name' => $file->getClientOriginalName(),
+                'extension' => $file->getClientOriginalExtension(),
+                'mime' => $file->getMimeType(),
+                'size' => $file->getSize(),
+                'exists' => $exists,
+            ]);
+            if ($exists === false) {
+                Log::warning('UploadManager: upload verification failed (raw fallback)', [
+                    'disk' => $disk,
+                    'path' => $path,
+                ]);
+            }
+            return $path;
         }
     }
 
