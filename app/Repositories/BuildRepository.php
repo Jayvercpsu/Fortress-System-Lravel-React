@@ -101,12 +101,13 @@ class BuildRepository implements BuildRepositoryInterface
     public function insertDefaultScopes(Project $project, array $scopeNames): void
     {
         $now = now();
+        $defaultAssignee = $this->resolveDefaultScopeAssignee($project);
         $project->scopes()->insert(
-            collect($scopeNames)->map(function (string $name) use ($project, $now) {
+            collect($scopeNames)->map(function (string $name) use ($project, $now, $defaultAssignee) {
                 return [
                     'project_id' => (int) $project->id,
                     'scope_name' => $name,
-                    'assigned_personnel' => null,
+                    'assigned_personnel' => $defaultAssignee !== '' ? $defaultAssignee : null,
                     'progress_percent' => 0,
                     'status' => ProjectScope::STATUS_NOT_STARTED,
                     'remarks' => null,
@@ -119,6 +120,38 @@ class BuildRepository implements BuildRepositoryInterface
                 ];
             })->all()
         );
+    }
+
+    private function resolveDefaultScopeAssignee(Project $project): string
+    {
+        $assigned = trim((string) ($project->assigned ?? ''));
+        if ($assigned !== '') {
+            return $assigned;
+        }
+
+        $assignedForemanIds = ProjectAssignment::query()
+            ->where('project_id', $project->id)
+            ->where('role_in_project', ProjectAssignment::ROLE_FOREMAN)
+            ->pluck('user_id')
+            ->map(fn ($id) => (int) $id)
+            ->filter()
+            ->unique()
+            ->values();
+
+        if ($assignedForemanIds->isEmpty()) {
+            return '';
+        }
+
+        return User::query()
+            ->where('role', User::ROLE_FOREMAN)
+            ->whereIn('id', $assignedForemanIds->all())
+            ->orderBy('fullname')
+            ->pluck('fullname')
+            ->map(fn ($name) => trim((string) $name))
+            ->filter(fn ($name) => $name !== '')
+            ->unique(fn ($name) => mb_strtolower($name))
+            ->values()
+            ->implode(', ');
     }
 
     public function projectForemanOptions(Project $project): array

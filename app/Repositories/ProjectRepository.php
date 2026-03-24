@@ -99,6 +99,8 @@ class ProjectRepository implements ProjectRepositoryInterface
                 ]
             );
 
+            $this->insertTransferDefaultScopes($duplicate, $this->resolveDefaultScopeAssignee($source));
+
             ProjectAssignment::query()
                 ->where('project_id', $source->id)
                 ->get(['user_id', 'role_in_project'])
@@ -125,6 +127,72 @@ class ProjectRepository implements ProjectRepositoryInterface
 
             return $duplicate;
         });
+    }
+
+    private function insertTransferDefaultScopes(Project $project, string $defaultAssignee): void
+    {
+        if ($project->scopes()->exists()) {
+            return;
+        }
+
+        $scopeNames = WeeklyAccomplishment::defaultScopeOfWorks();
+        if (empty($scopeNames)) {
+            return;
+        }
+
+        $now = now();
+        $assignee = trim($defaultAssignee);
+
+        $project->scopes()->insert(
+            collect($scopeNames)->map(function (string $name) use ($project, $now, $assignee) {
+                return [
+                    'project_id' => (int) $project->id,
+                    'scope_name' => $name,
+                    'assigned_personnel' => $assignee !== '' ? $assignee : null,
+                    'progress_percent' => 0,
+                    'status' => ProjectScope::STATUS_NOT_STARTED,
+                    'remarks' => null,
+                    'contract_amount' => 0,
+                    'weight_percent' => 0,
+                    'start_date' => null,
+                    'target_completion' => null,
+                    'created_at' => $now,
+                    'updated_at' => $now,
+                ];
+            })->all()
+        );
+    }
+
+    private function resolveDefaultScopeAssignee(Project $source): string
+    {
+        $assigned = trim((string) ($source->assigned ?? ''));
+        if ($assigned !== '') {
+            return $assigned;
+        }
+
+        $assignedForemanIds = ProjectAssignment::query()
+            ->where('project_id', $source->id)
+            ->where('role_in_project', ProjectAssignment::ROLE_FOREMAN)
+            ->pluck('user_id')
+            ->map(fn ($id) => (int) $id)
+            ->filter()
+            ->unique()
+            ->values();
+
+        if ($assignedForemanIds->isEmpty()) {
+            return '';
+        }
+
+        return User::query()
+            ->where('role', User::ROLE_FOREMAN)
+            ->whereIn('id', $assignedForemanIds->all())
+            ->orderBy('fullname')
+            ->pluck('fullname')
+            ->map(fn ($name) => trim((string) $name))
+            ->filter(fn ($name) => $name !== '')
+            ->unique(fn ($name) => mb_strtolower($name))
+            ->values()
+            ->implode(', ');
     }
 
     public function syncLegacyForemanAssignments(Project $project): void
