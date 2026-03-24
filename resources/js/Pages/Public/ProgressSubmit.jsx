@@ -1,6 +1,6 @@
 ﻿import { Head, router, usePage } from '@inertiajs/react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Camera, Check, ChevronDown, Plus, Trash2 } from 'lucide-react';
+import { Camera, Check, ChevronDown, Image, Plus, Trash2 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import ConfirmationModal from '../../Components/ConfirmationModal';
 import DatePickerInput from '../../Components/DatePickerInput';
@@ -403,7 +403,17 @@ export default function ProgressSubmit({ submitToken }) {
     const [photoKey, setPhotoKey] = useState(0);
     const [issueKey, setIssueKey] = useState(0);
     const [weeklyPhotoKey, setWeeklyPhotoKey] = useState(0);
+    const [cameraOpen, setCameraOpen] = useState(false);
+    const [cameraTarget, setCameraTarget] = useState('');
+    const [cameraError, setCameraError] = useState('');
+    const cameraFallbackRef = useRef(null);
+    const cameraVideoRef = useRef(null);
+    const cameraStreamRef = useRef(null);
     const photoInputRef = useRef(null);
+    const deliveryCameraInputRef = useRef(null);
+    const materialCameraInputRef = useRef(null);
+    const photoCameraInputRef = useRef(null);
+    const issueCameraInputRef = useRef(null);
     const attendanceWeekKey = normalizeToMonday(attendanceWeek) || '__attendance_empty__';
     const weeklyWeekKey = normalizeToMonday(weekStart) || '__weekly_empty__';
     const attendanceWeekStartDate = parseYmdDate(attendanceWeekKey === '__attendance_empty__' ? '' : attendanceWeekKey);
@@ -457,6 +467,128 @@ export default function ProgressSubmit({ submitToken }) {
 
     const rowTotal = (row) => DAYS.reduce((sum, d) => sum + (POINTS[row?.days?.[d.key] || ''] || 0), 0);
     const dayTotal = (key) => attendanceRows.reduce((sum, row) => sum + (POINTS[row?.days?.[key] || ''] || 0), 0);
+
+    const prefersDesktopCamera = useCallback(() => {
+        if (typeof navigator === 'undefined') return false;
+        const ua = navigator.userAgent || '';
+        const isMobile = /Mobi|Android|iPhone|iPad|iPod/i.test(ua);
+        return !isMobile && !!navigator.mediaDevices?.getUserMedia;
+    }, []);
+
+    const stopCameraStream = useCallback(() => {
+        if (cameraStreamRef.current) {
+            cameraStreamRef.current.getTracks().forEach((track) => track.stop());
+            cameraStreamRef.current = null;
+        }
+        if (cameraVideoRef.current) {
+            cameraVideoRef.current.srcObject = null;
+        }
+    }, []);
+
+    const closeCameraModal = useCallback(() => {
+        setCameraOpen(false);
+        setCameraTarget('');
+        setCameraError('');
+        cameraFallbackRef.current = null;
+        stopCameraStream();
+    }, [stopCameraStream]);
+
+    const setPhotoForTarget = useCallback((target, file) => {
+        if (!file) return;
+        if (target === 'delivery') {
+            setDelivery((p) => ({ ...p, photo: file }));
+            return;
+        }
+        if (target === 'materials') {
+            setMaterial((p) => ({ ...p, photo: file }));
+            return;
+        }
+        if (target === 'photos') {
+            setPhotoForm((p) => ({ ...p, photo: file }));
+            return;
+        }
+        if (target === 'issues') {
+            setIssue((p) => ({ ...p, photo: file }));
+        }
+    }, []);
+
+    const openCameraFor = useCallback((target, fallbackRef) => {
+        if (!prefersDesktopCamera()) {
+            fallbackRef?.current?.click();
+            return;
+        }
+        cameraFallbackRef.current = fallbackRef;
+        setCameraTarget(target);
+        setCameraOpen(true);
+    }, [prefersDesktopCamera]);
+
+    const handleTakePhotoClick = useCallback((event, target, fallbackRef) => {
+        if (!prefersDesktopCamera()) {
+            return;
+        }
+        event.preventDefault();
+        event.stopPropagation();
+        openCameraFor(target, fallbackRef);
+    }, [openCameraFor, prefersDesktopCamera]);
+
+    const captureCameraPhoto = useCallback(() => {
+        const video = cameraVideoRef.current;
+        if (!video) return;
+        const width = video.videoWidth || 1280;
+        const height = video.videoHeight || 720;
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return;
+        ctx.drawImage(video, 0, 0, width, height);
+        canvas.toBlob((blob) => {
+            if (!blob) return;
+            const file = new File([blob], `camera_${Date.now()}.jpg`, { type: 'image/jpeg' });
+            setPhotoForTarget(cameraTarget, file);
+            closeCameraModal();
+        }, 'image/jpeg', 0.9);
+    }, [cameraTarget, closeCameraModal, setPhotoForTarget]);
+
+    useEffect(() => {
+        if (!cameraOpen) {
+            stopCameraStream();
+            return;
+        }
+
+        let active = true;
+        setCameraError('');
+
+        const startCamera = async () => {
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({
+                    video: { facingMode: 'environment' },
+                    audio: false,
+                });
+                if (!active) {
+                    stream.getTracks().forEach((track) => track.stop());
+                    return;
+                }
+                cameraStreamRef.current = stream;
+                if (cameraVideoRef.current) {
+                    cameraVideoRef.current.srcObject = stream;
+                    await cameraVideoRef.current.play();
+                }
+            } catch (error) {
+                const message = error?.message || 'Unable to access the camera.';
+                setCameraError(message);
+                closeCameraModal();
+                cameraFallbackRef.current?.click();
+            }
+        };
+
+        startCamera();
+
+        return () => {
+            active = false;
+            stopCameraStream();
+        };
+    }, [cameraOpen, closeCameraModal, stopCameraStream]);
 
     const toggle = (key) => {
         setExpanded((prev) => {
@@ -801,7 +933,23 @@ export default function ProgressSubmit({ submitToken }) {
                     style={jfDateInputStyle}
                 />
             </label>
-            <label className="jf-file-btn"><Camera size={20} /> Take Photo<TextInput key={deliveryKey} type="file" accept="image/*" capture="environment" onChange={(e) => setDelivery((p) => ({ ...p, photo: e.target.files?.[0] || null }))} /></label>
+            <div className="jf-row" style={{ marginTop: 6 }}>
+                <label
+                    className="jf-file-btn"
+                    onClick={(event) => handleTakePhotoClick(event, 'delivery', deliveryCameraInputRef)}
+                >
+                    <Camera size={20} /> Take Photo
+                    <TextInput
+                        ref={deliveryCameraInputRef}
+                        key={`${deliveryKey}-camera`}
+                        type="file"
+                        accept="image/*"
+                        capture="environment"
+                        onChange={(e) => setDelivery((p) => ({ ...p, photo: e.target.files?.[0] || null }))}
+                    />
+                </label>
+                <label className="jf-file-btn jf-file-outline"><Image size={20} /> Gallery<TextInput key={`${deliveryKey}-gallery`} type="file" accept="image/*" onChange={(e) => setDelivery((p) => ({ ...p, photo: e.target.files?.[0] || null }))} /></label>
+            </div>
             <div className="jf-note">{delivery.photo?.name || 'No photo selected'}</div>
             <div className="jf-row">
                 <button type="button" className={`jf-toggle ${delivery.status === 'complete' ? 'on' : ''}`} onClick={() => setDelivery((p) => ({ ...p, status: 'complete' }))}>Complete</button>
@@ -869,7 +1017,23 @@ export default function ProgressSubmit({ submitToken }) {
                 <label className="jf-label">Unit<input className="jf-input" value={material.unit} onChange={(e) => setMaterial((p) => ({ ...p, unit: e.target.value }))} /></label>
             </div>
             <label className="jf-label">Remarks<textarea className="jf-input" rows={3} value={material.remarks} onChange={(e) => setMaterial((p) => ({ ...p, remarks: e.target.value }))} /></label>
-            <label className="jf-file-btn"><Camera size={20} /> Take Photo<TextInput key={materialKey} type="file" accept="image/*" capture="environment" onChange={(e) => setMaterial((p) => ({ ...p, photo: e.target.files?.[0] || null }))} /></label>
+            <div className="jf-row" style={{ marginTop: 6 }}>
+                <label
+                    className="jf-file-btn"
+                    onClick={(event) => handleTakePhotoClick(event, 'materials', materialCameraInputRef)}
+                >
+                    <Camera size={20} /> Take Photo
+                    <TextInput
+                        ref={materialCameraInputRef}
+                        key={`${materialKey}-camera`}
+                        type="file"
+                        accept="image/*"
+                        capture="environment"
+                        onChange={(e) => setMaterial((p) => ({ ...p, photo: e.target.files?.[0] || null }))}
+                    />
+                </label>
+                <label className="jf-file-btn jf-file-outline"><Image size={20} /> Gallery<TextInput key={`${materialKey}-gallery`} type="file" accept="image/*" onChange={(e) => setMaterial((p) => ({ ...p, photo: e.target.files?.[0] || null }))} /></label>
+            </div>
             <div className="jf-note">{material.photo?.name || 'No photo selected'}</div>
             <div style={{ marginTop: 10 }}>
                 <div className="jf-small-title" style={{ fontSize: 16, marginBottom: 6 }}>Recent Material Requests</div>
@@ -1123,7 +1287,23 @@ export default function ProgressSubmit({ submitToken }) {
     const photosContent = (
         <div className="jf-photo-layout">
             <div>
-                <label className="jf-file-btn jf-file-blue"><Camera size={20} /> TAKE PHOTO<TextInput ref={photoInputRef} key={photoKey} type="file" accept="image/*" capture="environment" onChange={(e) => setPhotoForm((p) => ({ ...p, photo: e.target.files?.[0] || null }))} /></label>
+                <div className="jf-row">
+                    <label
+                        className="jf-file-btn jf-file-blue"
+                        onClick={(event) => handleTakePhotoClick(event, 'photos', photoCameraInputRef)}
+                    >
+                        <Camera size={20} /> TAKE PHOTO
+                        <TextInput
+                            ref={photoCameraInputRef}
+                            key={`${photoKey}-camera`}
+                            type="file"
+                            accept="image/*"
+                            capture="environment"
+                            onChange={(e) => setPhotoForm((p) => ({ ...p, photo: e.target.files?.[0] || null }))}
+                        />
+                    </label>
+                    <label className="jf-file-btn jf-file-outline"><Image size={20} /> Gallery<TextInput ref={photoInputRef} key={`${photoKey}-gallery`} type="file" accept="image/*" onChange={(e) => setPhotoForm((p) => ({ ...p, photo: e.target.files?.[0] || null }))} /></label>
+                </div>
                 <div className="jf-note">{photoForm.photo?.name || 'No photo selected'}</div>
                 <label className="jf-label" style={{ marginTop: 10 }}>CHOOSE CATEGORY
                     <select className="jf-input" value={photoForm.category} onChange={(e) => setPhotoForm((p) => ({ ...p, category: e.target.value }))}>
@@ -1172,7 +1352,23 @@ export default function ProgressSubmit({ submitToken }) {
         <>
             <label className="jf-label">Issue Title<input className="jf-input" value={issue.issue_title} onChange={(e) => setIssue((p) => ({ ...p, issue_title: e.target.value }))} /></label>
             <label className="jf-label">Description<textarea className="jf-input" rows={4} value={issue.description} onChange={(e) => setIssue((p) => ({ ...p, description: e.target.value }))} /></label>
-            <label className="jf-file-btn"><Camera size={20} /> Take Photo<TextInput key={issueKey} type="file" accept="image/*" capture="environment" onChange={(e) => setIssue((p) => ({ ...p, photo: e.target.files?.[0] || null }))} /></label>
+            <div className="jf-row" style={{ marginTop: 6 }}>
+                <label
+                    className="jf-file-btn"
+                    onClick={(event) => handleTakePhotoClick(event, 'issues', issueCameraInputRef)}
+                >
+                    <Camera size={20} /> Take Photo
+                    <TextInput
+                        ref={issueCameraInputRef}
+                        key={`${issueKey}-camera`}
+                        type="file"
+                        accept="image/*"
+                        capture="environment"
+                        onChange={(e) => setIssue((p) => ({ ...p, photo: e.target.files?.[0] || null }))}
+                    />
+                </label>
+                <label className="jf-file-btn jf-file-outline"><Image size={20} /> Gallery<TextInput key={`${issueKey}-gallery`} type="file" accept="image/*" onChange={(e) => setIssue((p) => ({ ...p, photo: e.target.files?.[0] || null }))} /></label>
+            </div>
             <div className="jf-note">{issue.photo?.name || 'No photo selected'}</div>
             <div className="jf-radio-row">
                 {['low', 'normal', 'high'].map((v) => (
@@ -1274,6 +1470,7 @@ export default function ProgressSubmit({ submitToken }) {
                     .jf-btn-light{background:#ece7db;color:#1f2937;border:1px solid #c7bfae}
                     .jf-file-btn{border:1px solid #2f4154;background:#3c4f62;color:#fff;border-radius:8px;min-height:48px;display:inline-flex;align-items:center;justify-content:center;gap:8px;padding:10px 14px;cursor:pointer;font-size:16px;font-weight:800;text-transform:uppercase}
                     .jf-file-btn input{display:none}
+                    .jf-file-outline{background:#f5f3ed;color:#1f2937;border-color:#c7bfae;text-transform:none}
                     .jf-file-blue{background:#3378dd;border-color:#2e69c4}
                     .jf-note{font-size:12px;color:#586172}
                     .jf-row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
@@ -1285,6 +1482,8 @@ export default function ProgressSubmit({ submitToken }) {
                     .jf-photo-item img{width:90px;height:70px;object-fit:cover;border-radius:8px;border:1px solid #d3ccbd}
                     .jf-photo-action{position:absolute;top:4px;right:4px;border:1px solid #e7b6b6;background:#fff7f7;color:#b02020;padding:4px;border-radius:6px;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;box-shadow:0 1px 3px rgba(0,0,0,.08);z-index:2}
                     .jf-photo-action:disabled{opacity:.6;cursor:not-allowed}
+                    .jf-camera{display:grid;gap:10px}
+                    .jf-camera-video{width:100%;max-height:60vh;object-fit:cover;border-radius:10px;border:1px solid #d4cec0;background:#000}
                     .jf-scope-photo{position:relative}
                     .jf-scope-photo-delete{position:absolute;top:4px;right:4px;border:1px solid #e7b6b6;background:#fff7f7;color:#b02020;padding:3px;border-radius:6px;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;box-shadow:0 1px 3px rgba(0,0,0,.08);z-index:2}
                     .jf-scope-photo-delete:disabled{opacity:.6;cursor:not-allowed}
@@ -1372,6 +1571,27 @@ export default function ProgressSubmit({ submitToken }) {
                         </a>
                     </div>
                 ) : null}
+            </Modal>
+            <Modal
+                open={cameraOpen}
+                onClose={closeCameraModal}
+                title="Take Photo"
+                maxWidth={720}
+            >
+                <div className="jf-camera">
+                    <video
+                        ref={cameraVideoRef}
+                        autoPlay
+                        playsInline
+                        muted
+                        className="jf-camera-video"
+                    />
+                    {cameraError ? <div className="jf-note">{cameraError}</div> : null}
+                    <div className="jf-row" style={{ justifyContent: 'center' }}>
+                        <button type="button" className="jf-btn jf-btn-blue" onClick={captureCameraPhoto}>Capture</button>
+                        <button type="button" className="jf-btn jf-btn-light" onClick={closeCameraModal}>Cancel</button>
+                    </div>
+                </div>
             </Modal>
             <ConfirmationModal
                 open={!!materialDeleteTarget}
