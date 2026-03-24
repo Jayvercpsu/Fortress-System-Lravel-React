@@ -15,6 +15,13 @@ createInertiaApp({
     title: (title) => `${title} - BuildBooks`,
     resolve: (name) => resolvePageComponent(`./Pages/${name}.jsx`, import.meta.glob('./Pages/**/*.jsx')),
     setup({ el, App, props }) {
+        if (typeof window !== 'undefined') {
+            const timezone = props?.initialPage?.props?.app?.timezone;
+            if (timezone) {
+                window.__APP_TIMEZONE = timezone;
+            }
+        }
+
         createRoot(el).render(
             <>
                 <App {...props} />

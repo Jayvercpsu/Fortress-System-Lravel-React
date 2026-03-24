@@ -30,7 +30,8 @@ const inputStyle = {
 };
 
 const mono = { fontFamily: "'DM Mono', monospace" };
-const PH_TIMEZONE = 'Asia/Manila';
+const PH_TIMEZONE =
+    typeof window !== 'undefined' && window.__APP_TIMEZONE ? window.__APP_TIMEZONE : 'Asia/Manila';
 
 function getPhNowParts(nowValue = Date.now()) {
     const parts = new Intl.DateTimeFormat('en-US', {

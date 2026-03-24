@@ -9,6 +9,9 @@ class HandleInertiaRequests extends Middleware {
 
     public function share(Request $request): array {
         return array_merge(parent::share($request), [
+            'app' => [
+                'timezone' => config('app.timezone'),
+            ],
             'auth' => [
                 'user' => $request->user() ? [
                     'id'       => $request->user()->id,
