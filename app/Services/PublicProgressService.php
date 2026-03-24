@@ -910,14 +910,14 @@ class PublicProgressService
                     return [Str::lower($scopeName) => true];
                 })
                 ->all();
-            $allowedWeeklyScopes = $weeklyScopes
-                ->filter(fn (array $scope) => isset($assignedScopeKeys[Str::lower($scope['scope_of_work'])]))
-                ->values();
-            $allowedWeeklyScopePhotos = $weeklyScopePhotos
-                ->filter(fn (array $scope) => isset($assignedScopeKeys[Str::lower($scope['scope_of_work'])]))
-                ->values();
-            $weeklyScopes = $allowedWeeklyScopes;
-            $weeklyScopePhotos = $allowedWeeklyScopePhotos;
+            if (!empty($assignedScopeKeys)) {
+                $weeklyScopes = $weeklyScopes
+                    ->filter(fn (array $scope) => isset($assignedScopeKeys[Str::lower($scope['scope_of_work'])]))
+                    ->values();
+                $weeklyScopePhotos = $weeklyScopePhotos
+                    ->filter(fn (array $scope) => isset($assignedScopeKeys[Str::lower($scope['scope_of_work'])]))
+                    ->values();
+            }
             $submittedScopeKeys = $weeklyScopes
                 ->pluck('scope_of_work')
                 ->map(fn (string $scope) => Str::lower($scope))
