@@ -29,6 +29,7 @@ services:
     restart: unless-stopped
     ports:
       - "80:80"
+      - "443:443"
     volumes:
       - app_storage:/var/www/html/storage
       - /etc/letsencrypt:/etc/letsencrypt:ro
