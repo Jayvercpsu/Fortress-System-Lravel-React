@@ -97,9 +97,15 @@ sudo apt-get install -y certbot
 
 Make sure the Nginx container serves `/.well-known/acme-challenge` from a host path (for example `./certbot/www` mounted to `/var/www/certbot`).
 
+Create the webroot directory on the host:
+
+```bash
+mkdir -p /home/ubuntu/fortress/certbot/www
+```
+
 ```bash
 sudo certbot certonly \
-  --webroot -w /path/to/your/webroot \
+  --webroot -w /home/ubuntu/fortress/certbot/www \
   -d yourdomain.com -d www.yourdomain.com
 ```
 
@@ -110,6 +116,7 @@ Ensure the Nginx service in `docker-compose.prod.yml` mounts host certs read-onl
 ```yaml
 volumes:
   - /etc/letsencrypt:/etc/letsencrypt:ro
+  - ./certbot/www:/var/www/certbot
 ```
 
 ### 7.4) Reload Nginx after renewals
