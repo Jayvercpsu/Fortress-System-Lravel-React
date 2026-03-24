@@ -82,14 +82,83 @@ Recommended:
 
 This keeps TLS termination outside the container and simplifies renewal.
 
-## 7) Storage and uploads
+## 7) Optional: Host-level certbot with systemd timer
+
+Use this when TLS is terminated on the instance (Nginx in Docker). Certs live on the host and are mounted into the Nginx container.
+
+### 7.1) Install certbot on the host
+
+```bash
+sudo apt-get update
+sudo apt-get install -y certbot
+```
+
+### 7.2) Issue the first certificate (webroot)
+
+Make sure the Nginx container serves `/.well-known/acme-challenge` from a host path (for example `./certbot/www` mounted to `/var/www/certbot`).
+
+```bash
+sudo certbot certonly \
+  --webroot -w /path/to/your/webroot \
+  -d yourdomain.com -d www.yourdomain.com
+```
+
+### 7.3) Mount certs into Nginx
+
+Ensure the Nginx service in `docker-compose.prod.yml` mounts host certs read-only:
+
+```yaml
+volumes:
+  - /etc/letsencrypt:/etc/letsencrypt:ro
+```
+
+### 7.4) Reload Nginx after renewals
+
+Create a deploy hook so certbot reloads Nginx inside Docker when a certificate is renewed.
+
+```bash
+sudo tee /etc/letsencrypt/renewal-hooks/deploy/reload-nginx.sh >/dev/null <<'EOF'
+#!/bin/sh
+docker compose --env-file /home/ubuntu/fortress/.env.lightsail \
+  -f /home/ubuntu/fortress/docker-compose.prod.yml \
+  exec -T web nginx -s reload
+EOF
+sudo chmod +x /etc/letsencrypt/renewal-hooks/deploy/reload-nginx.sh
+```
+
+Update `/home/ubuntu/fortress` and `web` to match your server path and compose service name.
+
+### 7.5) Enable auto-renew
+
+```bash
+sudo systemctl enable --now certbot.timer
+sudo systemctl list-timers | grep certbot
+sudo certbot renew --dry-run
+```
+
+### 7.6) Stop or disable auto-renew
+
+```bash
+sudo systemctl stop certbot.timer
+sudo systemctl disable certbot.timer
+systemctl status certbot.timer
+```
+
+### 7.7) Re-enable auto-renew
+
+```bash
+sudo systemctl enable --now certbot.timer
+systemctl status certbot.timer
+```
+
+## 8) Storage and uploads
 
 - For production durability, use S3/Lightsail Object Storage via `AWS_*` env values.
 - If you want all Laravel `Storage` calls to default to the bucket, set `FILESYSTEM_DISK=s3`.
 - This app's `UploadManager` also auto-switches to `s3` in non-local environments when `AWS_BUCKET`, `AWS_ACCESS_KEY_ID`, and `AWS_SECRET_ACCESS_KEY` are set.
 - If using local disk uploads, data persists in Docker volume `app_storage`.
 
-## 8) Updating deployment
+## 9) Updating deployment
 
 ```bash
 git pull
@@ -98,7 +167,7 @@ docker compose --env-file .env.lightsail -f docker-compose.prod.yml up -d
 docker compose --env-file .env.lightsail -f docker-compose.prod.yml run --rm app php artisan migrate --force
 ```
 
-## 9) Optional: Use external DB instead of container MySQL
+## 10) Optional: Use external DB instead of container MySQL
 
 If using Lightsail Managed Database or RDS:
 

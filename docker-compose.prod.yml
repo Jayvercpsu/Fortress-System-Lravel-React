@@ -31,6 +31,7 @@ services:
       - "80:80"
     volumes:
       - app_storage:/var/www/html/storage
+      - /etc/letsencrypt:/etc/letsencrypt:ro
     depends_on:
       - app
 
