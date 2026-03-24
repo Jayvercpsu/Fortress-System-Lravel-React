@@ -58,7 +58,7 @@ WORKDIR /var/www/html
 
 COPY . .
 COPY --from=frontend /var/www/html/public/build ./public/build
-COPY docker/nginx/default.conf /etc/nginx/conf.d/default.conf
+COPY docker/nginx/default.conf /etc/nginx/templates/default.conf.template
 
 RUN mkdir -p /var/www/html/storage/app/public \
     && ln -sfn /var/www/html/storage/app/public /var/www/html/public/storage

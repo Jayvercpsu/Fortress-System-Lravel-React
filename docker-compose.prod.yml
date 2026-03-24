@@ -27,6 +27,9 @@ services:
       target: nginx
     image: fortress-system/web:latest
     restart: unless-stopped
+    environment:
+      CERT_DOMAIN: ${CERT_DOMAIN}
+      NGINX_SERVER_NAME: ${NGINX_SERVER_NAME}
     ports:
       - "80:80"
       - "443:443"

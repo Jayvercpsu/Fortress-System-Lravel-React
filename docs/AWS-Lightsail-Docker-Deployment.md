@@ -39,6 +39,8 @@ cp .env.lightsail.example .env.lightsail
 Edit `.env.lightsail` and set at minimum:
 
 - `APP_URL`
+- `CERT_DOMAIN` (primary domain for the SSL certificate)
+- `NGINX_SERVER_NAME` (space-separated server names, ex: `example.com www.example.com`)
 - `DB_DATABASE`, `DB_USERNAME`, `DB_PASSWORD`, `DB_ROOT_PASSWORD` (if using bundled `db` service)
 - `AWS_*` values if using S3/Lightsail Object Storage
 
@@ -118,6 +120,8 @@ volumes:
   - /etc/letsencrypt:/etc/letsencrypt:ro
   - ./certbot/www:/var/www/certbot
 ```
+
+The Nginx config uses environment variables for domains. Make sure `CERT_DOMAIN` and `NGINX_SERVER_NAME` are set in `.env.lightsail` so the template renders correctly.
 
 ### 7.4) Reload Nginx after renewals
 
