@@ -29,6 +29,12 @@ class StorageProxyRepository implements StorageProxyRepositoryInterface
         return Storage::disk($this->disk())->response($path);
     }
 
+    public function downloadResponse(string $path, ?string $name = null): StreamedResponse
+    {
+        $storage = Storage::disk($this->disk());
+        return $name ? $storage->download($path, $name) : $storage->download($path);
+    }
+
     private function disk(): string
     {
         return UploadManager::disk();

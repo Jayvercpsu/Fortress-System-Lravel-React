@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Services\StorageProxyService;
+use Illuminate\Http\Request;
 
 class StorageProxyController extends Controller
 {
@@ -11,8 +12,11 @@ class StorageProxyController extends Controller
     ) {
     }
 
-    public function show(string $path)
+    public function show(Request $request, string $path)
     {
-        return $this->storageProxyService->streamFile($path);
+        $forceDownload = $request->boolean('download');
+        $downloadName = $request->query('name');
+
+        return $this->storageProxyService->streamFile($path, $forceDownload, $downloadName);
     }
 }

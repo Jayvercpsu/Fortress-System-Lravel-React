@@ -158,6 +158,27 @@ const progressCircleCenter = progressCircleSize / 2;
 const PROJECT_TYPE_OPTIONS = ['2Storey', '3Storey', 'w/ Roofdeck', 'Bungalow', 'Commercial', 'Renovation'];
 const OTHER_PROJECT_TYPE_OPTION = '__OTHER__';
 const OTHER_DEPARTMENT_OPTION = '__OTHER_DEPARTMENT__';
+const MAX_UPLOAD_BYTES = 10 * 1024 * 1024;
+const SUPPORTED_FILE_EXTENSIONS = [
+    'jpg',
+    'jpeg',
+    'png',
+    'bmp',
+    'gif',
+    'svg',
+    'webp',
+    'avif',
+    'pdf',
+    'doc',
+    'docx',
+    'xls',
+    'xlsx',
+    'csv',
+    'ppt',
+    'pptx',
+    'txt',
+];
+const SUPPORTED_FILE_ACCEPT = SUPPORTED_FILE_EXTENSIONS.map((ext) => `.${ext}`).join(',');
 
 const statusBadgeBase = {
     display: 'inline-flex',
@@ -318,6 +339,11 @@ const isImageFile = (file) => {
     const name = String(file?.original_name || '').toLowerCase();
     return ['.png', '.jpg', '.jpeg', '.gif', '.webp', '.bmp', '.svg'].some((ext) => name.endsWith(ext));
 };
+const isSupportedUpload = (file) => {
+    const name = String(file?.name || file?.original_name || '').toLowerCase();
+    const ext = name.includes('.') ? name.split('.').pop() : '';
+    return ext ? SUPPORTED_FILE_EXTENSIONS.includes(ext) : false;
+};
 
 export default function MonitoringBoardIndexPage({
     items = [],
@@ -413,6 +439,7 @@ export default function MonitoringBoardIndexPage({
     const [editDepartmentOption, setEditDepartmentOption] = useState('');
     const [editCustomDepartment, setEditCustomDepartment] = useState('');
     const [editItem, setEditItem] = useState(null);
+    const [infoItem, setInfoItem] = useState(null);
 
     const filterClientOptionsForProject = (options, projectId) => {
         const normalizedProjectId = projectId ? Number(projectId) : 0;
@@ -498,6 +525,7 @@ export default function MonitoringBoardIndexPage({
     const [deletingFileId, setDeletingFileId] = useState(null);
     const [filesPage, setFilesPage] = useState(1);
     const [previewFile, setPreviewFile] = useState(null);
+    const [fileInputKey, setFileInputKey] = useState(0);
     const [collapsedDepartments, setCollapsedDepartments] = useState({});
     const [selectedRowsByDepartment, setSelectedRowsByDepartment] = useState({});
     const [bulkActionByDepartment, setBulkActionByDepartment] = useState({});
@@ -621,12 +649,17 @@ export default function MonitoringBoardIndexPage({
             groupedItems.forEach((group) => {
                 const selectedIds = selectedRowsByDepartment[group.department] || [];
                 const selectedRows = group.rows.filter((row) => selectedIds.includes(row.id));
-                const canEdit = selectedIds.length === 1 && !selectedRows[0]?.project_id;
+                const selectedStatus = normalizeStatus(selectedRows[0]?.status, '');
+                const canEdit = selectedIds.length === 1 && !selectedRows[0]?.project_id && selectedStatus !== 'DONE';
+                const canInfo = selectedIds.length === 1 && selectedStatus === 'DONE';
                 if (selectedIds.length === 0) {
                     next[group.department] = '';
                     return;
                 }
                 if (next[group.department] === 'edit' && !canEdit) {
+                    next[group.department] = '';
+                }
+                if (next[group.department] === 'info' && !canInfo) {
                     next[group.department] = '';
                 }
             });
@@ -737,6 +770,14 @@ export default function MonitoringBoardIndexPage({
         });
     };
 
+    const openInfo = (item) => {
+        setInfoItem(item);
+    };
+
+    const closeInfo = () => {
+        setInfoItem(null);
+    };
+
     const closeEdit = () => {
         if (updating) return;
         setEditItem(null);
@@ -812,6 +853,7 @@ export default function MonitoringBoardIndexPage({
     const openFiles = (item) => {
         setFilesItem(item);
         resetFileData();
+        setFileInputKey((key) => key + 1);
         setFileToDelete(null);
         setFilesPage(1);
         setPreviewFile(null);
@@ -822,6 +864,7 @@ export default function MonitoringBoardIndexPage({
         setFilesItem(null);
         setFileToDelete(null);
         resetFileData();
+        setFileInputKey((key) => key + 1);
         setPreviewFile(null);
     };
 
@@ -832,7 +875,11 @@ export default function MonitoringBoardIndexPage({
             toast.error(toastMessages.monitoringBoard.fileChoose);
             return;
         }
-        if (fileData.file.size > 5 * 1024 * 1024) {
+        if (!isSupportedUpload(fileData.file)) {
+            toast.error(toastMessages.monitoringBoard.fileTypeUnsupported);
+            return;
+        }
+        if (fileData.file.size > MAX_UPLOAD_BYTES) {
             toast.error(toastMessages.monitoringBoard.fileTooLarge);
             return;
         }
@@ -843,6 +890,7 @@ export default function MonitoringBoardIndexPage({
             preserveScroll: true,
             onSuccess: (page) => {
                 resetFileData();
+                setFileInputKey((key) => key + 1);
                 if (page?.props?.items && filesItemId) {
                     const updated = page.props.items.find((item) => item.id === filesItemId);
                     if (updated) setFilesItem(updated);
@@ -913,14 +961,21 @@ export default function MonitoringBoardIndexPage({
                         const selectedCount = selectedIds.length;
                         const allSelected = rowIds.length > 0 && selectedCount === rowIds.length;
                         const selectedRows = group.rows.filter((row) => selectedIds.includes(row.id));
-                        const canEditSelection = selectedCount === 1 && !selectedRows[0]?.project_id;
+                        const selectedStatus = normalizeStatus(selectedRows[0]?.status, '');
+                        const canEditSelection = selectedCount === 1 && !selectedRows[0]?.project_id && selectedStatus !== 'DONE';
+                        const canInfoSelection = selectedCount === 1 && selectedStatus === 'DONE';
                         const bulkActionValue = bulkActionByDepartment[group.department] || '';
                         const bulkActionOptions = canEditSelection
                             ? [
                                   { value: 'edit', label: 'Edit selected' },
                                   { value: 'delete', label: 'Delete selected' },
                               ]
-                            : [{ value: 'delete', label: 'Delete selected' }];
+                            : canInfoSelection
+                                ? [
+                                      { value: 'info', label: 'Info selected' },
+                                      { value: 'delete', label: 'Delete selected' },
+                                  ]
+                                : [{ value: 'delete', label: 'Delete selected' }];
                         const sortConfig = { ...globalSort, ...(departmentSort[group.department] || {}) };
                         const sortedRows = sortRows(group.rows, sortConfig.key, sortConfig.dir);
                         const stickyHeaderStyle = {
@@ -987,6 +1042,11 @@ export default function MonitoringBoardIndexPage({
                                                 if (!value) return;
                                                 if (value === 'edit' && canEditSelection) {
                                                     openEdit(selectedRows[0]);
+                                                    clearDepartmentSelection(group.department);
+                                                    return;
+                                                }
+                                                if (value === 'info' && canInfoSelection) {
+                                                    openInfo(selectedRows[0]);
                                                     clearDepartmentSelection(group.department);
                                                     return;
                                                 }
@@ -1252,12 +1312,17 @@ export default function MonitoringBoardIndexPage({
                             <label style={{ display: 'grid', gap: 6 }}>
                                 <div style={{ fontSize: 12 }}>File</div>
                                 <TextInput
+                                    key={fileInputKey}
                                     type="file"
                                     onChange={(event) => setFileData('file', event.target.files?.[0] ?? null)}
+                                    accept={SUPPORTED_FILE_ACCEPT}
                                     style={inputStyle}
                                 />
                                 {fileErrors.file && <div style={{ color: '#f87171', fontSize: 12 }}>{fileErrors.file}</div>}
                             </label>
+                            <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+                                Supported: images, PDF, DOC/DOCX, XLS/XLSX, CSV, PPT/PPTX, TXT. Max 10MB.
+                            </div>
                             <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
                                 <ActionButton type="submit" variant="success" disabled={uploadingFile}>
                                     {uploadingFile ? 'Uploading...' : 'Upload File'}
@@ -1270,6 +1335,9 @@ export default function MonitoringBoardIndexPage({
                                 {pagedFiles.length ? (
                                     pagedFiles.map((file) => {
                                         const fileUrl = file.file_path ? `/files/${file.file_path}` : '#';
+                                        const downloadUrl = file.file_path
+                                            ? `/files/${file.file_path}?download=1&name=${encodeURIComponent(file.original_name || 'file')}`
+                                            : '#';
                                         const isImage = isImageFile(file);
 
                                         return (
@@ -1298,7 +1366,7 @@ export default function MonitoringBoardIndexPage({
                                                     variant="view"
                                                     style={{ padding: '6px 10px' }}
                                                     disabled={!file.file_path}
-                                                    href={!isImage ? fileUrl : undefined}
+                                                    href={!isImage ? downloadUrl : undefined}
                                                     external={!isImage}
                                                     onClick={() => {
                                                         if (isImage && file.file_path) {
@@ -1306,7 +1374,7 @@ export default function MonitoringBoardIndexPage({
                                                         }
                                                     }}
                                                 >
-                                                    {isImage ? 'Preview' : 'Open'}
+                                                    {isImage ? 'Preview' : 'Download'}
                                                 </ActionButton>
                                                 <ActionButton
                                                     type="button"
@@ -1350,6 +1418,79 @@ export default function MonitoringBoardIndexPage({
                             )}
                         </div>
                     </div>
+                </Modal>
+
+                <Modal
+                    open={!!infoItem}
+                    onClose={closeInfo}
+                    title={infoItem ? `Monitoring Entry Info - ${infoItem.project_name}` : 'Monitoring Entry Info'}
+                    maxWidth={860}
+                >
+                    {infoItem ? (
+                        <div style={{ display: 'grid', gap: 12 }}>
+                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 12 }}>
+                                <label>
+                                    <div style={{ fontSize: 12, marginBottom: 6 }}>Department</div>
+                                    <TextInput value={infoItem.department ?? ''} readOnly style={inputStyle} />
+                                </label>
+                                <label>
+                                    <div style={{ fontSize: 12, marginBottom: 6 }}>Client Name</div>
+                                    <TextInput value={infoItem.client_name ?? ''} readOnly style={inputStyle} />
+                                </label>
+                                <label>
+                                    <div style={{ fontSize: 12, marginBottom: 6 }}>Project Name</div>
+                                    <TextInput value={infoItem.project_name ?? ''} readOnly style={inputStyle} />
+                                </label>
+                                <label>
+                                    <div style={{ fontSize: 12, marginBottom: 6 }}>Type</div>
+                                    <TextInput value={infoItem.project_type ?? ''} readOnly style={inputStyle} />
+                                </label>
+                                <label>
+                                    <div style={{ fontSize: 12, marginBottom: 6 }}>Location</div>
+                                    <TextInput value={infoItem.location ?? ''} readOnly style={inputStyle} />
+                                </label>
+                                <label>
+                                    <div style={{ fontSize: 12, marginBottom: 6 }}>Assigned</div>
+                                    <TextInput value={infoItem.assigned_to ?? ''} readOnly style={inputStyle} />
+                                </label>
+                                <label>
+                                    <div style={{ fontSize: 12, marginBottom: 6 }}>Status</div>
+                                    <TextInput value={infoItem.status ?? ''} readOnly style={inputStyle} />
+                                </label>
+                                <label>
+                                    <div style={{ fontSize: 12, marginBottom: 6 }}>Start Date</div>
+                                    <TextInput value={formatDate(infoItem.start_date)} readOnly style={inputStyle} />
+                                </label>
+                                <label>
+                                    <div style={{ fontSize: 12, marginBottom: 6 }}>Timeline</div>
+                                    <TextInput value={infoItem.timeline ?? ''} readOnly style={inputStyle} />
+                                </label>
+                                <label>
+                                    <div style={{ fontSize: 12, marginBottom: 6 }}>Due Date</div>
+                                    <TextInput value={formatDate(infoItem.due_date)} readOnly style={inputStyle} />
+                                </label>
+                                <label>
+                                    <div style={{ fontSize: 12, marginBottom: 6 }}>Date Paid</div>
+                                    <TextInput value={formatDate(infoItem.date_paid)} readOnly style={inputStyle} />
+                                </label>
+                                <label>
+                                    <div style={{ fontSize: 12, marginBottom: 6 }}>Progress (%)</div>
+                                    <TextInput value={String(infoItem.progress_percent ?? 0)} readOnly style={inputStyle} />
+                                </label>
+                            </div>
+
+                            <label style={{ display: 'grid', gap: 6 }}>
+                                <div style={{ fontSize: 12 }}>Remarks</div>
+                                <TextareaInput value={infoItem.remarks ?? ''} readOnly style={{ ...inputStyle, minHeight: 90 }} />
+                            </label>
+
+                            <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                                <ActionButton type="button" variant="neutral" onClick={closeInfo}>
+                                    Close
+                                </ActionButton>
+                            </div>
+                        </div>
+                    ) : null}
                 </Modal>
 
                 <Modal

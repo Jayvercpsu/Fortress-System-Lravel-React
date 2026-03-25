@@ -15,6 +15,27 @@ class UploadManager
     public const MAX_UPLOAD_KB = 10240;
     public const MAX_UPLOAD_BYTES = 10 * 1024 * 1024;
     public const MAX_UPLOAD_LABEL = '10 MB';
+    public const DOCUMENT_EXTENSIONS = [
+        'pdf',
+        'doc',
+        'docx',
+        'xls',
+        'xlsx',
+        'csv',
+        'ppt',
+        'pptx',
+        'txt',
+    ];
+    public const IMAGE_EXTENSIONS = [
+        'jpg',
+        'jpeg',
+        'png',
+        'bmp',
+        'gif',
+        'svg',
+        'webp',
+        'avif',
+    ];
 
     private const IMAGE_QUALITY = 75;
     private const MAX_IMAGE_WIDTH = 1920;
@@ -33,6 +54,18 @@ class UploadManager
         return [
             $required ? 'required' : 'nullable',
             'mimes:jpg,jpeg,png,bmp,gif,svg,webp,avif',
+            self::maxRule(),
+        ];
+    }
+
+    public static function monitoringBoardFileRules(): array
+    {
+        $extensions = array_merge(self::IMAGE_EXTENSIONS, self::DOCUMENT_EXTENSIONS);
+
+        return [
+            'required',
+            'file',
+            'mimes:' . implode(',', $extensions),
             self::maxRule(),
         ];
     }

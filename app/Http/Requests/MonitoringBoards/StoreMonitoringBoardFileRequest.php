@@ -16,7 +16,7 @@ class StoreMonitoringBoardFileRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'file' => ['required', 'file', UploadManager::maxRule()],
+            'file' => UploadManager::monitoringBoardFileRules(),
         ];
     }
 }
