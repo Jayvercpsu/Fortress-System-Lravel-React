@@ -89,6 +89,8 @@ export default function AttendanceLogsPage({
     filters = {},
     foremen = [],
     projects = [],
+    activeProjects = [],
+    foremanAssignments = {},
     workerRoles = [],
     workerRoleOptions = [],
     attendanceCodes = [],
@@ -145,10 +147,60 @@ export default function AttendanceLogsPage({
         () => (Array.isArray(foremen) ? foremen.map((foreman) => ({ id: String(foreman.id), name: foreman.fullname })) : []),
         [foremen]
     );
+    const foremanOptionsById = useMemo(() => {
+        const map = new Map();
+        foremanOptions.forEach((foreman) => {
+            map.set(String(foreman.id), foreman);
+        });
+        return map;
+    }, [foremanOptions]);
     const projectOptions = useMemo(
         () => (Array.isArray(projects) ? projects.map((project) => ({ id: String(project.id), name: project.label || project.name })) : []),
         [projects]
     );
+    const activeProjectOptions = useMemo(
+        () => (Array.isArray(activeProjects) ? activeProjects.map((project) => ({ id: String(project.id), name: project.label || project.name })) : []),
+        [activeProjects]
+    );
+    const foremanIdsByProject = useMemo(() => {
+        if (!foremanAssignments || typeof foremanAssignments !== 'object') {
+            return {};
+        }
+
+        return Object.entries(foremanAssignments).reduce((acc, [key, ids]) => {
+            const normalizedIds = Array.isArray(ids)
+                ? ids.map((id) => String(id)).filter(Boolean)
+                : [];
+            acc[String(key)] = normalizedIds;
+            return acc;
+        }, {});
+    }, [foremanAssignments]);
+    const foremanOptionsForProject = (projectId) => {
+        if (!projectId) {
+            return foremanOptions;
+        }
+
+        const ids = foremanIdsByProject[String(projectId)] || [];
+        if (ids.length === 0) {
+            return [];
+        }
+
+        return ids
+            .map((id) => foremanOptionsById.get(String(id)))
+            .filter(Boolean);
+    };
+
+    useEffect(() => {
+        if (!draftFilters.project_id) {
+            return;
+        }
+
+        const allowed = foremanOptionsForProject(draftFilters.project_id);
+        const isAllowed = allowed.some((foreman) => String(foreman.id) === String(draftFilters.foreman_id));
+        if (!isAllowed && draftFilters.foreman_id) {
+            setDraftFilters((prev) => ({ ...prev, foreman_id: '' }));
+        }
+    }, [draftFilters.project_id, draftFilters.foreman_id, foremanIdsByProject, foremanOptionsById, foremanOptions]);
     const roleOptions = useMemo(() => {
         const baseRoles = Array.isArray(workerRoleOptions) && workerRoleOptions.length > 0
             ? workerRoleOptions
@@ -179,11 +231,21 @@ export default function AttendanceLogsPage({
         [attendanceCodes]
     );
 
-    const updateDailyRow = (idx, field, value, option = null) => {
+    const updateDailyRow = (idx, field, value) => {
         setDailyRows((prev) => {
             const next = [...prev];
-            next[idx] = { ...next[idx], [field]: value };
+            const current = next[idx] || {};
+            const updated = { ...current, [field]: value };
 
+            if (field === 'project_id') {
+                const allowed = foremanOptionsForProject(value);
+                const isAllowed = allowed.some((foreman) => String(foreman.id) === String(current.foreman_id));
+                if (!isAllowed) {
+                    updated.foreman_id = '';
+                }
+            }
+
+            next[idx] = updated;
             return next;
         });
     };
@@ -373,7 +435,7 @@ export default function AttendanceLogsPage({
                                         <tr key={idx} style={{ borderBottom: '1px solid var(--row-divider)' }}>
                                             <td style={{ padding: '6px 8px', minWidth: 220 }}>
                                                 <SearchableDropdown
-                                                    options={projectOptions}
+                                                    options={activeProjectOptions}
                                                     value={entry.project_id ?? ''}
                                                     onChange={(value) => updateDailyRow(idx, 'project_id', value || '')}
                                                     getOptionLabel={(option) => option.name}
@@ -388,7 +450,7 @@ export default function AttendanceLogsPage({
                                             </td>
                                             <td style={{ padding: '6px 8px', minWidth: 200 }}>
                                                 <SearchableDropdown
-                                                    options={foremanOptions}
+                                                    options={foremanOptionsForProject(entry.project_id)}
                                                     value={entry.foreman_id ?? ''}
                                                     onChange={(value) => updateDailyRow(idx, 'foreman_id', value || '')}
                                                     getOptionLabel={(option) => option.name}
@@ -471,9 +533,31 @@ export default function AttendanceLogsPage({
                                 />
                             </div>
                             <div>
+                                <div style={{ fontSize: 12, marginBottom: 6, color: 'var(--text-muted)' }}>Project</div>
+                                <SearchableDropdown
+                                    options={projectOptions}
+                                    value={draftFilters.project_id}
+                                    onChange={(value) =>
+                                        setDraftFilters((prev) => ({
+                                            ...prev,
+                                            project_id: value || '',
+                                            foreman_id: value ? prev.foreman_id : '',
+                                        }))
+                                    }
+                                    getOptionLabel={(option) => option.name}
+                                    getOptionValue={(option) => option.id}
+                                    placeholder="All projects"
+                                    searchPlaceholder="Search projects..."
+                                    emptyMessage="No projects found"
+                                    clearable
+                                    style={{ ...inputStyle, minHeight: 38, padding: '7px 9px' }}
+                                    dropdownWidth={320}
+                                />
+                            </div>
+                            <div>
                                 <div style={{ fontSize: 12, marginBottom: 6, color: 'var(--text-muted)' }}>Foreman</div>
                                 <SearchableDropdown
-                                    options={foremanOptions}
+                                    options={foremanOptionsForProject(draftFilters.project_id)}
                                     value={draftFilters.foreman_id}
                                     onChange={(value) => setDraftFilters((prev) => ({ ...prev, foreman_id: value || '' }))}
                                     getOptionLabel={(option) => option.name}
@@ -484,22 +568,6 @@ export default function AttendanceLogsPage({
                                     clearable
                                     style={{ ...inputStyle, minHeight: 38, padding: '7px 9px' }}
                                     dropdownWidth={280}
-                                />
-                            </div>
-                            <div>
-                                <div style={{ fontSize: 12, marginBottom: 6, color: 'var(--text-muted)' }}>Project</div>
-                                <SearchableDropdown
-                                    options={projectOptions}
-                                    value={draftFilters.project_id}
-                                    onChange={(value) => setDraftFilters((prev) => ({ ...prev, project_id: value || '' }))}
-                                    getOptionLabel={(option) => option.name}
-                                    getOptionValue={(option) => option.id}
-                                    placeholder="All projects"
-                                    searchPlaceholder="Search projects..."
-                                    emptyMessage="No projects found"
-                                    clearable
-                                    style={{ ...inputStyle, minHeight: 38, padding: '7px 9px' }}
-                                    dropdownWidth={320}
                                 />
                             </div>
                             <div>

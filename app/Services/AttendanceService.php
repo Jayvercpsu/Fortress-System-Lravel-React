@@ -5,11 +5,13 @@ namespace App\Services;
 use App\Models\Attendance;
 use App\Enums\ProjectStatus;
 use App\Models\Project;
+use App\Models\ProjectAssignment;
 use App\Models\User;
 use App\Models\Worker;
 use App\Repositories\Contracts\AttendanceRepositoryInterface;
 use App\Support\ProjectSelection;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Collection;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
 
@@ -81,22 +83,17 @@ class AttendanceService
             })
             ->values();
 
+        $projects = ProjectSelection::familyFilterOptions()->values();
+        $activeProjects = $this->activeConstructionProjects($projects);
+
         return [
             'attendances' => $attendances,
             'attendanceTable' => $this->tableMeta($paginator, $search),
             'filters' => $filters,
             'foremen' => $this->attendanceRepository->foremanOptions(),
-            'projects' => ProjectSelection::familyFilterOptions()
-                ->filter(function (array $project) {
-                    $phase = Str::lower(trim((string) ($project['phase'] ?? '')));
-                    if ($phase !== Str::lower(Project::PHASE_CONSTRUCTION)) {
-                        return false;
-                    }
-
-                    $status = ProjectStatus::fromMixed((string) ($project['status'] ?? ''));
-                    return !in_array($status, [ProjectStatus::COMPLETED, ProjectStatus::CANCELLED], true);
-                })
-                ->values(),
+            'projects' => $projects,
+            'activeProjects' => $activeProjects,
+            'foremanAssignments' => $this->foremanAssignmentsByProjectFamily($projects),
             'workerRoles' => $this->attendanceRepository->workerRoleOptions(),
             'workerRoleOptions' => Worker::jobTypeOptions(),
             'workers' => Worker::query()
@@ -186,22 +183,15 @@ class AttendanceService
             ])
             ->values();
 
+        $projects = ProjectSelection::familyFilterOptions()->values();
+        $activeProjects = $this->activeConstructionProjects($projects);
+
         return [
             'rows' => $rows,
             'summaryTable' => $this->tableMeta($paginator, $search),
             'filters' => $filters,
             'foremen' => $this->attendanceRepository->foremanOptions(),
-            'projects' => ProjectSelection::familyFilterOptions()
-                ->filter(function (array $project) {
-                    $phase = Str::lower(trim((string) ($project['phase'] ?? '')));
-                    if ($phase !== Str::lower(Project::PHASE_CONSTRUCTION)) {
-                        return false;
-                    }
-
-                    $status = ProjectStatus::fromMixed((string) ($project['status'] ?? ''));
-                    return !in_array($status, [ProjectStatus::COMPLETED, ProjectStatus::CANCELLED], true);
-                })
-                ->values(),
+            'projects' => $activeProjects,
             'workerRoles' => $this->attendanceRepository->workerRoleOptions(),
             'attendanceCodes' => collect(Attendance::codes())->values(),
             'summaryTotals' => $summaryTotals,
@@ -298,5 +288,123 @@ class AttendanceService
         } catch (\Throwable $e) {
             return 0.0;
         }
+    }
+
+    private function activeConstructionProjects(Collection $projects): Collection
+    {
+        if ($projects->isEmpty()) {
+            return collect();
+        }
+
+        $projectIds = $projects
+            ->flatMap(function (array $project) {
+                $ids = $project['project_ids'] ?? [];
+                if (!is_array($ids) || empty($ids)) {
+                    return isset($project['id']) ? [(int) $project['id']] : [];
+                }
+
+                return $ids;
+            })
+            ->map(fn ($id) => (int) $id)
+            ->filter(fn (int $id) => $id > 0)
+            ->unique()
+            ->values();
+
+        if ($projectIds->isEmpty()) {
+            return collect();
+        }
+
+        $projectMetaById = Project::query()
+            ->whereIn('id', $projectIds->all())
+            ->get(['id', 'phase', 'status'])
+            ->keyBy('id');
+
+        return $projects
+            ->filter(function (array $project) use ($projectMetaById) {
+                $ids = $project['project_ids'] ?? [];
+                if (!is_array($ids) || empty($ids)) {
+                    $ids = isset($project['id']) ? [(int) $project['id']] : [];
+                }
+
+                foreach ($ids as $id) {
+                    $meta = $projectMetaById->get((int) $id);
+                    if (!$meta) {
+                        continue;
+                    }
+
+                    $phase = Str::lower(trim((string) $meta->phase));
+                    if ($phase !== Str::lower(Project::PHASE_CONSTRUCTION)) {
+                        continue;
+                    }
+
+                    $status = ProjectStatus::fromMixed((string) $meta->status);
+                    if (!in_array($status, [ProjectStatus::COMPLETED, ProjectStatus::CANCELLED], true)) {
+                        return true;
+                    }
+                }
+
+                return false;
+            })
+            ->values();
+    }
+
+    private function foremanAssignmentsByProjectFamily(Collection $projects): array
+    {
+        if ($projects->isEmpty()) {
+            return [];
+        }
+
+        $projectIds = $projects
+            ->flatMap(function (array $project) {
+                $ids = $project['project_ids'] ?? [];
+                if (!is_array($ids) || empty($ids)) {
+                    return isset($project['id']) ? [(int) $project['id']] : [];
+                }
+
+                return $ids;
+            })
+            ->map(fn ($id) => (int) $id)
+            ->filter(fn (int $id) => $id > 0)
+            ->unique()
+            ->values();
+
+        if ($projectIds->isEmpty()) {
+            return [];
+        }
+
+        $assigned = ProjectAssignment::query()
+            ->whereIn('project_id', $projectIds->all())
+            ->where('role_in_project', ProjectAssignment::ROLE_FOREMAN)
+            ->get(['project_id', 'user_id'])
+            ->groupBy('project_id')
+            ->map(fn ($rows) => $rows->pluck('user_id')
+                ->map(fn ($id) => (int) $id)
+                ->unique()
+                ->values()
+                ->all()
+            );
+
+        $byFamily = [];
+        foreach ($projects as $project) {
+            $familyId = (int) ($project['id'] ?? 0);
+            $ids = $project['project_ids'] ?? [];
+            if (!is_array($ids) || empty($ids)) {
+                $ids = $familyId > 0 ? [$familyId] : [];
+            }
+
+            $foremanIds = collect($ids)
+                ->map(fn ($id) => (int) $id)
+                ->filter(fn (int $id) => $id > 0)
+                ->flatMap(fn (int $id) => $assigned->get($id, []))
+                ->unique()
+                ->values()
+                ->all();
+
+            if ($familyId > 0) {
+                $byFamily[$familyId] = $foremanIds;
+            }
+        }
+
+        return $byFamily;
     }
 }
