@@ -1005,8 +1005,8 @@ export default function HeadAdminProjectsShow({
                                 <div style={{ fontWeight: 700 }}>Project Workers (Read-only)</div>
                                 <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
                                     {isHeadAdmin
-                                        ? 'Laborers are managed by the foreman in `Foreman > Workers`. This section is record-view only. Use `Edit Project` to assign one or more foremen.'
-                                        : 'Laborers are managed by the foreman in `Foreman > Workers`. This section is record-view only. Foreman assignment is managed in project setup by Head Admin.'}
+                                        ? 'Laborers are managed by HR. This section is record-view only. Use `Edit Project` to assign one or more foremen.'
+                                        : 'Laborers are managed by HR. This section is record-view only. Foreman assignment is managed in project setup by Head Admin.'}
                                 </div>
                                 <DataTable
                                     columns={teamColumns}

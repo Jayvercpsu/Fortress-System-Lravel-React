@@ -857,7 +857,7 @@ export default function ProgressSubmit({ submitToken }) {
             </div>
             {attendanceWorkerPool.length === 0 ? (
                 <div className="jf-note" style={{ marginTop: 6 }}>
-                    No workers found. Add workers in the Foreman &#8594; Workers page.
+                    No workers found. HR adds workers assigned to your site so they show up here.
                 </div>
             ) : (
                 <div className="jf-table-wrap">

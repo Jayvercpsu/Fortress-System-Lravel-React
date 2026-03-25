@@ -11,7 +11,6 @@ const navByRole = {
     head_admin: [
         { label: 'Dashboard', href: '/head-admin', icon: 'fi fi-rr-dashboard' },
         { label: 'KPI', href: '/kpi', icon: 'fi fi-rr-chart-pie' },
-        { label: 'Monitoring Board', href: '/monitoring-board', icon: 'fi fi-rr-apps' },
         { label: 'Projects', href: '/projects', icon: 'fi fi-rr-diagram-project' },
         // Builders navigation temporarily hidden
         { label: 'Attendance', href: '/attendance', icon: 'fi fi-rr-calendar-check' },
@@ -36,13 +35,14 @@ const navByRole = {
         { label: 'Delivery', href: '/delivery', icon: 'fi fi-rr-truck-side' },
         { label: 'Issues', href: '/issues', icon: 'fi fi-rr-exclamation' },
         { label: 'Progress Photos', href: '/progress-photos', icon: 'fi fi-rr-picture' },
-        { label: 'Reports', href: '/reports', icon: 'fi fi-rr-document' },
         { label: 'Accomplishments', href: '/weekly-accomplishments', icon: 'fi fi-rr-document' },
         { label: 'Settings', href: '/settings', icon: 'fi fi-rr-settings' },
     ],
     hr: [
         { label: 'Dashboard', href: '/hr', icon: 'fi fi-rr-dashboard' },
         { label: 'KPI', href: '/kpi', icon: 'fi fi-rr-chart-pie' },
+        { label: 'Foremen', href: '/hr/foremen', icon: 'fi fi-rr-user' },
+        { label: 'Workers', href: '/hr/workers?page=1&per_page=5', icon: 'fi fi-rr-users' },
         { label: 'Payroll', href: '/payroll/run', icon: 'fi fi-rr-money-bill-wave' },
         { label: 'Settings', href: '/settings', icon: 'fi fi-rr-settings' },
     ],
@@ -226,7 +226,7 @@ export default function Layout({ children, title }) {
 
                     <nav style={{ flex: 1 }}>
                         {navItems.map((item) => {
-                            const itemPath = item.href.replace(/\/+$/, '') || '/';
+                            const itemPath = pathFromUrl(item.href);
                             const exactOnlyPaths = new Set(['/head-admin', '/admin', '/hr', '/foreman', '/client']);
                             const exactOnly = exactOnlyPaths.has(itemPath);
                             const aliasPathsByHref = {

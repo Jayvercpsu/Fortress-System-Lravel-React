@@ -142,12 +142,20 @@ class MonitoringBoardService
             ? $validated['status']
             : MonitoringBoardItem::STATUS_OPTIONS[0];
 
+        $progress = is_numeric($validated['progress_percent'] ?? null) ? (int) $validated['progress_percent'] : 0;
+        $validated['progress_percent'] = max(0, min(100, $progress));
+
         return $validated;
     }
 
     private function maybeConvertToProject(MonitoringBoardItem $item): void
     {
-        if ($item->project_id || (int) $item->progress_percent < 100) {
+        if ($item->project_id) {
+            return;
+        }
+
+        $statusDone = strtoupper((string) $item->status) === MonitoringBoardItem::STATUS_DONE;
+        if (!$statusDone && (int) $item->progress_percent < 100) {
             return;
         }
 

@@ -97,9 +97,6 @@ export default function HRDashboard({
                     <StatCard label="Payroll Payable" value={money(kpis.payroll_payable ?? totalPayable)} color="#fbbf24" />
                     <StatCard label="Payroll Deductions" value={money(kpis.payroll_deductions_total)} color="#fb7185" />
                     <StatCard label="Payroll Paid" value={money(kpis.payroll_paid_total)} color="#60a5fa" />
-                    <StatCard label="Collected Contract Value" value={money(paymentTotals.collected_sum)} color="#22c55e" />
-                    <StatCard label="Total Contract Value" value={money(paymentTotals.contract_sum)} color="#4ade80" />
-                    <StatCard label="Uncollected Contract Value" value={money(paymentTotals.remaining_sum)} color="#f87171" />
                 </div>
 
                 {isHeadAdmin ? (

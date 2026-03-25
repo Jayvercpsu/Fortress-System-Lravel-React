@@ -116,12 +116,9 @@ export default function AdminDashboard({ kpis = {}, projectSnapshotPager = null 
         <>
             <Head title="Dashboard" />
             <Layout title="Admin Dashboard">
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, minmax(0, 1fr))', gap: 12, marginBottom: 16 }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 12, marginBottom: 16 }}>
                     <StatCard label="Total Projects" value={projectCounts.total ?? 0} />
                     <StatCard label="Company Progress" value={`${Number(kpis.company_progress_percent || 0).toFixed(1)}%`} color="#60a5fa" />
-                    <StatCard label="Total Contract Value" value={money(financialTotals.contract_sum)} color="#4ade80" />
-                    <StatCard label="Collected Contract Value" value={money(financialTotals.collected_sum)} color="#22c55e" />
-                    <StatCard label="Uncollected Contract Value" value={money(financialTotals.remaining_sum)} color="#fbbf24" />
                 </div>
 
                 {isHeadAdmin ? (

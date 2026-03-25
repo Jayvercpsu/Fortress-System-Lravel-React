@@ -46,7 +46,7 @@ class ProjectController extends Controller
         $project = $this->projectService->storeProject($request->validated());
 
         return redirect()
-            ->route('projects.show', ['project' => $project->id])
+            ->route('projects.index')
             ->with('success', __('messages.projects.created'));
     }
 

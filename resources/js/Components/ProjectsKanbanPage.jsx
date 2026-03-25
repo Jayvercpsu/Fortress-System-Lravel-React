@@ -2,7 +2,7 @@ import ActionButton from './ActionButton';
 import Modal from './Modal';
 import TextInput from './TextInput';
 import { router } from '@inertiajs/react';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import toast from 'react-hot-toast';
 import { toastMessages } from '../constants/toastMessages';
 
@@ -85,16 +85,7 @@ export default function ProjectsKanbanPage({
     const [deletingProject, setDeletingProject] = useState(false);
     const [transferringId, setTransferringId] = useState(null);
     const [creatingProject, setCreatingProject] = useState(false);
-    const createTimeoutRef = useRef(null);
     const [boardLoading, setBoardLoading] = useState(false);
-
-    useEffect(() => {
-        return () => {
-            if (createTimeoutRef.current) {
-                clearTimeout(createTimeoutRef.current);
-            }
-        };
-    }, []);
 
     useEffect(() => {
         setSearch(projectBoard.search ?? '');
@@ -238,9 +229,7 @@ export default function ProjectsKanbanPage({
                             onClick={() => {
                                 if (creatingProject) return;
                                 setCreatingProject(true);
-                                createTimeoutRef.current = setTimeout(() => {
-                                    router.get('/monitoring-board?create=1');
-                                }, 2000);
+                                router.get('/projects/create');
                             }}
                             style={{ padding: '9px 14px', fontSize: 13 }}
                         >
@@ -485,7 +474,7 @@ export default function ProjectsKanbanPage({
                                                         loading={deletingProject && projectToDelete?.id === project.id}
                                                         style={{ padding: '6px 10px', minHeight: 30 }}
                                                     >
-                                                        {deletingProject && projectToDelete?.id === project.id ? 'Deleting...' : 'Delete'}
+                                                        Delete
                                                     </ActionButton>
                                                 )}
                                                 {project.phase === 'Design' && (

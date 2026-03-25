@@ -386,9 +386,9 @@ export default function ForemanDashboard({
                                     color: 'var(--text-main)',
                                 }}
                             >
-                                <div style={{ fontWeight: 700 }}>Manage Workers</div>
+                                <div style={{ fontWeight: 700 }}>View Workers</div>
                                 <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
-                                    Add/update your worker list used in attendance
+                                    Workers are added by HR and shown here for attendance
                                 </div>
                             </Link>
                         </div>

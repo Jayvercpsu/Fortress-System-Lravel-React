@@ -38,6 +38,14 @@ export const toastMessages = {
         deleteSuccess: 'Worker deleted successfully.',
         deleteError: 'Unable to delete worker.',
     },
+    foremen: {
+        addSuccess: 'Foreman added successfully.',
+        addError: 'Unable to add foreman. Check the form fields.',
+        updateSuccess: 'Foreman updated successfully.',
+        updateError: 'Unable to update foreman.',
+        deleteSuccess: 'Foreman deleted successfully.',
+        deleteError: 'Unable to delete foreman.',
+    },
     workerRates: {
         updateSuccess: 'Worker rate updated successfully.',
         updateError: 'Unable to update worker rate.',
@@ -126,6 +134,7 @@ export const toastMessages = {
     },
     projects: {
         requiredFields: 'Please check required fields.',
+        createSuccess: 'Project created successfully.',
         savedSuccess: 'Project saved successfully.',
         transferSuccess: (targetLabel) => `Project transferred to ${targetLabel}.`,
         transferError: 'Unable to transfer project.',

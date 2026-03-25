@@ -34,6 +34,7 @@ export default function DataTable({
     onServerPerPageChange,
     topLeftExtra = null,
     topRightExtra = null,
+    searchInputStyle = null,
     getRowStyle,
     loading = false,
     skeletonRowCount = 5,
@@ -141,7 +142,7 @@ export default function DataTable({
                         onChange={(e) => (serverSide ? setServerQueryDraft(e.target.value) : setQuery(e.target.value))}
                         placeholder={searchPlaceholder}
                         disabled={showSkeleton}
-                        style={{ ...controlStyle, minWidth: 220, maxWidth: 420, flex: '0 1 420px', width: '100%' }}
+                        style={{ ...controlStyle, minWidth: 220, maxWidth: 420, flex: '0 1 420px', width: '100%', ...(searchInputStyle || {}) }}
                     />
                     {topLeftExtra}
                 </div>

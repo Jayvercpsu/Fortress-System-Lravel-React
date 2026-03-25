@@ -179,6 +179,7 @@ export default function HeadAdminProjectsCreate({ foremen = [], clientOptions = 
         e.preventDefault();
         post('/projects', {
             onError: () => toast.error(toastMessages.projects.requiredFields),
+            onSuccess: () => toast.success(toastMessages.projects.createSuccess),
         });
     };
 

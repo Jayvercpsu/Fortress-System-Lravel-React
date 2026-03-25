@@ -20,7 +20,7 @@ class ReportService
 
     public function ensureAuthorized($user): void
     {
-        abort_unless(in_array($user->role, User::manageableRoles(), true), 403);
+        abort_unless($user instanceof User && $user->role === User::ROLE_HEAD_ADMIN, 403);
     }
 
     public function indexPayload(Request $request): array

@@ -9,6 +9,8 @@ use App\Http\Controllers\DesignController;
 use App\Http\Controllers\ExpenseController;
 use App\Http\Controllers\ForemanWorkerController;
 use App\Http\Controllers\ForemansController;
+use App\Http\Controllers\HrForemanController;
+use App\Http\Controllers\HrWorkerController;
 use App\Http\Controllers\KpiController;
 use App\Http\Controllers\MaterialRequestController;
 use App\Http\Controllers\UserController;
@@ -107,6 +109,17 @@ Route::middleware(['auth', 'role:head_admin,admin,hr'])->group(function () {
     Route::get('/projects/{project}/payments', [PaymentController::class, 'index'])->name('payments.index');
     Route::post('/projects/{project}/payments', [PaymentController::class, 'store'])->name('payments.store');
     Route::delete('/payments/{payment}', [PaymentController::class, 'destroy'])->name('payments.destroy');
+});
+
+Route::middleware(['auth', 'role:head_admin,hr'])->group(function () {
+    Route::get('/hr/foremen', [HrForemanController::class, 'index'])->name('hr.foremen.index');
+    Route::post('/hr/foremen', [HrForemanController::class, 'store'])->name('hr.foremen.store');
+    Route::patch('/hr/foremen/{foreman}', [HrForemanController::class, 'update'])->name('hr.foremen.update');
+    Route::delete('/hr/foremen/{foreman}', [HrForemanController::class, 'destroy'])->name('hr.foremen.destroy');
+    Route::get('/hr/workers', [HrWorkerController::class, 'index'])->name('hr.workers.index');
+    Route::post('/hr/workers', [HrWorkerController::class, 'store'])->name('hr.workers.store');
+    Route::patch('/hr/workers/{worker}', [HrWorkerController::class, 'update'])->name('hr.workers.update');
+    Route::delete('/hr/workers/{worker}', [HrWorkerController::class, 'destroy'])->name('hr.workers.destroy');
 });
 
 Route::middleware(['auth', 'role:foreman'])->group(function () {

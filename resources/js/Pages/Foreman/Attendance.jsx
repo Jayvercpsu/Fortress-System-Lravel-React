@@ -504,7 +504,7 @@ export default function ForemanAttendance({
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
                             <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
                                 Hours are auto-calculated when both Time In and Time Out are provided.
-                                {workerOptions.length === 0 ? ' Add workers first in the Workers page to use the worker dropdown.' : ''}
+                                {workerOptions.length === 0 ? ' Ask HR to add workers for your site to use the worker dropdown.' : ''}
                             </div>
                             <div style={{ display: 'flex', gap: 8 }}>
                                 <ActionButton type="button" variant="neutral" onClick={addRow} style={{ padding: '8px 12px', fontSize: 13 }}>
