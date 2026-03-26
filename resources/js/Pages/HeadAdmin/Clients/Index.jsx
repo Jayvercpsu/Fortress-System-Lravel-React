@@ -140,6 +140,12 @@ export default function ClientsIndex({ clients = [], clientTable = {}, projectOp
         setDeleting(true);
         router.delete(`/clients/${id}${listQueryString()}`, {
             preserveScroll: true,
+            onSuccess: () => {
+                toast.success(toastMessages.clients.deleteSuccess);
+            },
+            onError: () => {
+                toast.error(toastMessages.clients.deleteError);
+            },
             onFinish: () => {
                 setDeleting(false);
                 setDeleteTarget(null);

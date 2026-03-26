@@ -131,6 +131,8 @@ export const toastMessages = {
         createError: 'Unable to create client. Check the form fields.',
         updateSuccess: 'Client updated successfully.',
         updateError: 'Unable to update client. Check the form fields.',
+        deleteSuccess: 'Client deleted successfully.',
+        deleteError: 'Unable to delete client.',
     },
     projects: {
         requiredFields: 'Please check required fields.',
