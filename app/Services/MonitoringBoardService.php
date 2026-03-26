@@ -27,6 +27,26 @@ class MonitoringBoardService
     public function indexPayload(User $user): array
     {
         $rawItems = $this->monitoringBoardRepository->listItemsWithFiles();
+        $converted = false;
+
+        foreach ($rawItems as $item) {
+            if ($item->project_id) {
+                continue;
+            }
+
+            $statusDone = strtoupper((string) $item->status) === MonitoringBoardItem::STATUS_DONE;
+            $progress = (int) ($item->progress_percent ?? 0);
+            if (!$statusDone && $progress < 100) {
+                continue;
+            }
+
+            $this->maybeConvertToProject($item);
+            $converted = true;
+        }
+
+        if ($converted) {
+            $rawItems = $this->monitoringBoardRepository->listItemsWithFiles();
+        }
 
         $projectIds = $rawItems
             ->pluck('project_id')

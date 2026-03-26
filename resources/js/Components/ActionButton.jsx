@@ -110,7 +110,9 @@ export default function ActionButton({
     const content = (
         <>
             {loading ? <span style={{ display: 'inline-flex' }}>{spinner}</span> : null}
-            <span>{children}</span>
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, whiteSpace: 'nowrap' }}>
+                {children}
+            </span>
         </>
     );
 
