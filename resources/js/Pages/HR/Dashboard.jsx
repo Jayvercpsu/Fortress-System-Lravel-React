@@ -64,9 +64,7 @@ function SummaryRow({ label, value, strong = false }) {
 export default function HRDashboard({
     payrolls = [],
     totalPayable = 0,
-    projects = [],
     kpis = {},
-    projectPaymentsPager = null,
     recentPayrollsPager = null,
 }) {
     const { auth } = usePage().props;
@@ -77,7 +75,6 @@ export default function HRDashboard({
         acc[String(row.label || '').toLowerCase()] = Number(row.count || 0);
         return acc;
     }, {});
-    const projectPaymentRows = projectPaymentsPager?.data || projects.slice(0, 10);
     const payrollRows = recentPayrollsPager?.data || payrolls.slice(0, 10);
     const totalContractValue = Number(companyFinancialSummary.total_contract_value ?? paymentTotals.contract_sum ?? 0);
     const materialsTotal = Number(companyFinancialSummary.materials ?? 0);
@@ -187,75 +184,6 @@ export default function HRDashboard({
                             </ActionButton>
                         </div>
                     </div>
-                </div>
-
-                <div
-                    style={{
-                        ...cardStyle,
-                        overflow: 'hidden',
-                        marginBottom: 16,
-                    }}
-                >
-                    <div style={{ fontWeight: 700, marginBottom: 10 }}>Project Payments</div>
-                    <div style={{ display: 'grid', gap: 8 }}>
-                        {projectPaymentRows.length === 0 ? (
-                            <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>No projects yet.</div>
-                        ) : (
-                            projectPaymentRows.map((project) => (
-                                <div
-                                    key={project.id}
-                                    style={{
-                                        border: '1px solid var(--border-color)',
-                                        borderRadius: 8,
-                                        padding: '10px 12px',
-                                        display: 'grid',
-                                        gridTemplateColumns: '1.6fr 1fr 1fr auto',
-                                        alignItems: 'center',
-                                        gap: 8,
-                                        background: 'var(--surface-2)',
-                                    }}
-                                >
-                                    <div>
-                                        <div style={{ fontWeight: 700 }}>{project.name}</div>
-                                        <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{project.client}</div>
-                                    </div>
-                                    <div style={{ fontSize: 12 }}>
-                                        <div style={{ color: 'var(--text-muted)' }}>Paid</div>
-                                        <div style={{ fontWeight: 700, fontFamily: "'DM Mono', monospace" }}>
-                                            {money(project.total_client_payment)}
-                                        </div>
-                                    </div>
-                                    <div style={{ fontSize: 12 }}>
-                                        <div style={{ color: 'var(--text-muted)' }}>Remaining</div>
-                                        <div
-                                            style={{
-                                                fontWeight: 700,
-                                                color: Number(project.remaining_balance || 0) < 0 ? '#f87171' : '#4ade80',
-                                                fontFamily: "'DM Mono', monospace",
-                                            }}
-                                        >
-                                            {money(project.remaining_balance)}
-                                        </div>
-                                    </div>
-                                    <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', justifySelf: 'end' }}>
-                                        <ActionButton
-                                            href={`/projects/${project.id}/payments`}
-                                            style={{ padding: '7px 10px' }}
-                                        >
-                                            Payments
-                                        </ActionButton>
-                                        <ActionButton
-                                            href={`/projects/${project.id}/financials`}
-                                            style={{ padding: '7px 10px' }}
-                                        >
-                                            Financials
-                                        </ActionButton>
-                                    </div>
-                                </div>
-                            ))
-                        )}
-                    </div>
-                    <InlinePagination pager={projectPaymentsPager} />
                 </div>
 
                 <div style={{ ...cardStyle, overflow: 'hidden' }}>
