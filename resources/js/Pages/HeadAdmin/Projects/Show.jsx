@@ -291,7 +291,7 @@ export default function HeadAdminProjectsShow({
     const canManageTransfers = ['head_admin', 'admin'].includes(role);
     const canTransferToConstruction =
         canTransferToConstructionFlag ?? (phaseKey === 'design' && statusKey === 'completed' && !hasTransferredConstruction && !project?.source_project_id);
-    const canTransferToCompleted = canTransferToCompletedFlag ?? phaseKey === 'construction';
+    const canTransferToCompleted = canTransferToCompletedFlag ?? ['design', 'construction'].includes(phaseKey);
 
     const projectShowQueryParams = (overrides = {}) => {
         const params = {
@@ -715,8 +715,8 @@ export default function HeadAdminProjectsShow({
                                     type="button"
                                     variant="success"
                                     onClick={() => transferProjectPhase('construction')}
-                                    loading={transferring && transferTarget === 'construction'}
                                     disabled={transferring}
+                                    loading={transferring && transferTarget === 'construction'}
                                     style={{ padding: '10px 14px', fontWeight: 700 }}
                                 >
                                     {transferring && transferTarget === 'construction' ? 'Transferring...' : 'Transfer to Construction'}
@@ -728,8 +728,8 @@ export default function HeadAdminProjectsShow({
                                     type="button"
                                     variant="success"
                                     onClick={() => transferProjectPhase('completed')}
-                                    loading={transferring && transferTarget === 'completed'}
                                     disabled={transferring}
+                                    loading={transferring && transferTarget === 'completed'}
                                     style={{ padding: '10px 14px', fontWeight: 700 }}
                                 >
                                     {transferring && transferTarget === 'completed' ? 'Transferring...' : 'Transfer to Completed'}

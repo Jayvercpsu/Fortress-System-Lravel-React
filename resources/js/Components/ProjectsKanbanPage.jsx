@@ -29,7 +29,6 @@ const input = {
     boxSizing: 'border-box',
 };
 
-const KANBAN_CARD_HEIGHT = 375;
 const KANBAN_BOARD_HEIGHT = 'calc(100dvh - 190px)';
 
 const singleLineClampStyle = {
@@ -78,18 +77,25 @@ export default function ProjectsKanbanPage({
     canCreate = false,
     canDelete = false,
 }) {
-    const columns = Array.isArray(projectBoard.columns) ? projectBoard.columns : [];
+    const initialColumns = Array.isArray(projectBoard.columns) ? projectBoard.columns : [];
 
     const [search, setSearch] = useState(projectBoard.search ?? '');
+    const [columnsState, setColumnsState] = useState(initialColumns);
     const [projectToDelete, setProjectToDelete] = useState(null);
     const [deletingProject, setDeletingProject] = useState(false);
     const [transferringId, setTransferringId] = useState(null);
+    const [transferTarget, setTransferTarget] = useState(null);
     const [creatingProject, setCreatingProject] = useState(false);
     const [boardLoading, setBoardLoading] = useState(false);
+    const [loadingMore, setLoadingMore] = useState({});
 
     useEffect(() => {
         setSearch(projectBoard.search ?? '');
     }, [projectBoard.search]);
+
+    useEffect(() => {
+        setColumnsState(Array.isArray(projectBoard.columns) ? projectBoard.columns : []);
+    }, [projectBoard.columns]);
 
     useEffect(() => {
         const isProjectsIndex = (rawUrl) => {
@@ -128,6 +134,11 @@ export default function ProjectsKanbanPage({
         setBoardLoading(false);
     }, [projectBoard.columns, projectBoard.search]);
 
+    useEffect(() => {
+        setLoadingMore({});
+    }, [projectBoard.columns]);
+
+    const columns = columnsState;
     const pageParams = useMemo(() => {
         const params = {};
         columns.forEach((column) => {
@@ -155,6 +166,49 @@ export default function ProjectsKanbanPage({
             preserveScroll: true,
             replace: true,
         });
+    };
+
+    const loadMoreForColumn = async (column) => {
+        if (!column?.page_param || !column?.has_more || boardLoading) {
+            return;
+        }
+        if (loadingMore[column.page_param]) {
+            return;
+        }
+        const nextPage = Number(column.current_page || 1) + 1;
+        setLoadingMore((prev) => ({ ...prev, [column.page_param]: true }));
+
+        const params = new URLSearchParams();
+        params.set('phase', String(column.value || column.label || '').trim());
+        params.set('page', String(nextPage));
+        const activeSearch = String(projectBoard.search ?? '').trim();
+        if (activeSearch) {
+            params.set('search', activeSearch);
+        }
+
+        try {
+            const response = await fetch(`/projects/column?${params.toString()}`, {
+                headers: { 'X-Requested-With': 'XMLHttpRequest' },
+            });
+            if (!response.ok) {
+                throw new Error('Unable to load more projects.');
+            }
+            const data = await response.json();
+            setColumnsState((prev) => prev.map((col) => (col.key === data.key ? { ...col, ...data } : col)));
+        } catch (error) {
+            toast.error('Unable to load more projects.');
+        } finally {
+            setLoadingMore((prev) => ({ ...prev, [column.page_param]: false }));
+        }
+    };
+
+    const handleColumnScroll = (column) => (event) => {
+        if (!column?.has_more) return;
+        const target = event.currentTarget;
+        const remaining = target.scrollHeight - target.scrollTop - target.clientHeight;
+        if (remaining <= 140) {
+            loadMoreForColumn(column);
+        }
     };
 
     const onSearchSubmit = (e) => {
@@ -190,13 +244,17 @@ export default function ProjectsKanbanPage({
         const targetLabel = target === 'completed' ? 'Completed' : 'Construction';
 
         setTransferringId(project.id);
+        setTransferTarget(target);
         router.patch(`${endpoint}${buildQueryString()}`, {}, {
             preserveState: true,
             preserveScroll: true,
             replace: true,
             onSuccess: () => toast.success(toastMessages.projectsKanban.transferSuccess(targetLabel)),
             onError: (errors) => toast.error(errors.transfer || toastMessages.projectsKanban.transferError(targetLabel)),
-            onFinish: () => setTransferringId(null),
+            onFinish: () => {
+                setTransferringId(null);
+                setTransferTarget(null);
+            },
         });
     };
 
@@ -287,7 +345,17 @@ export default function ProjectsKanbanPage({
                                     <div style={{ marginTop: 5, fontSize: 11, color: 'var(--text-muted)' }}>Showing {column.shown} of {column.total}</div>
                                 </div>
 
-                                <div style={{ padding: 12, display: 'grid', gap: 10, alignContent: 'start', minHeight: 0, overflowY: 'auto' }}>
+                                <div
+                                    onScroll={handleColumnScroll(column)}
+                                    style={{
+                                        padding: 12,
+                                        display: 'flex',
+                                        flexDirection: 'column',
+                                        gap: 10,
+                                        minHeight: 0,
+                                        overflowY: 'auto',
+                                    }}
+                                >
                                     {boardLoading ? (
                                         Array.from({ length: 3 }).map((_, idx) => (
                                             <div
@@ -326,10 +394,11 @@ export default function ProjectsKanbanPage({
                                                 border: '1px solid var(--border-color)',
                                                 borderRadius: 12,
                                                 padding: 12,
-                                                display: 'grid',
+                                                display: 'flex',
+                                                flexDirection: 'column',
                                                 gap: 10,
-                                                minHeight: KANBAN_CARD_HEIGHT,
-                                                gridTemplateRows: 'auto auto auto auto minmax(0, 1fr) auto',
+                                                minHeight: 0,
+                                                flexShrink: 0,
                                                 overflow: 'hidden',
                                                 position: 'relative',
                                             }}
@@ -409,7 +478,7 @@ export default function ProjectsKanbanPage({
                                                 </div>
                                             ) : null}
 
-                                            <div style={{ display: 'grid', gap: 4, fontSize: 11, minHeight: 0, alignContent: 'start', marginTop: -2 }}>
+                                            <div style={{ display: 'grid', gap: 4, fontSize: 11, alignContent: 'start' }}>
                                                 <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, minWidth: 0 }}>
                                                     <span style={{ color: 'var(--text-muted)' }}>Location</span>
                                                     <span title={project.location || '-'} style={{ textAlign: 'right', ...singleLineClampStyle }}>{project.location || '-'}</span>
@@ -463,8 +532,24 @@ export default function ProjectsKanbanPage({
                                                 </div>
                                             </div>
 
-                                            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', marginTop: 8 }}>
-                                                <ActionButton href={`/projects/${project.id}`} variant="view" style={{ padding: '6px 10px', minHeight: 30 }}>Manage</ActionButton>
+                                            <div
+                                                style={{
+                                                    display: 'grid',
+                                                    gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
+                                                    gap: 8,
+                                                    alignItems: 'stretch',
+                                                    marginTop: 'auto',
+                                                    paddingTop: 8,
+                                                    borderTop: '1px solid var(--border-color)',
+                                                }}
+                                            >
+                                                <ActionButton
+                                                    href={`/projects/${project.id}`}
+                                                    variant="view"
+                                                    style={{ padding: '6px 10px', minHeight: 30, width: '100%' }}
+                                                >
+                                                    Manage
+                                                </ActionButton>
                                                 {canDelete && (
                                                     <ActionButton
                                                         type="button"
@@ -472,7 +557,7 @@ export default function ProjectsKanbanPage({
                                                         onClick={() => setProjectToDelete({ id: project.id, name: project.name })}
                                                         disabled={deletingProject}
                                                         loading={deletingProject && projectToDelete?.id === project.id}
-                                                        style={{ padding: '6px 10px', minHeight: 30 }}
+                                                        style={{ padding: '6px 10px', minHeight: 30, width: '100%' }}
                                                     >
                                                         Delete
                                                     </ActionButton>
@@ -487,31 +572,36 @@ export default function ProjectsKanbanPage({
                                                             || project.transfer_to_construction_used
                                                             || !project.can_transfer_to_construction
                                                         }
-                                                        loading={transferringId === project.id}
-                                                        style={{ padding: '6px 10px', minHeight: 30, marginLeft: 'auto' }}
+                                                        loading={transferringId === project.id && transferTarget === 'construction'}
+                                                        style={{ padding: '6px 10px', minHeight: 30, gridColumn: '1 / -1', width: '100%' }}
                                                         title={
                                                             project.transfer_to_construction_used
                                                                 ? 'Already transferred to construction.'
-                                                                : (project.can_transfer_to_construction
-                                                                    ? 'Transfer this design project to construction.'
+                                                            : (project.can_transfer_to_construction
+                                                                ? 'Transfer this design project to construction.'
                                                                     : 'Requires Completed status and not yet transferred.')
                                                         }
                                                     >
                                                         {project.transfer_to_construction_used ? 'Transferred' : 'Transfer to Construction'}
                                                     </ActionButton>
                                                 )}
-                                                {project.phase === 'Construction' && (
+                                                {['Design', 'Construction'].includes(String(project.phase || ''))
+                                                    && !(project.phase === 'Design' && project.transfer_to_construction_used) && (
                                                     <ActionButton
                                                         type="button"
                                                         variant="success"
                                                         onClick={() => transferProject(project, 'completed')}
                                                         disabled={
                                                             transferringId === project.id ||
-                                                            !project.can_transfer_to_completed ||
-                                                            String(project.status || '').trim().toLowerCase() !== 'completed'
+                                                            !project.can_transfer_to_completed
                                                         }
-                                                        loading={transferringId === project.id}
-                                                        style={{ padding: '6px 10px', minHeight: 30, marginLeft: 'auto' }}
+                                                        loading={transferringId === project.id && transferTarget === 'completed'}
+                                                        style={{ padding: '6px 10px', minHeight: 30, gridColumn: '1 / -1', width: '100%' }}
+                                                        title={
+                                                            project.can_transfer_to_completed
+                                                                ? 'Transfer this project directly to completed.'
+                                                                : 'Requires Completed status before transfer.'
+                                                        }
                                                     >
                                                         Transfer to Completed
                                                     </ActionButton>
@@ -523,30 +613,11 @@ export default function ProjectsKanbanPage({
                                             No projects in {column.label}.
                                         </div>
                                     )}
-                                </div>
-
-                                <div
-                                    style={{
-                                        padding: 12,
-                                        borderTop: '1px solid var(--border-color)',
-                                        display: 'flex',
-                                        justifyContent: 'center',
-                                        background: 'var(--surface-1)',
-                                        marginTop: 'auto',
-                                    }}
-                                >
-                                    {column.has_more ? (
-                                        <ActionButton
-                                            type="button"
-                                            onClick={() => reloadBoard({ [column.page_param]: Number(column.current_page || 1) + 1 })}
-                                            disabled={boardLoading}
-                                            style={{ width: '100%', padding: '9px 12px' }}
-                                        >
-                                            Load more projects ({column.remaining} left)
-                                        </ActionButton>
-                                    ) : (
-                                        <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{column.total > 0 ? 'All projects loaded' : 'No records'}</div>
-                                    )}
+                                    <div style={{ textAlign: 'center', fontSize: 11, color: 'var(--text-muted)', padding: '6px 0' }}>
+                                        {column.has_more
+                                            ? (loadingMore[column.page_param] ? 'Loading more projects...' : `Scroll to load more (${column.remaining} left)`)
+                                            : (column.total > 0 ? 'All projects loaded' : 'No records')}
+                                    </div>
                                 </div>
                             </div>
                         );

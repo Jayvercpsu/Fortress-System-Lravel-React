@@ -107,41 +107,8 @@ class ProjectService
         $boardColumns = collect(ProjectFlow::phases())->map(function (string $phase) use ($request, $search, $batchSize) {
             $pageParam = $this->projectPhasePageParam($phase);
             $loadedPages = max(1, (int) $request->query($pageParam, 1));
-            $visibleLimit = $loadedPages * $batchSize;
 
-            $phaseQuery = Project::query();
-            $this->applyProjectSearchFilter($phaseQuery, $search);
-            $this->applyProjectPhaseFilter($phaseQuery, $phase);
-
-            $total = (clone $phaseQuery)->count();
-
-            $items = $phaseQuery
-                ->with(['designTracker:id,project_id,design_contract_amount,total_received,design_progress,client_approval_status'])
-                ->withCount('transferredProjects')
-                ->orderByDesc('created_at')
-                ->orderByDesc('id')
-                ->limit($visibleLimit)
-                ->get()
-                ->map(fn (Project $project) => $this->projectIndexCardPayload($project))
-                ->values();
-
-            $visibleCount = $items->count();
-            $lastPage = max(1, (int) ceil(($total ?: 0) / $batchSize));
-
-            return [
-                'key' => strtolower((string) preg_replace('/[^a-z0-9]+/i', '', $phase)),
-                'label' => $phase,
-                'value' => $phase,
-                'page_param' => $pageParam,
-                'per_page' => $batchSize,
-                'current_page' => min($loadedPages, $lastPage),
-                'last_page' => $lastPage,
-                'total' => $total,
-                'shown' => $visibleCount,
-                'remaining' => max(0, $total - $visibleCount),
-                'has_more' => $visibleCount < $total,
-                'projects' => $items,
-            ];
+            return $this->projectBoardColumnPayload($phase, $search, $loadedPages, $batchSize);
         })->values();
 
         $projects = $boardColumns
@@ -174,6 +141,20 @@ class ProjectService
                 ],
             ],
         ];
+    }
+
+    public function columnPayload(Request $request): array
+    {
+        $search = trim((string) $request->query('search', ''));
+        $batchSize = 5;
+        $phase = ProjectFlow::normalizePhase((string) $request->query('phase', ''));
+        if (!in_array($phase, ProjectFlow::phases(), true)) {
+            $phase = ProjectFlow::phases()[0] ?? 'Design';
+        }
+
+        $page = max(1, (int) $request->query('page', 1));
+
+        return $this->projectBoardColumnPayload($phase, $search, $page, $batchSize);
     }
 
     public function showPayload(Request $request, Project $project): array
@@ -574,7 +555,11 @@ class ProjectService
             && $project->source_project_id === null
             && !$hasTransferredConstruction
             && $normalizedStatus === ProjectStatus::COMPLETED->value;
-        $canTransferToCompleted = $phase === 'Construction' && $normalizedStatus === ProjectStatus::COMPLETED->value;
+        $canTransferToCompleted = $normalizedStatus === ProjectStatus::COMPLETED->value
+            && (
+                ($phase === 'Design' && !$hasTransferredConstruction)
+                || $phase === 'Construction'
+            );
 
         if ($resolvedDesign && (int) $resolvedDesign->design_progress !== $designPayloadProgress) {
             $this->projectRepository->persistDesignProgress($resolvedDesign, (int) $designPayloadProgress);
@@ -685,7 +670,11 @@ class ProjectService
             && $project->source_project_id === null
             && !$hasTransferredConstruction
             && $status === ProjectStatus::COMPLETED->value;
-        $canTransferToCompleted = $phase === 'Construction' && $status === ProjectStatus::COMPLETED->value;
+        $canTransferToCompleted = $status === ProjectStatus::COMPLETED->value
+            && (
+                ($phase === 'Design' && !$hasTransferredConstruction)
+                || $phase === 'Construction'
+            );
 
         return [
             'id' => $project->id,
@@ -749,6 +738,46 @@ class ProjectService
     private function projectPhasePageParam(string $phase): string
     {
         return strtolower((string) preg_replace('/[^a-z0-9]+/i', '', $phase)) . '_page';
+    }
+
+    private function projectBoardColumnPayload(string $phase, string $search, int $loadedPages, int $batchSize): array
+    {
+        $pageParam = $this->projectPhasePageParam($phase);
+        $visibleLimit = $loadedPages * $batchSize;
+
+        $phaseQuery = Project::query();
+        $this->applyProjectSearchFilter($phaseQuery, $search);
+        $this->applyProjectPhaseFilter($phaseQuery, $phase);
+
+        $total = (clone $phaseQuery)->count();
+
+        $items = $phaseQuery
+            ->with(['designTracker:id,project_id,design_contract_amount,total_received,design_progress,client_approval_status'])
+            ->withCount('transferredProjects')
+            ->orderByDesc('updated_at')
+            ->orderByDesc('id')
+            ->limit($visibleLimit)
+            ->get()
+            ->map(fn (Project $project) => $this->projectIndexCardPayload($project))
+            ->values();
+
+        $visibleCount = $items->count();
+        $lastPage = max(1, (int) ceil(($total ?: 0) / $batchSize));
+
+        return [
+            'key' => strtolower((string) preg_replace('/[^a-z0-9]+/i', '', $phase)),
+            'label' => $phase,
+            'value' => $phase,
+            'page_param' => $pageParam,
+            'per_page' => $batchSize,
+            'current_page' => min($loadedPages, $lastPage),
+            'last_page' => $lastPage,
+            'total' => $total,
+            'shown' => $visibleCount,
+            'remaining' => max(0, $total - $visibleCount),
+            'has_more' => $visibleCount < $total,
+            'projects' => $items,
+        ];
     }
 
     public function updateProject(Project $project, array $validated): void
@@ -891,9 +920,17 @@ class ProjectService
 
     public function transferToCompleted(Project $project): void
     {
-        if (ProjectFlow::normalizePhase($project->phase) !== 'Construction') {
+        $phase = ProjectFlow::normalizePhase($project->phase);
+        if (!in_array($phase, ['Design', 'Construction'], true)) {
             throw ValidationException::withMessages([
                 'transfer' => __('messages.projects.transfer_to_completed_only_construction'),
+            ]);
+        }
+
+        $status = ProjectFlow::normalizeStatus($project->status);
+        if ($status !== ProjectStatus::COMPLETED->value) {
+            throw ValidationException::withMessages([
+                'transfer' => __('messages.projects.transfer_to_completed_requires_completed_status'),
             ]);
         }
 

@@ -29,6 +29,15 @@ class ProjectController extends Controller
         return Inertia::render($payload['page'], $payload['props']);
     }
 
+    public function column(Request $request)
+    {
+        abort_unless(in_array($request->user()->role, User::manageableRoles(), true), 403);
+
+        $payload = $this->projectService->columnPayload($request);
+
+        return response()->json($payload);
+    }
+
     public function create(Request $request)
     {
         abort_unless($request->user()->role === User::ROLE_HEAD_ADMIN, 403);

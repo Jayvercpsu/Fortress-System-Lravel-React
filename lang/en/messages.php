@@ -107,7 +107,8 @@ return [
         'no_foreman_assigned' => 'No foreman assigned to this project.',
         'transfer_to_construction_only_design' => 'Only Design projects can be transferred to Construction.',
         'transfer_to_construction_already_done' => 'Project was already transferred to Construction.',
-        'transfer_to_completed_only_construction' => 'Only Construction projects can be transferred to Completed.',
+        'transfer_to_completed_only_construction' => 'Only Design or Construction projects can be transferred to Completed.',
+        'transfer_to_completed_requires_completed_status' => 'Project status must be Completed before transferring to Completed phase.',
         'team_read_only' => 'Project team editing is read-only. Foremen manage labor records in the Foreman Workers page.',
     ],
     'project_updates' => [
