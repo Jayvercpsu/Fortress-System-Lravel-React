@@ -152,16 +152,18 @@ const buildWeeklyRows = (scopeRows = []) => scopeRows.map((scope) => ({
     weekly_photos: [],
     weekly_photo_caption: '',
 }));
-const cloneWeeklyRows = (rows = []) => rows.map((row) => ({
+const cloneWeeklyRows = (rows = [], options = {}) => rows.map((row) => ({
     row_key: row?.row_key || nextWeeklyRowKey(),
     scope_of_work: String(row?.scope_of_work || ''),
     percent_completed: String(row?.percent_completed || ''),
     is_manual: !!row?.is_manual,
     is_unassigned: !!row?.is_unassigned,
-    weekly_photos: [],
+    weekly_photos: options.keepWeeklyPhotos
+        ? (Array.isArray(row?.weekly_photos) ? [...row.weekly_photos] : [])
+        : [],
     weekly_photo_caption: String(row?.weekly_photo_caption || ''),
 }));
-const mergeWeeklyRowsWithScopeList = (rows = [], scopeRows = []) => {
+const mergeWeeklyRowsWithScopeList = (rows = [], scopeRows = [], options = {}) => {
     const scopeMap = new Map();
     (scopeRows || []).forEach((scope) => {
         const scopeName = String(scope || '').trim();
@@ -169,7 +171,7 @@ const mergeWeeklyRowsWithScopeList = (rows = [], scopeRows = []) => {
         scopeMap.set(scopeName.toLowerCase(), scopeName);
     });
 
-    const existingRows = cloneWeeklyRows(rows);
+    const existingRows = cloneWeeklyRows(rows, options);
     const existingScopeKeys = new Set();
     const mergedRows = existingRows.map((row) => {
         const scopeName = String(row?.scope_of_work || '').trim();
@@ -208,6 +210,36 @@ const mergeWeeklyRowsWithScopeList = (rows = [], scopeRows = []) => {
     return mergedRows;
 };
 const isIsoWeekKey = (value) => /^\d{4}-\d{2}-\d{2}$/.test(String(value || '').trim());
+const findLatestWeekBefore = (targetWeekKey, ...weekMaps) => {
+    const normalizedTarget = normalizeToMonday(String(targetWeekKey || '').trim());
+    if (!isIsoWeekKey(normalizedTarget)) return null;
+    const targetDate = parseYmdDate(normalizedTarget);
+    if (!targetDate) return null;
+    const candidates = new Set();
+
+    weekMaps.forEach((map) => {
+        if (!map || typeof map !== 'object') return;
+        Object.keys(map).forEach((key) => {
+            const normalizedKey = normalizeToMonday(String(key || '').trim());
+            if (isIsoWeekKey(normalizedKey)) {
+                candidates.add(normalizedKey);
+            }
+        });
+    });
+
+    let bestKey = null;
+    let bestDate = null;
+    candidates.forEach((key) => {
+        const date = parseYmdDate(key);
+        if (!date || date >= targetDate) return;
+        if (!bestDate || date > bestDate) {
+            bestDate = date;
+            bestKey = key;
+        }
+    });
+
+    return bestKey;
+};
 const scopePhotosForWeek = (photoRows = [], targetWeekKey = '') => {
     const normalizedTarget = String(targetWeekKey || '').trim();
     return (Array.isArray(photoRows) ? photoRows : []).filter((photo) => {
@@ -723,9 +755,24 @@ export default function ProgressSubmit({ submitToken }) {
                 return { ...prev, [weeklyWeekKey]: cloneWeeklyRows(initialWeeklyDrafts[weeklyWeekKey]) };
             }
 
+            const carryWeekKey = findLatestWeekBefore(weeklyWeekKey, prev, initialWeeklyDrafts);
+            if (carryWeekKey) {
+                const sourceRows = Array.isArray(prev[carryWeekKey]) && prev[carryWeekKey].length > 0
+                    ? prev[carryWeekKey]
+                    : (initialWeeklyDrafts[carryWeekKey] || []);
+                return {
+                    ...prev,
+                    [weeklyWeekKey]: mergeWeeklyRowsWithScopeList(
+                        sourceRows,
+                        resolveWeeklyScopeList(weeklyWeekKey),
+                        { keepWeeklyPhotos: true }
+                    ),
+                };
+            }
+
             return { ...prev, [weeklyWeekKey]: cloneWeeklyRows(defaultWeeklyRowsForWeek) };
         });
-    }, [weeklyWeekKey, initialWeeklyDrafts, defaultWeeklyRowsForWeek]);
+    }, [weeklyWeekKey, initialWeeklyDrafts, defaultWeeklyRowsForWeek, resolveWeeklyScopeList]);
     const setCurrentWeeklyRows = (updater) => {
         setWeeklyWeekDrafts((prev) => {
             const currentRows = (prev[weeklyWeekKey] ?? defaultWeeklyRowsForWeek).map((row) => ({ ...row }));

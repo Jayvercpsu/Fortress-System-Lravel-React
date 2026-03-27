@@ -36,6 +36,14 @@ class PublicProgressService
     public function show(string $token)
     {
         $submitToken = $this->resolveActiveToken($token);
+        $currentWeekStart = Carbon::now('Asia/Manila')
+            ->startOfWeek(Carbon::MONDAY)
+            ->toDateString();
+        $this->seedCurrentWeekWeeklyAccomplishments(
+            (int) $submitToken->project_id,
+            (int) $submitToken->foreman_id,
+            $currentWeekStart
+        );
         $workerRows = $this->foremanProgressRepository->workers()
             ->where('foreman_id', $submitToken->foreman_id)
             ->where(function ($query) use ($submitToken) {
@@ -346,9 +354,7 @@ class PublicProgressService
                 'foreman_name' => $submitToken->foreman->fullname,
                 'expires_at' => optional($submitToken->expires_at)?->toDateTimeString(),
                 'current_date' => Carbon::now('Asia/Manila')->toDateString(),
-                'current_week_start' => Carbon::now('Asia/Manila')
-                    ->startOfWeek(Carbon::MONDAY)
-                    ->toDateString(),
+                'current_week_start' => $currentWeekStart,
                 'receipt_url' => route('public.progress-receipt', ['token' => $submitToken->token]),
                 'workers' => $workers,
                 'weekly_scope_of_works' => $weeklyScopeOfWorks,
@@ -1860,6 +1866,58 @@ class PublicProgressService
         return null;
     }
 
+    private function seedCurrentWeekWeeklyAccomplishments(int $projectId, int $foremanId, string $currentWeekStart): void
+    {
+        if ($projectId <= 0 || $foremanId <= 0 || trim($currentWeekStart) === '') {
+            return;
+        }
+
+        $normalizedCurrentWeek = Carbon::parse($currentWeekStart)
+            ->startOfWeek(Carbon::MONDAY)
+            ->toDateString();
+
+        $hasCurrentWeekRows = $this->foremanProgressRepository->weeklyAccomplishments()
+            ->where('project_id', $projectId)
+            ->where('foreman_id', $foremanId)
+            ->whereDate('week_start', $normalizedCurrentWeek)
+            ->exists();
+
+        if ($hasCurrentWeekRows) {
+            return;
+        }
+
+        $latestPreviousWeek = $this->foremanProgressRepository->weeklyAccomplishments()
+            ->where('project_id', $projectId)
+            ->where('foreman_id', $foremanId)
+            ->whereDate('week_start', '<', $normalizedCurrentWeek)
+            ->max('week_start');
+
+        if (!$latestPreviousWeek) {
+            return;
+        }
+
+        $rowsToClone = $this->foremanProgressRepository->weeklyAccomplishments()
+            ->where('project_id', $projectId)
+            ->where('foreman_id', $foremanId)
+            ->whereDate('week_start', Carbon::parse((string) $latestPreviousWeek)->toDateString())
+            ->orderBy('scope_of_work')
+            ->get(['scope_of_work', 'percent_completed']);
+
+        foreach ($rowsToClone as $row) {
+            $this->foremanProgressRepository->weeklyAccomplishments()->updateOrCreate(
+                [
+                    'project_id' => $projectId,
+                    'foreman_id' => $foremanId,
+                    'week_start' => $normalizedCurrentWeek,
+                    'scope_of_work' => trim((string) ($row->scope_of_work ?? '')),
+                ],
+                [
+                    'percent_completed' => (float) ($row->percent_completed ?? 0),
+                ]
+            );
+        }
+    }
+
     private function syncProjectOverallProgressFromWeekly(int $projectId): void
     {
         if ($projectId <= 0) {
@@ -1945,5 +2003,4 @@ class PublicProgressService
         return ProjectScope::STATUS_IN_PROGRESS;
     }
 }
-
 
