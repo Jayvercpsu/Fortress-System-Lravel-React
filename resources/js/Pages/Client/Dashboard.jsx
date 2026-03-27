@@ -15,13 +15,13 @@ const cardStyle = {
 const money = (value) =>
     `P ${Number(value || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
-function StatCard({ label, value, subtext }) {
+function StatCard({ label, value, subtext, valueStyle = {} }) {
     return (
         <div style={cardStyle}>
             <div style={{ fontSize: 12, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: 8 }}>
                 {label}
             </div>
-            <div style={{ fontWeight: 700, fontSize: 20, fontFamily: "'DM Mono', monospace" }}>{value}</div>
+            <div style={{ fontWeight: 700, fontSize: 20, fontFamily: "'DM Mono', monospace", ...valueStyle }}>{value}</div>
             {subtext ? <div style={{ marginTop: 6, color: 'var(--text-muted)', fontSize: 12 }}>{subtext}</div> : null}
         </div>
     );
@@ -37,6 +37,11 @@ export default function ClientDashboard({
 }) {
     const [previewPhoto, setPreviewPhoto] = useState(null);
     const [previewScopePhoto, setPreviewScopePhoto] = useState(null);
+    const accomplishmentPercent = Number(assignedProject?.overall_progress ?? 0);
+    const accomplishmentAmount = Number(
+        assignedProject?.accomplishment_amount ??
+            (Number(assignedProject?.contract_amount ?? 0) * (accomplishmentPercent / 100))
+    );
     const photosState = {
         search: photoTable?.search ?? '',
         perPage: Number(photoTable?.per_page ?? 10),
@@ -235,16 +240,28 @@ export default function ClientDashboard({
                             value={assignedProject?.name || 'Not Assigned'}
                         />
                         <StatCard
-                            label="Contract Amount"
+                            label="Total Contract Amount"
                             value={money(assignedProject?.contract_amount)}
+                            valueStyle={{ whiteSpace: 'nowrap', fontSize: 18 }}
+                        />
+                        <StatCard
+                            label="Accomplishment %"
+                            value={`${accomplishmentPercent.toFixed(2)}%`}
+                        />
+                        <StatCard
+                            label="Accomplishment Amount"
+                            value={money(accomplishmentAmount)}
+                            valueStyle={{ whiteSpace: 'nowrap', fontSize: 18 }}
                         />
                         <StatCard
                             label="Downpayment"
                             value={money(assignedProject?.total_client_payment)}
+                            valueStyle={{ whiteSpace: 'nowrap', fontSize: 18 }}
                         />
                         <StatCard
                             label="Remaining Balance"
                             value={money(assignedProject?.remaining_balance)}
+                            valueStyle={{ whiteSpace: 'nowrap', fontSize: 18 }}
                         />
                     </div>
 

@@ -38,6 +38,8 @@ class ClientPortalService
         $contractAmount = (float) ($summaryProject?->contract_amount ?? 0);
         $totalClientPayment = (float) ($summaryProject?->total_client_payment ?? 0);
         $remainingBalance = (float) ($summaryProject?->remaining_balance ?? 0);
+        $overallProgress = (int) ($summaryProject?->overall_progress ?? 0);
+        $overallProgress = (int) max(0, min(100, $overallProgress));
         $designDownpayment = $this->resolveDesignDownpayment($summaryProject, $familyProjectIds);
 
         $downpaymentAmount = $designDownpayment > 0 ? $designDownpayment : $totalClientPayment;
@@ -45,6 +47,9 @@ class ClientPortalService
             ? round(($downpaymentAmount / $contractAmount) * 100, 2)
             : 0.0;
         $downpaymentPercent = max(0.0, min(100.0, $downpaymentPercent));
+        $accomplishmentAmount = $contractAmount > 0
+            ? round(($contractAmount * ($overallProgress / 100)), 2)
+            : 0.0;
 
         [$photos, $photoTable] = $this->photoTablePayload($request, $familyProjectIds);
         [$accomplishments, $accomplishmentTable] = $this->accomplishmentTablePayload($request, $familyProjectIds);
@@ -59,6 +64,8 @@ class ClientPortalService
                 'downpayment_percent' => $downpaymentPercent,
                 'remaining_balance' => $remainingBalance,
                 'total_client_payment' => $totalClientPayment,
+                'overall_progress' => $overallProgress,
+                'accomplishment_amount' => $accomplishmentAmount,
             ],
             'photos' => $photos,
             'photoTable' => $photoTable,

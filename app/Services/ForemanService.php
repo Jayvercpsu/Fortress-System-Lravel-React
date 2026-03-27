@@ -719,24 +719,15 @@ class ForemanService
             return;
         }
 
-        $latestWeekStart = $this->foremanProgressRepository->weeklyAccomplishments()
+        $progressPercent = $this->foremanProgressRepository->weeklyAccomplishments()
             ->where('project_id', $projectId)
-            ->max('week_start');
-
-        $progressPercent = null;
-
-        if ($latestWeekStart) {
-            $progressPercent = (float) ($this->foremanProgressRepository->weeklyAccomplishments()
-                ->where('project_id', $projectId)
-                ->whereDate('week_start', $latestWeekStart)
-                ->avg('percent_completed') ?? 0);
-        }
+            ->avg('percent_completed');
 
         if ($progressPercent === null) {
             $progressPercent = (float) ($project->scopes()->avg('progress_percent') ?? 0);
         }
 
-        $overallProgress = (int) round(max(0, min(100, $progressPercent)));
+        $overallProgress = (int) round(max(0, min(100, (float) $progressPercent)));
 
         if ((int) ($project->overall_progress ?? 0) !== $overallProgress) {
             $project->update([
