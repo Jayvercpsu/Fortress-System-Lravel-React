@@ -35,6 +35,9 @@ const inputStyle = {
 const STATUS_OPTIONS = ['NOT_STARTED', 'IN_PROGRESS', 'HOLD', 'COMPLETED'];
 const money = (value) =>
     `P ${Number(value || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+const clampPercent = (value) => Math.min(100, Math.max(0, Number(value) || 0));
+const weightedScopePercent = (weightPercent, progressPercent) => ((Number(weightPercent) || 0) * clampPercent(progressPercent)) / 100;
+const formatPercent = (value, maxDecimals = 4) => `${Number(value || 0).toFixed(maxDecimals).replace(/\.?0+$/, '')}%`;
 
 export default function MonitoringBoardPage({
     project,
@@ -428,7 +431,9 @@ export default function MonitoringBoardPage({
                                         {scope.contract_amount ? money(scope.contract_amount) : '-'}
                                     </td>
                                     <td style={{ padding: '10px 8px', borderBottom: '1px solid var(--border-color)', whiteSpace: 'nowrap' }}>
-                                        {scope.weight_percent ? `${Number(scope.weight_percent).toFixed(2)}%` : '-'}
+                                        {scope.weight_percent
+                                            ? formatPercent(weightedScopePercent(scope.weight_percent, scope.progress_percent))
+                                            : '-'}
                                     </td>
                                     <td style={{ padding: '10px 8px', borderBottom: '1px solid var(--border-color)' }}>
                                         {scope.start_date || '-'}
