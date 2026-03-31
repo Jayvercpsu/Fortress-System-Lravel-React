@@ -9,11 +9,13 @@ class PayrollDeduction extends Model
     public const TYPE_CASH_ADVANCE = 'cash_advance';
     public const TYPE_LOAN = 'loan';
     public const TYPE_OTHER = 'other';
+    public const TYPE_INCENTIVE = 'incentive';
 
     public const TYPE_OPTIONS = [
         self::TYPE_CASH_ADVANCE,
         self::TYPE_LOAN,
         self::TYPE_OTHER,
+        self::TYPE_INCENTIVE,
     ];
 
     protected $fillable = [

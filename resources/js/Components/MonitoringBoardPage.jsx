@@ -376,7 +376,7 @@ export default function MonitoringBoardPage({
                     <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
                         <thead>
                             <tr>
-                        {['Scope', 'Contract', 'Weight', 'Start', 'Target', 'Assigned', 'Progress', 'Status', 'Remarks', 'Photos', 'Updated', 'Actions'].map((label) => (
+                        {['Scope', 'Contract', 'Weight', 'WT %', 'Accomp Amount', 'Assigned', 'Progress', 'Status', 'Remarks', 'Photos', 'Updated', 'Actions'].map((label) => (
                             <th
                                 key={label}
                                 style={{
@@ -385,7 +385,7 @@ export default function MonitoringBoardPage({
                                             color: 'var(--text-muted)',
                                             fontWeight: 600,
                                             padding: '10px 8px',
-                                            whiteSpace: 'nowrap',
+                                            whiteSpace: ['Contract', 'Weight', 'WT %', 'Accomp Amount'].includes(label) ? 'nowrap' : 'normal',
                                         }}
                                     >
                                         {label}
@@ -396,7 +396,7 @@ export default function MonitoringBoardPage({
                         <tbody>
                             {scopeTableLoading && Array.from({ length: Math.min(scopePerPage, 10) }).map((_, rowIndex) => (
                                 <tr key={`scope-skeleton-${rowIndex}`}>
-                                    {['Scope', 'Contract', 'Weight', 'Start', 'Target', 'Assigned', 'Progress', 'Status', 'Remarks', 'Photos', 'Updated', 'Actions'].map((label, colIndex) => (
+                                    {['Scope', 'Contract', 'Weight', 'WT %', 'Accomp Amount', 'Assigned', 'Progress', 'Status', 'Remarks', 'Photos', 'Updated', 'Actions'].map((label, colIndex) => (
                                         <td
                                             key={`scope-skeleton-${rowIndex}-${colIndex}`}
                                             style={{ padding: '10px 8px', borderBottom: '1px solid var(--border-color)' }}
@@ -427,19 +427,21 @@ export default function MonitoringBoardPage({
                                     <td style={{ padding: '10px 8px', borderBottom: '1px solid var(--border-color)' }}>
                                         {scope.scope_name}
                                     </td>
-                                    <td style={{ padding: '10px 8px', borderBottom: '1px solid var(--border-color)' }}>
+                                    <td style={{ padding: '10px 8px', borderBottom: '1px solid var(--border-color)', whiteSpace: 'nowrap' }}>
                                         {scope.contract_amount ? money(scope.contract_amount) : '-'}
                                     </td>
                                     <td style={{ padding: '10px 8px', borderBottom: '1px solid var(--border-color)', whiteSpace: 'nowrap' }}>
-                                        {scope.weight_percent
-                                            ? formatPercent(weightedScopePercent(scope.weight_percent, scope.progress_percent))
-                                            : '-'}
+                                    {scope.weight_percent ? formatPercent(scope.weight_percent) : '-'}
                                     </td>
-                                    <td style={{ padding: '10px 8px', borderBottom: '1px solid var(--border-color)' }}>
-                                        {scope.start_date || '-'}
+                                    <td style={{ padding: '10px 8px', borderBottom: '1px solid var(--border-color)', whiteSpace: 'nowrap' }}>
+                                    {scope.weight_percent
+                                        ? formatPercent(weightedScopePercent(scope.weight_percent, scope.progress_percent))
+                                        : '-'}
                                     </td>
-                                    <td style={{ padding: '10px 8px', borderBottom: '1px solid var(--border-color)' }}>
-                                        {scope.target_completion || '-'}
+                                    <td style={{ padding: '10px 8px', borderBottom: '1px solid var(--border-color)', whiteSpace: 'nowrap' }}>
+                                    {scope.contract_amount
+                                        ? money((Number(scope.contract_amount) || 0) * (Number(scope.progress_percent) || 0) / 100)
+                                        : '-'}
                                     </td>
                                     <td style={{ padding: '10px 8px', borderBottom: '1px solid var(--border-color)' }}>
                                         {scope.assigned_personnel || '-'}
@@ -750,6 +752,8 @@ export default function MonitoringBoardPage({
                             {editErrors.weight_percent && <div style={{ color: '#f87171', fontSize: 12, marginTop: 4 }}>{editErrors.weight_percent}</div>}
                         </label>
 
+                        {/* Start Date and Target Completion hidden for now */}
+                        {/*
                         <label>
                             <div style={{ fontSize: 12, marginBottom: 6 }}>Start Date</div>
                             <DatePickerInput
@@ -771,6 +775,7 @@ export default function MonitoringBoardPage({
                             />
                             {editErrors.target_completion && <div style={{ color: '#f87171', fontSize: 12, marginTop: 4 }}>{editErrors.target_completion}</div>}
                         </label>
+                        */}
 
                         <label style={{ gridColumn: '1 / -1' }}>
                             <div style={{ fontSize: 12, marginBottom: 6 }}>Remarks</div>
@@ -888,6 +893,8 @@ export default function MonitoringBoardPage({
                             {createErrors.weight_percent && <div style={{ color: '#f87171', fontSize: 12, marginTop: 4 }}>{createErrors.weight_percent}</div>}
                         </label>
 
+                        {/* Start Date and Target Completion hidden for now */}
+                        {/*
                         <label>
                             <div style={{ fontSize: 12, marginBottom: 6 }}>Start Date</div>
                             <DatePickerInput
@@ -909,6 +916,7 @@ export default function MonitoringBoardPage({
                             />
                             {createErrors.target_completion && <div style={{ color: '#f87171', fontSize: 12, marginTop: 4 }}>{createErrors.target_completion}</div>}
                         </label>
+                        */}
 
                         <label style={{ gridColumn: '1 / -1' }}>
                             <div style={{ fontSize: 12, marginBottom: 6 }}>Remarks</div>

@@ -13,9 +13,9 @@ use Illuminate\Support\Collection;
 
 interface PayrollRepositoryInterface
 {
-    public function latestPayrollsWithUser(): EloquentCollection;
+    public function latestPayrollsWithUser(?string $group = null): EloquentCollection;
 
-    public function totalPayableByStatuses(array $statuses): float;
+    public function totalPayableByStatuses(array $statuses, ?string $group = null): float;
 
     public function latestPayrollWorkers(): EloquentCollection;
 
@@ -27,7 +27,7 @@ interface PayrollRepositoryInterface
 
     public function updatePayroll(Payroll $payroll, array $attributes): void;
 
-    public function runPayrollPaginator(?int $cutoffId, string $search, int $perPage): LengthAwarePaginator;
+    public function runPayrollPaginator(?int $cutoffId, string $search, int $perPage, ?string $group = null): LengthAwarePaginator;
 
     public function findCutoffById(int $id): ?PayrollCutoff;
 
@@ -35,25 +35,27 @@ interface PayrollRepositoryInterface
 
     public function cutoffOptionsRows(int $limit = 20): EloquentCollection;
 
-    public function payrollAggregatesByCutoffId(int $cutoffId): array;
+    public function payrollAggregatesByCutoffId(int $cutoffId, ?string $group = null): array;
 
-    public function paidPayrollCountByCutoffId(int $cutoffId): int;
+    public function paidPayrollCountByCutoffId(int $cutoffId, ?string $group = null): int;
 
     public function workersWithForeman(): EloquentCollection;
 
     public function foremenForRates(): EloquentCollection;
 
+    public function staffUsersForRates(): EloquentCollection;
+
     public function updateWorkerDefaultRate(Worker $worker, float $rate): void;
 
     public function updateForemanDefaultRate(User $user, float $rate): void;
 
-    public function attendanceSummaryBetween(string $startDate, string $endDate): Collection;
+    public function attendanceSummaryBetween(string $startDate, string $endDate, ?string $group = null): Collection;
 
     public function findCutoffByRange(string $startDate, string $endDate): ?PayrollCutoff;
 
     public function firstOrCreateCutoff(string $startDate, string $endDate, string $status = PayrollCutoff::STATUS_GENERATED): PayrollCutoff;
 
-    public function deletePayrollsByCutoffId(int $cutoffId): void;
+    public function deletePayrollsByCutoffId(int $cutoffId, ?string $group = null): void;
 
     public function createDeduction(Payroll $payroll, array $attributes): PayrollDeduction;
 
@@ -65,13 +67,17 @@ interface PayrollRepositoryInterface
 
     public function sumDeductionAmount(Payroll $payroll): float;
 
-    public function payrollsByCutoffId(int $cutoffId): EloquentCollection;
+    public function sumIncentiveAmount(Payroll $payroll): float;
 
-    public function payrollsForExportByCutoffId(int $cutoffId): EloquentCollection;
+    public function payrollsByCutoffId(int $cutoffId, ?string $group = null): EloquentCollection;
+
+    public function payrollsForExportByCutoffId(int $cutoffId, ?string $group = null): EloquentCollection;
 
     public function workerDefaultRateByName(string $workerName): ?float;
 
     public function foremanDefaultRateByName(string $workerName): ?float;
+
+    public function staffDefaultRateByName(string $workerName): ?float;
 
     public function latestPayrollRateByName(string $workerName): ?float;
 

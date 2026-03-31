@@ -165,6 +165,7 @@ export default function AdminDashboard({ kpis = {}, projectSnapshotPager = null 
                     <BreakdownPanel title="Projects by Phase" items={projectCounts.by_phase || []} />
                 </div>
 
+                {isHeadAdmin && (
                 <div style={{ ...cardStyle, overflow: 'hidden' }}>
                     <div style={{ fontWeight: 700, marginBottom: 10 }}>Project Progress Snapshot</div>
                     {projectSnapshotRows.length === 0 ? (
@@ -212,6 +213,7 @@ export default function AdminDashboard({ kpis = {}, projectSnapshotPager = null 
                     )}
                     <InlinePagination pager={projectSnapshotPager} />
                 </div>
+                )}
             </Layout>
         </>
     );

@@ -37,7 +37,7 @@ function Field({ label, error, children }) {
 export default function UserFormPage({ mode = 'create', user = {} }) {
     const isEdit = mode === 'edit';
     const queryRole = typeof window === 'undefined' ? '' : new URLSearchParams(window.location.search).get('role') || '';
-    const normalizedRole = ['admin', 'hr', 'foreman'].includes(String(queryRole).toLowerCase())
+    const normalizedRole = ['admin', 'hr', 'foreman', 'designer'].includes(String(queryRole).toLowerCase())
         ? String(queryRole).toLowerCase()
         : '';
 
@@ -107,6 +107,7 @@ export default function UserFormPage({ mode = 'create', user = {} }) {
                                     <option value="admin">Admin</option>
                                     <option value="hr">HR</option>
                                     <option value="foreman">Foreman</option>
+                                    <option value="designer">Designer</option>
                                 </select>
                             </Field>
                         </div>

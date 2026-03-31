@@ -81,6 +81,15 @@ class ProjectFlow
             ->all();
     }
 
+    public static function assignedRoleEntries(mixed $roles): array
+    {
+        return collect(self::splitAssignedRoleEntries($roles))
+            ->map(fn ($entry) => self::parseAssignedRoleEntry($entry))
+            ->filter()
+            ->values()
+            ->all();
+    }
+
     public static function normalizeAssignedRoleList(mixed $roles): ?string
     {
         $normalized = collect(self::splitAssignedRoleEntries($roles))
@@ -157,6 +166,7 @@ class ProjectFlow
             'architect' => Project::ASSIGNED_ROLE_ARCHITECT,
             'engineer' => Project::ASSIGNED_ROLE_ENGINEER,
             'pm' => Project::ASSIGNED_ROLE_PM,
+            'designer' => Project::ASSIGNED_ROLE_DESIGNER,
             default => null,
         };
     }

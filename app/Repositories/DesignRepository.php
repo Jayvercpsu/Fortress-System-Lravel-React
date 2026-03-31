@@ -18,6 +18,8 @@ class DesignRepository implements DesignRepositoryInterface
                 'total_received' => 0,
                 'office_payroll_deduction' => 0,
                 'design_progress' => 0,
+                'work_started_at' => null,
+                'work_completed_at' => null,
                 'client_approval_status' => DesignProject::CLIENT_APPROVAL_PENDING,
             ]
         );

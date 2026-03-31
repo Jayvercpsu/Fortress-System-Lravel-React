@@ -227,7 +227,7 @@ class ProjectRepository implements ProjectRepositoryInterface
             ->delete();
 
         foreach ($foremanIds as $foremanId) {
-            ProjectAssignment::query()->updateOrCreate(
+            $assignment = ProjectAssignment::withTrashed()->updateOrCreate(
                 [
                     'project_id' => $project->id,
                     'user_id' => $foremanId,
@@ -236,6 +236,10 @@ class ProjectRepository implements ProjectRepositoryInterface
                     'role_in_project' => ProjectAssignment::ROLE_FOREMAN,
                 ]
             );
+
+            if ($assignment->trashed()) {
+                $assignment->restore();
+            }
         }
     }
 

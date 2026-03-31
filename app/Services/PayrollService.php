@@ -11,7 +11,9 @@ use App\Repositories\Contracts\PayrollRepositoryInterface;
 use Illuminate\Http\Request;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
@@ -24,16 +26,18 @@ class PayrollService
     ) {
     }
 
-    public function indexPayload(): array
+    public function indexPayload(Request $request): array
     {
-        $payrolls = $this->payrollRepository->latestPayrollsWithUser();
-        $totalPayable = $this->payrollRepository->totalPayableByStatuses(Payroll::payableStatuses());
-        $workerOptions = $this->manualPayrollWorkerOptions();
+        $group = $this->normalizePayrollGroup((string) $request->query('group', 'workers'));
+        $payrolls = $this->payrollRepository->latestPayrollsWithUser($group);
+        $totalPayable = $this->payrollRepository->totalPayableByStatuses(Payroll::payableStatuses(), $group);
+        $workerOptions = $this->manualPayrollWorkerOptions($group);
 
         return [
             'payrolls' => $payrolls,
             'totalPayable' => $totalPayable,
             'workerOptions' => $workerOptions,
+            'payrollGroup' => $group,
         ];
     }
 
@@ -86,15 +90,38 @@ class PayrollService
         $this->syncWorkerDefaultRate((string) $validated['worker_name'], (float) $validated['rate_per_hour']);
     }
 
+    public function updatePayrollHours(Payroll $payroll, float $hours): void
+    {
+        if ($payroll->status === Payroll::STATUS_PAID) {
+            throw ValidationException::withMessages([
+                'payroll' => 'Paid payroll rows cannot be edited.',
+            ]);
+        }
+
+        $gross = round($hours * (float) $payroll->rate_per_hour, 2);
+        $deductions = round($this->payrollRepository->sumDeductionAmount($payroll), 2);
+        $incentives = round($this->payrollRepository->sumIncentiveAmount($payroll), 2);
+        $net = round($gross - $deductions + $incentives, 2);
+
+        $this->payrollRepository->updatePayroll($payroll, [
+            'hours' => $hours,
+            'gross' => $gross,
+            'deductions' => $deductions,
+            'net' => $net,
+        ]);
+    }
+
     public function runPayload(Request $request): array
     {
         [$search, $perPage] = $this->runTableParams($request);
+        $group = $this->normalizePayrollGroup((string) $request->query('group', 'workers'));
 
-        $selectedCutoff = $this->resolveSelectedCutoff($request);
+        $selectedCutoff = $this->resolveSelectedCutoff($request, $group);
         $payrollPaginator = $this->payrollRepository->runPayrollPaginator(
             $selectedCutoff?->id,
             $search,
-            $perPage
+            $perPage,
+            $group
         );
 
         $payrollRows = collect($payrollPaginator->items())
@@ -102,9 +129,10 @@ class PayrollService
             ->values();
 
         return [
-            'cutoffs' => $this->cutoffOptions(),
-            'selectedCutoff' => $selectedCutoff ? $this->cutoffPayload($selectedCutoff) : null,
+            'cutoffs' => $this->cutoffOptions($group),
+            'selectedCutoff' => $selectedCutoff ? $this->cutoffPayload($selectedCutoff, $group) : null,
             'payrollRows' => $payrollRows,
+            'payrollGroup' => $group,
             'payrollTable' => [
                 'search' => $search,
                 'per_page' => $payrollPaginator->perPage(),
@@ -122,6 +150,70 @@ class PayrollService
     {
         [$search, $perPage] = $this->runTableParams($request);
         $needle = mb_strtolower($search);
+        $group = $this->normalizePayrollGroup((string) $request->query('group', 'workers'));
+
+        if ($group === 'staff') {
+            $staffRows = $this->payrollRepository->staffUsersForRates()
+                ->map(function (User $user) use ($needle) {
+                    $role = trim((string) ($user->role ?? ''));
+                    $personType = $role !== '' ? strtoupper($role) : 'Staff';
+                    $row = [
+                        'id' => $user->id,
+                        'entity_type' => 'staff',
+                        'name' => $user->fullname,
+                        'person_type' => $personType,
+                        'foreman_name' => null,
+                        'phone' => null,
+                        'sex' => null,
+                        'email' => $user->email,
+                        'default_rate_per_hour' => $user->default_rate_per_hour !== null ? (float) $user->default_rate_per_hour : null,
+                        'updated_at' => optional($user->updated_at)?->toDateTimeString(),
+                    ];
+
+                    if ($needle === '') {
+                        return $row;
+                    }
+
+                    $haystack = mb_strtolower(implode(' | ', [
+                        $row['name'] ?? '',
+                        $row['person_type'] ?? '',
+                        $row['email'] ?? '',
+                    ]));
+
+                    return str_contains($haystack, $needle) ? $row : null;
+                })
+                ->filter()
+                ->values();
+
+            $currentPage = max(1, (int) $request->query('page', 1));
+            $total = $staffRows->count();
+            $items = $staffRows->forPage($currentPage, $perPage)->values();
+
+            $paginator = new LengthAwarePaginator(
+                $items,
+                $total,
+                $perPage,
+                $currentPage,
+                [
+                    'path' => $request->url(),
+                    'query' => $request->query(),
+                ]
+            );
+
+            return [
+                'workerRates' => $items,
+                'workerRateTable' => [
+                    'search' => $search,
+                    'per_page' => $paginator->perPage(),
+                    'current_page' => $paginator->currentPage(),
+                    'last_page' => max(1, $paginator->lastPage()),
+                    'total' => $paginator->total(),
+                    'from' => $paginator->firstItem(),
+                    'to' => $paginator->lastItem(),
+                ],
+                'rateGroup' => $group,
+            ];
+        }
 
         $workerRows = $this->payrollRepository->workersWithForeman()
             ->map(function (Worker $worker) use ($needle) {
@@ -215,6 +307,7 @@ class PayrollService
                 'from' => $paginator->firstItem(),
                 'to' => $paginator->lastItem(),
             ],
+            'rateGroup' => $group,
         ];
     }
 
@@ -230,12 +323,105 @@ class PayrollService
         $this->payrollRepository->updateForemanDefaultRate($user, $rate);
     }
 
-    public function generateFromAttendance(array $validated, int $authId): PayrollCutoff
+    public function updateStaffRate(User $user, float $rate): void
+    {
+        abort_unless(in_array($user->role, [User::ROLE_HR, User::ROLE_ADMIN, User::ROLE_DESIGNER], true), 404);
+
+        $user->update([
+            'default_rate_per_hour' => round($rate, 2),
+        ]);
+    }
+
+    public function generateFromAttendance(array $validated, int $authId, ?string $group = null): PayrollCutoff
     {
         $startDate = $validated['start_date'];
         $endDate = $validated['end_date'];
+        $normalizedGroup = $this->normalizePayrollGroup((string) $group);
 
-        $attendanceSummary = $this->payrollRepository->attendanceSummaryBetween($startDate, $endDate);
+        $attendanceSummary = $this->payrollRepository->attendanceSummaryBetween($startDate, $endDate, $normalizedGroup);
+
+        $attendanceSummary = collect($attendanceSummary);
+        $summaryByName = $attendanceSummary
+            ->mapWithKeys(function ($row) {
+                $name = Str::lower(trim((string) ($row->worker_name ?? '')));
+                return $name !== '' ? [$name => true] : [];
+            });
+
+        if ($normalizedGroup === 'staff') {
+            $days = max(1, Carbon::parse($startDate)->diffInDays(Carbon::parse($endDate)) + 1);
+            $defaultHours = $days * 8;
+            $staffUsers = $this->payrollRepository->staffUsersForRates();
+
+            $extras = $staffUsers
+                ->map(function (User $user) use ($defaultHours, $summaryByName) {
+                    $name = trim((string) ($user->fullname ?? ''));
+                    if ($name === '') {
+                        return null;
+                    }
+
+                    $key = Str::lower($name);
+                    if ($summaryByName->has($key)) {
+                        return null;
+                    }
+
+                    return (object) [
+                        'worker_name' => $name,
+                        'worker_role' => $this->formatStaffRoleLabel($user->role),
+                        'total_hours' => $defaultHours,
+                    ];
+                })
+                ->filter()
+                ->values();
+
+            $attendanceSummary = $attendanceSummary->concat($extras)->values();
+        }
+
+        if ($normalizedGroup === 'workers') {
+            $extras = collect();
+
+            foreach ($this->payrollRepository->workersWithForeman() as $worker) {
+                $name = trim((string) ($worker->name ?? ''));
+                if ($name === '') {
+                    continue;
+                }
+
+                $key = Str::lower($name);
+                if ($summaryByName->has($key)) {
+                    continue;
+                }
+
+                $role = trim((string) ($worker->job_type ?? Worker::JOB_TYPE_WORKER));
+                $role = $role !== '' ? $role : Worker::JOB_TYPE_WORKER;
+
+                $extras->push((object) [
+                    'worker_name' => $name,
+                    'worker_role' => $role,
+                    'total_hours' => 0,
+                ]);
+                $summaryByName->put($key, true);
+            }
+
+            foreach ($this->payrollRepository->foremenForRates() as $foreman) {
+                $name = trim((string) ($foreman->fullname ?? ''));
+                if ($name === '') {
+                    continue;
+                }
+
+                $key = Str::lower($name);
+                if ($summaryByName->has($key)) {
+                    continue;
+                }
+
+                $extras->push((object) [
+                    'worker_name' => $name,
+                    'worker_role' => 'Foreman',
+                    'total_hours' => 0,
+                ]);
+                $summaryByName->put($key, true);
+            }
+
+            $attendanceSummary = $attendanceSummary->concat($extras)->values();
+        }
 
         if ($attendanceSummary->isEmpty()) {
             throw ValidationException::withMessages([
@@ -245,15 +431,21 @@ class PayrollService
 
         $existingCutoff = $this->payrollRepository->findCutoffByRange($startDate, $endDate);
 
-        if ($existingCutoff && $existingCutoff->status === PayrollCutoff::STATUS_PAID) {
-            throw ValidationException::withMessages([
-                'start_date' => __('messages.payroll.cutoff_already_paid'),
-            ]);
+        if ($existingCutoff) {
+            $aggregates = $this->payrollRepository->payrollAggregatesByCutoffId((int) $existingCutoff->id, $normalizedGroup);
+            $paidCount = $this->payrollRepository->paidPayrollCountByCutoffId((int) $existingCutoff->id, $normalizedGroup);
+            $payrollCount = (int) ($aggregates['payroll_count'] ?? 0);
+
+            if ($payrollCount > 0 && $paidCount >= $payrollCount) {
+                throw ValidationException::withMessages([
+                    'start_date' => __('messages.payroll.cutoff_already_paid'),
+                ]);
+            }
         }
 
-        return DB::transaction(function () use ($startDate, $endDate, $attendanceSummary, $authId) {
+        return DB::transaction(function () use ($startDate, $endDate, $attendanceSummary, $authId, $normalizedGroup) {
             $cutoff = $this->payrollRepository->firstOrCreateCutoff($startDate, $endDate);
-            $this->payrollRepository->deletePayrollsByCutoffId((int) $cutoff->id);
+            $this->payrollRepository->deletePayrollsByCutoffId((int) $cutoff->id, $normalizedGroup);
 
             foreach ($attendanceSummary as $row) {
                 $hours = round((float) ($row->total_hours ?? 0), 2);
@@ -311,12 +503,13 @@ class PayrollService
         return $payroll;
     }
 
-    public function markPaid(array $validated, int $authId): PayrollCutoff
+    public function markPaid(array $validated, int $authId, ?string $group = null): PayrollCutoff
     {
         $cutoff = $this->payrollRepository->findCutoffById((int) $validated['cutoff_id']);
         abort_unless($cutoff instanceof PayrollCutoff, 404);
 
-        $payrolls = $this->payrollRepository->payrollsByCutoffId((int) $cutoff->id);
+        $normalizedGroup = $this->normalizePayrollGroup((string) $group);
+        $payrolls = $this->payrollRepository->payrollsByCutoffId((int) $cutoff->id, $normalizedGroup);
 
         if ($payrolls->isEmpty()) {
             throw ValidationException::withMessages([
@@ -338,18 +531,26 @@ class PayrollService
                 ]);
             }
 
-            $cutoff->update(['status' => PayrollCutoff::STATUS_PAID]);
+            $hasUnpaid = Payroll::query()
+                ->where('cutoff_id', $cutoff->id)
+                ->where('status', '!=', Payroll::STATUS_PAID)
+                ->exists();
+
+            if (!$hasUnpaid) {
+                $cutoff->update(['status' => PayrollCutoff::STATUS_PAID]);
+            }
         });
 
         return $cutoff;
     }
 
-    public function exportResponse(int $cutoffId): StreamedResponse
+    public function exportResponse(int $cutoffId, ?string $group = null): StreamedResponse
     {
         $cutoff = $this->payrollRepository->findCutoffById($cutoffId);
         abort_unless($cutoff instanceof PayrollCutoff, 404);
 
-        $payrolls = $this->payrollRepository->payrollsForExportByCutoffId((int) $cutoff->id);
+        $normalizedGroup = $this->normalizePayrollGroup((string) $group);
+        $payrolls = $this->payrollRepository->payrollsForExportByCutoffId((int) $cutoff->id, $normalizedGroup);
 
         $filename = sprintf(
             'payroll-cutoff-%s-to-%s.csv',
@@ -370,6 +571,7 @@ class PayrollService
                 'Hours',
                 'Rate Per Hour',
                 'Gross',
+                'Incentives',
                 'Deductions',
                 'Net Pay',
                 'Status',
@@ -379,13 +581,19 @@ class PayrollService
             ]);
 
             foreach ($payrolls as $payroll) {
-                $deductionTotal = round((float) $payroll->deductionItems->sum('amount'), 2);
+                $deductionTotal = round((float) $payroll->deductionItems
+                    ->where('type', '!=', PayrollDeduction::TYPE_INCENTIVE)
+                    ->sum('amount'), 2);
+                $incentiveTotal = round((float) $payroll->deductionItems
+                    ->where('type', PayrollDeduction::TYPE_INCENTIVE)
+                    ->sum('amount'), 2);
                 fputcsv($out, [
                     $payroll->worker_name,
                     $payroll->role,
                     (float) $payroll->hours,
                     (float) $payroll->rate_per_hour,
                     (float) $payroll->gross,
+                    $incentiveTotal,
                     $deductionTotal,
                     (float) $payroll->net,
                     $payroll->status,
@@ -408,6 +616,7 @@ class PayrollService
             'search' => $request->query('search'),
             'per_page' => $request->query('per_page'),
             'page' => $request->query('page'),
+            'group' => $request->query('group'),
         ], fn ($value) => $value !== null && $value !== '');
     }
 
@@ -418,6 +627,7 @@ class PayrollService
             'search' => $request->query('search'),
             'per_page' => $request->query('per_page'),
             'page' => $request->query('page'),
+            'group' => $request->query('group'),
         ], fn ($value) => $value !== null && $value !== '');
     }
 
@@ -426,6 +636,7 @@ class PayrollService
         return [
             'cutoff_id' => $cutoff->id,
             'per_page' => $request->query('per_page', 10),
+            'group' => $request->query('group', 'workers'),
         ];
     }
 
@@ -435,6 +646,7 @@ class PayrollService
             'search' => $request->query('search'),
             'per_page' => $request->query('per_page'),
             'page' => $request->query('page'),
+            'group' => $request->query('group'),
         ], fn ($value) => $value !== null && $value !== '');
     }
 
@@ -450,43 +662,59 @@ class PayrollService
         return [$search, $perPage];
     }
 
-    private function resolveSelectedCutoff(Request $request): ?PayrollCutoff
+    private function normalizePayrollGroup(?string $group): string
+    {
+        $normalized = strtolower(trim((string) $group));
+        if (!in_array($normalized, ['workers', 'staff'], true)) {
+            return 'workers';
+        }
+
+        return $normalized;
+    }
+
+    private function resolveSelectedCutoff(Request $request, string $group): ?PayrollCutoff
     {
         $cutoffId = (int) $request->query('cutoff_id', 0);
 
         if ($cutoffId > 0) {
             $found = $this->payrollRepository->findCutoffById($cutoffId);
-            if ($found) {
+            if ($found && $this->hasCutoffRowsForGroup($found, $group)) {
                 return $found;
             }
         }
 
-        return $this->payrollRepository->latestCutoff();
+        return $this->latestCutoffForGroup($group);
     }
 
-    private function cutoffOptions(): Collection
+    private function cutoffOptions(string $group): Collection
     {
         return $this->payrollRepository
             ->cutoffOptionsRows()
-            ->map(fn (PayrollCutoff $cutoff) => $this->cutoffPayload($cutoff))
+            ->map(fn (PayrollCutoff $cutoff) => $this->cutoffPayload($cutoff, $group))
+            ->filter(fn (array $payload) => (int) ($payload['payroll_count'] ?? 0) > 0)
             ->values();
     }
 
-    private function cutoffPayload(PayrollCutoff $cutoff): array
+    private function cutoffPayload(PayrollCutoff $cutoff, string $group): array
     {
-        $aggregates = $this->payrollRepository->payrollAggregatesByCutoffId((int) $cutoff->id);
+        $aggregates = $this->payrollRepository->payrollAggregatesByCutoffId((int) $cutoff->id, $group);
+        $payrollCount = (int) $aggregates['payroll_count'];
+        $paidCount = $this->payrollRepository->paidPayrollCountByCutoffId((int) $cutoff->id, $group);
+        $groupStatus = $payrollCount > 0 && $paidCount >= $payrollCount
+            ? PayrollCutoff::STATUS_PAID
+            : PayrollCutoff::STATUS_GENERATED;
 
         return [
             'id' => $cutoff->id,
             'start_date' => optional($cutoff->start_date)?->toDateString(),
             'end_date' => optional($cutoff->end_date)?->toDateString(),
-            'status' => $cutoff->status,
-            'payroll_count' => isset($cutoff->payrolls_count) ? (int) $cutoff->payrolls_count : (int) $aggregates['payroll_count'],
-            'total_hours' => round((float) (isset($cutoff->total_hours_sum) ? $cutoff->total_hours_sum : $aggregates['total_hours']), 2),
-            'total_gross' => round((float) (isset($cutoff->total_gross_sum) ? $cutoff->total_gross_sum : $aggregates['total_gross']), 2),
-            'total_deductions' => round((float) (isset($cutoff->total_deductions_sum) ? $cutoff->total_deductions_sum : $aggregates['total_deductions']), 2),
-            'total_net' => round((float) (isset($cutoff->total_net_sum) ? $cutoff->total_net_sum : $aggregates['total_net']), 2),
-            'paid_count' => $this->payrollRepository->paidPayrollCountByCutoffId((int) $cutoff->id),
+            'status' => $groupStatus,
+            'payroll_count' => $payrollCount,
+            'total_hours' => round((float) $aggregates['total_hours'], 2),
+            'total_gross' => round((float) $aggregates['total_gross'], 2),
+            'total_deductions' => round((float) $aggregates['total_deductions'], 2),
+            'total_net' => round((float) $aggregates['total_net'], 2),
+            'paid_count' => $paidCount,
         ];
     }
 
@@ -529,7 +757,8 @@ class PayrollService
         $payroll->refresh();
         $gross = round((float) $payroll->hours * (float) $payroll->rate_per_hour, 2);
         $deductions = round($this->payrollRepository->sumDeductionAmount($payroll), 2);
-        $net = round($gross - $deductions, 2);
+        $incentives = round($this->payrollRepository->sumIncentiveAmount($payroll), 2);
+        $net = round($gross - $deductions + $incentives, 2);
 
         $this->payrollRepository->updatePayroll($payroll, [
             'gross' => $gross,
@@ -553,6 +782,11 @@ class PayrollService
         $foremanRate = $this->payrollRepository->foremanDefaultRateByName($normalizedName);
         if ($foremanRate !== null) {
             return round($foremanRate, 2);
+        }
+
+        $staffRate = $this->payrollRepository->staffDefaultRateByName($normalizedName);
+        if ($staffRate !== null) {
+            return round($staffRate, 2);
         }
 
         $exactRate = $this->payrollRepository->latestPayrollRateByName($normalizedName);
@@ -579,12 +813,70 @@ class PayrollService
         }
     }
 
-    private function manualPayrollWorkerOptions(): Collection
+    private function manualPayrollWorkerOptions(string $group): Collection
     {
+        if ($group === 'staff') {
+            $options = [];
+
+            $latestPayrollWorkers = $this->payrollRepository->latestPayrollWorkers();
+            foreach ($latestPayrollWorkers as $payroll) {
+                $role = (string) ($payroll->role ?? '');
+                if (!$this->isStaffRoleLabel($role)) {
+                    continue;
+                }
+
+                $name = trim((string) $payroll->worker_name);
+                if ($name === '') {
+                    continue;
+                }
+
+                $key = mb_strtolower($name);
+                if (!isset($options[$key])) {
+                    $options[$key] = [
+                        'value' => $name,
+                        'label' => $name,
+                        'name' => $name,
+                        'default_rate_per_hour' => (float) ($payroll->rate_per_hour ?? 0),
+                        'role' => $payroll->role ?: null,
+                    ];
+                }
+            }
+
+            $staffUsers = $this->payrollRepository->staffUsersForRates();
+            foreach ($staffUsers as $user) {
+                $name = trim((string) $user->fullname);
+                if ($name === '') {
+                    continue;
+                }
+
+                $key = mb_strtolower($name);
+                if (!isset($options[$key])) {
+                    $options[$key] = [
+                        'value' => $name,
+                        'label' => $name,
+                        'name' => $name,
+                        'default_rate_per_hour' => null,
+                        'role' => $user->role ?: null,
+                    ];
+                }
+
+                if ($user->default_rate_per_hour !== null && (float) $user->default_rate_per_hour > 0) {
+                    $options[$key]['default_rate_per_hour'] = (float) $user->default_rate_per_hour;
+                }
+            }
+
+            return collect(array_values($options))
+                ->sortBy('label', SORT_NATURAL | SORT_FLAG_CASE)
+                ->values();
+        }
+
         $options = [];
 
         $latestPayrollWorkers = $this->payrollRepository->latestPayrollWorkers();
         foreach ($latestPayrollWorkers as $payroll) {
+            if ($this->isStaffRoleLabel((string) ($payroll->role ?? ''))) {
+                continue;
+            }
             $name = trim((string) $payroll->worker_name);
             if ($name === '') {
                 continue;
@@ -653,6 +945,56 @@ class PayrollService
         return collect(array_values($options))
             ->sortBy('label', SORT_NATURAL | SORT_FLAG_CASE)
             ->values();
+    }
+
+    private function isStaffRoleLabel(?string $role): bool
+    {
+        $normalized = strtolower(trim((string) $role));
+        if ($normalized === '') {
+            return false;
+        }
+
+        if (str_contains($normalized, 'head') && str_contains($normalized, 'admin')) {
+            return false;
+        }
+
+        $matchers = ['hr', 'human resources', 'admin', 'administrator', 'designer'];
+        foreach ($matchers as $matcher) {
+            if ($normalized === $matcher || str_contains($normalized, $matcher)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private function formatStaffRoleLabel(?string $role): string
+    {
+        $normalized = strtolower(trim((string) $role));
+        return match ($normalized) {
+            'hr' => 'HR',
+            'admin' => 'Admin',
+            'designer' => 'Designer',
+            default => 'Staff',
+        };
+    }
+
+    private function hasCutoffRowsForGroup(PayrollCutoff $cutoff, string $group): bool
+    {
+        $aggregates = $this->payrollRepository->payrollAggregatesByCutoffId((int) $cutoff->id, $group);
+        return (int) ($aggregates['payroll_count'] ?? 0) > 0;
+    }
+
+    private function latestCutoffForGroup(string $group): ?PayrollCutoff
+    {
+        $candidates = $this->payrollRepository->cutoffOptionsRows();
+        foreach ($candidates as $cutoff) {
+            if ($this->hasCutoffRowsForGroup($cutoff, $group)) {
+                return $cutoff;
+            }
+        }
+
+        return null;
     }
 
     private function syncWorkerDefaultRate(string $workerName, float $ratePerHour): void

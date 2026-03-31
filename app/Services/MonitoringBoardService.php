@@ -4,13 +4,9 @@ namespace App\Services;
 
 use App\Models\MonitoringBoardFile;
 use App\Models\MonitoringBoardItem;
-use App\Models\Project;
-use App\Models\ProjectAssignment;
 use App\Models\User;
 use App\Repositories\Contracts\MonitoringBoardRepositoryInterface;
 use Illuminate\Http\UploadedFile;
-use Illuminate\Support\Collection;
-use Illuminate\Support\Str;
 
 class MonitoringBoardService
 {
@@ -27,26 +23,6 @@ class MonitoringBoardService
     public function indexPayload(User $user): array
     {
         $rawItems = $this->monitoringBoardRepository->listItemsWithFiles();
-        $converted = false;
-
-        foreach ($rawItems as $item) {
-            if ($item->project_id) {
-                continue;
-            }
-
-            $statusDone = strtoupper((string) $item->status) === MonitoringBoardItem::STATUS_DONE;
-            $progress = (int) ($item->progress_percent ?? 0);
-            if (!$statusDone && $progress < 100) {
-                continue;
-            }
-
-            $this->maybeConvertToProject($item);
-            $converted = true;
-        }
-
-        if ($converted) {
-            $rawItems = $this->monitoringBoardRepository->listItemsWithFiles();
-        }
 
         $projectIds = $rawItems
             ->pluck('project_id')
@@ -97,7 +73,6 @@ class MonitoringBoardService
             'props' => [
                 'items' => $items,
                 'status_options' => MonitoringBoardItem::statusOptions(),
-                'clientOptions' => $this->clientOptionsPayload(),
                 'foremanOptions' => $this->foremanOptionsPayload(),
             ],
         ];
@@ -108,9 +83,7 @@ class MonitoringBoardService
         $payload = $this->normalizeItemPayload($validated);
         $payload['created_by'] = $userId;
 
-        $item = $this->monitoringBoardRepository->createItem($payload);
-        $this->maybeConvertToProject($item);
-        $this->syncClientAssignmentForItem($item->fresh());
+        $this->monitoringBoardRepository->createItem($payload);
     }
 
     public function updateItem(MonitoringBoardItem $item, array $validated): void
@@ -118,9 +91,6 @@ class MonitoringBoardService
         $payload = $this->normalizeItemPayload($validated);
 
         $this->monitoringBoardRepository->updateItem($item, $payload);
-        $refreshed = $item->fresh();
-        $this->maybeConvertToProject($refreshed);
-        $this->syncClientAssignmentForItem($refreshed->fresh());
     }
 
     public function deleteItem(MonitoringBoardItem $item): void
@@ -168,123 +138,16 @@ class MonitoringBoardService
         return $validated;
     }
 
-    private function maybeConvertToProject(MonitoringBoardItem $item): void
-    {
-        if ($item->project_id) {
-            return;
-        }
-
-        $statusDone = strtoupper((string) $item->status) === MonitoringBoardItem::STATUS_DONE;
-        if (!$statusDone && (int) $item->progress_percent < 100) {
-            return;
-        }
-
-        $project = $this->monitoringBoardRepository->createProjectFromMonitoringItem($item);
-        $this->syncClientAssignmentForProjectName($item->client_name, (int) $project->id);
-        $this->monitoringBoardRepository->markItemConverted($item, (int) $project->id, MonitoringBoardItem::STATUS_DONE);
-    }
-
-    private function clientOptionsPayload(): array
-    {
-        $clients = $this->monitoringBoardRepository->clientUsers();
-        $clientIds = $clients
-            ->pluck('id')
-            ->map(fn ($id) => (int) $id)
-            ->values()
-            ->all();
-
-        $assignments = $this->monitoringBoardRepository->latestAssignmentsByUserIds($clientIds, ProjectAssignment::ROLE_CLIENT);
-
-        return $this->assignmentOptionsPayload($clients, $assignments);
-    }
-
     private function foremanOptionsPayload(): array
     {
         $foremen = $this->monitoringBoardRepository->foremanUsers();
-        $foremanIds = $foremen
-            ->pluck('id')
-            ->map(fn ($id) => (int) $id)
-            ->values()
-            ->all();
-
-        $assignments = $this->monitoringBoardRepository->latestAssignmentsByUserIds($foremanIds, ProjectAssignment::ROLE_FOREMAN);
-
-        return $this->assignmentOptionsPayload($foremen, $assignments);
-    }
-
-    private function assignmentOptionsPayload(Collection $users, Collection $assignments): array
-    {
-        return $users
-            ->map(function (User $user) use ($assignments) {
-                $assignment = $assignments->get($user->id);
-                $projectName = $assignment?->project?->name;
-                $label = $projectName
-                    ? "{$user->fullname} ({$projectName})"
-                    : "{$user->fullname} (Unassigned)";
-
-                return [
-                    'id' => (int) $user->id,
-                    'label' => $label,
-                    'value' => $user->fullname,
-                    'project_id' => $assignment?->project_id ? (int) $assignment->project_id : null,
-                ];
-            })
+        return $foremen
+            ->map(fn ($user) => [
+                'id' => (int) $user->id,
+                'fullname' => (string) $user->fullname,
+            ])
             ->values()
             ->all();
     }
 
-    private function syncClientAssignmentForItem(?MonitoringBoardItem $item): void
-    {
-        if (!$item || !$item->project_id) {
-            return;
-        }
-
-        $clientName = trim((string) ($item->client_name ?? ''));
-        Project::query()
-            ->whereKey((int) $item->project_id)
-            ->update(['client' => $clientName !== '' ? $clientName : null]);
-
-        $this->syncClientAssignmentForProjectName($item->client_name, (int) $item->project_id);
-    }
-
-    private function syncClientAssignmentForProjectName(?string $clientName, int $projectId): void
-    {
-        $clientName = trim((string) ($clientName ?? ''));
-        if ($projectId <= 0) {
-            return;
-        }
-
-        if ($clientName === '') {
-            ProjectAssignment::query()
-                ->where('project_id', $projectId)
-                ->where('role_in_project', ProjectAssignment::ROLE_CLIENT)
-                ->delete();
-            return;
-        }
-
-        $clientUser = User::query()
-            ->where('role', User::ROLE_CLIENT)
-            ->whereRaw('LOWER(fullname) = ?', [Str::lower($clientName)])
-            ->first();
-
-        if (!$clientUser) {
-            return;
-        }
-
-        ProjectAssignment::query()->updateOrCreate(
-            [
-                'project_id' => $projectId,
-                'user_id' => (int) $clientUser->id,
-            ],
-            [
-                'role_in_project' => ProjectAssignment::ROLE_CLIENT,
-            ]
-        );
-
-        ProjectAssignment::query()
-            ->where('user_id', (int) $clientUser->id)
-            ->where('role_in_project', ProjectAssignment::ROLE_CLIENT)
-            ->where('project_id', '!=', $projectId)
-            ->delete();
-    }
 }

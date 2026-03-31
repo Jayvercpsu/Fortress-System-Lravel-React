@@ -9,6 +9,7 @@ use App\Http\Requests\Payrolls\StorePayrollDeductionRequest;
 use App\Http\Requests\Payrolls\StorePayrollRequest;
 use App\Http\Requests\Payrolls\UpdateDefaultRateRequest;
 use App\Http\Requests\Payrolls\UpdatePayrollDeductionRequest;
+use App\Http\Requests\Payrolls\UpdatePayrollHoursRequest;
 use App\Http\Requests\Payrolls\UpdatePayrollRequest;
 use App\Http\Requests\Payrolls\UpdatePayrollStatusRequest;
 use App\Models\Payroll;
@@ -27,9 +28,9 @@ class PayrollController extends Controller
     ) {
     }
 
-    public function index()
+    public function index(Request $request)
     {
-        return Inertia::render('HR/Payroll', $this->payrollService->indexPayload());
+        return Inertia::render('HR/Payroll', $this->payrollService->indexPayload($request));
     }
 
     public function store(StorePayrollRequest $request)
@@ -51,6 +52,13 @@ class PayrollController extends Controller
         $this->payrollService->updatePayroll($payroll, $request->validated());
 
         return back()->with('success', __('messages.payroll.entry_updated'));
+    }
+
+    public function updateHours(UpdatePayrollHoursRequest $request, Payroll $payroll)
+    {
+        $this->payrollService->updatePayrollHours($payroll, (float) $request->validated('hours'));
+
+        return redirect()->route('payroll.run', $this->payrollService->payrollRunQueryParams($request, $payroll));
     }
 
     public function run(Request $request)
@@ -81,9 +89,22 @@ class PayrollController extends Controller
             ->with('success', __('messages.payroll.foreman_rate_updated'));
     }
 
+    public function updateStaffRate(UpdateDefaultRateRequest $request, User $user)
+    {
+        $this->payrollService->updateStaffRate($user, (float) $request->validated('default_rate_per_hour'));
+
+        return redirect()
+            ->route('payroll.worker_rates', $this->payrollService->tableQueryParams($request))
+            ->with('success', __('messages.payroll.worker_rate_updated'));
+    }
+
     public function generateFromAttendance(GeneratePayrollFromAttendanceRequest $request)
     {
-        $cutoff = $this->payrollService->generateFromAttendance($request->validated(), (int) Auth::id());
+        $cutoff = $this->payrollService->generateFromAttendance(
+            $request->validated(),
+            (int) Auth::id(),
+            (string) $request->query('group', 'workers')
+        );
 
         return redirect()->route('payroll.run', $this->payrollService->runGenerateQueryParams($request, $cutoff));
     }
@@ -111,13 +132,20 @@ class PayrollController extends Controller
 
     public function markPaid(MarkPayrollPaidRequest $request)
     {
-        $cutoff = $this->payrollService->markPaid($request->validated(), (int) Auth::id());
+        $cutoff = $this->payrollService->markPaid(
+            $request->validated(),
+            (int) Auth::id(),
+            (string) $request->query('group', 'workers')
+        );
 
         return redirect()->route('payroll.run', $this->payrollService->markPaidQueryParams($request, $cutoff));
     }
 
     public function export(ExportPayrollRequest $request)
     {
-        return $this->payrollService->exportResponse((int) $request->validated('cutoff_id'));
+        return $this->payrollService->exportResponse(
+            (int) $request->validated('cutoff_id'),
+            (string) $request->query('group', 'workers')
+        );
     }
 }

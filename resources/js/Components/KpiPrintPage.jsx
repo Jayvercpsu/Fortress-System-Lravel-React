@@ -123,7 +123,7 @@ export default function KpiPrintPage({
             <div style={pageStyle}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap', marginBottom: 16 }}>
                     <div>
-                        <div style={{ fontSize: 20, fontWeight: 700 }}>KPI Performance Review</div>
+                        <div style={{ fontSize: 20, fontWeight: 700 }}>KPI (Key Performance Indicator) Review</div>
                         <div style={{ fontSize: 12, color: '#475569' }}>
                             {dateLabel} | {projectLabel}
                         </div>

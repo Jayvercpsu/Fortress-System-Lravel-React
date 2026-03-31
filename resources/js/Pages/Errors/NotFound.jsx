@@ -7,6 +7,7 @@ const dashboardByRole = {
     admin: '/admin',
     hr: '/hr',
     foreman: '/foreman',
+    designer: '/designer',
     client: '/client',
 };
 

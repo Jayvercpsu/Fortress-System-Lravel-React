@@ -24,6 +24,7 @@ const inputStyle = {
 const PROJECT_PHASES = ['Design', 'Construction', 'Completed'];
 const PROJECT_STATUS_OPTIONS = ['PLANNING', 'ACTIVE', 'ONGOING', 'ON_HOLD', 'DELAYED', 'COMPLETED', 'CANCELLED'];
 const PROJECT_ASSIGNED_ROLE_OPTIONS = ['Architect', 'Engineer', 'PM'];
+const PROJECT_ASSIGNED_ROLE_OPTIONS_ALL = [...PROJECT_ASSIGNED_ROLE_OPTIONS, 'Designer'];
 const PROJECT_TYPE_OPTIONS = ['2Storey', '3Storey', 'w/ Roofdeck', 'Bungalow', 'Commercial', 'Renovation'];
 const OTHER_PROJECT_TYPE_OPTION = '__OTHER__';
 
@@ -66,7 +67,7 @@ const normalizeAssignedForemen = (names) => {
 
 const normalizeAssignedRoleOption = (value) => {
     const key = String(value || '').trim().toLowerCase();
-    return PROJECT_ASSIGNED_ROLE_OPTIONS.find((option) => option.toLowerCase() === key) || null;
+    return PROJECT_ASSIGNED_ROLE_OPTIONS_ALL.find((option) => option.toLowerCase() === key) || null;
 };
 
 const splitAssignedRoleEntries = (value) => {
@@ -128,7 +129,7 @@ const normalizeAssignedRoles = (entries) => {
 
 const serializeAssignedRoles = (entries) => normalizeAssignedRoles(entries).map((entry) => entry.label).join('; ');
 
-export default function HeadAdminProjectsEdit({ project, foremen = [], clientOptions = [] }) {
+export default function HeadAdminProjectsEdit({ project, foremen = [], designers = [], clientOptions = [] }) {
     const initialProjectType = String(project.type ?? '');
     const initialProjectTypeIsPreset = PROJECT_TYPE_OPTIONS.includes(initialProjectType);
 
@@ -147,11 +148,16 @@ export default function HeadAdminProjectsEdit({ project, foremen = [], clientOpt
     const [assignedForemen, setAssignedForemen] = useState(() => parseAssignedForemen(project.assigned ?? ''));
     const [pendingAssignedRole, setPendingAssignedRole] = useState('');
     const [pendingAssignedRoleName, setPendingAssignedRoleName] = useState('');
+    const [pendingAssignedDesigner, setPendingAssignedDesigner] = useState('');
     const [assignedRoles, setAssignedRoles] = useState(() => parseAssignedRoles(project.assigned_role ?? ''));
     const [projectTypeOption, setProjectTypeOption] = useState(() => (initialProjectTypeIsPreset ? initialProjectType : OTHER_PROJECT_TYPE_OPTION));
     const [customProjectType, setCustomProjectType] = useState(() => (initialProjectTypeIsPreset ? '' : initialProjectType));
+    const assignedDesignerEntries = assignedRoles.filter((entry) => entry.role === 'Designer');
+    const assignedGeneralEntries = assignedRoles.filter((entry) => entry.role !== 'Designer');
     const projectStatus = String(project.status || '').trim().toLowerCase();
     const isLocked = projectStatus === 'completed' || projectStatus === 'cancelled';
+    const phaseKey = String(data.phase || project.phase || '').trim().toLowerCase().replace(/[^a-z0-9]+/g, '');
+    const isDesignPhase = phaseKey === 'design';
 
     const submit = (e) => {
         e.preventDefault();
@@ -205,6 +211,14 @@ export default function HeadAdminProjectsEdit({ project, foremen = [], clientOpt
         syncAssignedRoles([...assignedRoles, { role, name }]);
         setPendingAssignedRole('');
         setPendingAssignedRoleName('');
+    };
+
+    const addAssignedDesigner = () => {
+        if (isLocked || !isDesignPhase) return;
+        const name = String(pendingAssignedDesigner || '').trim();
+        if (!name) return;
+        syncAssignedRoles([...assignedRoles, { role: 'Designer', name }]);
+        setPendingAssignedDesigner('');
     };
 
     const removeAssignedRole = (entryToRemove) => {
@@ -320,10 +334,10 @@ export default function HeadAdminProjectsEdit({ project, foremen = [], clientOpt
                             Add role + name. Multiple entries are allowed, including multiple Engineers.
                         </div>
                                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-                                    {assignedRoles.length === 0 ? (
+                                    {assignedGeneralEntries.length === 0 ? (
                                         <div style={{ color: 'var(--text-muted)', fontSize: 12 }}>No assigned Architect / Engineer / PM yet.</div>
                                     ) : (
-                                        assignedRoles.map((entry) => (
+                                        assignedGeneralEntries.map((entry) => (
                                             <div
                                                 key={entry.key}
                                                 style={assignedChipStyle}
@@ -350,6 +364,76 @@ export default function HeadAdminProjectsEdit({ project, foremen = [], clientOpt
                             )}
                         </div>
                         {errors.assigned_role && <div style={{ color: '#f87171', fontSize: 12 }}>{errors.assigned_role}</div>}
+                    </div>
+
+                    <div style={{ display: 'grid', gap: 6 }}>
+                        <div style={{ fontSize: 12, marginBottom: 0 }}>Assigned Designers</div>
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 8, alignItems: 'end' }}>
+                            <SearchableDropdown
+                                options={designers}
+                                value={pendingAssignedDesigner}
+                                onChange={(value) => setPendingAssignedDesigner(value || '')}
+                                getOptionLabel={(option) => option.fullname}
+                                getOptionValue={(option) => option.fullname}
+                                placeholder={designers.length === 0 ? 'No designer users available' : 'Select designer'}
+                                searchPlaceholder="Search designers..."
+                                emptyMessage="No designers found"
+                                disabled={isLocked || !isDesignPhase || designers.length === 0}
+                                clearable
+                                style={{ ...inputStyle, minHeight: 40, padding: '8px 10px' }}
+                                dropdownWidth={340}
+                            />
+                            <ActionButton
+                                type="button"
+                                onClick={addAssignedDesigner}
+                                disabled={isLocked || !isDesignPhase || !pendingAssignedDesigner}
+                                style={{ padding: '10px 12px' }}
+                            >
+                                Add Designer
+                            </ActionButton>
+                        </div>
+                        {isDesignPhase && (
+                            <div style={{ color: 'var(--text-muted)', fontSize: 12 }}>
+                                Assign designers from the user list to track design speed.
+                            </div>
+                        )}
+                        {!isDesignPhase && (
+                            <div style={{ color: 'var(--text-muted)', fontSize: 12 }}>
+                                Designer assignment is only available when the project phase is Design. Current phase: {data.phase || project.phase || 'N/A'}.
+                            </div>
+                        )}
+                        {designers.length === 0 && (
+                            <div style={{ color: 'var(--text-muted)', fontSize: 12 }}>
+                                No designer users found. Existing assigned names are preserved below.
+                            </div>
+                        )}
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                            {assignedDesignerEntries.length === 0 ? (
+                                <div style={{ color: 'var(--text-muted)', fontSize: 12 }}>No designers selected yet.</div>
+                            ) : (
+                                assignedDesignerEntries.map((entry) => (
+                                    <div key={entry.key} style={assignedChipStyle}>
+                                        <span>{entry.name || entry.label}</span>
+                                        <button
+                                            type="button"
+                                            onClick={() => removeAssignedRole(entry)}
+                                            disabled={isLocked || !isDesignPhase}
+                                            style={{
+                                                border: 'none',
+                                                background: 'transparent',
+                                                color: 'var(--text-muted)',
+                                                cursor: 'pointer',
+                                                fontSize: 12,
+                                                padding: 0,
+                                            }}
+                                            aria-label={`Remove ${entry.label}`}
+                                        >
+                                            x
+                                        </button>
+                                    </div>
+                                ))
+                            )}
+                        </div>
                     </div>
 
                     <div style={{ display: 'grid', gap: 6 }}>

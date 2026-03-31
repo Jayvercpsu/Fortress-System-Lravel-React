@@ -7,7 +7,6 @@ import SelectInput from './SelectInput';
 import TextareaInput from './TextareaInput';
 import DatePickerInput from './DatePickerInput';
 import SearchableDropdown from './SearchableDropdown';
-import ClientSelectInput from './ClientSelectInput';
 import Layout from './Layout';
 import { Head, router, useForm } from '@inertiajs/react';
 import { useEffect, useMemo, useState } from 'react';
@@ -348,7 +347,6 @@ const isSupportedUpload = (file) => {
 export default function MonitoringBoardIndexPage({
     items = [],
     status_options: statusOptions = [],
-    clientOptions = [],
     foremanOptions = [],
 }) {
     const resolvedStatusOptions = statusOptions.length > 0 ? statusOptions : ['PROPOSAL', 'IN_REVIEW', 'APPROVED', 'DONE'];
@@ -418,7 +416,6 @@ export default function MonitoringBoardIndexPage({
         progress_percent: 0,
         remarks: '',
     });
-    const baseClientOptions = Array.isArray(clientOptions) ? clientOptions : [];
     const baseForemanOptions = Array.isArray(foremanOptions) ? foremanOptions : [];
     const foremanSelectOptions = withCurrentOption(baseForemanOptions, createData.assigned_to);
     const foremanEditOptions = withCurrentOption(baseForemanOptions, editData.assigned_to);
@@ -440,29 +437,6 @@ export default function MonitoringBoardIndexPage({
     const [editCustomDepartment, setEditCustomDepartment] = useState('');
     const [editItem, setEditItem] = useState(null);
     const [infoItem, setInfoItem] = useState(null);
-
-    const filterClientOptionsForProject = (options, projectId) => {
-        const normalizedProjectId = projectId ? Number(projectId) : 0;
-        return options.filter((option) => {
-            const assignedProjectId = Number(option?.project_id || 0);
-            if (!assignedProjectId) {
-                return true;
-            }
-            if (!normalizedProjectId) {
-                return false;
-            }
-            return assignedProjectId === normalizedProjectId;
-        });
-    };
-
-    const createClientOptions = useMemo(
-        () => filterClientOptionsForProject(baseClientOptions, null),
-        [baseClientOptions]
-    );
-    const editClientOptions = useMemo(
-        () => filterClientOptionsForProject(baseClientOptions, editItem?.project_id),
-        [baseClientOptions, editItem?.project_id]
-    );
 
     const departmentOptions = useMemo(() => {
         const map = new Map();
@@ -1127,7 +1101,6 @@ export default function MonitoringBoardIndexPage({
                                                     'Status',
                                                     'Progress',
                                                     'Files',
-                                                    'Converted',
                                                 ].map((label) => (
                                                     <th
                                                         key={label}
@@ -1140,7 +1113,6 @@ export default function MonitoringBoardIndexPage({
                                         </thead>
                                         <tbody>
                                             {sortedRows.map((item) => {
-                                                const isConverted = Boolean(item.project_id);
                                                 const isProjectDeleted = Boolean(item.project_deleted);
                                                 const progressValue = normalizeProgressValue(item.progress_percent);
                                                 const statusValue = item.status ?? resolvedStatusOptions[0];
@@ -1272,17 +1244,6 @@ export default function MonitoringBoardIndexPage({
                                                             >
                                                                 {fileCount ? `Files (${fileCount})` : 'Add Files'}
                                                             </ActionButton>
-                                                        </td>
-                                                        <td style={boardTableCell}>
-                                                            {isProjectDeleted ? (
-                                                                <span style={{ ...statusBadgeBase, ...deletedBadgeStyle }}>Project deleted</span>
-                                                            ) : isConverted ? (
-                                                                <ActionButton href={`/projects/${item.project_id}`} variant="view" style={{ padding: '6px 10px' }}>
-                                                                    Open Project
-                                                                </ActionButton>
-                                                            ) : (
-                                                                <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>Not yet</span>
-                                                            )}
                                                         </td>
                                                     </tr>
                                                 );
@@ -1544,10 +1505,10 @@ export default function MonitoringBoardIndexPage({
 
                             <label>
                                 <div style={{ fontSize: 12, marginBottom: 6 }}>Client Name</div>
-                                <ClientSelectInput
-                                    clients={createClientOptions}
+                                <TextInput
                                     value={createData.client_name}
-                                    onChange={(value) => setCreateData('client_name', value)}
+                                    onChange={(event) => setCreateData('client_name', event.target.value)}
+                                    placeholder="Enter client name"
                                     style={boardInputStyle}
                                 />
                                 {createErrors.client_name && <div style={{ color: '#f87171', fontSize: 12, marginTop: 4 }}>{createErrors.client_name}</div>}
@@ -1822,10 +1783,10 @@ export default function MonitoringBoardIndexPage({
 
                         <label>
                             <div style={{ fontSize: 12, marginBottom: 6 }}>Client Name</div>
-                            <ClientSelectInput
-                                clients={editClientOptions}
+                            <TextInput
                                 value={editData.client_name}
-                                onChange={(value) => setEditData('client_name', value)}
+                                onChange={(event) => setEditData('client_name', event.target.value)}
+                                placeholder="Enter client name"
                                 style={inputStyle}
                             />
                             {editErrors.client_name && <div style={{ color: '#f87171', fontSize: 12, marginTop: 4 }}>{editErrors.client_name}</div>}

@@ -16,19 +16,23 @@ use Illuminate\Support\Str;
 
 class PayrollRepository implements PayrollRepositoryInterface
 {
-    public function latestPayrollsWithUser(): EloquentCollection
+    public function latestPayrollsWithUser(?string $group = null): EloquentCollection
     {
-        return Payroll::query()
+        $query = Payroll::query()
             ->with('user')
-            ->latest()
-            ->get();
+            ->latest();
+
+        $this->applyRoleGroupFilter($query, $group, 'role');
+
+        return $query->get();
     }
 
-    public function totalPayableByStatuses(array $statuses): float
+    public function totalPayableByStatuses(array $statuses, ?string $group = null): float
     {
-        return (float) Payroll::query()
-            ->whereIn('status', $statuses)
-            ->sum('net');
+        $query = Payroll::query()->whereIn('status', $statuses);
+        $this->applyRoleGroupFilter($query, $group, 'role');
+
+        return (float) $query->sum('net');
     }
 
     public function latestPayrollWorkers(): EloquentCollection
@@ -69,9 +73,9 @@ class PayrollRepository implements PayrollRepositoryInterface
         $payroll->update($attributes);
     }
 
-    public function runPayrollPaginator(?int $cutoffId, string $search, int $perPage): LengthAwarePaginator
+    public function runPayrollPaginator(?int $cutoffId, string $search, int $perPage, ?string $group = null): LengthAwarePaginator
     {
-        return Payroll::query()
+        $query = Payroll::query()
             ->with(['deductionItems', 'releasedBy:id,fullname'])
             ->when($cutoffId, fn ($q) => $q->where('cutoff_id', $cutoffId), fn ($q) => $q->whereRaw('1=0'))
             ->when($search !== '', function ($q) use ($search) {
@@ -81,7 +85,11 @@ class PayrollRepository implements PayrollRepositoryInterface
                         ->orWhere('role', 'like', "%{$search}%")
                         ->orWhere('status', 'like', "%{$search}%");
                 });
-            })
+            });
+
+        $this->applyRoleGroupFilter($query, $group, 'role');
+
+        return $query
             ->orderBy('worker_name')
             ->paginate($perPage)
             ->withQueryString();
@@ -114,9 +122,10 @@ class PayrollRepository implements PayrollRepositoryInterface
             ->get();
     }
 
-    public function payrollAggregatesByCutoffId(int $cutoffId): array
+    public function payrollAggregatesByCutoffId(int $cutoffId, ?string $group = null): array
     {
         $payrolls = Payroll::query()->where('cutoff_id', $cutoffId);
+        $this->applyRoleGroupFilter($payrolls, $group, 'role');
 
         return [
             'payroll_count' => (int) (clone $payrolls)->count(),
@@ -127,12 +136,15 @@ class PayrollRepository implements PayrollRepositoryInterface
         ];
     }
 
-    public function paidPayrollCountByCutoffId(int $cutoffId): int
+    public function paidPayrollCountByCutoffId(int $cutoffId, ?string $group = null): int
     {
-        return Payroll::query()
+        $query = Payroll::query()
             ->where('cutoff_id', $cutoffId)
-            ->where('status', Payroll::STATUS_PAID)
-            ->count();
+            ->where('status', Payroll::STATUS_PAID);
+
+        $this->applyRoleGroupFilter($query, $group, 'role');
+
+        return $query->count();
     }
 
     public function workersWithForeman(): EloquentCollection
@@ -151,6 +163,14 @@ class PayrollRepository implements PayrollRepositoryInterface
             ->get(['id', 'fullname', 'email', 'default_rate_per_hour', 'updated_at']);
     }
 
+    public function staffUsersForRates(): EloquentCollection
+    {
+        return User::query()
+            ->whereIn('role', [User::ROLE_HR, User::ROLE_ADMIN, User::ROLE_DESIGNER])
+            ->orderBy('fullname')
+            ->get(['id', 'fullname', 'email', 'role', 'default_rate_per_hour', 'updated_at']);
+    }
+
     public function updateWorkerDefaultRate(Worker $worker, float $rate): void
     {
         $worker->update([
@@ -165,10 +185,12 @@ class PayrollRepository implements PayrollRepositoryInterface
         ]);
     }
 
-    public function attendanceSummaryBetween(string $startDate, string $endDate): Collection
+    public function attendanceSummaryBetween(string $startDate, string $endDate, ?string $group = null): Collection
     {
-        return Attendance::query()
-            ->whereBetween('date', [$startDate, $endDate])
+        $query = Attendance::query()->whereBetween('date', [$startDate, $endDate]);
+        $this->applyRoleGroupFilter($query, $group, 'worker_role');
+
+        return $query
             ->selectRaw('worker_name, worker_role, COALESCE(SUM(hours), 0) as total_hours')
             ->groupBy('worker_name', 'worker_role')
             ->orderBy('worker_name')
@@ -191,9 +213,11 @@ class PayrollRepository implements PayrollRepositoryInterface
         );
     }
 
-    public function deletePayrollsByCutoffId(int $cutoffId): void
+    public function deletePayrollsByCutoffId(int $cutoffId, ?string $group = null): void
     {
-        Payroll::query()->where('cutoff_id', $cutoffId)->delete();
+        $query = Payroll::query()->where('cutoff_id', $cutoffId);
+        $this->applyRoleGroupFilter($query, $group, 'role');
+        $query->delete();
     }
 
     public function createDeduction(Payroll $payroll, array $attributes): PayrollDeduction
@@ -218,21 +242,35 @@ class PayrollRepository implements PayrollRepositoryInterface
 
     public function sumDeductionAmount(Payroll $payroll): float
     {
-        return (float) $payroll->deductionItems()->sum('amount');
+        return (float) $payroll->deductionItems()
+            ->where('type', '!=', PayrollDeduction::TYPE_INCENTIVE)
+            ->sum('amount');
     }
 
-    public function payrollsByCutoffId(int $cutoffId): EloquentCollection
+    public function sumIncentiveAmount(Payroll $payroll): float
     {
-        return Payroll::query()->where('cutoff_id', $cutoffId)->get();
+        return (float) $payroll->deductionItems()
+            ->where('type', PayrollDeduction::TYPE_INCENTIVE)
+            ->sum('amount');
     }
 
-    public function payrollsForExportByCutoffId(int $cutoffId): EloquentCollection
+    public function payrollsByCutoffId(int $cutoffId, ?string $group = null): EloquentCollection
     {
-        return Payroll::query()
+        $query = Payroll::query()->where('cutoff_id', $cutoffId);
+        $this->applyRoleGroupFilter($query, $group, 'role');
+
+        return $query->get();
+    }
+
+    public function payrollsForExportByCutoffId(int $cutoffId, ?string $group = null): EloquentCollection
+    {
+        $query = Payroll::query()
             ->with('deductionItems')
-            ->where('cutoff_id', $cutoffId)
-            ->orderBy('worker_name')
-            ->get();
+            ->where('cutoff_id', $cutoffId);
+
+        $this->applyRoleGroupFilter($query, $group, 'role');
+
+        return $query->orderBy('worker_name')->get();
     }
 
     public function workerDefaultRateByName(string $workerName): ?float
@@ -251,6 +289,19 @@ class PayrollRepository implements PayrollRepositoryInterface
     {
         $rate = User::query()
             ->where('role', User::ROLE_FOREMAN)
+            ->whereRaw('LOWER(fullname) = ?', [Str::lower($workerName)])
+            ->whereNotNull('default_rate_per_hour')
+            ->where('default_rate_per_hour', '>', 0)
+            ->orderByDesc('id')
+            ->value('default_rate_per_hour');
+
+        return $rate !== null ? (float) $rate : null;
+    }
+
+    public function staffDefaultRateByName(string $workerName): ?float
+    {
+        $rate = User::query()
+            ->whereIn('role', [User::ROLE_HR, User::ROLE_ADMIN, User::ROLE_DESIGNER])
             ->whereRaw('LOWER(fullname) = ?', [Str::lower($workerName)])
             ->whereNotNull('default_rate_per_hour')
             ->where('default_rate_per_hour', '>', 0)
@@ -292,5 +343,39 @@ class PayrollRepository implements PayrollRepositoryInterface
             ->where('role', User::ROLE_FOREMAN)
             ->where('fullname', $workerName)
             ->update(['default_rate_per_hour' => $rate]);
+    }
+
+    private function applyRoleGroupFilter($query, ?string $group, string $roleColumn = 'role'): void
+    {
+        $normalizedGroup = $group ? strtolower(trim($group)) : null;
+        if (!in_array($normalizedGroup, ['workers', 'staff'], true)) {
+            return;
+        }
+
+        $roleField = "LOWER(COALESCE({$roleColumn}, ''))";
+        $staffRoleMatchers = [
+            'hr',
+            'human resources',
+            'admin',
+            'administrator',
+            'designer',
+        ];
+
+        if ($normalizedGroup === 'staff') {
+            $query->where(function ($sub) use ($roleField, $staffRoleMatchers) {
+                foreach ($staffRoleMatchers as $matcher) {
+                    $sub->orWhereRaw("{$roleField} = ?", [$matcher])
+                        ->orWhereRaw("{$roleField} like ?", ['%' . $matcher . '%']);
+                }
+            })->whereRaw("{$roleField} not like '%head%admin%'");
+            return;
+        }
+
+        $query->where(function ($sub) use ($roleField, $staffRoleMatchers) {
+            $sub->whereRaw("{$roleField} not like '%head%admin%'");
+            foreach ($staffRoleMatchers as $matcher) {
+                $sub->whereRaw("{$roleField} not like ?", ['%' . $matcher . '%']);
+            }
+        });
     }
 }

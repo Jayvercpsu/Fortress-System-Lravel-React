@@ -155,6 +155,10 @@ export const toastMessages = {
         trackerUpdateSuccess: 'Design tracker updated successfully.',
         fixHighlighted: 'Please fix the highlighted fields and try again.',
     },
+    designer: {
+        trackingUpdateSuccess: 'Design tracking dates saved.',
+        trackingUpdateError: 'Unable to save design tracking dates.',
+    },
     build: {
         trackerUpdateSuccess: 'Build tracker updated successfully.',
         fixHighlighted: 'Please fix the highlighted fields and try again.',

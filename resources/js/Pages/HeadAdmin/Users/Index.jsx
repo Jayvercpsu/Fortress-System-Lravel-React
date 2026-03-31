@@ -5,7 +5,7 @@ import ConfirmationModal from '../../../Components/ConfirmationModal';
 import { Head, router } from '@inertiajs/react';
 import { useState } from 'react';
 
-const roleColor = { admin: '#60a5fa', hr: '#fbbf24', foreman: '#4ade80' };
+const roleColor = { admin: '#60a5fa', hr: '#fbbf24', foreman: '#4ade80', designer: '#f472b6' };
 
 export default function UsersIndex({ users = [], userTable = {} }) {
     const [deleteTarget, setDeleteTarget] = useState(null);

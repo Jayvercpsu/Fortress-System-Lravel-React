@@ -24,6 +24,8 @@ class ProjectController extends Controller
 
     public function index(Request $request)
     {
+        $this->ensureConstructionAccess($request);
+
         $payload = $this->projectService->indexPayload($request);
 
         return Inertia::render($payload['page'], $payload['props']);
@@ -31,7 +33,7 @@ class ProjectController extends Controller
 
     public function column(Request $request)
     {
-        abort_unless(in_array($request->user()->role, User::manageableRoles(), true), 403);
+        $this->ensureConstructionAccess($request);
 
         $payload = $this->projectService->columnPayload($request);
 
@@ -44,6 +46,7 @@ class ProjectController extends Controller
 
         return Inertia::render('HeadAdmin/Projects/Create', [
             'foremen' => $this->projectService->foremanOptionsPayload(),
+            'designers' => $this->projectService->designerOptionsPayload(),
             'clientOptions' => $this->projectService->clientOptionsPayload(),
         ]);
     }
@@ -61,6 +64,8 @@ class ProjectController extends Controller
 
     public function show(Request $request, Project $project)
     {
+        $this->ensureConstructionAccess($request);
+
         $payload = $this->projectService->showPayload($request, $project);
 
         return Inertia::render($payload['page'], $payload['props']);
@@ -68,7 +73,7 @@ class ProjectController extends Controller
 
     public function edit(Request $request, Project $project)
     {
-        abort_unless(in_array($request->user()->role, User::manageableRoles(), true), 403);
+        $this->ensureConstructionAccess($request);
 
         $payload = $this->projectService->editPayload($project);
 
@@ -77,7 +82,7 @@ class ProjectController extends Controller
 
     public function update(UpdateProjectRequest $request, Project $project)
     {
-        abort_unless(in_array($request->user()->role, User::manageableRoles(), true), 403);
+        $this->ensureConstructionAccess($request);
 
         $this->projectService->updateProject($project, $request->validated());
 
@@ -88,7 +93,7 @@ class ProjectController extends Controller
 
     public function projectReceipt(Request $request, Project $project)
     {
-        abort_unless(in_array($request->user()->role, User::manageableRoles(), true), 403);
+        $this->ensureConstructionAccess($request);
 
         $token = $this->projectService->resolveProjectReceiptToken($project);
 
@@ -97,7 +102,7 @@ class ProjectController extends Controller
 
     public function generateJotform(Request $request, Project $project)
     {
-        abort_unless(in_array($request->user()->role, User::manageableRoles(), true), 403);
+        $this->ensureConstructionAccess($request);
 
         $validated = $request->validate([
             'foreman_id' => [
@@ -117,7 +122,7 @@ class ProjectController extends Controller
 
     public function updatePhase(UpdateProjectPhaseRequest $request, Project $project)
     {
-        abort_unless(in_array($request->user()->role, User::manageableRoles(), true), 403);
+        $this->ensureConstructionAccess($request);
 
         $this->projectService->updateProjectPhase($project, (string) $request->validated('phase'));
 
@@ -128,7 +133,7 @@ class ProjectController extends Controller
 
     public function transferToConstruction(Request $request, Project $project)
     {
-        abort_unless(in_array($request->user()->role, User::manageableRoles(), true), 403);
+        $this->ensureConstructionAccess($request);
 
         $this->projectService->transferToConstruction($project);
 
@@ -139,7 +144,7 @@ class ProjectController extends Controller
 
     public function transferToCompleted(Request $request, Project $project)
     {
-        abort_unless(in_array($request->user()->role, User::manageableRoles(), true), 403);
+        $this->ensureConstructionAccess($request);
 
         $this->projectService->transferToCompleted($project);
 
@@ -150,7 +155,7 @@ class ProjectController extends Controller
 
     public function updateAssignedForemen(UpdateAssignedForemenRequest $request, Project $project)
     {
-        abort_unless(in_array($request->user()->role, User::manageableRoles(), true), 403);
+        $this->ensureConstructionAccess($request);
 
         $error = $this->projectService->updateAssignedForemen(
             $project,
@@ -213,5 +218,10 @@ class ProjectController extends Controller
     public function destroyTeamMember(Request $request, ProjectWorker $projectWorker)
     {
         abort(403, __('messages.projects.team_read_only'));
+    }
+
+    private function ensureConstructionAccess(Request $request): void
+    {
+        abort_unless($request->user()?->role === User::ROLE_HEAD_ADMIN, 403);
     }
 }

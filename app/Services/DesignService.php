@@ -41,6 +41,8 @@ class DesignService
             'total_received' => (float) $design->total_received,
             'office_payroll_deduction' => (float) $design->office_payroll_deduction,
             'design_progress' => $autoDesignProgress,
+            'work_started_at' => optional($design->work_started_at)?->toDateString(),
+            'work_completed_at' => optional($design->work_completed_at)?->toDateString(),
             'client_approval_status' => $design->client_approval_status,
             'collection_progress_pct' => DesignComputation::computeCollectionPercent(
                 (float) $design->design_contract_amount,

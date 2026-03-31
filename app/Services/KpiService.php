@@ -676,72 +676,107 @@ class KpiService
     {
         $workerRows = $payload['workerKpis'] ?? [];
         $foremanRows = $payload['foremanKpis'] ?? [];
+        $topWorkers = $payload['topWorkers'] ?? [];
+        $topForemen = $payload['topForemen'] ?? [];
+        $summary = $payload['summary'] ?? [];
         $thresholds = $payload['promotionThresholds'] ?? [
             'promotion_ready' => self::DEFAULT_PROMOTION_READY,
             'promotion_track' => self::DEFAULT_PROMOTION_TRACK,
         ];
 
-        $headers = [
-            'category',
-            'name',
-            'role',
-            'foreman',
-            'projects',
-            'attendance_days',
-            'attendance_hours',
-            'weekly_scopes',
-            'avg_progress',
-            'issues_count',
-            'material_requests_count',
-            'deliveries_count',
-            'progress_photos_count',
-            'activity_uploads',
-            'kpi_score',
-            'promotion_label',
-        ];
+        $rows = [];
 
-        $rows = [$headers];
+        $rows[] = ['Summary'];
+        $rows[] = ['Total Workers', $summary['total_workers'] ?? 0];
+        $rows[] = ['Total Foremen', $summary['total_foremen'] ?? 0];
+        $rows[] = ['Average Worker Hours', $summary['average_worker_hours'] ?? 0];
+        $rows[] = ['Average Foreman Progress', $summary['average_foreman_progress'] ?? 0];
+        $rows[] = ['Average Worker KPI', $summary['average_worker_score'] ?? 0];
+        $rows[] = ['Average Foreman KPI', $summary['average_foreman_score'] ?? 0];
+        $rows[] = ['Top Worker KPI', $summary['top_worker_score'] ?? 0];
+        $rows[] = ['Top Foreman KPI', $summary['top_foreman_score'] ?? 0];
+        $rows[] = [];
 
-        foreach ($workerRows as $row) {
-            $rows[] = [
-                'worker',
-                $row['worker_name'] ?? '',
-                $row['worker_role'] ?? '',
-                $row['foreman_name'] ?? '',
-                $row['projects_count'] ?? 0,
-                $row['attendance_days'] ?? 0,
-                $row['attendance_hours'] ?? 0,
-                '',
-                '',
-                '',
-                '',
-                '',
-                '',
-                '',
-                $row['kpi_score'] ?? 0,
-                $this->promotionLabel((float) ($row['kpi_score'] ?? 0), $thresholds),
-            ];
+        $rows[] = ['Top Workers'];
+        if (empty($topWorkers)) {
+            $rows[] = ['No KPI data available.'];
+        } else {
+            $rows[] = ['Rank', 'Worker', 'Role', 'Projects', 'Foreman', 'KPI', 'Promotion'];
+            foreach ($topWorkers as $index => $row) {
+                $rows[] = [
+                    $index + 1,
+                    $row['worker_name'] ?? '',
+                    $row['worker_role'] ?? '',
+                    $row['projects_count'] ?? 0,
+                    $row['foreman_name'] ?? '',
+                    $row['kpi_score'] ?? 0,
+                    $this->promotionLabel((float) ($row['kpi_score'] ?? 0), $thresholds),
+                ];
+            }
         }
+        $rows[] = [];
 
-        foreach ($foremanRows as $row) {
-            $rows[] = [
-                'foreman',
-                $row['foreman_name'] ?? '',
-                Attendance::ROLE_FOREMAN,
-                '',
-                $row['projects_count'] ?? 0,
-                $row['attendance_days'] ?? 0,
-                $row['attendance_hours'] ?? 0,
-                $row['weekly_scopes'] ?? 0,
-                $row['avg_percent_completed'] ?? 0,
-                $row['issues_count'] ?? 0,
-                $row['material_requests_count'] ?? 0,
-                $row['deliveries_count'] ?? 0,
-                $row['progress_photos_count'] ?? 0,
-                $row['activity_uploads'] ?? 0,
-                $row['kpi_score'] ?? 0,
-                $this->promotionLabel((float) ($row['kpi_score'] ?? 0), $thresholds),
-            ];
+        $rows[] = ['Top Foremen'];
+        if (empty($topForemen)) {
+            $rows[] = ['No KPI data available.'];
+        } else {
+            $rows[] = ['Rank', 'Foreman', 'Projects', 'Avg Progress', 'Uploads', 'KPI', 'Promotion'];
+            foreach ($topForemen as $index => $row) {
+                $rows[] = [
+                    $index + 1,
+                    $row['foreman_name'] ?? '',
+                    $row['projects_count'] ?? 0,
+                    $row['avg_percent_completed'] ?? 0,
+                    $row['activity_uploads'] ?? 0,
+                    $row['kpi_score'] ?? 0,
+                    $this->promotionLabel((float) ($row['kpi_score'] ?? 0), $thresholds),
+                ];
+            }
+        }
+        $rows[] = [];
+
+        $rows[] = ['Worker KPI Table'];
+        if (empty($workerRows)) {
+            $rows[] = ['No worker KPI data found for the selected filters.'];
+        } else {
+            $rows[] = ['Worker', 'Role', 'Foreman', 'Projects', 'Days', 'Hours', 'KPI', 'Promotion'];
+            foreach ($workerRows as $row) {
+                $rows[] = [
+                    $row['worker_name'] ?? '',
+                    $row['worker_role'] ?? '',
+                    $row['foreman_name'] ?? '',
+                    $row['projects_count'] ?? 0,
+                    $row['attendance_days'] ?? 0,
+                    $row['attendance_hours'] ?? 0,
+                    $row['kpi_score'] ?? 0,
+                    $this->promotionLabel((float) ($row['kpi_score'] ?? 0), $thresholds),
+                ];
+            }
+        }
+        $rows[] = [];
+
+        $rows[] = ['Foreman KPI Table'];
+        if (empty($foremanRows)) {
+            $rows[] = ['No foreman KPI data found for the selected filters.'];
+        } else {
+            $rows[] = ['Foreman', 'Projects', 'Days', 'Hours', 'Weekly Scopes', 'Avg Progress', 'Issues', 'Materials', 'Deliveries', 'Photos', 'Uploads', 'KPI', 'Promotion'];
+            foreach ($foremanRows as $row) {
+                $rows[] = [
+                    $row['foreman_name'] ?? '',
+                    $row['projects_count'] ?? 0,
+                    $row['attendance_days'] ?? 0,
+                    $row['attendance_hours'] ?? 0,
+                    $row['weekly_scopes'] ?? 0,
+                    $row['avg_percent_completed'] ?? 0,
+                    $row['issues_count'] ?? 0,
+                    $row['material_requests_count'] ?? 0,
+                    $row['deliveries_count'] ?? 0,
+                    $row['progress_photos_count'] ?? 0,
+                    $row['activity_uploads'] ?? 0,
+                    $row['kpi_score'] ?? 0,
+                    $this->promotionLabel((float) ($row['kpi_score'] ?? 0), $thresholds),
+                ];
+            }
         }
 
         $handle = fopen('php://temp', 'r+');

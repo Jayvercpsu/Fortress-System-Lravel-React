@@ -53,6 +53,20 @@ class ProjectService
             ->all();
     }
 
+    public function designerOptionsPayload(): array
+    {
+        return User::query()
+            ->where('role', User::ROLE_DESIGNER)
+            ->orderBy('fullname')
+            ->get(['id', 'fullname'])
+            ->map(fn ($user) => [
+                'id' => (int) $user->id,
+                'fullname' => (string) $user->fullname,
+            ])
+            ->values()
+            ->all();
+    }
+
     public function clientOptionsPayload(?int $projectId = null): array
     {
         $clients = $this->projectRepository->clientUsers();
@@ -104,7 +118,9 @@ class ProjectService
         $this->applyProjectSearchFilter($searchQuery, $search);
         $totalMatching = (clone $searchQuery)->count();
 
-        $boardColumns = collect(ProjectFlow::phases())->map(function (string $phase) use ($request, $search, $batchSize) {
+        $boardColumns = collect(ProjectFlow::phases())
+            ->filter(fn (string $phase) => $phase !== Project::PHASE_DESIGN)
+            ->map(function (string $phase) use ($request, $search, $batchSize) {
             $pageParam = $this->projectPhasePageParam($phase);
             $loadedPages = max(1, (int) $request->query($pageParam, 1));
 
@@ -125,7 +141,10 @@ class ProjectService
                 'projects' => $projects,
                 'projectBoard' => [
                     'search' => $search,
-                    'phase_order' => ProjectFlow::phases(),
+                    'phase_order' => collect(ProjectFlow::phases())
+                        ->filter(fn (string $phase) => $phase !== Project::PHASE_DESIGN)
+                        ->values()
+                        ->all(),
                     'batch_size' => $batchSize,
                     'total' => $totalMatching,
                     'columns' => $boardColumns,
@@ -149,7 +168,7 @@ class ProjectService
         $batchSize = 5;
         $phase = ProjectFlow::normalizePhase((string) $request->query('phase', ''));
         if (!in_array($phase, ProjectFlow::phases(), true)) {
-            $phase = ProjectFlow::phases()[0] ?? 'Design';
+            $phase = Project::PHASE_CONSTRUCTION;
         }
 
         $page = max(1, (int) $request->query('page', 1));
@@ -302,6 +321,7 @@ class ProjectService
             'props' => [
                 'project' => $this->projectPayload($project),
                 'foremen' => $this->foremanOptionsPayload(),
+                'designers' => $this->designerOptionsPayload(),
                 'clientOptions' => $this->clientOptionsPayload((int) $project->id),
             ],
         ];
@@ -748,6 +768,7 @@ class ProjectService
         $phaseQuery = Project::query();
         $this->applyProjectSearchFilter($phaseQuery, $search);
         $this->applyProjectPhaseFilter($phaseQuery, $phase);
+        $this->applyProjectBoardVisibilityFilter($phaseQuery, $phase);
 
         $total = (clone $phaseQuery)->count();
 
@@ -778,6 +799,17 @@ class ProjectService
             'has_more' => $visibleCount < $total,
             'projects' => $items,
         ];
+    }
+
+    private function applyProjectBoardVisibilityFilter($query, string $phase): void
+    {
+        if ($phase !== Project::PHASE_DESIGN) {
+            return;
+        }
+
+        // Keep transferred design records in the database, but hide them
+        // from the Design kanban column to avoid duplicate/pile-up cards.
+        $query->whereDoesntHave('transferredProjects');
     }
 
     public function updateProject(Project $project, array $validated): void

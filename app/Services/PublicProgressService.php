@@ -203,7 +203,7 @@ class PublicProgressService
             ->where('foreman_id', $submitToken->foreman_id)
             ->where('project_id', $submitToken->project_id)
             ->orderBy('week_start')
-            ->orderBy('scope_of_work')
+            ->orderBy('id')
             ->get(['week_start', 'scope_of_work', 'percent_completed'])
             ->values();
 
@@ -218,7 +218,7 @@ class PublicProgressService
 
         $projectScopeRows = $this->foremanProgressRepository->projectScopes()
             ->where('project_id', $submitToken->project_id)
-            ->orderBy('scope_name')
+            ->orderBy('id')
             ->get(['id', 'scope_name', 'assigned_personnel']);
 
         $assignedPersonnelForScope = function (ProjectScope $scopeRow) {
@@ -380,7 +380,7 @@ class PublicProgressService
 
         $scopes = $project->scopes()
             ->with(['photos' => fn ($query) => $query->latest('id')->limit(4)])
-            ->orderBy('scope_name')
+            ->orderBy('id')
             ->get();
 
         $assigneeNames = $scopes
@@ -428,6 +428,7 @@ class PublicProgressService
                 'progress_percent' => (int) $scope->progress_percent,
                 'computed_percent' => $computedPercent,
                 'amount_to_date' => $amountToDate,
+                'status' => $scope->status,
                 'start_date' => optional($scope->start_date)?->toDateString(),
                 'target_completion' => optional($scope->target_completion)?->toDateString(),
                 'assigned_personnel' => $scope->assigned_personnel,
@@ -485,7 +486,7 @@ class PublicProgressService
 
         $scopes = $project->scopes()
             ->with(['photos' => fn ($query) => $query->latest('id')->limit(4)])
-            ->orderBy('scope_name')
+            ->orderBy('id')
             ->get();
 
         $scopeRows = $scopes->map(function (ProjectScope $scope) {
@@ -1900,7 +1901,7 @@ class PublicProgressService
             ->where('project_id', $projectId)
             ->where('foreman_id', $foremanId)
             ->whereDate('week_start', Carbon::parse((string) $latestPreviousWeek)->toDateString())
-            ->orderBy('scope_of_work')
+            ->orderBy('id')
             ->get(['scope_of_work', 'percent_completed']);
 
         foreach ($rowsToClone as $row) {
@@ -2003,4 +2004,3 @@ class PublicProgressService
         return ProjectScope::STATUS_IN_PROGRESS;
     }
 }
-

@@ -22,11 +22,13 @@ class Project extends Model
     public const ASSIGNED_ROLE_ARCHITECT = 'Architect';
     public const ASSIGNED_ROLE_ENGINEER = 'Engineer';
     public const ASSIGNED_ROLE_PM = 'PM';
+    public const ASSIGNED_ROLE_DESIGNER = 'Designer';
 
     public const ASSIGNED_ROLE_OPTIONS = [
         self::ASSIGNED_ROLE_ARCHITECT,
         self::ASSIGNED_ROLE_ENGINEER,
         self::ASSIGNED_ROLE_PM,
+        self::ASSIGNED_ROLE_DESIGNER,
     ];
 
     protected $fillable = [

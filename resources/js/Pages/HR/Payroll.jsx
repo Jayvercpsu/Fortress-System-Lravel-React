@@ -4,6 +4,8 @@ import SearchableDropdown from '../../Components/SearchableDropdown';
 import ActionButton from '../../Components/ActionButton';
 import Modal from '../../Components/Modal';
 import DatePickerInput from '../../Components/DatePickerInput';
+import TextInput from '../../Components/TextInput';
+import SelectInput from '../../Components/SelectInput';
 import { Head, router, useForm } from '@inertiajs/react';
 import { useMemo, useState } from 'react';
 import { ArrowLeft } from 'lucide-react';
@@ -38,9 +40,11 @@ const money = (value) => `P${Number(value || 0).toLocaleString()}`;
 const mono = { fontFamily: "'DM Mono', monospace" };
 const dateOnly = (value) => (value ? String(value).slice(0, 10) : '-');
 
-export default function Payroll({ payrolls = [], totalPayable = 0, workerOptions = [] }) {
+export default function Payroll({ payrolls = [], totalPayable = 0, workerOptions = [], payrollGroup = 'workers' }) {
     const [showForm, setShowForm] = useState(false);
     const [editingRow, setEditingRow] = useState(null);
+    const groupQuery = payrollGroup ? `?group=${encodeURIComponent(payrollGroup)}` : '';
+    const personLabel = payrollGroup === 'staff' ? 'Staff' : 'Worker';
 
     const { data, setData, post, errors, processing, reset } = useForm({
         worker_name: '',
@@ -63,7 +67,7 @@ export default function Payroll({ payrolls = [], totalPayable = 0, workerOptions
 
     const submit = (e) => {
         e.preventDefault();
-        post('/payroll', {
+        post(`/payroll${groupQuery}`, {
             onSuccess: () => {
                 reset();
                 setShowForm(false);
@@ -72,7 +76,7 @@ export default function Payroll({ payrolls = [], totalPayable = 0, workerOptions
     };
 
     const updateStatus = (id, status) => {
-        router.patch(`/payroll/${id}/status`, { status }, { preserveScroll: true, preserveState: true });
+        router.patch(`/payroll/${id}/status${groupQuery}`, { status }, { preserveScroll: true, preserveState: true });
     };
 
     const resolvedWorkerOptions = useMemo(() => {
@@ -169,7 +173,7 @@ export default function Payroll({ payrolls = [], totalPayable = 0, workerOptions
         e.preventDefault();
         if (!editingRow?.id) return;
 
-        editForm.patch(`/payroll/${editingRow.id}`, {
+        editForm.patch(`/payroll/${editingRow.id}${groupQuery}`, {
             preserveScroll: true,
             preserveState: true,
             onSuccess: () => {
@@ -191,7 +195,7 @@ export default function Payroll({ payrolls = [], totalPayable = 0, workerOptions
         () => [
             {
                 key: 'worker_name',
-                label: 'Worker',
+                label: personLabel,
                 width: 180,
                 render: (row) => <div style={{ fontWeight: 600 }}>{row.worker_name}</div>,
                 searchAccessor: (row) => row.worker_name,
@@ -285,7 +289,7 @@ export default function Payroll({ payrolls = [], totalPayable = 0, workerOptions
                 ),
             },
         ],
-        [payrolls]
+        [payrolls, personLabel]
     );
 
     return (
@@ -294,7 +298,7 @@ export default function Payroll({ payrolls = [], totalPayable = 0, workerOptions
             <Layout title="Payroll Management">
                 <div style={{ marginBottom: 12 }}>
                     <ActionButton
-                        href="/payroll/run"
+                        href={`/payroll/run${groupQuery}`}
                         style={{ padding: '8px 12px', fontSize: 13 }}
                     >
                         <ArrowLeft size={16} />
@@ -360,9 +364,9 @@ export default function Payroll({ payrolls = [], totalPayable = 0, workerOptions
                                                 options={resolvedWorkerOptions}
                                                 value={data.worker_name}
                                                 onChange={handleWorkerSelect}
-                                                placeholder="Select worker"
-                                                searchPlaceholder="Search workers..."
-                                                emptyMessage="No workers found"
+                                                placeholder={`Select ${personLabel.toLowerCase()}`}
+                                                searchPlaceholder={`Search ${personLabel.toLowerCase()}...`}
+                                                emptyMessage={`No ${personLabel.toLowerCase()}s found`}
                                                 clearable
                                                 style={{ ...inputStyle, padding: '8px 10px' }}
                                             />
@@ -373,7 +377,7 @@ export default function Payroll({ payrolls = [], totalPayable = 0, workerOptions
                                                 style={inputStyle}
                                             />
                                         ) : (
-                                            <input
+                                            <TextInput
                                                 type={type}
                                                 value={data[key]}
                                                 onChange={(e) => setData(key, e.target.value)}
@@ -420,14 +424,14 @@ export default function Payroll({ payrolls = [], totalPayable = 0, workerOptions
                         <form onSubmit={saveEdit} style={{ display: 'grid', gap: 14 }}>
                             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 12 }}>
                                 <label>
-                                    <div style={{ fontSize: 12, marginBottom: 6 }}>Worker Name</div>
+                                    <div style={{ fontSize: 12, marginBottom: 6 }}>{personLabel} Name</div>
                                     <SearchableDropdown
                                         options={resolvedWorkerOptions}
                                         value={editForm.data.worker_name}
                                         onChange={handleEditWorkerSelect}
-                                        placeholder="Select worker"
-                                        searchPlaceholder="Search workers..."
-                                        emptyMessage="No workers found"
+                                        placeholder={`Select ${personLabel.toLowerCase()}`}
+                                        searchPlaceholder={`Search ${personLabel.toLowerCase()}...`}
+                                        emptyMessage={`No ${personLabel.toLowerCase()}s found`}
                                         clearable
                                         style={{ ...inputStyle, padding: '8px 10px' }}
                                     />
@@ -438,7 +442,7 @@ export default function Payroll({ payrolls = [], totalPayable = 0, workerOptions
 
                                 <label>
                                     <div style={{ fontSize: 12, marginBottom: 6 }}>Role</div>
-                                    <input
+                                    <TextInput
                                         type="text"
                                         value={editForm.data.role}
                                         onChange={(e) => editForm.setData('role', e.target.value)}
@@ -463,7 +467,7 @@ export default function Payroll({ payrolls = [], totalPayable = 0, workerOptions
 
                                 <label>
                                     <div style={{ fontSize: 12, marginBottom: 6 }}>Hours</div>
-                                    <input
+                                    <TextInput
                                         type="number"
                                         min="0"
                                         step="0.01"
@@ -478,7 +482,7 @@ export default function Payroll({ payrolls = [], totalPayable = 0, workerOptions
 
                                 <label>
                                     <div style={{ fontSize: 12, marginBottom: 6 }}>Rate / Hour (P)</div>
-                                    <input
+                                    <TextInput
                                         type="number"
                                         min="0"
                                         step="0.01"
@@ -493,7 +497,7 @@ export default function Payroll({ payrolls = [], totalPayable = 0, workerOptions
 
                                 <label>
                                     <div style={{ fontSize: 12, marginBottom: 6 }}>Deductions (P)</div>
-                                    <input
+                                    <TextInput
                                         type="number"
                                         min="0"
                                         step="0.01"
@@ -508,7 +512,7 @@ export default function Payroll({ payrolls = [], totalPayable = 0, workerOptions
 
                                 <label style={{ gridColumn: '1 / -1', maxWidth: 220 }}>
                                     <div style={{ fontSize: 12, marginBottom: 6 }}>Status</div>
-                                    <select
+                                    <SelectInput
                                         value={editForm.data.status}
                                         onChange={(e) => editForm.setData('status', e.target.value)}
                                         style={inputStyle}
@@ -518,7 +522,7 @@ export default function Payroll({ payrolls = [], totalPayable = 0, workerOptions
                                                 {s}
                                             </option>
                                         ))}
-                                    </select>
+                                    </SelectInput>
                                     {editForm.errors.status && (
                                         <div style={{ color: '#f85149', fontSize: 12, marginTop: 4 }}>{editForm.errors.status}</div>
                                     )}

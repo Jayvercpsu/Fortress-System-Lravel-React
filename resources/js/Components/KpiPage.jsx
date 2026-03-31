@@ -292,7 +292,7 @@ export default function KpiPage({
     return (
         <>
             <Head title="KPI" />
-            <Layout title="KPI Performance">
+            <Layout title="KPI (Key Performance Indicator)">
                 <div style={{ display: 'grid', gap: 16, minWidth: 0, overflowX: 'hidden' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
                         <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>

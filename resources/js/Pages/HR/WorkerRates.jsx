@@ -2,6 +2,7 @@ import Layout from '../../Components/Layout';
 import DataTable from '../../Components/DataTable';
 import ActionButton from '../../Components/ActionButton';
 import Modal from '../../Components/Modal';
+import TextInput from '../../Components/TextInput';
 import { Head, router, useForm } from '@inertiajs/react';
 import { useMemo, useState } from 'react';
 import toast from 'react-hot-toast';
@@ -33,8 +34,11 @@ const money = (value) =>
         ? '-'
         : `P ${Number(value).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
-export default function WorkerRates({ workerRates = [], workerRateTable = {} }) {
+export default function WorkerRates({ workerRates = [], workerRateTable = {}, rateGroup = 'workers' }) {
     const [editingRow, setEditingRow] = useState(null);
+    const groupQuery = rateGroup ? `?group=${encodeURIComponent(rateGroup)}` : '';
+    const pageTitle = rateGroup === 'staff' ? 'Staff Rates' : 'Worker Rates';
+    const summaryTitle = rateGroup === 'staff' ? 'Staff Rate Management' : 'Worker Rate Management';
 
     const table = {
         search: workerRateTable?.search ?? '',
@@ -55,6 +59,7 @@ export default function WorkerRates({ workerRates = [], workerRateTable = {} }) 
             search: overrides.search !== undefined ? overrides.search : table.search,
             per_page: overrides.per_page !== undefined ? overrides.per_page : table.perPage,
             page: overrides.page !== undefined ? overrides.page : table.page,
+            group: overrides.group !== undefined ? overrides.group : rateGroup,
         };
         if (!params.search) delete params.search;
         return params;
@@ -92,6 +97,8 @@ export default function WorkerRates({ workerRates = [], workerRateTable = {} }) 
         const basePath =
             editingRow.entity_type === 'foreman'
                 ? `/payroll/foreman-rates/${editingRow.id}`
+                : editingRow.entity_type === 'staff'
+                  ? `/payroll/staff-rates/${editingRow.id}`
                 : `/payroll/worker-rates/${editingRow.id}`;
 
         form.patch(`${basePath}${queryString()}`, {
@@ -105,8 +112,8 @@ export default function WorkerRates({ workerRates = [], workerRateTable = {} }) 
         });
     };
 
-    const columns = useMemo(
-        () => [
+    const columns = useMemo(() => {
+        const base = [
             {
                 key: 'name',
                 label: 'Name',
@@ -116,18 +123,24 @@ export default function WorkerRates({ workerRates = [], workerRateTable = {} }) 
             },
             {
                 key: 'person_type',
-                label: 'Type',
-                width: 90,
+                label: rateGroup === 'staff' ? 'Role' : 'Type',
+                width: 110,
                 render: (row) => row.person_type || '-',
                 searchAccessor: (row) => row.person_type,
             },
-            {
+        ];
+
+        if (rateGroup !== 'staff') {
+            base.push({
                 key: 'foreman_name',
                 label: 'Foreman',
                 width: 180,
                 render: (row) => (row.entity_type === 'foreman' ? 'Self' : row.foreman_name || '-'),
                 searchAccessor: (row) => row.foreman_name,
-            },
+            });
+        }
+
+        base.push(
             {
                 key: 'sex',
                 label: 'Sex',
@@ -159,18 +172,19 @@ export default function WorkerRates({ workerRates = [], workerRateTable = {} }) 
                         Edit
                     </ActionButton>
                 ),
-            },
-        ],
-        []
-    );
+            }
+        );
+
+        return base;
+    }, [rateGroup]);
 
     return (
         <>
-            <Head title="Worker Rates" />
-            <Layout title="Worker Rates">
+            <Head title={pageTitle} />
+            <Layout title={pageTitle}>
                 <div style={{ marginBottom: 12 }}>
                     <ActionButton
-                        href="/payroll/run"
+                        href={`/payroll/run${groupQuery}`}
                         style={{ padding: '8px 12px', fontSize: 13 }}
                     >
                         <ArrowLeft size={16} />
@@ -181,9 +195,11 @@ export default function WorkerRates({ workerRates = [], workerRateTable = {} }) 
                 <div style={{ display: 'grid', gap: 16 }}>
                     <div style={{ ...cardStyle, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
                         <div>
-                            <div style={{ fontWeight: 700, marginBottom: 4 }}>HR Worker Rate Management</div>
+                            <div style={{ fontWeight: 700, marginBottom: 4 }}>{summaryTitle}</div>
                             <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
-                                Foreman records attendance only. HR sets default hourly rates for both workers and foremen used by payroll generation.
+                                {rateGroup === 'staff'
+                                    ? 'Manage default hourly rates for HR, Admin, and Designer staff members used by payroll generation.'
+                                    : 'Foreman records attendance only. HR sets default hourly rates for both workers and foremen used by payroll generation.'}
                             </div>
                         </div>
                     </div>
@@ -193,11 +209,11 @@ export default function WorkerRates({ workerRates = [], workerRateTable = {} }) 
                             columns={columns}
                             rows={workerRates}
                             rowKey="id"
-                            searchPlaceholder="Search workers / foreman..."
-                            emptyMessage="No workers or foremen found."
-                            serverSide
-                            serverSearchValue={table.search}
-                            serverPage={table.page}
+                        searchPlaceholder={rateGroup === 'staff' ? 'Search staff...' : 'Search workers / foreman...'}
+                        emptyMessage={rateGroup === 'staff' ? 'No staff found.' : 'No workers or foremen found.'}
+                        serverSide
+                        serverSearchValue={table.search}
+                        serverPage={table.page}
                             serverPerPage={table.perPage}
                             serverTotalItems={table.total}
                             serverTotalPages={table.lastPage}
@@ -220,13 +236,31 @@ export default function WorkerRates({ workerRates = [], workerRateTable = {} }) 
                         <form onSubmit={saveRate} style={{ display: 'grid', gap: 14 }}>
                             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 12 }}>
                                 <label>
-                                    <div style={{ fontSize: 12, marginBottom: 6 }}>{editingRow.entity_type === 'foreman' ? 'Foreman' : 'Worker'}</div>
-                                    <input value={editingRow.name} readOnly style={{ ...inputStyle, opacity: 0.85 }} />
+                                    <div style={{ fontSize: 12, marginBottom: 6 }}>
+                                        {editingRow.entity_type === 'foreman'
+                                            ? 'Foreman'
+                                            : editingRow.entity_type === 'staff'
+                                              ? 'Staff'
+                                              : 'Worker'}
+                                    </div>
+                                    <TextInput value={editingRow.name} readOnly style={{ ...inputStyle, opacity: 0.85 }} />
                                 </label>
                                 <label>
-                                    <div style={{ fontSize: 12, marginBottom: 6 }}>{editingRow.entity_type === 'foreman' ? 'Type' : 'Foreman'}</div>
-                                    <input
-                                        value={editingRow.entity_type === 'foreman' ? 'Foreman' : editingRow.foreman_name || '-'}
+                                    <div style={{ fontSize: 12, marginBottom: 6 }}>
+                                        {editingRow.entity_type === 'foreman'
+                                            ? 'Type'
+                                            : editingRow.entity_type === 'staff'
+                                              ? 'Role'
+                                              : 'Foreman'}
+                                    </div>
+                                    <TextInput
+                                        value={
+                                            editingRow.entity_type === 'foreman'
+                                                ? 'Foreman'
+                                                : editingRow.entity_type === 'staff'
+                                                  ? editingRow.person_type || 'Staff'
+                                                  : editingRow.foreman_name || '-'
+                                        }
                                         readOnly
                                         style={{ ...inputStyle, opacity: 0.85 }}
                                     />
@@ -235,7 +269,7 @@ export default function WorkerRates({ workerRates = [], workerRateTable = {} }) 
 
                             <label>
                                 <div style={{ fontSize: 12, marginBottom: 6 }}>Default Rate / Hour (P)</div>
-                                <input
+                                <TextInput
                                     type="number"
                                     min="0"
                                     step="0.01"

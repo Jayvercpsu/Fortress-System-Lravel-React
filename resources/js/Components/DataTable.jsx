@@ -180,7 +180,7 @@ export default function DataTable({
                                 <th
                                     key={column.key}
                                     style={{
-                                        textAlign: column.align === 'right' ? 'right' : 'left',
+                                        textAlign: (column.headerAlign || column.align) === 'right' ? 'right' : 'left',
                                         padding: '10px 12px',
                                         fontSize: 12,
                                         color: 'var(--text-muted)',

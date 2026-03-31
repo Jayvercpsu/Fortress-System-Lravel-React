@@ -5,6 +5,7 @@ use App\Http\Controllers\BuildController;
 use App\Http\Controllers\ClientController;
 use App\Http\Controllers\ClientPortalController;
 use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\DesignerDashboardController;
 use App\Http\Controllers\DesignController;
 use App\Http\Controllers\ExpenseController;
 use App\Http\Controllers\ForemanWorkerController;
@@ -60,7 +61,7 @@ Route::delete('/progress-submit/{token}/photo/{progressPhoto}', [PublicProgressC
 Route::post('/progress-submit/{token}/issue-report', [PublicProgressController::class, 'storeIssueReport'])->name('public.progress-submit.issue');
 Route::delete('/progress-submit/{token}/issue-report/{issueReport}', [PublicProgressController::class, 'deleteIssueReport'])->name('public.progress-submit.issue.delete');
 
-Route::middleware(['auth', 'role:head_admin,admin,hr,foreman'])->group(function () {
+Route::middleware(['auth', 'role:head_admin,admin,hr,foreman,designer'])->group(function () {
     Route::get('/settings', [SettingsController::class, 'index'])->name('settings.index');
     Route::post('/settings', [SettingsController::class, 'update'])->name('settings.update');
 });
@@ -102,9 +103,11 @@ Route::middleware(['auth', 'role:head_admin,admin,hr'])->group(function () {
     Route::get('/payroll/worker-rates', [PayrollController::class, 'workerRates'])->name('payroll.worker_rates');
     Route::patch('/payroll/worker-rates/{worker}', [PayrollController::class, 'updateWorkerRate'])->name('payroll.worker_rates.update');
     Route::patch('/payroll/foreman-rates/{user}', [PayrollController::class, 'updateForemanRate'])->name('payroll.foreman_rates.update');
+    Route::patch('/payroll/staff-rates/{user}', [PayrollController::class, 'updateStaffRate'])->name('payroll.staff_rates.update');
     Route::get('/payroll', [PayrollController::class, 'index'])->name('payroll.index');
     Route::post('/payroll', [PayrollController::class, 'store'])->name('payroll.store');
     Route::patch('/payroll/{payroll}', [PayrollController::class, 'update'])->name('payroll.update');
+    Route::patch('/payroll/{payroll}/hours', [PayrollController::class, 'updateHours'])->name('payroll.hours.update');
     Route::patch('/payroll/{payroll}/status', [PayrollController::class, 'updateStatus'])->name('payroll.status');
     Route::get('/projects/{project}/payments', [PaymentController::class, 'index'])->name('payments.index');
     Route::post('/projects/{project}/payments', [PaymentController::class, 'store'])->name('payments.store');
@@ -137,6 +140,11 @@ Route::middleware(['auth', 'role:foreman'])->group(function () {
     Route::post('/foreman/attendance/time-out', [ForemansController::class, 'timeOutAttendance'])->name('foreman.attendance.time_out');
     Route::post('/foreman/submit-all', [ForemansController::class, 'submitAll'])->name('foreman.submit_all');
     Route::post('/foreman/progress-photo', [ForemansController::class, 'storeProgressPhoto'])->name('foreman.photo');
+});
+
+Route::middleware(['auth', 'role:designer'])->group(function () {
+    Route::get('/designer', [DesignerDashboardController::class, 'index'])->name('designer.dashboard');
+    Route::patch('/designer/projects/{project}/design-tracking', [DesignerDashboardController::class, 'updateTracking'])->name('designer.design_tracking.update');
 });
 
 Route::middleware(['auth', 'role:client'])->group(function () {

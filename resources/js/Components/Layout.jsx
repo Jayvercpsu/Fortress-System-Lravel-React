@@ -10,9 +10,9 @@ import { toastMessages } from '../constants/toastMessages';
 const navByRole = {
     head_admin: [
         { label: 'Dashboard', href: '/head-admin', icon: 'fi fi-rr-dashboard' },
-        { label: 'KPI', href: '/kpi', icon: 'fi fi-rr-chart-pie' },
-        { label: 'Monitoring Board', href: '/monitoring-board', icon: 'fi fi-rr-apps' },
-        { label: 'Projects', href: '/projects', icon: 'fi fi-rr-diagram-project' },
+        { label: 'KPI', href: '/kpi', icon: 'fi fi-rr-chart-pie', headAdminOnly: true },
+        { label: 'Design', href: '/monitoring-board', icon: 'fi fi-rr-apps' },
+        { label: 'Construction', href: '/projects', icon: 'fi fi-rr-diagram-project', headAdminOnly: true },
         // Builders navigation temporarily hidden
         { label: 'Attendance', href: '/attendance', icon: 'fi fi-rr-calendar-check' },
         { label: 'Payroll', href: '/payroll/run', icon: 'fi fi-rr-money-bill-wave' },
@@ -28,9 +28,9 @@ const navByRole = {
     ],
     admin: [
         { label: 'Dashboard', href: '/admin', icon: 'fi fi-rr-dashboard' },
-        { label: 'KPI', href: '/kpi', icon: 'fi fi-rr-chart-pie' },
-        { label: 'Monitoring Board', href: '/monitoring-board', icon: 'fi fi-rr-apps' },
-        { label: 'Projects', href: '/projects', icon: 'fi fi-rr-diagram-project' },
+        { label: 'KPI', href: '/kpi', icon: 'fi fi-rr-chart-pie', headAdminOnly: true },
+        { label: 'Design', href: '/monitoring-board', icon: 'fi fi-rr-apps' },
+        { label: 'Construction', href: '/projects', icon: 'fi fi-rr-diagram-project', headAdminOnly: true },
         { label: 'Attendance', href: '/attendance', icon: 'fi fi-rr-calendar-check' },
         { label: 'Materials', href: '/materials', icon: 'fi fi-rr-shopping-cart' },
         { label: 'Delivery', href: '/delivery', icon: 'fi fi-rr-truck-side' },
@@ -54,6 +54,10 @@ const navByRole = {
         { label: 'Attendance', href: '/foreman/attendance', icon: 'fi fi-rr-calendar-check' },
         { label: 'Settings', href: '/settings', icon: 'fi fi-rr-settings' },
     ],
+    designer: [
+        { label: 'Dashboard', href: '/designer', icon: 'fi fi-rr-dashboard' },
+        { label: 'Settings', href: '/settings', icon: 'fi fi-rr-settings' },
+    ],
     client: [
         { label: 'Dashboard', href: '/client', icon: 'fi fi-rr-dashboard' },
     ],
@@ -64,10 +68,11 @@ const roleLabels = {
     admin: 'Admin',
     hr: 'HR',
     foreman: 'Foreman',
+    designer: 'Designer',
     client: 'Client',
 };
 
-const DASHBOARD_PATHS = new Set(['/head-admin', '/admin', '/hr', '/foreman', '/client']);
+const DASHBOARD_PATHS = new Set(['/head-admin', '/admin', '/hr', '/foreman', '/designer', '/client']);
 
 const normalizePath = (path) => {
     const clean = String(path || '').replace(/\/+$/, '');
@@ -226,9 +231,9 @@ export default function Layout({ children, title }) {
                     </div>
 
                     <nav style={{ flex: 1 }}>
-                        {navItems.map((item) => {
+                        {navItems.filter((item) => !item.headAdminOnly || user?.role === 'head_admin').map((item) => {
                             const itemPath = pathFromUrl(item.href);
-                            const exactOnlyPaths = new Set(['/head-admin', '/admin', '/hr', '/foreman', '/client']);
+                            const exactOnlyPaths = new Set(['/head-admin', '/admin', '/hr', '/foreman', '/designer', '/client']);
                             const exactOnly = exactOnlyPaths.has(itemPath);
                             const aliasPathsByHref = {
                                 '/payroll/run': ['/payroll', '/payroll/worker-rates'],

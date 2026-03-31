@@ -18,7 +18,7 @@ class MonitoringRepository implements MonitoringRepositoryInterface
     {
         return $project->scopes()
             ->with(['photos' => fn ($query) => $query->latest('id')])
-            ->latest('id')
+            ->orderBy('id')
             ->get();
     }
 

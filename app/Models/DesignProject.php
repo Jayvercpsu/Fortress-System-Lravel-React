@@ -26,6 +26,8 @@ class DesignProject extends Model
         'total_received',
         'office_payroll_deduction',
         'design_progress',
+        'work_started_at',
+        'work_completed_at',
         'client_approval_status',
     ];
 
@@ -35,6 +37,8 @@ class DesignProject extends Model
         'total_received' => 'decimal:2',
         'office_payroll_deduction' => 'decimal:2',
         'design_progress' => 'integer',
+        'work_started_at' => 'date',
+        'work_completed_at' => 'date',
     ];
 
     public static function clientApprovalStatuses(): array

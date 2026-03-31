@@ -76,6 +76,7 @@ class AuthController extends Controller {
             User::ROLE_HR         => redirect()->route('hr.dashboard'),
             User::ROLE_FOREMAN    => redirect()->route('foreman.dashboard'),
             User::ROLE_CLIENT     => redirect()->route('client.dashboard'),
+            User::ROLE_DESIGNER   => redirect()->route('designer.dashboard'),
             default      => redirect()->route('login'),
         };
     }

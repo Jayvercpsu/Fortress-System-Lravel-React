@@ -346,6 +346,7 @@ export default function ProgressReceipt({
                         text-transform:uppercase;
                     }
                     .receipt-table tbody tr:hover{background:rgba(33, 76, 122, 0.035)}
+                    .receipt-nowrap{white-space:nowrap}
                     .receipt-scope-cell{
                         display:grid;
                         grid-template-columns:auto 1fr;
@@ -756,11 +757,11 @@ export default function ProgressReceipt({
                                 <thead>
                                     <tr>
                                         <th>Scope of Works</th>
-                                        <th>Contract</th>
-                                        <th>Weight %</th>
+                                        <th className="receipt-nowrap">Contract</th>
+                                        <th className="receipt-nowrap">Weight %</th>
                                         <th>Progress %</th>
-                                        <th>Computed %</th>
-                                        <th>Amount</th>
+                                        <th className="receipt-nowrap">Computed %</th>
+                                        <th className="receipt-nowrap">Amount</th>
                                         <th>Start Date</th>
                                         <th>Target Completion</th>
                                         <th>Assignee</th>
@@ -802,8 +803,8 @@ export default function ProgressReceipt({
                                                         </div>
                                                     </div>
                                                 </td>
-                                                <td>{formatMoney(scope.contractAmount)}</td>
-                                                <td>
+                                                <td className="receipt-nowrap">{formatMoney(scope.contractAmount)}</td>
+                                                <td className="receipt-nowrap">
                                                     <span className="receipt-pill">{formatPercent(scope.weightPercent, 2)}</span>
                                                 </td>
                                                 <td>
@@ -828,8 +829,8 @@ export default function ProgressReceipt({
                                                         </span>
                                                     </div>
                                                 </td>
-                                                <td>{formatPercent(scope.computedPercent, 2)}</td>
-                                                <td>{formatMoney(scope.amountToDate)}</td>
+                                                <td className="receipt-nowrap">{formatPercent(scope.computedPercent, 2)}</td>
+                                                <td className="receipt-nowrap">{formatMoney(scope.amountToDate)}</td>
                                                 <td>{formatDate(scope.startDate)}</td>
                                                 <td>{formatDate(scope.targetDate)}</td>
                                                 <td>

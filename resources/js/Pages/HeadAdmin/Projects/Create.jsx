@@ -21,9 +21,10 @@ const inputStyle = {
     fontSize: 13,
 };
 
-const PROJECT_PHASES = ['Design', 'Construction', 'Completed'];
+const PROJECT_PHASES = ['Construction', 'Completed'];
 const PROJECT_STATUS_OPTIONS = ['PLANNING', 'ACTIVE', 'ONGOING', 'ON_HOLD', 'DELAYED', 'COMPLETED', 'CANCELLED'];
 const PROJECT_ASSIGNED_ROLE_OPTIONS = ['Architect', 'Engineer', 'PM'];
+const PROJECT_ASSIGNED_ROLE_OPTIONS_ALL = [...PROJECT_ASSIGNED_ROLE_OPTIONS, 'Designer'];
 const PROJECT_TYPE_OPTIONS = ['2Storey', '3Storey', 'w/ Roofdeck', 'Bungalow', 'Commercial', 'Renovation'];
 const OTHER_PROJECT_TYPE_OPTION = '__OTHER__';
 
@@ -49,7 +50,7 @@ const normalizeAssignedForemen = (names) => {
 
 const normalizeAssignedRoleOption = (value) => {
     const key = String(value || '').trim().toLowerCase();
-    return PROJECT_ASSIGNED_ROLE_OPTIONS.find((option) => option.toLowerCase() === key) || null;
+    return PROJECT_ASSIGNED_ROLE_OPTIONS_ALL.find((option) => option.toLowerCase() === key) || null;
 };
 
 const splitAssignedRoleEntries = (value) => {
@@ -111,7 +112,7 @@ const normalizeAssignedRoles = (entries) => {
 
 const serializeAssignedRoles = (entries) => normalizeAssignedRoles(entries).map((entry) => entry.label).join('; ');
 
-export default function HeadAdminProjectsCreate({ foremen = [], clientOptions = [] }) {
+export default function HeadAdminProjectsCreate({ foremen = [], designers = [], clientOptions = [] }) {
     const { data, setData, post, processing, errors } = useForm({
         name: '',
         client: '',
@@ -121,15 +122,18 @@ export default function HeadAdminProjectsCreate({ foremen = [], clientOptions = 
         assigned: '',
         target: '',
         status: 'PLANNING',
-        phase: 'Design',
+        phase: 'Construction',
     });
     const [pendingAssignedForeman, setPendingAssignedForeman] = useState('');
     const [assignedForemen, setAssignedForemen] = useState(() => parseAssignedForemen(''));
     const [pendingAssignedRole, setPendingAssignedRole] = useState('');
     const [pendingAssignedRoleName, setPendingAssignedRoleName] = useState('');
+    const [pendingAssignedDesigner, setPendingAssignedDesigner] = useState('');
     const [assignedRoles, setAssignedRoles] = useState(() => parseAssignedRoles(''));
     const [projectTypeOption, setProjectTypeOption] = useState(PROJECT_TYPE_OPTIONS[0]);
     const [customProjectType, setCustomProjectType] = useState('');
+    const assignedDesignerEntries = assignedRoles.filter((entry) => entry.role === 'Designer');
+    const assignedGeneralEntries = assignedRoles.filter((entry) => entry.role !== 'Designer');
 
     const syncAssignedRoles = (nextRoles) => {
         const normalized = normalizeAssignedRoles(nextRoles);
@@ -160,6 +164,13 @@ export default function HeadAdminProjectsCreate({ foremen = [], clientOptions = 
         syncAssignedRoles([...assignedRoles, { role, name }]);
         setPendingAssignedRole('');
         setPendingAssignedRoleName('');
+    };
+
+    const addAssignedDesigner = () => {
+        const name = String(pendingAssignedDesigner || '').trim();
+        if (!name) return;
+        syncAssignedRoles([...assignedRoles, { role: 'Designer', name }]);
+        setPendingAssignedDesigner('');
     };
 
     const removeAssignedRole = (entryToRemove) => {
@@ -275,10 +286,10 @@ export default function HeadAdminProjectsCreate({ foremen = [], clientOptions = 
                             Add role + name. Multiple entries are allowed, including multiple Engineers.
                         </div>
                         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-                            {assignedRoles.length === 0 ? (
+                            {assignedGeneralEntries.length === 0 ? (
                                 <div style={{ color: 'var(--text-muted)', fontSize: 12 }}>No assigned Architect / Engineer / PM yet.</div>
                             ) : (
-                                assignedRoles.map((entry) => (
+                                assignedGeneralEntries.map((entry) => (
                                     <div
                                         key={entry.key}
                                         style={{
@@ -313,6 +324,80 @@ export default function HeadAdminProjectsCreate({ foremen = [], clientOptions = 
                             )}
                         </div>
                         {errors.assigned_role && <div style={{ color: '#f87171', fontSize: 12 }}>{errors.assigned_role}</div>}
+                    </div>
+
+                    <div style={{ display: 'grid', gap: 6 }}>
+                        <div style={{ fontSize: 12, marginBottom: 0 }}>Assigned Designers</div>
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 8, alignItems: 'end' }}>
+                            <SearchableDropdown
+                                options={designers}
+                                value={pendingAssignedDesigner}
+                                onChange={(value) => setPendingAssignedDesigner(value || '')}
+                                getOptionLabel={(option) => option.fullname}
+                                getOptionValue={(option) => option.fullname}
+                                placeholder={designers.length === 0 ? 'No designer users available' : 'Select designer'}
+                                searchPlaceholder="Search designers..."
+                                emptyMessage="No designers found"
+                                disabled={designers.length === 0}
+                                clearable
+                                style={{ ...inputStyle, minHeight: 40, padding: '8px 10px' }}
+                                dropdownWidth={340}
+                            />
+                            <ActionButton
+                                type="button"
+                                onClick={addAssignedDesigner}
+                                disabled={!pendingAssignedDesigner}
+                                style={{ padding: '10px 12px' }}
+                            >
+                                Add Designer
+                            </ActionButton>
+                        </div>
+                        <div style={{ color: 'var(--text-muted)', fontSize: 12 }}>
+                            Assign designers from the user list to track design speed.
+                        </div>
+                        {designers.length === 0 && (
+                            <div style={{ color: 'var(--text-muted)', fontSize: 12 }}>
+                                Add a user with role `designer` first to assign.
+                            </div>
+                        )}
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                            {assignedDesignerEntries.length === 0 ? (
+                                <div style={{ color: 'var(--text-muted)', fontSize: 12 }}>No designers selected yet.</div>
+                            ) : (
+                                assignedDesignerEntries.map((entry) => (
+                                    <div
+                                        key={entry.key}
+                                        style={{
+                                            display: 'inline-flex',
+                                            alignItems: 'center',
+                                            gap: 8,
+                                            padding: '6px 10px',
+                                            borderRadius: 999,
+                                            border: '1px solid var(--border-color)',
+                                            background: 'var(--surface-2)',
+                                            fontSize: 12,
+                                        }}
+                                    >
+                                        <span>{entry.name || entry.label}</span>
+                                        <button
+                                            type="button"
+                                            onClick={() => removeAssignedRole(entry)}
+                                            style={{
+                                                border: 'none',
+                                                background: 'transparent',
+                                                color: 'var(--text-muted)',
+                                                cursor: 'pointer',
+                                                fontSize: 12,
+                                                padding: 0,
+                                            }}
+                                            aria-label={`Remove ${entry.label}`}
+                                        >
+                                            x
+                                        </button>
+                                    </div>
+                                ))
+                            )}
+                        </div>
                     </div>
 
                     <div style={{ display: 'grid', gap: 6 }}>
