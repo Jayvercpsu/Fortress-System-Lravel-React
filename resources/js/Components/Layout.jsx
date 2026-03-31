@@ -56,6 +56,7 @@ const navByRole = {
     ],
     designer: [
         { label: 'Dashboard', href: '/designer', icon: 'fi fi-rr-dashboard' },
+        { label: 'Design', href: '/monitoring-board', icon: 'fi fi-rr-apps' },
         { label: 'Settings', href: '/settings', icon: 'fi fi-rr-settings' },
     ],
     client: [

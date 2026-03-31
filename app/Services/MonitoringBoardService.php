@@ -17,7 +17,7 @@ class MonitoringBoardService
 
     public function ensureAuthorized(User $user): void
     {
-        abort_unless(in_array($user->role, User::manageableRoles(), true), 403);
+        abort_unless(in_array($user->role, [User::ROLE_HEAD_ADMIN, User::ROLE_ADMIN, User::ROLE_DESIGNER], true), 403);
     }
 
     public function indexPayload(User $user): array
@@ -73,7 +73,7 @@ class MonitoringBoardService
             'props' => [
                 'items' => $items,
                 'status_options' => MonitoringBoardItem::statusOptions(),
-                'foremanOptions' => $this->foremanOptionsPayload(),
+                'designerOptions' => $this->designerOptionsPayload(),
             ],
         ];
     }
@@ -138,10 +138,10 @@ class MonitoringBoardService
         return $validated;
     }
 
-    private function foremanOptionsPayload(): array
+    private function designerOptionsPayload(): array
     {
-        $foremen = $this->monitoringBoardRepository->foremanUsers();
-        return $foremen
+        $designers = $this->monitoringBoardRepository->designerUsers();
+        return $designers
             ->map(fn ($user) => [
                 'id' => (int) $user->id,
                 'fullname' => (string) $user->fullname,

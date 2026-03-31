@@ -151,7 +151,7 @@ Route::middleware(['auth', 'role:client'])->group(function () {
     Route::get('/client', [ClientPortalController::class, 'index'])->name('client.dashboard');
 });
 
-Route::middleware(['auth', 'role:head_admin,admin'])->group(function () {
+Route::middleware(['auth', 'role:head_admin,admin,designer'])->group(function () {
     Route::get('/monitoring-board', [MonitoringBoardController::class, 'index'])->name('monitoring-board.index');
     Route::post('/monitoring-board', [MonitoringBoardController::class, 'store'])->name('monitoring-board.store');
     Route::patch('/monitoring-board/{item}', [MonitoringBoardController::class, 'update'])->name('monitoring-board.update');

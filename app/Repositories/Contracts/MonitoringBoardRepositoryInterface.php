@@ -16,7 +16,7 @@ interface MonitoringBoardRepositoryInterface
 
     public function clientUsers(): Collection;
 
-    public function foremanUsers(): Collection;
+    public function designerUsers(): Collection;
 
     public function latestAssignmentsByUserIds(array $userIds, string $role): Collection;
 

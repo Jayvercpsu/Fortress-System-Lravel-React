@@ -157,6 +157,7 @@ const progressCircleCenter = progressCircleSize / 2;
 const PROJECT_TYPE_OPTIONS = ['2Storey', '3Storey', 'w/ Roofdeck', 'Bungalow', 'Commercial', 'Renovation'];
 const OTHER_PROJECT_TYPE_OPTION = '__OTHER__';
 const OTHER_DEPARTMENT_OPTION = '__OTHER_DEPARTMENT__';
+const OTHER_DESIGNER_OPTION = '__OTHER_DESIGNER__';
 const MAX_UPLOAD_BYTES = 10 * 1024 * 1024;
 const SUPPORTED_FILE_EXTENSIONS = [
     'jpg',
@@ -347,18 +348,11 @@ const isSupportedUpload = (file) => {
 export default function MonitoringBoardIndexPage({
     items = [],
     status_options: statusOptions = [],
-    foremanOptions = [],
+    designerOptions = [],
 }) {
     const resolvedStatusOptions = statusOptions.length > 0 ? statusOptions : ['PROPOSAL', 'IN_REVIEW', 'APPROVED', 'DONE'];
     const resolveOptionLabel = (option) => option?.label ?? option?.name ?? option?.fullname ?? String(option ?? '');
     const resolveOptionValue = (option) => option?.value ?? option?.label ?? option?.fullname ?? option?.name ?? option;
-    const withCurrentOption = (options, value) => {
-        const normalizedValue = String(value ?? '').trim();
-        if (!normalizedValue) return options;
-        const hasValue = options.some((option) => String(resolveOptionValue(option)) === normalizedValue);
-        if (hasValue) return options;
-        return [{ label: normalizedValue, value: normalizedValue, missing: true }, ...options];
-    };
 
     const {
         data: createData,
@@ -416,21 +410,18 @@ export default function MonitoringBoardIndexPage({
         progress_percent: 0,
         remarks: '',
     });
-    const baseForemanOptions = Array.isArray(foremanOptions) ? foremanOptions : [];
-    const foremanSelectOptions = withCurrentOption(baseForemanOptions, createData.assigned_to);
-    const foremanEditOptions = withCurrentOption(baseForemanOptions, editData.assigned_to);
-    const foremanFooter = (
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
-            <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>Can&apos;t find a foreman?</span>
-            <ActionButton href="/users/create?role=foreman" variant="view" style={{ padding: '6px 10px', fontSize: 11 }}>
-                Add foreman
-            </ActionButton>
-        </div>
-    );
+    const baseDesignerOptions = Array.isArray(designerOptions) ? designerOptions : [];
+    const designerSelectOptions = [
+        ...baseDesignerOptions,
+        { label: 'Other (manual)', value: OTHER_DESIGNER_OPTION },
+    ];
+    const designerEditOptions = designerSelectOptions;
     const [projectTypeOption, setProjectTypeOption] = useState(PROJECT_TYPE_OPTIONS[0]);
     const [customProjectType, setCustomProjectType] = useState('');
     const [editProjectTypeOption, setEditProjectTypeOption] = useState(PROJECT_TYPE_OPTIONS[0]);
     const [editCustomProjectType, setEditCustomProjectType] = useState('');
+    const [createDesignerOption, setCreateDesignerOption] = useState('');
+    const [editDesignerOption, setEditDesignerOption] = useState('');
     const [departmentOption, setDepartmentOption] = useState('');
     const [customDepartment, setCustomDepartment] = useState('');
     const [editDepartmentOption, setEditDepartmentOption] = useState('');
@@ -518,6 +509,25 @@ export default function MonitoringBoardIndexPage({
             setShowCreateModal(true);
         }
     }, []);
+
+    const resolveDesignerOption = (value) => {
+        const normalizedValue = String(value ?? '').trim();
+        if (!normalizedValue) return '';
+        const hasValue = baseDesignerOptions.some(
+            (option) => String(resolveOptionValue(option)).trim() === normalizedValue
+        );
+        return hasValue ? normalizedValue : OTHER_DESIGNER_OPTION;
+    };
+
+    useEffect(() => {
+        if (!showCreateModal) return;
+        setCreateDesignerOption(resolveDesignerOption(createData.assigned_to));
+    }, [showCreateModal, baseDesignerOptions]); // eslint-disable-line react-hooks/exhaustive-deps
+
+    useEffect(() => {
+        if (!editItem) return;
+        setEditDesignerOption(resolveDesignerOption(editData.assigned_to));
+    }, [editItem, baseDesignerOptions]); // eslint-disable-line react-hooks/exhaustive-deps
 
     useEffect(() => {
         if (!filesItem) return;
@@ -1093,7 +1103,7 @@ export default function MonitoringBoardIndexPage({
                                                     'Client',
                                                     'Type',
                                                     'Location',
-                                                    'Assigned',
+                                                    'Assigned Designer',
                                                     'Start Date',
                                                     'Timeline',
                                                     'Due Date',
@@ -1411,7 +1421,7 @@ export default function MonitoringBoardIndexPage({
                                     <TextInput value={infoItem.location ?? ''} readOnly style={inputStyle} />
                                 </label>
                                 <label>
-                                    <div style={{ fontSize: 12, marginBottom: 6 }}>Assigned</div>
+                                    <div style={{ fontSize: 12, marginBottom: 6 }}>Assigned Designer</div>
                                     <TextInput value={infoItem.assigned_to ?? ''} readOnly style={inputStyle} />
                                 </label>
                                 <label>
@@ -1563,23 +1573,37 @@ export default function MonitoringBoardIndexPage({
                             </label>
 
                             <label>
-                                <div style={{ fontSize: 12, marginBottom: 6 }}>Assigned</div>
-                                <SearchableDropdown
-                                    options={foremanSelectOptions}
-                                    value={createData.assigned_to}
-                                    onChange={(value) => setCreateData('assigned_to', value)}
-                                    placeholder="Select foreman"
-                                    searchPlaceholder="Search foremen..."
-                                    emptyMessage="No foremen found"
+                                <div style={{ fontSize: 12, marginBottom: 6 }}>Assigned Designer</div>
+                            <SearchableDropdown
+                                options={designerSelectOptions}
+                                    value={createDesignerOption}
+                                    onChange={(value) => {
+                                        setCreateDesignerOption(value || '');
+                                        if (value === OTHER_DESIGNER_OPTION) {
+                                            setCreateData('assigned_to', '');
+                                            return;
+                                        }
+                                        setCreateData('assigned_to', value || '');
+                                    }}
+                                    placeholder="Select designer"
+                                    searchPlaceholder="Search designers..."
+                                    emptyMessage="No designers found"
                                     pageSize={10}
                                     loadMoreLabel="Show more"
                                     style={boardInputStyle}
-                                    footer={foremanFooter}
                                     getOptionLabel={resolveOptionLabel}
                                     getOptionValue={resolveOptionValue}
                                 />
-                                {createErrors.assigned_to && <div style={{ color: '#f87171', fontSize: 12, marginTop: 4 }}>{createErrors.assigned_to}</div>}
-                            </label>
+                                {createDesignerOption === OTHER_DESIGNER_OPTION ? (
+                                    <TextInput
+                                        value={createData.assigned_to}
+                                        onChange={(event) => setCreateData('assigned_to', event.target.value)}
+                                        placeholder="Type designer name"
+                                        style={{ ...boardInputStyle, marginTop: 6 }}
+                                    />
+                                ) : null}
+                            {createErrors.assigned_to && <div style={{ color: '#f87171', fontSize: 12, marginTop: 4 }}>{createErrors.assigned_to}</div>}
+                        </label>
 
                             <label>
                                 <div style={{ fontSize: 12, marginBottom: 6 }}>Status</div>
@@ -1841,21 +1865,35 @@ export default function MonitoringBoardIndexPage({
                         </label>
 
                         <label>
-                            <div style={{ fontSize: 12, marginBottom: 6 }}>Assigned</div>
+                            <div style={{ fontSize: 12, marginBottom: 6 }}>Assigned Designer</div>
                             <SearchableDropdown
-                                options={foremanEditOptions}
-                                value={editData.assigned_to}
-                                onChange={(value) => setEditData('assigned_to', value)}
-                                placeholder="Select foreman"
-                                searchPlaceholder="Search foremen..."
-                                emptyMessage="No foremen found"
+                                options={designerEditOptions}
+                                value={editDesignerOption}
+                                onChange={(value) => {
+                                    setEditDesignerOption(value || '');
+                                    if (value === OTHER_DESIGNER_OPTION) {
+                                        setEditData('assigned_to', '');
+                                        return;
+                                    }
+                                    setEditData('assigned_to', value || '');
+                                }}
+                                placeholder="Select designer"
+                                searchPlaceholder="Search designers..."
+                                emptyMessage="No designers found"
                                 pageSize={10}
                                 loadMoreLabel="Show more"
                                 style={inputStyle}
-                                footer={foremanFooter}
                                 getOptionLabel={resolveOptionLabel}
                                 getOptionValue={resolveOptionValue}
                             />
+                            {editDesignerOption === OTHER_DESIGNER_OPTION ? (
+                                <TextInput
+                                    value={editData.assigned_to}
+                                    onChange={(event) => setEditData('assigned_to', event.target.value)}
+                                    placeholder="Type designer name"
+                                    style={{ ...inputStyle, marginTop: 6 }}
+                                />
+                            ) : null}
                             {editErrors.assigned_to && <div style={{ color: '#f87171', fontSize: 12, marginTop: 4 }}>{editErrors.assigned_to}</div>}
                         </label>
 

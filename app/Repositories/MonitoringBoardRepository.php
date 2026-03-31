@@ -46,10 +46,10 @@ class MonitoringBoardRepository implements MonitoringBoardRepositoryInterface
             ->get(['id', 'fullname']);
     }
 
-    public function foremanUsers(): Collection
+    public function designerUsers(): Collection
     {
         return User::query()
-            ->where('role', User::ROLE_FOREMAN)
+            ->where('role', User::ROLE_DESIGNER)
             ->orderBy('fullname')
             ->get(['id', 'fullname']);
     }

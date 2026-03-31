@@ -36,7 +36,7 @@ class DashboardService
 
     public function headAdmin(Request $request)
     {
-        $projectKpis = $this->projectKpis(true);
+        $projectKpis = $this->projectKpis(true, true);
         $payrollPaymentKpis = $this->payrollAndPaymentKpis(true);
         $companyFinancialSummary = $this->companyFinancialSummary((float) ($projectKpis['financial_totals']['contract_sum'] ?? 0));
 
@@ -135,7 +135,7 @@ class DashboardService
 
     public function admin(Request $request)
     {
-        $projectKpis = $this->projectKpis(true);
+        $projectKpis = $this->projectKpis(true, true);
         $companyFinancialSummary = $this->companyFinancialSummary((float) ($projectKpis['financial_totals']['contract_sum'] ?? 0));
 
         // Intentionally exclude payroll-related figures from admin payload.
@@ -650,7 +650,7 @@ class DashboardService
         ));
     }
 
-    private function projectKpis(bool $excludeCompletedFromMoney = false): array
+    private function projectKpis(bool $excludeCompletedFromMoney = false, bool $excludeDesign = false): array
     {
         $projects = $this->dashboardRepository->projects()
             ->orderBy('name')
@@ -673,6 +673,12 @@ class DashboardService
             ->map(fn ($family) => $this->selectFamilyProject($family))
             ->filter()
             ->values();
+
+        $mainProjects = $excludeDesign
+            ? $mainProjects
+                ->reject(fn (Project $project) => ProjectFlow::normalizePhase($project->phase) === Project::PHASE_DESIGN)
+                ->values()
+            : $mainProjects;
 
         $totalProjects = $mainProjects->count();
         $moneyProjects = $excludeCompletedFromMoney

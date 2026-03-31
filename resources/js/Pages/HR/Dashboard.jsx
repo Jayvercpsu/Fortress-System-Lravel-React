@@ -176,77 +176,10 @@ export default function HRDashboard({
                             >
                                 Manage Payroll
                             </ActionButton>
-                            <ActionButton
-                                href="/payroll"
-                                style={{ padding: '9px 14px', fontSize: 13 }}
-                            >
-                                Payroll Entries
-                            </ActionButton>
                         </div>
                     </div>
                 </div>
 
-                <div style={{ ...cardStyle, overflow: 'hidden' }}>
-                    <div style={{ fontWeight: 700, marginBottom: 10 }}>Recent Payroll Entries</div>
-                    <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                        <thead>
-                            <tr>
-                                {['Worker', 'Role', 'Hours', 'Rate', 'Gross', 'Net', 'Status'].map((header) => (
-                                    <th
-                                        key={header}
-                                        style={{
-                                            fontSize: 11,
-                                            color: 'var(--text-muted-2)',
-                                            textAlign: 'left',
-                                            padding: '10px 12px',
-                                            borderBottom: '1px solid var(--border-color)',
-                                            textTransform: 'uppercase',
-                                        }}
-                                    >
-                                        {header}
-                                    </th>
-                                ))}
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {payrollRows.map((row) => (
-                                <tr key={row.id} style={{ borderBottom: '1px solid var(--row-divider)' }}>
-                                    <td style={{ padding: '10px 12px', fontWeight: 700 }}>{row.worker_name}</td>
-                                    <td style={{ padding: '10px 12px', color: 'var(--text-muted)', fontSize: 12 }}>{row.role}</td>
-                                    <td style={{ padding: '10px 12px', fontFamily: "'DM Mono', monospace" }}>{row.hours}</td>
-                                    <td style={{ padding: '10px 12px', fontFamily: "'DM Mono', monospace" }}>{money(row.rate_per_hour)}</td>
-                                    <td style={{ padding: '10px 12px', fontFamily: "'DM Mono', monospace" }}>{money(row.gross)}</td>
-                                    <td style={{ padding: '10px 12px', fontWeight: 700, fontFamily: "'DM Mono', monospace" }}>{money(row.net)}</td>
-                                    <td style={{ padding: '10px 12px' }}>
-                                        <span
-                                            style={{
-                                                fontSize: 11,
-                                                padding: '3px 10px',
-                                                borderRadius: 999,
-                                                color: statusColor[row.status] || '#8b949e',
-                                                background: `${statusColor[row.status] || '#8b949e'}22`,
-                                                border: `1px solid ${(statusColor[row.status] || '#8b949e')}44`,
-                                                textTransform: 'capitalize',
-                                                fontWeight: 700,
-                                            }}
-                                        >
-                                            {row.status}
-                                        </span>
-                                    </td>
-                                </tr>
-                            ))}
-
-                            {payrollRows.length === 0 && (
-                                <tr>
-                                    <td colSpan={7} style={{ padding: 28, textAlign: 'center', color: 'var(--text-muted-2)' }}>
-                                        No payroll records available.
-                                    </td>
-                                </tr>
-                            )}
-                        </tbody>
-                    </table>
-                    <InlinePagination pager={recentPayrollsPager} />
-                </div>
             </Layout>
         </>
     );
