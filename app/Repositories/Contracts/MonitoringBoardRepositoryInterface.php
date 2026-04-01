@@ -3,6 +3,7 @@
 namespace App\Repositories\Contracts;
 
 use App\Models\MonitoringBoardFile;
+use App\Models\MonitoringBoardDepartment;
 use App\Models\MonitoringBoardItem;
 use App\Models\Project;
 use Illuminate\Http\UploadedFile;
@@ -17,6 +18,16 @@ interface MonitoringBoardRepositoryInterface
     public function clientUsers(): Collection;
 
     public function designerUsers(): Collection;
+
+    public function listDepartments(): Collection;
+
+    public function ensureDepartmentExists(string $name): MonitoringBoardDepartment;
+
+    public function deleteDepartment(MonitoringBoardDepartment $department): void;
+
+    public function departmentHasItems(string $departmentName): bool;
+
+    public function deleteItemsByDepartment(string $departmentName): void;
 
     public function latestAssignmentsByUserIds(array $userIds, string $role): Collection;
 

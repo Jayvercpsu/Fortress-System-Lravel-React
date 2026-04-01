@@ -17,7 +17,16 @@ class UpdateMonitoringBoardItemRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'department' => ['required', 'string', 'max:120'],
+            'department' => [
+                'required',
+                'string',
+                'max:120',
+                function (string $attribute, mixed $value, callable $fail) {
+                    if (strcasecmp(trim((string) $value), 'completed') === 0) {
+                        $fail('Completed is reserved and cannot be used as a department name.');
+                    }
+                },
+            ],
             'client_name' => ['required', 'string', 'max:255'],
             'project_name' => ['required', 'string', 'max:255'],
             'project_type' => ['required', 'string', 'max:100'],

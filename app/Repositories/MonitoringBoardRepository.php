@@ -4,6 +4,7 @@ namespace App\Repositories;
 
 use App\Enums\ProjectStatus;
 use App\Models\MonitoringBoardFile;
+use App\Models\MonitoringBoardDepartment;
 use App\Models\MonitoringBoardItem;
 use App\Models\Project;
 use App\Models\ProjectAssignment;
@@ -49,9 +50,61 @@ class MonitoringBoardRepository implements MonitoringBoardRepositoryInterface
     public function designerUsers(): Collection
     {
         return User::query()
+            ->with('detail:id,user_id,profile_photo_path')
             ->where('role', User::ROLE_DESIGNER)
             ->orderBy('fullname')
             ->get(['id', 'fullname']);
+    }
+
+    public function listDepartments(): Collection
+    {
+        return MonitoringBoardDepartment::query()
+            ->orderBy('name')
+            ->get(['id', 'name']);
+    }
+
+    public function ensureDepartmentExists(string $name): MonitoringBoardDepartment
+    {
+        $normalized = trim((string) $name);
+        $department = MonitoringBoardDepartment::withTrashed()->firstOrCreate([
+            'name' => $normalized,
+        ]);
+
+        if ($department->trashed()) {
+            $department->restore();
+        }
+
+        return $department;
+    }
+
+    public function deleteDepartment(MonitoringBoardDepartment $department): void
+    {
+        $department->delete();
+    }
+
+    public function departmentHasItems(string $departmentName): bool
+    {
+        $normalized = trim((string) $departmentName);
+        if ($normalized === '') {
+            return false;
+        }
+
+        return MonitoringBoardItem::query()
+            ->where('department', $normalized)
+            ->exists();
+    }
+
+    public function deleteItemsByDepartment(string $departmentName): void
+    {
+        $normalized = trim((string) $departmentName);
+        if ($normalized === '') {
+            return;
+        }
+
+        MonitoringBoardItem::query()
+            ->where('department', $normalized)
+            ->get()
+            ->each(fn (MonitoringBoardItem $item) => $this->deleteItem($item));
     }
 
     public function latestAssignmentsByUserIds(array $userIds, string $role): Collection

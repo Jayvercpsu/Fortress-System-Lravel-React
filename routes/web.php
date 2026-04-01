@@ -156,6 +156,8 @@ Route::middleware(['auth', 'role:head_admin,admin,designer'])->group(function ()
     Route::post('/monitoring-board', [MonitoringBoardController::class, 'store'])->name('monitoring-board.store');
     Route::patch('/monitoring-board/{item}', [MonitoringBoardController::class, 'update'])->name('monitoring-board.update');
     Route::delete('/monitoring-board/{item}', [MonitoringBoardController::class, 'destroy'])->name('monitoring-board.destroy');
+    Route::delete('/monitoring-board/departments/{department}', [MonitoringBoardController::class, 'destroyDepartment'])
+        ->name('monitoring-board.departments.destroy');
     Route::post('/monitoring-board/{item}/files', [MonitoringBoardController::class, 'storeFile'])->name('monitoring-board.files.store');
     Route::delete('/monitoring-board-files/{file}', [MonitoringBoardController::class, 'destroyFile'])->name('monitoring-board.files.destroy');
 

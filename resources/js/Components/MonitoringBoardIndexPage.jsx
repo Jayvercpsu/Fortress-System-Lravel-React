@@ -8,10 +8,10 @@ import TextareaInput from './TextareaInput';
 import DatePickerInput from './DatePickerInput';
 import SearchableDropdown from './SearchableDropdown';
 import Layout from './Layout';
-import { Head, router, useForm } from '@inertiajs/react';
+import { Head, router, useForm, usePage } from '@inertiajs/react';
 import { useEffect, useMemo, useState } from 'react';
 import toast from 'react-hot-toast';
-import { Check, Trash2 } from 'lucide-react';
+import { Check, Lock, Trash2, User as UserIcon } from 'lucide-react';
 import OptimizedImage from './OptimizedImage';
 import { toastMessages } from '../constants/toastMessages';
 
@@ -225,6 +225,7 @@ const deletedBadgeStyle = {
 };
 
 const groupColors = ['#38bdf8', '#a3e635', '#fbbf24', '#f472b6', '#f97316', '#22d3ee', '#c084fc'];
+const COMPLETED_DEPARTMENT = 'Completed';
 
 const normalizeGroupKey = (value) => {
     const trimmed = String(value || '').trim();
@@ -333,6 +334,20 @@ const getStatusBadgeStyle = (statusValue) => {
 };
 
 const formatDate = (value) => (value ? String(value) : '-');
+const getInitials = (value) => {
+    const parts = String(value || '')
+        .trim()
+        .split(/\s+/)
+        .filter(Boolean)
+        .slice(0, 2);
+    if (parts.length === 0) return 'NA';
+    return parts.map((part) => part.charAt(0).toUpperCase()).join('');
+};
+const normalizeNameKey = (value) =>
+    String(value || '')
+        .trim()
+        .replace(/\s+/g, ' ')
+        .toLowerCase();
 const isImageFile = (file) => {
     const mime = String(file?.mime_type || '').toLowerCase();
     if (mime.startsWith('image/')) return true;
@@ -349,7 +364,11 @@ export default function MonitoringBoardIndexPage({
     items = [],
     status_options: statusOptions = [],
     designerOptions = [],
+    departments = [],
+    department_pagination: departmentPagination = {},
 }) {
+    const { auth } = usePage().props;
+    const isHeadAdmin = auth?.user?.role === 'head_admin';
     const resolvedStatusOptions = statusOptions.length > 0 ? statusOptions : ['PROPOSAL', 'IN_REVIEW', 'APPROVED', 'DONE'];
     const resolveOptionLabel = (option) => option?.label ?? option?.name ?? option?.fullname ?? String(option ?? '');
     const resolveOptionValue = (option) => option?.value ?? option?.label ?? option?.fullname ?? option?.name ?? option;
@@ -411,6 +430,17 @@ export default function MonitoringBoardIndexPage({
         remarks: '',
     });
     const baseDesignerOptions = Array.isArray(designerOptions) ? designerOptions : [];
+    const baseDepartmentEntries = Array.isArray(departments) ? departments : [];
+    const designerPhotoLookup = useMemo(() => {
+        const next = new Map();
+        baseDesignerOptions.forEach((option) => {
+            const name = String(resolveOptionLabel(option) || '').trim();
+            if (!name) return;
+            const key = normalizeNameKey(name);
+            next.set(key, option?.profile_photo_path || '');
+        });
+        return next;
+    }, [baseDesignerOptions]);
     const designerSelectOptions = [
         ...baseDesignerOptions,
         { label: 'Other (manual)', value: OTHER_DESIGNER_OPTION },
@@ -428,19 +458,86 @@ export default function MonitoringBoardIndexPage({
     const [editCustomDepartment, setEditCustomDepartment] = useState('');
     const [editItem, setEditItem] = useState(null);
     const [infoItem, setInfoItem] = useState(null);
-
-    const departmentOptions = useMemo(() => {
-        const map = new Map();
-        items.forEach((item) => {
-            const raw = String(item?.department || '').trim();
-            if (!raw) return;
-            const key = raw.toLowerCase();
-            if (!map.has(key)) {
-                map.set(key, raw);
-            }
+    const [knownDepartments, setKnownDepartments] = useState([]);
+    const departmentIdLookup = useMemo(() => {
+        const next = new Map();
+        baseDepartmentEntries.forEach((department) => {
+            const label = String(department?.name ?? department).trim();
+            if (!label) return;
+            const key = label.toLowerCase();
+            next.set(key, department?.id ?? null);
         });
-        return Array.from(map.values()).sort((a, b) => a.localeCompare(b));
-    }, [items]);
+        return next;
+    }, [baseDepartmentEntries]);
+
+    const renderAvatar = (name, photoPath, tone = 'var(--active-bg)') => {
+        const safeName = String(name || '').trim();
+        const initials = getInitials(safeName);
+        const hasPhoto = Boolean(photoPath);
+        return (
+            <span
+                style={{
+                    width: 24,
+                    height: 24,
+                    borderRadius: '50%',
+                    display: 'grid',
+                    placeItems: 'center',
+                    fontSize: 11,
+                    fontWeight: 700,
+                    color: 'var(--text-main)',
+                    background: tone,
+                    border: '1px solid var(--border-color)',
+                    position: 'relative',
+                    overflow: 'hidden',
+                    flexShrink: 0,
+                }}
+                aria-hidden="true"
+            >
+                {hasPhoto ? null : safeName ? initials : <UserIcon size={12} />}
+                {hasPhoto ? (
+                    <OptimizedImage
+                        src={`/files/${photoPath}`}
+                        alt={safeName || 'User'}
+                        style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }}
+                        onError={(event) => {
+                            event.currentTarget.remove();
+                        }}
+                    />
+                ) : null}
+            </span>
+        );
+    };
+
+    useEffect(() => {
+        if (!Array.isArray(items)) return;
+        setKnownDepartments((prev) => {
+            const next = new Map();
+            prev.forEach((department) => {
+                const label = String(department || '').trim();
+                if (!label || label === COMPLETED_DEPARTMENT) return;
+                next.set(label.toLowerCase(), label);
+            });
+            baseDepartmentEntries.forEach((department) => {
+                const label = String(department?.name ?? department).trim();
+                if (!label || label === COMPLETED_DEPARTMENT) return;
+                next.set(label.toLowerCase(), label);
+            });
+            items.forEach((item) => {
+                const raw = String(item?.department || '').trim();
+                if (!raw || raw === COMPLETED_DEPARTMENT) return;
+                const key = raw.toLowerCase();
+                if (!next.has(key)) {
+                    next.set(key, raw);
+                }
+            });
+            return Array.from(next.values()).sort((a, b) => a.localeCompare(b));
+        });
+    }, [items, baseDepartmentEntries]);
+
+    const departmentOptions = useMemo(
+        () => knownDepartments.filter((dept) => dept !== COMPLETED_DEPARTMENT),
+        [knownDepartments]
+    );
 
     const handleProjectTypeOptionChange = (value) => {
         setProjectTypeOption(value);
@@ -485,6 +582,8 @@ export default function MonitoringBoardIndexPage({
     const [search, setSearch] = useState('');
     const [itemToDelete, setItemToDelete] = useState(null);
     const [deletingId, setDeletingId] = useState(null);
+    const [departmentToDelete, setDepartmentToDelete] = useState(null);
+    const [deletingDepartment, setDeletingDepartment] = useState(false);
     const [filesItem, setFilesItem] = useState(null);
     const [fileToDelete, setFileToDelete] = useState(null);
     const [deletingFileId, setDeletingFileId] = useState(null);
@@ -500,6 +599,8 @@ export default function MonitoringBoardIndexPage({
     const [showCreateModal, setShowCreateModal] = useState(false);
     const [globalSort, setGlobalSort] = useState({ key: 'default', dir: 'desc' });
     const [departmentSort, setDepartmentSort] = useState({});
+    const [departmentPage, setDepartmentPage] = useState(departmentPagination.pages || {});
+    const [departmentPageSize, setDepartmentPageSize] = useState(departmentPagination.sizes || {});
 
     useEffect(() => {
         if (typeof window === 'undefined') return;
@@ -576,6 +677,14 @@ export default function MonitoringBoardIndexPage({
             ));
 
         const groups = new Map();
+        if (needle === '') {
+            departmentOptions.forEach((department) => {
+                const key = normalizeGroupKey(department);
+                if (!groups.has(key)) {
+                    groups.set(key, []);
+                }
+            });
+        }
         filtered.forEach((item) => {
             const key = normalizeGroupKey(item.department);
             if (!groups.has(key)) {
@@ -584,7 +693,10 @@ export default function MonitoringBoardIndexPage({
             groups.get(key).push(item);
         });
 
-        return Array.from(groups.entries())
+        const completedRows = groups.get(COMPLETED_DEPARTMENT) || [];
+        groups.delete(COMPLETED_DEPARTMENT);
+
+        const orderedGroups = Array.from(groups.entries())
             .map(([department, rows]) => {
                 const latestCreated = rows.reduce((maxValue, row) => {
                     const timestamp = row?.created_at ? Date.parse(row.created_at) : NaN;
@@ -598,7 +710,9 @@ export default function MonitoringBoardIndexPage({
                 return a.department.localeCompare(b.department);
             })
             .map(({ department, rows }) => ({ department, rows }));
-    }, [items, search]);
+        orderedGroups.push({ department: COMPLETED_DEPARTMENT, rows: completedRows });
+        return orderedGroups;
+    }, [items, search, departmentOptions]);
 
     useEffect(() => {
         if (groupedItems.length === 0) return;
@@ -621,6 +735,32 @@ export default function MonitoringBoardIndexPage({
                 const validIds = group.rows.map((row) => row.id);
                 const selected = (prev[group.department] || []).filter((id) => validIds.includes(id));
                 next[group.department] = selected;
+            });
+            return next;
+        });
+    }, [groupedItems]);
+
+    useEffect(() => {
+        if (groupedItems.length === 0) return;
+        setDepartmentPage((prev) => {
+            const next = { ...prev };
+            groupedItems.forEach((group) => {
+                if (!(group.department in next) || !Number.isFinite(Number(next[group.department])) || Number(next[group.department]) < 1) {
+                    next[group.department] = 1;
+                }
+            });
+            return next;
+        });
+    }, [groupedItems]);
+
+    useEffect(() => {
+        if (groupedItems.length === 0) return;
+        setDepartmentPageSize((prev) => {
+            const next = { ...prev };
+            groupedItems.forEach((group) => {
+                if (!(group.department in next) || !Number.isFinite(Number(next[group.department])) || Number(next[group.department]) < 1) {
+                    next[group.department] = 10;
+                }
             });
             return next;
         });
@@ -700,6 +840,21 @@ export default function MonitoringBoardIndexPage({
     const clearDepartmentSelection = (department) => {
         setSelectedRowsByDepartment((prev) => ({ ...prev, [department]: [] }));
         setBulkActionByDepartment((prev) => ({ ...prev, [department]: '' }));
+    };
+
+    const syncDepartmentPagination = (nextPages, nextSizes) => {
+        router.get(
+            '/monitoring-board',
+            {
+                dept_page: JSON.stringify(nextPages),
+                dept_size: JSON.stringify(nextSizes),
+            },
+            {
+                preserveScroll: true,
+                preserveState: true,
+                replace: true,
+            }
+        );
     };
 
     const submitCreate = (event) => {
@@ -795,8 +950,52 @@ export default function MonitoringBoardIndexPage({
         });
     };
 
+    const requestDeleteDepartment = (departmentName, rows = []) => {
+        if (!departmentName || departmentName === COMPLETED_DEPARTMENT) return;
+        const lookupKey = String(departmentName).toLowerCase();
+        const departmentId = departmentIdLookup.get(lookupKey);
+        const entryNames = Array.isArray(rows)
+            ? rows
+                .map((row) => String(row?.project_name || '').trim())
+                .filter((name) => name !== '')
+            : [];
+        const entryCount = Array.isArray(rows) ? rows.length : 0;
+        if (!departmentId) {
+            setKnownDepartments((prev) =>
+                prev.filter((department) => department.toLowerCase() !== lookupKey)
+            );
+            toast.success(toastMessages.monitoringBoard.departmentDeleted);
+            return;
+        }
+        setDepartmentToDelete({
+            id: departmentId,
+            name: departmentName,
+            count: entryCount,
+            names: entryNames,
+        });
+    };
+
+    const confirmDeleteDepartment = () => {
+        if (!departmentToDelete?.id) return;
+        setDeletingDepartment(true);
+        router.delete(`/monitoring-board/departments/${departmentToDelete.id}`, {
+            preserveScroll: true,
+            onSuccess: () => {
+                const lookupKey = String(departmentToDelete.name || '').toLowerCase();
+                setKnownDepartments((prev) =>
+                    prev.filter((department) => department.toLowerCase() !== lookupKey)
+                );
+                setDepartmentToDelete(null);
+                toast.success(toastMessages.monitoringBoard.departmentDeleted);
+            },
+            onError: () => toast.error(toastMessages.monitoringBoard.departmentDeleteError),
+            onFinish: () => setDeletingDepartment(false),
+        });
+    };
+
     const requestBulkDelete = (department, ids) => {
         if (!ids.length) return;
+        if (department === COMPLETED_DEPARTMENT && !isHeadAdmin) return;
         setBulkDeleteDepartment(department);
         setBulkDeleteIds(ids);
     };
@@ -938,7 +1137,8 @@ export default function MonitoringBoardIndexPage({
                     <div style={{ ...boardPanel, fontSize: 13, color: 'var(--text-muted)' }}>No monitoring entries found.</div>
                 ) : (
                     groupedItems.map((group, groupIndex) => {
-                        const groupColor = groupColors[groupIndex % groupColors.length];
+                        const isCompletedGroup = group.department === COMPLETED_DEPARTMENT;
+                        const groupColor = isCompletedGroup ? '#22c55e' : groupColors[groupIndex % groupColors.length];
                         const isCollapsed = collapsedDepartments[group.department];
                         const rowIds = group.rows.map((row) => row.id);
                         const selectedIds = selectedRowsByDepartment[group.department] || [];
@@ -949,19 +1149,33 @@ export default function MonitoringBoardIndexPage({
                         const canEditSelection = selectedCount === 1 && !selectedRows[0]?.project_id && selectedStatus !== 'DONE';
                         const canInfoSelection = selectedCount === 1 && selectedStatus === 'DONE';
                         const bulkActionValue = bulkActionByDepartment[group.department] || '';
-                        const bulkActionOptions = canEditSelection
+                        const bulkActionOptions = isCompletedGroup
                             ? [
-                                  { value: 'edit', label: 'Edit selected' },
-                                  { value: 'delete', label: 'Delete selected' },
+                                  ...(canInfoSelection ? [{ value: 'info', label: 'Info selected' }] : []),
+                                  ...(isHeadAdmin ? [{ value: 'delete', label: 'Delete selected' }] : []),
                               ]
-                            : canInfoSelection
+                            : canEditSelection
                                 ? [
-                                      { value: 'info', label: 'Info selected' },
+                                      { value: 'edit', label: 'Edit selected' },
                                       { value: 'delete', label: 'Delete selected' },
                                   ]
-                                : [{ value: 'delete', label: 'Delete selected' }];
+                                : canInfoSelection
+                                    ? [
+                                          { value: 'info', label: 'Info selected' },
+                                          { value: 'delete', label: 'Delete selected' },
+                                      ]
+                                    : [{ value: 'delete', label: 'Delete selected' }];
                         const sortConfig = { ...globalSort, ...(departmentSort[group.department] || {}) };
                         const sortedRows = sortRows(group.rows, sortConfig.key, sortConfig.dir);
+                        const pageSize = isCompletedGroup
+                            ? Math.max(1, Number(departmentPageSize[group.department] ?? 10))
+                            : sortedRows.length || 1;
+                        const totalPages = isCompletedGroup ? Math.max(1, Math.ceil(sortedRows.length / pageSize)) : 1;
+                        const currentPage = isCompletedGroup
+                            ? Math.min(departmentPage[group.department] ?? 1, totalPages)
+                            : 1;
+                        const pageStart = (currentPage - 1) * pageSize;
+                        const pagedRows = isCompletedGroup ? sortedRows.slice(pageStart, pageStart + pageSize) : sortedRows;
                         const stickyHeaderStyle = {
                             ...selectionHeaderStyle,
                             background: `color-mix(in srgb, ${groupColor} 14%, var(--surface-2))`,
@@ -970,6 +1184,35 @@ export default function MonitoringBoardIndexPage({
                             ...selectionCellStyle,
                             background: `color-mix(in srgb, ${groupColor} 10%, var(--surface-1))`,
                         };
+                        const headerLabels = isCompletedGroup
+                            ? [
+                                  'Project',
+                                  'Department',
+                                  'Client',
+                                  'Type',
+                                  'Location',
+                                  'Assigned Designer',
+                                  'Completed Date',
+                                  'Status',
+                                  'Files',
+                                  'Actions',
+                              ]
+                            : [
+                                  'Project',
+                                  'Client',
+                                  'Type',
+                                  'Location',
+                                  'Assigned Designer',
+                                  'Start Date',
+                                  'Timeline',
+                                  'Due Date',
+                                  'Date Paid',
+                                  'Status',
+                                  'Progress',
+                                  'Files',
+                                  'Actions',
+                              ];
+                        const emptyRowColSpan = 1 + headerLabels.length;
 
                         return (
                             <div key={group.department} style={boardPanel}>
@@ -992,18 +1235,25 @@ export default function MonitoringBoardIndexPage({
                                             boxShadow: `0 0 0 3px ${groupColor}30`,
                                         }}
                                     />
-                                        {group.department}
+                                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                                            {group.department}
+                                            {isCompletedGroup ? <Lock size={14} style={{ color: 'var(--text-muted)' }} /> : null}
+                                        </span>
                                     </div>
-                                    <ActionButton
-                                        type="button"
-                                        variant="danger"
-                                        onClick={() => requestBulkDelete(group.department, rowIds)}
-                                        disabled={rowIds.length === 0 || bulkDeleting}
-                                        style={{ padding: '6px 10px', fontSize: 11 }}
-                                        aria-label={`Delete ${group.department} entries`}
-                                    >
-                                        <Trash2 size={14} />
-                                    </ActionButton>
+                                    {!isCompletedGroup ? (
+                                            <ActionButton
+                                                type="button"
+                                                variant="danger"
+                                                onClick={() => requestDeleteDepartment(group.department, group.rows)}
+                                                disabled={deletingDepartment}
+                                                style={{ padding: '6px 10px', fontSize: 11 }}
+                                                aria-label={`Delete ${group.department} department`}
+                                            >
+                                            <Trash2 size={14} />
+                                        </ActionButton>
+                                    ) : (
+                                        <div style={{ width: 32 }} />
+                                    )}
                                 </div>
                             <div
                                 style={{
@@ -1041,7 +1291,7 @@ export default function MonitoringBoardIndexPage({
                                             placeholder="Select action"
                                             searchPlaceholder="Search actions..."
                                             emptyMessage="No actions available"
-                                            disabled={selectedCount === 0}
+                                            disabled={selectedCount === 0 || bulkActionOptions.length === 0}
                                             getOptionLabel={(option) => option.label}
                                             getOptionValue={(option) => option.value}
                                             style={{ ...actionDropdownStyle, minHeight: 32, padding: '5px 10px' }}
@@ -1079,6 +1329,7 @@ export default function MonitoringBoardIndexPage({
                                 </div>
                             </div>
                             {!isCollapsed && (
+                                <>
                                 <div style={{ overflowX: 'auto', width: '100%', maxWidth: '100%', minWidth: 0 }}>
                                     <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12, minWidth: 1500 }}>
                                         <thead>
@@ -1098,20 +1349,7 @@ export default function MonitoringBoardIndexPage({
                                                         {allSelected ? <Check size={12} /> : null}
                                                     </button>
                                                 </th>
-                                                {[
-                                                    'Project',
-                                                    'Client',
-                                                    'Type',
-                                                    'Location',
-                                                    'Assigned Designer',
-                                                    'Start Date',
-                                                    'Timeline',
-                                                    'Due Date',
-                                                    'Date Paid',
-                                                    'Status',
-                                                    'Progress',
-                                                    'Files',
-                                                ].map((label) => (
+                                                {headerLabels.map((label) => (
                                                     <th
                                                         key={label}
                                                         style={label === 'Progress' ? { ...boardTableHeaderCell, ...progressHeaderStyle } : boardTableHeaderCell}
@@ -1122,7 +1360,22 @@ export default function MonitoringBoardIndexPage({
                                             </tr>
                                         </thead>
                                         <tbody>
-                                            {sortedRows.map((item) => {
+                                            {sortedRows.length === 0 ? (
+                                                <tr>
+                                                    <td
+                                                        colSpan={emptyRowColSpan}
+                                                        style={{
+                                                            ...boardTableCell,
+                                                            textAlign: 'center',
+                                                            color: 'var(--text-muted)',
+                                                            fontStyle: 'italic',
+                                                        }}
+                                                    >
+                                                        No entries yet in this department.
+                                                    </td>
+                                                </tr>
+                                            ) : (
+                                                pagedRows.map((item) => {
                                                 const isProjectDeleted = Boolean(item.project_deleted);
                                                 const progressValue = normalizeProgressValue(item.progress_percent);
                                                 const statusValue = item.status ?? resolvedStatusOptions[0];
@@ -1146,121 +1399,226 @@ export default function MonitoringBoardIndexPage({
                                                             </button>
                                                         </td>
                                                         <td style={{ ...boardTableCell, fontWeight: 600 }}>{item.project_name}</td>
-                                                        <td style={boardTableCell}>{item.client_name}</td>
+                                                        {isCompletedGroup ? (
+                                                            <td style={boardTableCell}>{item.origin_department || '-'}</td>
+                                                        ) : null}
+                                                        <td style={boardTableCell}>
+                                                            <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
+                                                                {renderAvatar(item.client_name, '', 'rgba(59, 130, 246, 0.16)')}
+                                                                <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                                                    {item.client_name}
+                                                                </span>
+                                                            </div>
+                                                        </td>
                                                         <td style={boardTableCell}>{item.project_type}</td>
                                                         <td style={boardTableCell}>{item.location}</td>
-                                                        <td style={boardTableCell}>{item.assigned_to || '-'}</td>
-                                                        <td style={boardTableCell}>{formatDate(item.start_date)}</td>
                                                         <td style={boardTableCell}>
-                                                            {timelineRange.start || timelineRange.end ? (
-                                                                <div style={{ display: 'grid', gap: 6, justifyItems: 'center' }}>
-                                                                    {timelineRange.start ? (
-                                                                        <span
-                                                                            style={{
-                                                                                padding: '4px 10px',
-                                                                                borderRadius: 999,
-                                                                                fontSize: 11,
-                                                                                fontWeight: 600,
-                                                                                background: 'var(--status-review-bg)',
-                                                                                color: 'var(--status-review-text)',
-                                                                                border: '1px solid var(--status-review-border)',
-                                                                                whiteSpace: 'nowrap',
-                                                                            }}
-                                                                        >
-                                                                            {timelineRange.start}
-                                                                        </span>
-                                                                    ) : null}
-                                                                    {timelineRange.end ? (
-                                                                        <span
-                                                                            style={{
-                                                                                padding: '4px 10px',
-                                                                                borderRadius: 999,
-                                                                                fontSize: 11,
-                                                                                fontWeight: 600,
-                                                                                background: 'var(--surface-2)',
-                                                                                color: 'var(--text-main)',
-                                                                                border: '1px solid var(--border-color)',
-                                                                                whiteSpace: 'nowrap',
-                                                                            }}
-                                                                        >
-                                                                            {timelineRange.end}
-                                                                        </span>
-                                                                    ) : null}
+                                                            {item.assigned_to ? (
+                                                                <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
+                                                                    {renderAvatar(
+                                                                        item.assigned_to,
+                                                                        designerPhotoLookup.get(normalizeNameKey(item.assigned_to)) || '',
+                                                                        'rgba(34, 197, 94, 0.16)'
+                                                                    )}
+                                                                    <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                                                        {item.assigned_to}
+                                                                    </span>
                                                                 </div>
                                                             ) : (
                                                                 '-'
                                                             )}
                                                         </td>
-                                                        <td style={boardTableCell}>{formatDate(item.due_date)}</td>
-                                                        <td style={boardTableCell}>{formatDate(item.date_paid)}</td>
+                                                        {isCompletedGroup ? (
+                                                            <td style={boardTableCell}>{formatDate(item.completed_at)}</td>
+                                                        ) : (
+                                                            <>
+                                                                <td style={boardTableCell}>{formatDate(item.start_date)}</td>
+                                                                <td style={boardTableCell}>
+                                                                    {timelineRange.start || timelineRange.end ? (
+                                                                        <div style={{ display: 'grid', gap: 6, justifyItems: 'center' }}>
+                                                                            {timelineRange.start ? (
+                                                                                <span
+                                                                                    style={{
+                                                                                        padding: '4px 10px',
+                                                                                        borderRadius: 999,
+                                                                                        fontSize: 11,
+                                                                                        fontWeight: 600,
+                                                                                        background: 'var(--status-review-bg)',
+                                                                                        color: 'var(--status-review-text)',
+                                                                                        border: '1px solid var(--status-review-border)',
+                                                                                        whiteSpace: 'nowrap',
+                                                                                    }}
+                                                                                >
+                                                                                    {timelineRange.start}
+                                                                                </span>
+                                                                            ) : null}
+                                                                            {timelineRange.end ? (
+                                                                                <span
+                                                                                    style={{
+                                                                                        padding: '4px 10px',
+                                                                                        borderRadius: 999,
+                                                                                        fontSize: 11,
+                                                                                        fontWeight: 600,
+                                                                                        background: 'var(--surface-2)',
+                                                                                        color: 'var(--text-main)',
+                                                                                        border: '1px solid var(--border-color)',
+                                                                                        whiteSpace: 'nowrap',
+                                                                                    }}
+                                                                                >
+                                                                                    {timelineRange.end}
+                                                                                </span>
+                                                                            ) : null}
+                                                                        </div>
+                                                                    ) : (
+                                                                        '-'
+                                                                    )}
+                                                                </td>
+                                                                <td style={boardTableCell}>{formatDate(item.due_date)}</td>
+                                                                <td style={boardTableCell}>{formatDate(item.date_paid)}</td>
+                                                            </>
+                                                        )}
                                                         <td style={boardTableCell}>
                                                             <span style={{ ...statusBadgeBase, ...getStatusBadgeStyle(statusValue) }}>
                                                                 {statusValue}
                                                             </span>
                                                         </td>
-                                                        <td style={{ ...boardTableCell, ...progressCellStyle }}>
-                                                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minWidth: 70 }}>
-                                                                <div style={{ position: 'relative', width: progressCircleSize, height: progressCircleSize }}>
-                                                                    <svg
-                                                                        width={progressCircleSize}
-                                                                        height={progressCircleSize}
-                                                                        viewBox={`0 0 ${progressCircleSize} ${progressCircleSize}`}
-                                                                        style={{ transform: 'rotate(-90deg)' }}
-                                                                    >
-                                                                        <circle
-                                                                            cx={progressCircleCenter}
-                                                                            cy={progressCircleCenter}
-                                                                            r={progressCircleRadius}
-                                                                            fill="none"
-                                                                            stroke="var(--border-color)"
-                                                                            strokeWidth={progressCircleStroke}
-                                                                        />
-                                                                        <circle
-                                                                            cx={progressCircleCenter}
-                                                                            cy={progressCircleCenter}
-                                                                            r={progressCircleRadius}
-                                                                            fill="none"
-                                                                            stroke="var(--active-text)"
-                                                                            strokeWidth={progressCircleStroke}
-                                                                            strokeLinecap="round"
-                                                                            strokeDasharray={progressCircleCircumference}
-                                                                            strokeDashoffset={progressDashOffset}
-                                                                        />
-                                                                    </svg>
-                                                                    <div
-                                                                        style={{
-                                                                            position: 'absolute',
-                                                                            inset: 0,
-                                                                            display: 'grid',
-                                                                            placeItems: 'center',
-                                                                            fontSize: 11,
-                                                                            fontWeight: 700,
-                                                                            color: 'var(--text-main)',
-                                                                            lineHeight: 1,
-                                                                            textAlign: 'center',
-                                                                        }}
-                                                                    >
-                                                                        {progressValue}%
+                                                        {!isCompletedGroup ? (
+                                                            <td style={{ ...boardTableCell, ...progressCellStyle }}>
+                                                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minWidth: 70 }}>
+                                                                    <div style={{ position: 'relative', width: progressCircleSize, height: progressCircleSize }}>
+                                                                        <svg
+                                                                            width={progressCircleSize}
+                                                                            height={progressCircleSize}
+                                                                            viewBox={`0 0 ${progressCircleSize} ${progressCircleSize}`}
+                                                                            style={{ transform: 'rotate(-90deg)' }}
+                                                                        >
+                                                                            <circle
+                                                                                cx={progressCircleCenter}
+                                                                                cy={progressCircleCenter}
+                                                                                r={progressCircleRadius}
+                                                                                fill="none"
+                                                                                stroke="var(--border-color)"
+                                                                                strokeWidth={progressCircleStroke}
+                                                                            />
+                                                                            <circle
+                                                                                cx={progressCircleCenter}
+                                                                                cy={progressCircleCenter}
+                                                                                r={progressCircleRadius}
+                                                                                fill="none"
+                                                                                stroke="var(--active-text)"
+                                                                                strokeWidth={progressCircleStroke}
+                                                                                strokeLinecap="round"
+                                                                                strokeDasharray={progressCircleCircumference}
+                                                                                strokeDashoffset={progressDashOffset}
+                                                                            />
+                                                                        </svg>
+                                                                        <div
+                                                                            style={{
+                                                                                position: 'absolute',
+                                                                                inset: 0,
+                                                                                display: 'grid',
+                                                                                placeItems: 'center',
+                                                                                fontSize: 11,
+                                                                                fontWeight: 700,
+                                                                                color: 'var(--text-main)',
+                                                                                lineHeight: 1,
+                                                                                textAlign: 'center',
+                                                                            }}
+                                                                        >
+                                                                            {progressValue}%
+                                                                        </div>
                                                                     </div>
                                                                 </div>
-                                                            </div>
-                                                        </td>
+                                                            </td>
+                                                        ) : null}
                                                         <td style={boardTableCell}>
-                                                            <ActionButton
-                                                                type="button"
-                                                                variant="neutral"
-                                                                onClick={() => openFiles(item)}
-                                                                style={{ padding: '6px 10px' }}
-                                                            >
-                                                                {fileCount ? `Files (${fileCount})` : 'Add Files'}
-                                                            </ActionButton>
+                                                        <ActionButton
+                                                            type="button"
+                                                            variant="neutral"
+                                                            onClick={() => openFiles(item)}
+                                                            style={{ padding: '6px 10px' }}
+                                                        >
+                                                            {fileCount ? `Files (${fileCount})` : 'View Files'}
+                                                        </ActionButton>
+                                                    </td>
+                                                        <td style={boardTableCell}>
+                                                            {isCompletedGroup && !isHeadAdmin ? (
+                                                                <span style={{ color: 'var(--text-muted)' }}>Locked</span>
+                                                            ) : (
+                                                                <ActionButton
+                                                                    type="button"
+                                                                    variant="danger"
+                                                                    onClick={() => setItemToDelete(item)}
+                                                                    style={{ padding: '6px 10px', fontSize: 11 }}
+                                                                >
+                                                                    Delete
+                                                                </ActionButton>
+                                                            )}
                                                         </td>
                                                     </tr>
                                                 );
-                                            })}
+                                            })
+                                            )}
                                         </tbody>
                                     </table>
                                 </div>
+                                {isCompletedGroup && sortedRows.length > 0 ? (
+                                    <div
+                                        style={{
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            justifyContent: 'flex-end',
+                                            flexWrap: 'wrap',
+                                            gap: 8,
+                                            marginTop: 12,
+                                        }}
+                                    >
+                                        <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+                                            Showing {sortedRows.length ? pageStart + 1 : 0}-{Math.min(pageStart + pageSize, sortedRows.length)} of {sortedRows.length}
+                                        </div>
+                                        <SelectInput
+                                            value={String(pageSize)}
+                                            onChange={(event) => {
+                                                const nextSize = Number(event.target.value) || 10;
+                                                const nextPages = { ...departmentPage, [group.department]: 1 };
+                                                const nextSizes = { ...departmentPageSize, [group.department]: nextSize };
+                                                setDepartmentPageSize(nextSizes);
+                                                setDepartmentPage(nextPages);
+                                                syncDepartmentPagination(nextPages, nextSizes);
+                                            }}
+                                            style={{ ...boardInputStyle, width: 80 }}
+                                        >
+                                            {[5, 10, 25, 50].map((size) => (
+                                                <option key={size} value={size}>{size}</option>
+                                            ))}
+                                        </SelectInput>
+                                        <ActionButton
+                                            type="button"
+                                            variant="neutral"
+                                            onClick={() => {
+                                                const nextPages = { ...departmentPage, [group.department]: Math.max(1, currentPage - 1) };
+                                                setDepartmentPage(nextPages);
+                                                syncDepartmentPagination(nextPages, departmentPageSize);
+                                            }}
+                                            disabled={currentPage <= 1}
+                                        >
+                                            Prev
+                                        </ActionButton>
+                                        <ActionButton
+                                            type="button"
+                                            variant="neutral"
+                                            onClick={() => {
+                                                const nextPages = { ...departmentPage, [group.department]: Math.min(totalPages, currentPage + 1) };
+                                                setDepartmentPage(nextPages);
+                                                syncDepartmentPagination(nextPages, departmentPageSize);
+                                            }}
+                                            disabled={currentPage >= totalPages}
+                                        >
+                                            Next
+                                        </ActionButton>
+                                    </div>
+                                ) : null}
+                                </>
                                 )}
                             </div>
                         );
@@ -1276,30 +1634,36 @@ export default function MonitoringBoardIndexPage({
                     maxWidth={720}
                 >
                     <div style={{ display: 'grid', gap: 16 }}>
-                        <form onSubmit={submitFile} style={{ display: 'grid', gap: 10 }}>
+                        {filesItem?.department === COMPLETED_DEPARTMENT ? (
                             <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
-                                Upload photos or supporting files for this monitoring entry.
+                                Files are read-only for completed entries.
                             </div>
-                            <label style={{ display: 'grid', gap: 6 }}>
-                                <div style={{ fontSize: 12 }}>File</div>
-                                <TextInput
-                                    key={fileInputKey}
-                                    type="file"
-                                    onChange={(event) => setFileData('file', event.target.files?.[0] ?? null)}
-                                    accept={SUPPORTED_FILE_ACCEPT}
-                                    style={inputStyle}
-                                />
-                                {fileErrors.file && <div style={{ color: '#f87171', fontSize: 12 }}>{fileErrors.file}</div>}
-                            </label>
-                            <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>
-                                Supported: images, PDF, DOC/DOCX, XLS/XLSX, CSV, PPT/PPTX, TXT. Max 10MB.
-                            </div>
-                            <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-                                <ActionButton type="submit" variant="success" disabled={uploadingFile}>
-                                    {uploadingFile ? 'Uploading...' : 'Upload File'}
-                                </ActionButton>
-                            </div>
-                        </form>
+                        ) : (
+                            <form onSubmit={submitFile} style={{ display: 'grid', gap: 10 }}>
+                                <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+                                    Upload photos or supporting files for this monitoring entry.
+                                </div>
+                                <label style={{ display: 'grid', gap: 6 }}>
+                                    <div style={{ fontSize: 12 }}>File</div>
+                                    <TextInput
+                                        key={fileInputKey}
+                                        type="file"
+                                        onChange={(event) => setFileData('file', event.target.files?.[0] ?? null)}
+                                        accept={SUPPORTED_FILE_ACCEPT}
+                                        style={inputStyle}
+                                    />
+                                    {fileErrors.file && <div style={{ color: '#f87171', fontSize: 12 }}>{fileErrors.file}</div>}
+                                </label>
+                                <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+                                    Supported: images, PDF, DOC/DOCX, XLS/XLSX, CSV, PPT/PPTX, TXT. Max 10MB.
+                                </div>
+                                <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                                    <ActionButton type="submit" variant="success" disabled={uploadingFile}>
+                                        {uploadingFile ? 'Uploading...' : 'Upload File'}
+                                    </ActionButton>
+                                </div>
+                            </form>
+                        )}
 
                         <div style={{ display: 'grid', gap: 10 }}>
                             <div style={{ fontWeight: 700, fontSize: 13 }}>Attached Files</div>
@@ -1347,14 +1711,16 @@ export default function MonitoringBoardIndexPage({
                                                 >
                                                     {isImage ? 'Preview' : 'Download'}
                                                 </ActionButton>
-                                                <ActionButton
-                                                    type="button"
-                                                    variant="danger"
-                                                    style={{ padding: '6px 10px' }}
-                                                    onClick={() => setFileToDelete(file)}
-                                                >
-                                                    Delete
-                                                </ActionButton>
+                                                {filesItem?.department === COMPLETED_DEPARTMENT ? null : (
+                                                    <ActionButton
+                                                        type="button"
+                                                        variant="danger"
+                                                        style={{ padding: '6px 10px' }}
+                                                        onClick={() => setFileToDelete(file)}
+                                                    >
+                                                        Delete
+                                                    </ActionButton>
+                                                )}
                                             </div>
                                         </div>
                                     );
@@ -1404,6 +1770,12 @@ export default function MonitoringBoardIndexPage({
                                     <div style={{ fontSize: 12, marginBottom: 6 }}>Department</div>
                                     <TextInput value={infoItem.department ?? ''} readOnly style={inputStyle} />
                                 </label>
+                                {infoItem.department === COMPLETED_DEPARTMENT ? (
+                                    <label>
+                                        <div style={{ fontSize: 12, marginBottom: 6 }}>Origin Department</div>
+                                        <TextInput value={infoItem.origin_department ?? ''} readOnly style={inputStyle} />
+                                    </label>
+                                ) : null}
                                 <label>
                                     <div style={{ fontSize: 12, marginBottom: 6 }}>Client Name</div>
                                     <TextInput value={infoItem.client_name ?? ''} readOnly style={inputStyle} />
@@ -2015,6 +2387,31 @@ export default function MonitoringBoardIndexPage({
                         setBulkDeleteDepartment(null);
                     }}
                     onConfirm={confirmBulkDelete}
+                />
+
+                <ConfirmationModal
+                    open={!!departmentToDelete}
+                    title="Delete Department"
+                    message={
+                        departmentToDelete
+                            ? (() => {
+                                const total = departmentToDelete.count || 0;
+                                const names = Array.isArray(departmentToDelete.names) ? departmentToDelete.names : [];
+                                const preview = names.slice(0, 5);
+                                const remaining = Math.max(0, names.length - preview.length);
+                                const list = preview.length
+                                    ? `Entries: ${preview.join(', ')}${remaining ? `, and ${remaining} more` : ''}.`
+                                    : '';
+                                return `Delete "${departmentToDelete.name}" and its ${total} entr${total === 1 ? 'y' : 'ies'}? ${list} This action cannot be undone.`;
+                            })()
+                            : 'Delete this department?'
+                    }
+                    confirmLabel={deletingDepartment ? 'Deleting...' : 'Delete'}
+                    cancelLabel="Cancel"
+                    danger
+                    processing={deletingDepartment}
+                    onClose={() => (deletingDepartment ? null : setDepartmentToDelete(null))}
+                    onConfirm={confirmDeleteDepartment}
                 />
 
                 <ConfirmationModal

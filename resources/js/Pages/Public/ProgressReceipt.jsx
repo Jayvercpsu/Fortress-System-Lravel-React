@@ -233,6 +233,36 @@ export default function ProgressReceipt({
                         line-height:1.65;
                         color:var(--text-muted);
                     }
+                    .receipt-client-badge{
+                        display:inline-flex;
+                        align-items:center;
+                        gap:8px;
+                        padding:4px 10px 4px 6px;
+                        border-radius:999px;
+                        border:1px solid var(--border-color);
+                        background:rgba(255,255,255,0.85);
+                        font-weight:600;
+                    }
+                    .receipt-avatar{
+                        width:22px;
+                        height:22px;
+                        border-radius:50%;
+                        background:#e5e7eb;
+                        color:#1f2937;
+                        display:grid;
+                        place-items:center;
+                        font-size:11px;
+                        font-weight:700;
+                        position:relative;
+                        overflow:hidden;
+                    }
+                    .receipt-avatar img{
+                        position:absolute;
+                        inset:0;
+                        width:100%;
+                        height:100%;
+                        object-fit:cover;
+                    }
                     .receipt-access-panel{
                         display:grid;
                         gap:14px;
@@ -694,7 +724,14 @@ export default function ProgressReceipt({
                             </div>
                             <h1 className="receipt-title">{projectName}</h1>
                             <p className="receipt-subtitle">
-                                Client: {clientName} | Phase: {humanize(projectPhase)} | Status: {humanize(projectStatus)}
+                                Client:{' '}
+                                <span className="receipt-client-badge">
+                                    <span className="receipt-avatar" aria-hidden="true">
+                                        {getInitials(clientName)}
+                                    </span>
+                                    <span>{clientName}</span>
+                                </span>
+                                {' '}| Phase: {humanize(projectPhase)} | Status: {humanize(projectStatus)}
                             </p>
                         </div>
 
@@ -840,11 +877,12 @@ export default function ProgressReceipt({
                                                             title={assignees.length > 1 ? assignees.map((entry) => entry.name).join(', ') : undefined}
                                                         >
                                                             <span className="receipt-assignee-avatar" aria-hidden="true">
-                                                                {getInitials(primaryAssignee)}
+                                                                {primaryPhoto ? null : getInitials(primaryAssignee)}
                                                                 {primaryPhoto ? (
                                                                     <OptimizedImage
                                                                         src={`/files/${primaryPhoto}`}
                                                                         alt={primaryAssignee}
+                                                                        style={{ width: '100%', height: '100%', objectFit: 'cover' }}
                                                                         onError={(event) => event.currentTarget.remove()}
                                                                     />
                                                                 ) : null}

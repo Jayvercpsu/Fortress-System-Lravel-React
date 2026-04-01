@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Http\Requests\MonitoringBoards\StoreMonitoringBoardFileRequest;
 use App\Http\Requests\MonitoringBoards\StoreMonitoringBoardItemRequest;
 use App\Http\Requests\MonitoringBoards\UpdateMonitoringBoardItemRequest;
+use App\Models\MonitoringBoardDepartment;
 use App\Models\MonitoringBoardFile;
 use App\Models\MonitoringBoardItem;
 use App\Services\MonitoringBoardService;
@@ -22,7 +23,22 @@ class MonitoringBoardController extends Controller
     {
         $this->monitoringBoardService->ensureAuthorized($request->user());
 
-        $payload = $this->monitoringBoardService->indexPayload($request->user());
+        $departmentPages = $request->query('dept_page', []);
+        $departmentSizes = $request->query('dept_size', []);
+        if (is_string($departmentPages)) {
+            $departmentPages = json_decode($departmentPages, true) ?? [];
+        }
+        if (is_string($departmentSizes)) {
+            $departmentSizes = json_decode($departmentSizes, true) ?? [];
+        }
+        if (!is_array($departmentPages)) {
+            $departmentPages = [];
+        }
+        if (!is_array($departmentSizes)) {
+            $departmentSizes = [];
+        }
+
+        $payload = $this->monitoringBoardService->indexPayload($request->user(), $departmentPages, $departmentSizes);
 
         return Inertia::render($payload['page'], $payload['props']);
     }
@@ -55,6 +71,16 @@ class MonitoringBoardController extends Controller
         return redirect()
             ->route('monitoring-board.index')
             ->with('success', __('messages.monitoring_board.deleted'));
+    }
+
+    public function destroyDepartment(Request $request, MonitoringBoardDepartment $department)
+    {
+        $this->monitoringBoardService->ensureAuthorized($request->user());
+        $this->monitoringBoardService->deleteDepartment($department);
+
+        return redirect()
+            ->route('monitoring-board.index')
+            ->with('success', __('messages.monitoring_board.department_deleted'));
     }
 
     public function storeFile(StoreMonitoringBoardFileRequest $request, MonitoringBoardItem $item)

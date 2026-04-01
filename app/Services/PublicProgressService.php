@@ -21,6 +21,7 @@ use App\Support\Uploads\UploadManager;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Carbon;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
@@ -373,6 +374,11 @@ class PublicProgressService
         ]);
     }
 
+    private function normalizeNameKey(string $value): string
+    {
+        return Str::lower(Str::squish($value));
+    }
+
     public function receipt(Request $request, string $token)
     {
         $submitToken = $this->resolveActiveToken($token);
@@ -385,21 +391,24 @@ class PublicProgressService
 
         $assigneeNames = $scopes
             ->flatMap(fn (ProjectScope $scope) => preg_split('/[,;|]+/', (string) ($scope->assigned_personnel ?? '')))
-            ->map(fn ($name) => trim((string) $name))
+            ->map(fn ($name) => Str::squish((string) $name))
             ->filter(fn (string $name) => $name !== '')
-            ->unique(fn (string $name) => Str::lower($name))
+            ->unique(fn (string $name) => $this->normalizeNameKey($name))
+            ->values();
+        $normalizedAssigneeNames = $assigneeNames
+            ->map(fn (string $name) => $this->normalizeNameKey($name))
             ->values();
 
-        $assigneePhotoMap = $assigneeNames->isEmpty()
+        $assigneePhotoMap = $normalizedAssigneeNames->isEmpty()
             ? []
             : $this->foremanProgressRepository->users()
                 ->with('detail:id,user_id,profile_photo_path')
-                ->whereIn('fullname', $assigneeNames->all())
+                ->whereIn(DB::raw('LOWER(TRIM(fullname))'), $normalizedAssigneeNames->all())
                 ->get(['id', 'fullname'])
                 ->mapWithKeys(function (User $user) {
                     $photoPath = optional($user->detail)->profile_photo_path;
 
-                    return [Str::lower($user->fullname) => $photoPath ?: null];
+                    return [$this->normalizeNameKey((string) $user->fullname) => $photoPath ?: null];
                 })
                 ->all();
 
@@ -411,11 +420,11 @@ class PublicProgressService
             $amountToDate = round($contract * min(100, $progress) / 100, 2);
 
             $assignees = collect(preg_split('/[,;|]+/', (string) ($scope->assigned_personnel ?? '')))
-                ->map(fn ($name) => trim((string) $name))
+                ->map(fn ($name) => Str::squish((string) $name))
                 ->filter(fn (string $name) => $name !== '')
                 ->map(fn (string $name) => [
                     'name' => $name,
-                    'photo_path' => $assigneePhotoMap[Str::lower($name)] ?? null,
+                    'photo_path' => $assigneePhotoMap[$this->normalizeNameKey($name)] ?? null,
                 ])
                 ->values()
                 ->all();
@@ -1566,21 +1575,24 @@ class PublicProgressService
 
         $assigneeNames = $scopes
             ->flatMap(fn (ProjectScope $scope) => preg_split('/[,;|]+/', (string) ($scope->assigned_personnel ?? '')))
-            ->map(fn ($name) => trim((string) $name))
+            ->map(fn ($name) => Str::squish((string) $name))
             ->filter(fn (string $name) => $name !== '')
-            ->unique(fn (string $name) => Str::lower($name))
+            ->unique(fn (string $name) => $this->normalizeNameKey($name))
+            ->values();
+        $normalizedAssigneeNames = $assigneeNames
+            ->map(fn (string $name) => $this->normalizeNameKey($name))
             ->values();
 
-        $assigneePhotoMap = $assigneeNames->isEmpty()
+        $assigneePhotoMap = $normalizedAssigneeNames->isEmpty()
             ? []
             : $this->foremanProgressRepository->users()
                 ->with('detail:id,user_id,profile_photo_path')
-                ->whereIn('fullname', $assigneeNames->all())
+                ->whereIn(DB::raw('LOWER(TRIM(fullname))'), $normalizedAssigneeNames->all())
                 ->get(['id', 'fullname'])
                 ->mapWithKeys(function (User $user) {
                     $photoPath = optional($user->detail)->profile_photo_path;
 
-                    return [Str::lower($user->fullname) => $photoPath ?: null];
+                    return [$this->normalizeNameKey((string) $user->fullname) => $photoPath ?: null];
                 })
                 ->all();
 
@@ -1614,15 +1626,15 @@ class PublicProgressService
                 'target_date' => optional($project?->target)?->toDateString(),
                 'status' => $scope->status,
                 'assignee' => $scope->assigned_personnel,
-                'assignees' => collect(preg_split('/[,;|]+/', (string) ($scope->assigned_personnel ?? '')))
-                    ->map(fn ($name) => trim((string) $name))
-                    ->filter(fn (string $name) => $name !== '')
-                    ->map(fn (string $name) => [
-                        'name' => $name,
-                        'photo_path' => $assigneePhotoMap[Str::lower($name)] ?? null,
-                    ])
-                    ->values()
-                    ->all(),
+            'assignees' => collect(preg_split('/[,;|]+/', (string) ($scope->assigned_personnel ?? '')))
+                ->map(fn ($name) => Str::squish((string) $name))
+                ->filter(fn (string $name) => $name !== '')
+                ->map(fn (string $name) => [
+                    'name' => $name,
+                    'photo_path' => $assigneePhotoMap[$this->normalizeNameKey($name)] ?? null,
+                ])
+                ->values()
+                ->all(),
                 'remarks' => $scope->remarks,
                 'photos' => $scope->photos
                     ->take(4)

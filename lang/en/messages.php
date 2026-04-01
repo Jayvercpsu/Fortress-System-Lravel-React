@@ -73,6 +73,7 @@ return [
         'created' => 'Monitoring board entry added successfully.',
         'updated' => 'Monitoring board entry updated successfully.',
         'deleted' => 'Monitoring board entry deleted successfully.',
+        'department_deleted' => 'Monitoring department deleted successfully.',
         'file_uploaded' => 'Monitoring board file uploaded successfully.',
         'file_deleted' => 'Monitoring board file deleted successfully.',
     ],

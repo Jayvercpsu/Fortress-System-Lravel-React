@@ -20,6 +20,7 @@ class MonitoringBoardItem extends Model
 
     protected $fillable = [
         'department',
+        'origin_department',
         'client_name',
         'project_name',
         'project_type',
@@ -34,12 +35,14 @@ class MonitoringBoardItem extends Model
         'remarks',
         'project_id',
         'converted_at',
+        'completed_at',
         'created_by',
     ];
 
     protected $casts = [
         'progress_percent' => 'integer',
         'converted_at' => 'datetime',
+        'completed_at' => 'datetime',
         'start_date' => 'date',
         'due_date' => 'date',
         'date_paid' => 'date',
