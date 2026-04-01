@@ -18,6 +18,7 @@ use App\Models\ScopePhoto;
 use App\Models\User;
 use App\Models\WeeklyAccomplishment;
 use App\Repositories\Contracts\DashboardRepositoryInterface;
+use App\Repositories\Contracts\ProjectRepositoryInterface;
 use App\Support\ProjectSelection;
 use App\Support\Projects\ProjectFlow;
 use Illuminate\Http\Request;
@@ -30,7 +31,8 @@ use Inertia\Inertia;
 class DashboardService
 {
     public function __construct(
-        private readonly DashboardRepositoryInterface $dashboardRepository
+        private readonly DashboardRepositoryInterface $dashboardRepository,
+        private readonly ProjectRepositoryInterface $projectRepository
     ) {
     }
 
@@ -689,8 +691,17 @@ class DashboardService
         $remainingSum = round((float) $moneyProjects->sum(fn (Project $project) => (float) $project->remaining_balance), 2);
         $progressBase = $excludeCompletedFromMoney ? $moneyProjects : $mainProjects;
         $progressCount = $progressBase->count();
+        $weightedByProjectId = $this->projectRepository
+            ->weightedProgressByProjectIds($progressBase->pluck('id')->all())
+            ->all();
         $companyProgressPercent = $progressCount > 0
-            ? round((float) $progressBase->avg(fn (Project $project) => (int) $project->overall_progress), 1)
+            ? round(
+                (float) $progressBase->avg(fn (Project $project) => max(
+                    0,
+                    min(100, (float) ($weightedByProjectId[(int) $project->id] ?? 0))
+                )),
+                1
+            )
             : 0.0;
 
         return [

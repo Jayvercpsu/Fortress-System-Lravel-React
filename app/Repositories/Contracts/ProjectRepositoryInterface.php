@@ -55,6 +55,10 @@ interface ProjectRepositoryInterface
 
     public function lastPaymentDateByProjectId(int $projectId): ?string;
 
+    public function weightedProgressByProjectId(int $projectId): float;
+
+    public function weightedProgressByProjectIds(array $projectIds): Collection;
+
     public function transferredProjectsCount(int $projectId): int;
 
     public function persistDesignProgress(DesignProject $design, int $progress): void;

@@ -82,6 +82,15 @@ class BuildService
             $scopesQuery = $this->buildRepository->scopesWithPhotos($project);
         }
 
+        $weightedProgress = round(
+            $scopesQuery->sum(fn (ProjectScope $scope) => round(
+                ((float) ($scope->weight_percent ?? 0)) * ((float) ($scope->progress_percent ?? 0)) / 100,
+                2
+            )),
+            2
+        );
+        $weightedProgress = max(0, min(100, $weightedProgress));
+
         $scopes = $scopesQuery
             ->map(fn (ProjectScope $scope) => [
                 'id' => $scope->id,
@@ -93,6 +102,10 @@ class BuildService
                 'remarks' => $scope->remarks,
                 'contract_amount' => (float) ($scope->contract_amount ?? 0),
                 'weight_percent' => (float) ($scope->weight_percent ?? 0),
+                'computed_percent' => round(
+                    ((float) ($scope->weight_percent ?? 0)) * ((float) ($scope->progress_percent ?? 0)) / 100,
+                    2
+                ),
                 'start_date' => optional($scope->start_date)?->toDateString(),
                 'target_completion' => optional($scope->target_completion)?->toDateString(),
                 'updated_at' => optional($scope->updated_at)?->toDateTimeString(),
@@ -130,7 +143,7 @@ class BuildService
                 'project' => [
                     'id' => $project->id,
                     'name' => $project->name,
-                    'overall_progress' => (int) $project->overall_progress,
+                    'overall_progress' => $weightedProgress,
                     'status' => $project->status,
                     'phase' => $project->phase,
                 ],

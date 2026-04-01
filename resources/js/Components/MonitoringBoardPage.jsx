@@ -36,8 +36,12 @@ const STATUS_OPTIONS = ['NOT_STARTED', 'IN_PROGRESS', 'HOLD', 'COMPLETED'];
 const money = (value) =>
     `P ${Number(value || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 const clampPercent = (value) => Math.min(100, Math.max(0, Number(value) || 0));
-const weightedScopePercent = (weightPercent, progressPercent) => ((Number(weightPercent) || 0) * clampPercent(progressPercent)) / 100;
-const formatPercent = (value, maxDecimals = 4) => `${Number(value || 0).toFixed(maxDecimals).replace(/\.?0+$/, '')}%`;
+const weightedScopePercent = (weightPercent, progressPercent, computedPercent) => {
+    const parsedComputed = Number(computedPercent);
+    if (Number.isFinite(parsedComputed)) return parsedComputed;
+    return ((Number(weightPercent) || 0) * clampPercent(progressPercent)) / 100;
+};
+const formatPercent = (value, maxDecimals = 2) => `${Number(value || 0).toFixed(maxDecimals)}%`;
 
 export default function MonitoringBoardPage({
     project,
@@ -328,7 +332,7 @@ export default function MonitoringBoardPage({
                     </div>
                     <div>
                         <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 4 }}>Overall Progress</div>
-                        <div style={{ fontWeight: 700 }}>{project.overall_progress}%</div>
+                        <div style={{ fontWeight: 700 }}>{formatPercent(project.overall_progress)}</div>
                     </div>
                     <div>
                         <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 4 }}>Status</div>
@@ -435,7 +439,7 @@ export default function MonitoringBoardPage({
                                     </td>
                                     <td style={{ padding: '10px 8px', borderBottom: '1px solid var(--border-color)', whiteSpace: 'nowrap' }}>
                                     {scope.weight_percent
-                                        ? formatPercent(weightedScopePercent(scope.weight_percent, scope.progress_percent))
+                                        ? formatPercent(weightedScopePercent(scope.weight_percent, scope.progress_percent, scope.computed_percent))
                                         : '-'}
                                     </td>
                                     <td style={{ padding: '10px 8px', borderBottom: '1px solid var(--border-color)', whiteSpace: 'nowrap' }}>
@@ -1023,4 +1027,3 @@ export default function MonitoringBoardPage({
         </>
     );
 }
-

@@ -566,9 +566,10 @@ class ProjectService
         $collectionProgressPct = $contractAmount > 0 ? ($totalClientPayment / $contractAmount) * 100 : 0;
         $phase = ProjectFlow::normalizePhase($project->phase);
         $transferredCount = (int) ($project->transferred_projects_count ?? $this->projectRepository->transferredProjectsCount($projectId));
+        $weightedProgress = $this->weightedProgressForProject($project);
         $overallProgress = $phase === 'Design'
             ? (int) max(0, min(100, (int) $designPayloadProgress))
-            : (int) max(0, min(100, (int) ($project->overall_progress ?? 0)));
+            : $weightedProgress;
         $normalizedStatus = ProjectFlow::normalizeStatus($project->status);
         $hasTransferredConstruction = $phase === 'Design' && $transferredCount > 0;
         $canTransferToConstruction = $phase === 'Design'
@@ -673,7 +674,7 @@ class ProjectService
         ))->appends($request->query());
     }
 
-    private function projectIndexCardPayload(Project $project): array
+    private function projectIndexCardPayload(Project $project, ?array $weightedByProjectId = null): array
     {
         $phase = ProjectFlow::normalizePhase($project->phase);
         $designProgress = DesignComputation::computeProgress(
@@ -683,7 +684,7 @@ class ProjectService
         );
         $designApprovalStatus = ProjectFlow::normalizeDesignApprovalStatus($project->designTracker?->client_approval_status);
         $status = ProjectFlow::normalizeStatus($project->status);
-        $constructionProgress = (int) max(0, min(100, (int) ($project->overall_progress ?? 0)));
+        $constructionProgress = $this->weightedProgressForProject($project, $weightedByProjectId);
         $kanbanProgress = $phase === 'Design' ? $designProgress : $constructionProgress;
         $hasTransferredConstruction = $phase === 'Design' && (int) ($project->transferred_projects_count ?? 0) > 0;
         $canTransferToConstruction = $phase === 'Design'
@@ -720,6 +721,21 @@ class ProjectService
             'remaining_balance' => (float) ($project->remaining_balance ?? 0),
             'is_new_today' => (bool) optional($project->created_at)->isToday(),
         ];
+    }
+
+    private function weightedProgressForProject(Project $project, ?array $weightedByProjectId = null): float
+    {
+        $raw = $weightedByProjectId !== null
+            ? ($weightedByProjectId[(int) $project->id] ?? null)
+            : null;
+
+        if ($raw === null) {
+            $raw = $this->projectRepository->weightedProgressByProjectId((int) $project->id);
+        }
+
+        $numeric = (float) ($raw ?? 0);
+        $clamped = max(0, min(100, $numeric));
+        return round($clamped, 2);
     }
 
     private function applyProjectSearchFilter($query, string $search): void
@@ -778,8 +794,14 @@ class ProjectService
             ->orderByDesc('updated_at')
             ->orderByDesc('id')
             ->limit($visibleLimit)
-            ->get()
-            ->map(fn (Project $project) => $this->projectIndexCardPayload($project))
+            ->get();
+
+        $weightedByProjectId = $this->projectRepository
+            ->weightedProgressByProjectIds($items->pluck('id')->all())
+            ->all();
+
+        $items = $items
+            ->map(fn (Project $project) => $this->projectIndexCardPayload($project, $weightedByProjectId))
             ->values();
 
         $visibleCount = $items->count();
