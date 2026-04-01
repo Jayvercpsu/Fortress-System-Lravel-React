@@ -10,16 +10,91 @@ use App\Models\WeeklyAccomplishment;
 use App\Repositories\Contracts\MonitoringRepositoryInterface;
 use App\Support\Uploads\UploadManager;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 
 class MonitoringRepository implements MonitoringRepositoryInterface
 {
     public function scopesWithPhotos(Project $project): Collection
     {
-        return $project->scopes()
-            ->with(['photos' => fn ($query) => $query->latest('id')])
-            ->orderBy('id')
-            ->get();
+        $query = $project->scopes()
+            ->with(['photos' => fn ($query) => $query->latest('id')]);
+
+        if (Schema::hasColumn('project_scopes', 'sort_order')) {
+            $query->orderByRaw('sort_order is null')
+                ->orderBy('sort_order')
+                ->orderBy('id');
+        } else {
+            $query->orderBy('id');
+        }
+
+        return $query->get();
+    }
+
+    public function nextScopeSortOrder(Project $project): int
+    {
+        if (!Schema::hasColumn('project_scopes', 'sort_order')) {
+            $maxId = ProjectScope::query()
+                ->where('project_id', $project->id)
+                ->max('id');
+
+            return (int) ($maxId ?? 0) + 1;
+        }
+
+        $maxSortOrder = ProjectScope::query()
+            ->where('project_id', $project->id)
+            ->max('sort_order');
+
+        if ($maxSortOrder === null) {
+            $maxSortOrder = ProjectScope::query()
+                ->where('project_id', $project->id)
+                ->max('id');
+        }
+
+        return (int) ($maxSortOrder ?? 0) + 1;
+    }
+
+    public function reorderScopes(Project $project, array $orderedIds): void
+    {
+        if (!Schema::hasColumn('project_scopes', 'sort_order')) {
+            return;
+        }
+
+        $ordered = collect($orderedIds)
+            ->map(fn ($id) => (int) $id)
+            ->filter()
+            ->values();
+
+        if ($ordered->isEmpty()) {
+            return;
+        }
+
+        DB::transaction(function () use ($project, $ordered) {
+            $existingIds = ProjectScope::query()
+                ->where('project_id', $project->id)
+                ->pluck('id')
+                ->map(fn ($id) => (int) $id)
+                ->values();
+
+            $ordered = $ordered->intersect($existingIds)->values();
+            $remaining = $existingIds->diff($ordered)->values();
+            $position = 1;
+
+            foreach ($ordered as $id) {
+                ProjectScope::query()
+                    ->where('project_id', $project->id)
+                    ->where('id', $id)
+                    ->update(['sort_order' => $position++]);
+            }
+
+            foreach ($remaining as $id) {
+                ProjectScope::query()
+                    ->where('project_id', $project->id)
+                    ->where('id', $id)
+                    ->update(['sort_order' => $position++]);
+            }
+        });
     }
 
     public function createScope(Project $project, array $attributes): void

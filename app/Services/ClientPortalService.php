@@ -2,18 +2,24 @@
 
 namespace App\Services;
 
+use App\Models\DesignProject;
+use App\Models\Project;
 use App\Models\ProgressPhoto;
 use App\Models\User;
 use App\Models\WeeklyAccomplishment;
 use App\Repositories\Contracts\ClientPortalRepositoryInterface;
+use App\Repositories\Contracts\ProjectRepositoryInterface;
+use App\Support\DesignComputation;
 use App\Support\ProjectSelection;
+use App\Support\Projects\ProjectFlow;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
 
 class ClientPortalService
 {
     public function __construct(
-        private readonly ClientPortalRepositoryInterface $clientPortalRepository
+        private readonly ClientPortalRepositoryInterface $clientPortalRepository,
+        private readonly ProjectRepositoryInterface $projectRepository
     ) {
     }
 
@@ -38,8 +44,23 @@ class ClientPortalService
         $contractAmount = (float) ($summaryProject?->contract_amount ?? 0);
         $totalClientPayment = (float) ($summaryProject?->total_client_payment ?? 0);
         $remainingBalance = (float) ($summaryProject?->remaining_balance ?? 0);
-        $overallProgress = (int) ($summaryProject?->overall_progress ?? 0);
-        $overallProgress = (int) max(0, min(100, $overallProgress));
+        $overallProgress = (float) ($summaryProject?->overall_progress ?? 0);
+        if ($summaryProject?->id) {
+            $phase = ProjectFlow::normalizePhase($summaryProject->phase ?? '');
+            if ($phase === Project::PHASE_DESIGN) {
+                $designTracker = DesignProject::query()
+                    ->where('project_id', $summaryProject->id)
+                    ->first();
+                $overallProgress = (float) DesignComputation::computeProgress(
+                    (float) ($designTracker?->design_contract_amount ?? 0),
+                    (float) ($designTracker?->total_received ?? 0),
+                    (string) ($designTracker?->client_approval_status ?? DesignProject::CLIENT_APPROVAL_PENDING)
+                );
+            } else {
+                $overallProgress = $this->projectRepository->weightedProgressByProjectId((int) $summaryProject->id);
+            }
+        }
+        $overallProgress = (float) max(0, min(100, $overallProgress));
         $designDownpayment = $this->resolveDesignDownpayment($summaryProject, $familyProjectIds);
 
         $downpaymentAmount = $designDownpayment > 0 ? $designDownpayment : $totalClientPayment;

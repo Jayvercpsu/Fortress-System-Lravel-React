@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Http\Requests\Monitoring\StoreProjectScopeRequest;
 use App\Http\Requests\Monitoring\UpdateProjectScopeRequest;
+use App\Http\Requests\Monitoring\ReorderProjectScopesRequest;
 use App\Models\Project;
 use App\Models\ProjectScope;
 use App\Services\MonitoringService;
@@ -56,5 +57,13 @@ class MonitoringController extends Controller
         return redirect()
             ->route('monitoring.show', ['project' => $projectId])
             ->with('success', __('messages.monitoring.scope_deleted'));
+    }
+
+    public function reorder(ReorderProjectScopesRequest $request, Project $project)
+    {
+        $this->monitoringService->ensureAuthorized($request->user());
+        $this->monitoringService->reorderScopes($project, $request->validated()['scope_ids']);
+
+        return back()->with('success', __('messages.monitoring.scope_reordered'));
     }
 }

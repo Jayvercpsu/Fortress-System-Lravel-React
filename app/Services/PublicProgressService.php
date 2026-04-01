@@ -21,6 +21,7 @@ use App\Support\Uploads\UploadManager;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Carbon;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
@@ -216,10 +217,10 @@ class PublicProgressService
         $foremanName = trim((string) ($submitToken->foreman->fullname ?? ''));
         $normalizedForemanName = Str::lower($foremanName);
 
-        $projectScopeRows = $this->foremanProgressRepository->projectScopes()
-            ->where('project_id', $submitToken->project_id)
-            ->orderBy('id')
-            ->get(['id', 'scope_name', 'assigned_personnel']);
+        $projectScopeRows = $this->applyScopeOrdering(
+            $this->foremanProgressRepository->projectScopes()
+                ->where('project_id', $submitToken->project_id)
+        )->get(['id', 'scope_name', 'assigned_personnel']);
 
         $assignedPersonnelForScope = function (ProjectScope $scopeRow) {
             return collect(preg_split('/[,;]+/', (string) ($scopeRow->assigned_personnel ?? '')))
@@ -378,10 +379,9 @@ class PublicProgressService
         $submitToken->load(['project', 'foreman:id,fullname']);
         $project = $submitToken->project;
 
-        $scopes = $project->scopes()
-            ->with(['photos' => fn ($query) => $query->latest('id')->limit(4)])
-            ->orderBy('id')
-            ->get();
+        $scopes = $this->applyScopeOrdering(
+            $project->scopes()->with(['photos' => fn ($query) => $query->latest('id')->limit(4)])
+        )->get();
 
         $assigneeNames = $scopes
             ->flatMap(fn (ProjectScope $scope) => preg_split('/[,;|]+/', (string) ($scope->assigned_personnel ?? '')))
@@ -484,10 +484,9 @@ class PublicProgressService
         $submitToken->load(['project']);
         $project = $submitToken->project;
 
-        $scopes = $project->scopes()
-            ->with(['photos' => fn ($query) => $query->latest('id')->limit(4)])
-            ->orderBy('id')
-            ->get();
+        $scopes = $this->applyScopeOrdering(
+            $project->scopes()->with(['photos' => fn ($query) => $query->latest('id')->limit(4)])
+        )->get();
 
         $scopeRows = $scopes->map(function (ProjectScope $scope) {
             $progress = (float) ($scope->progress_percent ?? 0);
@@ -1559,11 +1558,11 @@ class PublicProgressService
     private function buildReceiptPayload(ProgressSubmitToken $submitToken): array
     {
         $project = $submitToken->project;
-        $scopes = $this->foremanProgressRepository->projectScopes()
-            ->where('project_id', $submitToken->project_id)
-            ->with(['photos' => fn ($query) => $query->latest('id')])
-            ->orderBy('id')
-            ->get();
+        $scopes = $this->applyScopeOrdering(
+            $this->foremanProgressRepository->projectScopes()
+                ->where('project_id', $submitToken->project_id)
+                ->with(['photos' => fn ($query) => $query->latest('id')])
+        )->get();
 
         $assigneeNames = $scopes
             ->flatMap(fn (ProjectScope $scope) => preg_split('/[,;|]+/', (string) ($scope->assigned_personnel ?? '')))
@@ -1791,6 +1790,18 @@ class PublicProgressService
         }
 
         $assignee = trim($fallbackAssignee);
+        $hasSortOrder = Schema::hasColumn('project_scopes', 'sort_order');
+        $nextSortOrder = 0;
+        if ($hasSortOrder) {
+            $nextSortOrder = (int) (ProjectScope::query()
+                ->where('project_id', $projectId)
+                ->max('sort_order') ?? 0);
+            if ($nextSortOrder === 0) {
+                $nextSortOrder = (int) (ProjectScope::query()
+                    ->where('project_id', $projectId)
+                    ->max('id') ?? 0);
+            }
+        }
         $projectScopeRows = $this->foremanProgressRepository->projectScopes()
             ->where('project_id', $projectId)
             ->get(['id', 'scope_name'])
@@ -1812,6 +1823,7 @@ class PublicProgressService
                     'progress_percent' => 0,
                     'status' => ProjectScope::STATUS_NOT_STARTED,
                     'remarks' => null,
+                    ...($hasSortOrder ? ['sort_order' => ++$nextSortOrder] : []),
                 ]);
 
                 $projectScopeRows->put(Str::lower($scopeName), $projectScope);
@@ -1954,6 +1966,18 @@ class PublicProgressService
         }
 
         $assignee = trim($fallbackAssignee);
+        $hasSortOrder = Schema::hasColumn('project_scopes', 'sort_order');
+        $nextSortOrder = 0;
+        if ($hasSortOrder) {
+            $nextSortOrder = (int) (ProjectScope::query()
+                ->where('project_id', $projectId)
+                ->max('sort_order') ?? 0);
+            if ($nextSortOrder === 0) {
+                $nextSortOrder = (int) (ProjectScope::query()
+                    ->where('project_id', $projectId)
+                    ->max('id') ?? 0);
+            }
+        }
 
         foreach ($weeklyScopes as $scope) {
             $scopeName = trim((string) ($scope['scope_of_work'] ?? ''));
@@ -1987,6 +2011,7 @@ class PublicProgressService
                 'progress_percent' => $progress,
                 'status' => $this->scopeStatusFromProgress($progress),
                 'remarks' => null,
+                ...($hasSortOrder ? ['sort_order' => ++$nextSortOrder] : []),
             ]);
         }
     }
@@ -2002,5 +2027,16 @@ class PublicProgressService
         }
 
         return ProjectScope::STATUS_IN_PROGRESS;
+    }
+
+    private function applyScopeOrdering($query)
+    {
+        if (Schema::hasColumn('project_scopes', 'sort_order')) {
+            return $query->orderByRaw('sort_order is null')
+                ->orderBy('sort_order')
+                ->orderBy('id');
+        }
+
+        return $query->orderBy('id');
     }
 }

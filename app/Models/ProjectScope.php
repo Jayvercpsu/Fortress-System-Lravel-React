@@ -22,6 +22,7 @@ class ProjectScope extends Model
         'remarks',
         'contract_amount',
         'weight_percent',
+        'sort_order',
         'start_date',
         'target_completion',
     ];
@@ -30,6 +31,7 @@ class ProjectScope extends Model
         'progress_percent' => 'integer',
         'contract_amount' => 'decimal:2',
         'weight_percent' => 'decimal:2',
+        'sort_order' => 'integer',
         'start_date' => 'date',
         'target_completion' => 'date',
     ];

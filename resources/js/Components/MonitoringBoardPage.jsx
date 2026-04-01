@@ -11,7 +11,7 @@ import TextareaInput from './TextareaInput';
 import { Head, router, useForm } from '@inertiajs/react';
 import { useEffect, useMemo, useState } from 'react';
 import toast from 'react-hot-toast';
-import { ArrowLeft, Trash2 } from 'lucide-react';
+import { ArrowLeft, GripVertical, Trash2 } from 'lucide-react';
 import OptimizedImage from './OptimizedImage';
 import { toastMessages } from '../constants/toastMessages';
 
@@ -50,6 +50,12 @@ export default function MonitoringBoardPage({
     embedded = false,
     readOnly = false,
 }) {
+    const [orderedScopes, setOrderedScopes] = useState(scopes);
+    const [reordering, setReordering] = useState(false);
+    const [showSortModal, setShowSortModal] = useState(false);
+    const [sortDraftScopes, setSortDraftScopes] = useState([]);
+    const [sortDraggingId, setSortDraggingId] = useState(null);
+    const [sortDropTargetId, setSortDropTargetId] = useState(null);
     const [editScope, setEditScope] = useState(null);
     const [scopeToDelete, setScopeToDelete] = useState(null);
     const [deleting, setDeleting] = useState(false);
@@ -64,6 +70,9 @@ export default function MonitoringBoardPage({
     const [scopePerPage, setScopePerPage] = useState(10);
     const [scopeTableLoading, setScopeTableLoading] = useState(false);
     const showBackButton = !embedded;
+    useEffect(() => {
+        setOrderedScopes(Array.isArray(scopes) ? scopes : []);
+    }, [scopes]);
     const assignedPersonnelOptions = useMemo(() => {
         const rows = Array.isArray(foremanOptions) ? foremanOptions : [];
 
@@ -274,9 +283,9 @@ export default function MonitoringBoardPage({
 
     const filteredScopes = useMemo(() => {
         const term = scopeSearch.trim().toLowerCase();
-        if (!term) return scopes;
+        if (!term) return orderedScopes;
 
-        return scopes.filter((scope) => {
+        return orderedScopes.filter((scope) => {
             const fields = [
                 scope.scope_name,
                 scope.assigned_personnel,
@@ -288,7 +297,7 @@ export default function MonitoringBoardPage({
 
             return fields.some((value) => value.includes(term));
         });
-    }, [scopeSearch, scopes]);
+    }, [scopeSearch, orderedScopes]);
 
     const totalScopePages = Math.max(1, Math.ceil(filteredScopes.length / scopePerPage));
     const clampedScopePage = Math.min(scopePage, totalScopePages);
@@ -309,7 +318,85 @@ export default function MonitoringBoardPage({
         setScopeTableLoading(true);
         const timer = window.setTimeout(() => setScopeTableLoading(false), 350);
         return () => window.clearTimeout(timer);
-    }, [scopeSearch, scopePage, scopePerPage, scopes.length]);
+    }, [scopeSearch, scopePage, scopePerPage, orderedScopes.length]);
+
+    const openSortModal = () => {
+        setSortDraftScopes(orderedScopes);
+        setShowSortModal(true);
+    };
+
+    const closeSortModal = () => {
+        if (reordering) return;
+        setShowSortModal(false);
+        setSortDraggingId(null);
+        setSortDropTargetId(null);
+    };
+
+    const handleSortDragStart = (scopeId) => (event) => {
+        if (readOnly || reordering) return;
+        setSortDraggingId(scopeId);
+        event.dataTransfer.effectAllowed = 'move';
+        event.dataTransfer.setData('text/plain', String(scopeId));
+    };
+
+    const handleSortDragOver = (scopeId) => (event) => {
+        if (readOnly || reordering) return;
+        event.preventDefault();
+        setSortDropTargetId(scopeId);
+        event.dataTransfer.dropEffect = 'move';
+    };
+
+    const handleSortDragEnd = () => {
+        setSortDraggingId(null);
+        setSortDropTargetId(null);
+    };
+
+    const handleSortDrop = (scopeId) => (event) => {
+        if (readOnly || reordering) return;
+        event.preventDefault();
+        const draggedId = sortDraggingId ? Number(sortDraggingId) : Number(event.dataTransfer.getData('text/plain'));
+        if (!draggedId || draggedId === scopeId) {
+            setSortDropTargetId(null);
+            return;
+        }
+
+        const fromIndex = sortDraftScopes.findIndex((scope) => scope.id === draggedId);
+        const toIndex = sortDraftScopes.findIndex((scope) => scope.id === scopeId);
+        if (fromIndex < 0 || toIndex < 0) {
+            setSortDropTargetId(null);
+            return;
+        }
+
+        const nextScopes = [...sortDraftScopes];
+        const [moved] = nextScopes.splice(fromIndex, 1);
+        nextScopes.splice(toIndex, 0, moved);
+        setSortDraftScopes(nextScopes);
+    };
+
+    const saveSortOrder = () => {
+        if (readOnly || reordering) return;
+        if (sortDraftScopes.length === 0) {
+            closeSortModal();
+            return;
+        }
+        setReordering(true);
+        router.put(
+            `/projects/${project.id}/scopes/reorder`,
+            { scope_ids: sortDraftScopes.map((scope) => scope.id) },
+            {
+                preserveScroll: true,
+                onSuccess: () => {
+                    setOrderedScopes(sortDraftScopes);
+                    setShowSortModal(false);
+                    toast.success(toastMessages.monitoringScopes.reorderSuccess);
+                },
+                onError: () => {
+                    toast.error(toastMessages.monitoringScopes.reorderError);
+                },
+                onFinish: () => setReordering(false),
+            }
+        );
+    };
 
     const content = (
         <>
@@ -325,7 +412,7 @@ export default function MonitoringBoardPage({
                 </div>
             )}
             <div style={{ display: 'grid', gap: 16 }}>
-                <div style={{ ...cardStyle, display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12, marginBottom: 16 }}>
+                <div style={{ ...cardStyle, display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 12, marginBottom: 16, alignItems: 'center' }}>
                     <div>
                         <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 4 }}>Project</div>
                         <div style={{ fontWeight: 700 }}>{project.name}</div>
@@ -337,6 +424,16 @@ export default function MonitoringBoardPage({
                     <div>
                         <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 4 }}>Status</div>
                         <div style={{ fontWeight: 700 }}>{project.status}</div>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                        <ActionButton
+                            type="button"
+                            onClick={openSortModal}
+                            disabled={readOnly || orderedScopes.length === 0}
+                            style={{ padding: '8px 12px', fontSize: 12 }}
+                        >
+                            Manage Sorting
+                        </ActionButton>
                     </div>
                 </div>
 
@@ -970,6 +1067,77 @@ export default function MonitoringBoardPage({
                     onClose={closeDeletePhoto}
                     onConfirm={confirmDeletePhoto}
                 />
+                <Modal
+                    open={showSortModal}
+                    onClose={closeSortModal}
+                    title="Manage Scope Sorting"
+                    maxWidth={640}
+                >
+                    <div style={{ display: 'grid', gap: 12 }}>
+                        <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+                            Drag scopes to rearrange their order. This will affect the weekly progress form and progress receipt.
+                        </div>
+                        <div style={{ border: '1px solid var(--border-color)', borderRadius: 10, overflow: 'hidden' }}>
+                            {sortDraftScopes.length === 0 ? (
+                                <div style={{ padding: 16, color: 'var(--text-muted)' }}>No scopes available.</div>
+                            ) : (
+                                <div style={{ maxHeight: 320, overflowY: 'auto' }}>
+                                    {sortDraftScopes.map((scope) => (
+                                        <div
+                                            key={scope.id}
+                                            onDragOver={handleSortDragOver(scope.id)}
+                                            onDrop={handleSortDrop(scope.id)}
+                                            style={{
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                gap: 10,
+                                                padding: '10px 12px',
+                                                borderBottom: '1px solid var(--border-color)',
+                                                background: sortDropTargetId === scope.id ? 'var(--surface-2)' : 'transparent',
+                                                opacity: sortDraggingId === scope.id ? 0.6 : 1,
+                                            }}
+                                        >
+                                            <button
+                                                type="button"
+                                                onDragStart={handleSortDragStart(scope.id)}
+                                                onDragEnd={handleSortDragEnd}
+                                                draggable={!readOnly && !reordering}
+                                                title="Drag to reorder"
+                                                style={{
+                                                    border: '1px solid var(--border-color)',
+                                                    background: 'var(--surface-2)',
+                                                    color: 'var(--text-muted)',
+                                                    borderRadius: 6,
+                                                    padding: 4,
+                                                    display: 'inline-flex',
+                                                    alignItems: 'center',
+                                                    justifyContent: 'center',
+                                                    cursor: readOnly || reordering ? 'not-allowed' : 'grab',
+                                                }}
+                                            >
+                                                <GripVertical size={14} />
+                                            </button>
+                                            <div style={{ fontSize: 13, fontWeight: 600 }}>{scope.scope_name}</div>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+                        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
+                            <ActionButton type="button" onClick={closeSortModal} disabled={reordering}>
+                                Cancel
+                            </ActionButton>
+                            <ActionButton
+                                type="button"
+                                variant="success"
+                                onClick={saveSortOrder}
+                                disabled={reordering || sortDraftScopes.length === 0}
+                            >
+                                {reordering ? 'Saving...' : 'Save Order'}
+                            </ActionButton>
+                        </div>
+                    </div>
+                </Modal>
                 <Modal
                     open={!!scopePreview}
                     onClose={() => setScopePreview(null)}

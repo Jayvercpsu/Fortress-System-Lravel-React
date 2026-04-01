@@ -92,19 +92,28 @@ class BuildRepository implements BuildRepositoryInterface
 
     public function scopesWithPhotos(Project $project): Collection
     {
-        return $project->scopes()
-            ->with(['photos' => fn ($query) => $query->latest('id')])
-            ->orderBy('id')
-            ->get();
+        $query = $project->scopes()
+            ->with(['photos' => fn ($query) => $query->latest('id')]);
+
+        if (Schema::hasColumn('project_scopes', 'sort_order')) {
+            $query->orderByRaw('sort_order is null')
+                ->orderBy('sort_order')
+                ->orderBy('id');
+        } else {
+            $query->orderBy('id');
+        }
+
+        return $query->get();
     }
 
     public function insertDefaultScopes(Project $project, array $scopeNames): void
     {
         $now = now();
         $defaultAssignee = $this->resolveDefaultScopeAssignee($project);
+        $hasSortOrder = Schema::hasColumn('project_scopes', 'sort_order');
         $project->scopes()->insert(
-            collect($scopeNames)->map(function (string $name) use ($project, $now, $defaultAssignee) {
-                return [
+            collect($scopeNames)->map(function (string $name, int $index) use ($project, $now, $defaultAssignee, $hasSortOrder) {
+                $payload = [
                     'project_id' => (int) $project->id,
                     'scope_name' => $name,
                     'assigned_personnel' => $defaultAssignee !== '' ? $defaultAssignee : null,
@@ -118,6 +127,11 @@ class BuildRepository implements BuildRepositoryInterface
                     'created_at' => $now,
                     'updated_at' => $now,
                 ];
+                if ($hasSortOrder) {
+                    $payload['sort_order'] = $index + 1;
+                }
+
+                return $payload;
             })->all()
         );
     }

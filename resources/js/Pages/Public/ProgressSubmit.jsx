@@ -173,50 +173,62 @@ const cloneWeeklyRows = (rows = [], options = {}) => rows.map((row) => ({
     weekly_photo_caption: String(row?.weekly_photo_caption || ''),
 }));
 const mergeWeeklyRowsWithScopeList = (rows = [], scopeRows = [], options = {}) => {
-    const scopeMap = new Map();
+    const orderedScopes = [];
+    const orderedScopeKeys = new Set();
     (scopeRows || []).forEach((scope) => {
         const scopeName = String(scope || '').trim();
         if (scopeName === '') return;
-        scopeMap.set(scopeName.toLowerCase(), scopeName);
+        const scopeKey = scopeName.toLowerCase();
+        if (orderedScopeKeys.has(scopeKey)) return;
+        orderedScopeKeys.add(scopeKey);
+        orderedScopes.push({ key: scopeKey, name: scopeName });
     });
 
     const existingRows = cloneWeeklyRows(rows, options);
-    const existingScopeKeys = new Set();
-    const mergedRows = existingRows.map((row) => {
-        const scopeName = String(row?.scope_of_work || '').trim();
-        const scopeKey = scopeName.toLowerCase();
-        if (scopeName !== '') {
-            existingScopeKeys.add(scopeKey);
-        }
+    const existingByKey = new Map();
+    const manualRows = [];
 
-        if (scopeMap.has(scopeKey)) {
+    existingRows.forEach((row) => {
+        const scopeName = String(row?.scope_of_work || '').trim();
+        if (scopeName === '') {
+            manualRows.push(row);
+            return;
+        }
+        const scopeKey = scopeName.toLowerCase();
+        if (!existingByKey.has(scopeKey)) {
+            existingByKey.set(scopeKey, row);
+        } else {
+            manualRows.push({ ...row, is_manual: true, is_unassigned: true });
+        }
+    });
+
+    const mergedRows = orderedScopes.map(({ key, name }) => {
+        if (existingByKey.has(key)) {
             return {
-                ...row,
-                scope_of_work: scopeMap.get(scopeKey),
+                ...existingByKey.get(key),
+                scope_of_work: name,
                 is_manual: false,
                 is_unassigned: false,
             };
         }
 
-        return scopeName !== ''
-            ? { ...row, is_manual: true, is_unassigned: true }
-            : row;
-    });
-
-    scopeMap.forEach((scopeName, scopeKey) => {
-        if (existingScopeKeys.has(scopeKey)) return;
-        mergedRows.push({
+        return {
             row_key: nextWeeklyRowKey(),
-            scope_of_work: scopeName,
+            scope_of_work: name,
             percent_completed: '',
             is_manual: false,
             is_unassigned: false,
             weekly_photos: [],
             weekly_photo_caption: '',
-        });
+        };
     });
 
-    return mergedRows;
+    existingByKey.forEach((row, key) => {
+        if (orderedScopeKeys.has(key)) return;
+        manualRows.push({ ...row, is_manual: true, is_unassigned: true });
+    });
+
+    return [...mergedRows, ...manualRows];
 };
 const isIsoWeekKey = (value) => /^\d{4}-\d{2}-\d{2}$/.test(String(value || '').trim());
 const findLatestWeekBefore = (targetWeekKey, ...weekMaps) => {

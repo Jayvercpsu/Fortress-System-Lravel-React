@@ -18,6 +18,7 @@ use App\Repositories\Contracts\ForemanProgressRepositoryInterface;
 use App\Support\Uploads\UploadManager;
 use App\Support\ProjectSelection;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Str;
@@ -743,6 +744,18 @@ class ForemanService
         }
 
         $assignee = trim($fallbackAssignee);
+        $hasSortOrder = Schema::hasColumn('project_scopes', 'sort_order');
+        $nextSortOrder = 0;
+        if ($hasSortOrder) {
+            $nextSortOrder = (int) (ProjectScope::query()
+                ->where('project_id', $projectId)
+                ->max('sort_order') ?? 0);
+            if ($nextSortOrder === 0) {
+                $nextSortOrder = (int) (ProjectScope::query()
+                    ->where('project_id', $projectId)
+                    ->max('id') ?? 0);
+            }
+        }
 
         foreach ($weeklyScopes as $scope) {
             $scopeName = trim((string) ($scope['scope_of_work'] ?? ''));
@@ -776,6 +789,7 @@ class ForemanService
                 'progress_percent' => $progress,
                 'status' => $this->scopeStatusFromProgress($progress),
                 'remarks' => null,
+                ...($hasSortOrder ? ['sort_order' => ++$nextSortOrder] : []),
             ]);
         }
     }
@@ -795,5 +809,3 @@ class ForemanService
         return redirect()->route('foreman.attendance.index', $this->attendanceTableQueryParams($request));
     }
 }
-
-

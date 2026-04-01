@@ -195,6 +195,7 @@ Route::middleware(['auth', 'role:head_admin,admin,designer'])->group(function ()
     Route::get('/projects/{project}/monitoring', [MonitoringController::class, 'show'])->name('monitoring.show');
     Route::post('/projects/{project}/scopes', [MonitoringController::class, 'store'])->name('scopes.store');
     Route::patch('/scopes/{scope}', [MonitoringController::class, 'update'])->name('scopes.update');
+    Route::put('/projects/{project}/scopes/reorder', [MonitoringController::class, 'reorder'])->name('scopes.reorder');
     Route::delete('/scopes/{scope}', [MonitoringController::class, 'destroy'])->name('scopes.destroy');
     Route::post('/scopes/{scope}/photos', [ScopePhotoController::class, 'store'])->name('scope-photos.store');
     Route::delete('/scope-photos/{photo}', [ScopePhotoController::class, 'destroy'])->name('scope-photos.destroy');

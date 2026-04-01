@@ -80,6 +80,7 @@ return [
         'scope_created' => 'Scope added successfully.',
         'scope_updated' => 'Scope updated successfully.',
         'scope_deleted' => 'Scope deleted successfully.',
+        'scope_reordered' => 'Scope order updated successfully.',
         'assigned_personnel_invalid' => 'Assigned personnel must be one assigned foreman.',
     ],
     'payroll' => [

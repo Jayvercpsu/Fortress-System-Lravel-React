@@ -7,6 +7,7 @@ use App\Models\ProjectScope;
 use App\Models\User;
 use App\Repositories\Contracts\MonitoringRepositoryInterface;
 use Illuminate\Support\Str;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Validation\ValidationException;
 
 class MonitoringService
@@ -68,6 +69,11 @@ class MonitoringService
     public function createScope(Project $project, array $validated): void
     {
         $this->validateAssignedPersonnel($project, $validated);
+        if (Schema::hasColumn('project_scopes', 'sort_order')) {
+            $validated['sort_order'] = $this->monitoringRepository->nextScopeSortOrder($project);
+        } else {
+            unset($validated['sort_order']);
+        }
         $this->monitoringRepository->createScope($project, $validated);
         $this->recomputeOverallProgress($project);
     }
@@ -97,6 +103,11 @@ class MonitoringService
         $project = $scope->project;
         $this->monitoringRepository->deleteScope($scope);
         $this->recomputeOverallProgress($project);
+    }
+
+    public function reorderScopes(Project $project, array $orderedIds): void
+    {
+        $this->monitoringRepository->reorderScopes($project, $orderedIds);
     }
 
     private function validateAssignedPersonnel(Project $project, array &$validated): void

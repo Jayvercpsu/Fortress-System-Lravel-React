@@ -26,6 +26,7 @@ use App\Support\Projects\ProjectFlow;
 use App\Support\Uploads\UploadManager;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 
 class ProjectRepository implements ProjectRepositoryInterface
@@ -142,10 +143,11 @@ class ProjectRepository implements ProjectRepositoryInterface
 
         $now = now();
         $assignee = trim($defaultAssignee);
+        $hasSortOrder = Schema::hasColumn('project_scopes', 'sort_order');
 
         $project->scopes()->insert(
-            collect($scopeNames)->map(function (string $name) use ($project, $now, $assignee) {
-                return [
+            collect($scopeNames)->map(function (string $name, int $index) use ($project, $now, $assignee, $hasSortOrder) {
+                $payload = [
                     'project_id' => (int) $project->id,
                     'scope_name' => $name,
                     'assigned_personnel' => $assignee !== '' ? $assignee : null,
@@ -159,6 +161,12 @@ class ProjectRepository implements ProjectRepositoryInterface
                     'created_at' => $now,
                     'updated_at' => $now,
                 ];
+
+                if ($hasSortOrder) {
+                    $payload['sort_order'] = $index + 1;
+                }
+
+                return $payload;
             })->all()
         );
     }

@@ -10,6 +10,10 @@ interface MonitoringRepositoryInterface
 {
     public function scopesWithPhotos(Project $project): Collection;
 
+    public function nextScopeSortOrder(Project $project): int;
+
+    public function reorderScopes(Project $project, array $orderedIds): void;
+
     public function createScope(Project $project, array $attributes): void;
 
     public function updateScope(ProjectScope $scope, array $attributes): void;
