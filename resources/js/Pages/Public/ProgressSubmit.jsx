@@ -307,6 +307,15 @@ export default function ProgressSubmit({ submitToken }) {
     const { errors = {} } = usePage().props;
     const base = typeof window === 'undefined' ? `/progress-submit/${submitToken?.token || ''}` : window.location.pathname.replace(/\/$/, '');
     const receiptUrl = String(submitToken?.receipt_url || '').trim() || `/progress-receipt/${submitToken?.token || ''}`;
+    const projectPhase = String(submitToken?.project_phase || '').trim().toLowerCase();
+    const projectStatus = String(submitToken?.project_status || '').trim().toLowerCase();
+    const cancelledValues = ['cancelled', 'canceled'];
+    const completedValues = ['completed', 'complete', 'done'];
+    const resolvedLockStatus = cancelledValues.includes(projectStatus) || cancelledValues.includes(projectPhase)
+        ? 'cancelled'
+        : (completedValues.includes(projectStatus) || completedValues.includes(projectPhase) ? 'completed' : '');
+    const projectLocked = resolvedLockStatus !== '';
+    const lockedFormStyle = projectLocked ? { pointerEvents: 'none', opacity: 0.6 } : undefined;
     const workers = Array.isArray(submitToken?.workers) ? submitToken.workers : [];
     const assignedScopes = Array.isArray(submitToken?.weekly_scope_of_works) ? submitToken.weekly_scope_of_works : [];
     const defaultScopeFallbackEnabled = !!submitToken?.weekly_scope_defaults_enabled;
@@ -480,14 +489,14 @@ export default function ProgressSubmit({ submitToken }) {
         currentDate &&
         currentDate >= attendanceWeekStartDate &&
         currentDate <= attendanceWeekEndDate
-    );
+    ) || projectLocked;
     const weeklyLocked = !(
         weeklyWeekStartDate &&
         weeklyWeekEndDate &&
         currentDate &&
         currentDate >= weeklyWeekStartDate &&
         currentDate <= weeklyWeekEndDate
-    );
+    ) || projectLocked;
     const defaultWeeklyRowsForWeek = useMemo(() => buildWeeklyRows(resolveWeeklyScopeList(weeklyWeekKey)), [resolveWeeklyScopeList, weeklyWeekKey]);
     const attendanceRows = useMemo(() => {
         const currentRows = cloneAttendanceRows(attendanceWeekDrafts[attendanceWeekKey] ?? defaultAttendanceRows)
@@ -566,6 +575,10 @@ export default function ProgressSubmit({ submitToken }) {
     }, []);
 
     const openCameraFor = useCallback((target, fallbackRef) => {
+        if (projectLocked) {
+            toast.error(`This project is ${resolvedLockStatus || 'completed'}. Camera is locked.`);
+            return;
+        }
         if (!prefersDesktopCamera()) {
             fallbackRef?.current?.click();
             return;
@@ -573,16 +586,20 @@ export default function ProgressSubmit({ submitToken }) {
         cameraFallbackRef.current = fallbackRef;
         setCameraTarget(target);
         setCameraOpen(true);
-    }, [prefersDesktopCamera]);
+    }, [prefersDesktopCamera, projectLocked]);
 
     const handleTakePhotoClick = useCallback((event, target, fallbackRef) => {
+        if (projectLocked) {
+            toast.error(`This project is ${resolvedLockStatus || 'completed'}. Camera is locked.`);
+            return;
+        }
         if (!prefersDesktopCamera()) {
             return;
         }
         event.preventDefault();
         event.stopPropagation();
         openCameraFor(target, fallbackRef);
-    }, [openCameraFor, prefersDesktopCamera]);
+    }, [openCameraFor, prefersDesktopCamera, projectLocked]);
 
     const captureCameraPhoto = useCallback(() => {
         const video = cameraVideoRef.current;
@@ -803,6 +820,10 @@ export default function ProgressSubmit({ submitToken }) {
     };
 
     const submitAll = () => {
+        if (projectLocked) {
+            toast.error(`This project is ${resolvedLockStatus || 'completed'}. Submissions are locked.`);
+            return;
+        }
         const attendanceEntries = attendanceRows
             .filter((row) => !isForemanRole(row.worker_role))
             .map((row) => ({
@@ -993,12 +1014,14 @@ export default function ProgressSubmit({ submitToken }) {
 
     const deliveryContent = (
         <>
+            <div style={lockedFormStyle}>
             <label className="jf-label">
                 Delivery Date
                 <DatePickerInput
                     value={delivery.delivery_date}
                     onChange={(value) => setDelivery((p) => ({ ...p, delivery_date: value || '' }))}
                     style={jfDateInputStyle}
+                    disabled={projectLocked}
                 />
             </label>
             <div className="jf-row" style={{ marginTop: 6 }}>
@@ -1013,22 +1036,24 @@ export default function ProgressSubmit({ submitToken }) {
                         type="file"
                         accept="image/*"
                         capture="environment"
+                        disabled={projectLocked}
                         onChange={(e) => setDelivery((p) => ({ ...p, photo: e.target.files?.[0] || null }))}
                     />
                 </label>
-                <label className="jf-file-btn jf-file-outline"><Image size={20} /> Gallery<TextInput key={`${deliveryKey}-gallery`} type="file" accept="image/*" onChange={(e) => setDelivery((p) => ({ ...p, photo: e.target.files?.[0] || null }))} /></label>
+                <label className="jf-file-btn jf-file-outline"><Image size={20} /> Gallery<TextInput key={`${deliveryKey}-gallery`} type="file" accept="image/*" disabled={projectLocked} onChange={(e) => setDelivery((p) => ({ ...p, photo: e.target.files?.[0] || null }))} /></label>
             </div>
             <div className="jf-note">{delivery.photo?.name || 'No photo selected'}</div>
             <div className="jf-row">
-                <button type="button" className={`jf-toggle ${delivery.status === 'complete' ? 'on' : ''}`} onClick={() => setDelivery((p) => ({ ...p, status: 'complete' }))}>Complete</button>
-                <button type="button" className={`jf-toggle ${delivery.status === 'incomplete' ? 'on' : ''}`} onClick={() => setDelivery((p) => ({ ...p, status: 'incomplete' }))}>Incomplete</button>
+                <button type="button" disabled={projectLocked} className={`jf-toggle ${delivery.status === 'complete' ? 'on' : ''}`} onClick={() => setDelivery((p) => ({ ...p, status: 'complete' }))}>Complete</button>
+                <button type="button" disabled={projectLocked} className={`jf-toggle ${delivery.status === 'incomplete' ? 'on' : ''}`} onClick={() => setDelivery((p) => ({ ...p, status: 'incomplete' }))}>Incomplete</button>
             </div>
             <div className="jf-grid2">
-                <input className="jf-input" placeholder="Item delivered (optional)" value={delivery.item_delivered} onChange={(e) => setDelivery((p) => ({ ...p, item_delivered: e.target.value }))} />
-                <input className="jf-input" placeholder="Quantity (optional)" value={delivery.quantity} onChange={(e) => setDelivery((p) => ({ ...p, quantity: e.target.value }))} />
+                <input className="jf-input" placeholder="Item delivered (optional)" disabled={projectLocked} value={delivery.item_delivered} onChange={(e) => setDelivery((p) => ({ ...p, item_delivered: e.target.value }))} />
+                <input className="jf-input" placeholder="Quantity (optional)" disabled={projectLocked} value={delivery.quantity} onChange={(e) => setDelivery((p) => ({ ...p, quantity: e.target.value }))} />
             </div>
-            <input className="jf-input" placeholder="Supplier (optional)" value={delivery.supplier} onChange={(e) => setDelivery((p) => ({ ...p, supplier: e.target.value }))} />
-            <textarea className="jf-input" rows={3} placeholder="Note (optional)" value={delivery.note} onChange={(e) => setDelivery((p) => ({ ...p, note: e.target.value }))} />
+            <input className="jf-input" placeholder="Supplier (optional)" disabled={projectLocked} value={delivery.supplier} onChange={(e) => setDelivery((p) => ({ ...p, supplier: e.target.value }))} />
+            <textarea className="jf-input" rows={3} placeholder="Note (optional)" disabled={projectLocked} value={delivery.note} onChange={(e) => setDelivery((p) => ({ ...p, note: e.target.value }))} />
+            </div>
             <div style={{ marginTop: 10 }}>
                 <div className="jf-small-title" style={{ fontSize: 16, marginBottom: 6 }}>Recent Delivery Confirmations</div>
                 <div className="jf-recent-list jf-recent-list-two">
@@ -1040,7 +1065,7 @@ export default function ProgressSubmit({ submitToken }) {
                                 type="button"
                                 className="jf-card-action"
                                 title="Delete delivery confirmation"
-                                disabled={deletingDeliveryId === row.id}
+                                disabled={projectLocked || deletingDeliveryId === row.id}
                                 onClick={() => setDeliveryDeleteTarget(row)}
                             >
                                 <Trash2 size={16} />
@@ -1079,30 +1104,33 @@ export default function ProgressSubmit({ submitToken }) {
 
     const materialContent = (
         <>
-            <label className="jf-label">Material Name<input className="jf-input" value={material.material_name} onChange={(e) => setMaterial((p) => ({ ...p, material_name: e.target.value }))} /></label>
-            <div className="jf-grid2">
-                <label className="jf-label">Quantity<input className="jf-input" value={material.quantity} onChange={(e) => setMaterial((p) => ({ ...p, quantity: e.target.value }))} /></label>
-                <label className="jf-label">Unit<input className="jf-input" value={material.unit} onChange={(e) => setMaterial((p) => ({ ...p, unit: e.target.value }))} /></label>
+            <div style={lockedFormStyle}>
+                <label className="jf-label">Material Name<input className="jf-input" disabled={projectLocked} value={material.material_name} onChange={(e) => setMaterial((p) => ({ ...p, material_name: e.target.value }))} /></label>
+                <div className="jf-grid2">
+                    <label className="jf-label">Quantity<input className="jf-input" disabled={projectLocked} value={material.quantity} onChange={(e) => setMaterial((p) => ({ ...p, quantity: e.target.value }))} /></label>
+                    <label className="jf-label">Unit<input className="jf-input" disabled={projectLocked} value={material.unit} onChange={(e) => setMaterial((p) => ({ ...p, unit: e.target.value }))} /></label>
+                </div>
+                <label className="jf-label">Remarks<textarea className="jf-input" disabled={projectLocked} rows={3} value={material.remarks} onChange={(e) => setMaterial((p) => ({ ...p, remarks: e.target.value }))} /></label>
+                <div className="jf-row" style={{ marginTop: 6 }}>
+                    <label
+                        className="jf-file-btn"
+                        onClick={(event) => handleTakePhotoClick(event, 'materials', materialCameraInputRef)}
+                    >
+                        <Camera size={20} /> Take Photo
+                        <TextInput
+                            ref={materialCameraInputRef}
+                            key={`${materialKey}-camera`}
+                            type="file"
+                            accept="image/*"
+                            capture="environment"
+                            disabled={projectLocked}
+                            onChange={(e) => setMaterial((p) => ({ ...p, photo: e.target.files?.[0] || null }))}
+                        />
+                    </label>
+                    <label className="jf-file-btn jf-file-outline"><Image size={20} /> Gallery<TextInput key={`${materialKey}-gallery`} type="file" accept="image/*" disabled={projectLocked} onChange={(e) => setMaterial((p) => ({ ...p, photo: e.target.files?.[0] || null }))} /></label>
+                </div>
+                <div className="jf-note">{material.photo?.name || 'No photo selected'}</div>
             </div>
-            <label className="jf-label">Remarks<textarea className="jf-input" rows={3} value={material.remarks} onChange={(e) => setMaterial((p) => ({ ...p, remarks: e.target.value }))} /></label>
-            <div className="jf-row" style={{ marginTop: 6 }}>
-                <label
-                    className="jf-file-btn"
-                    onClick={(event) => handleTakePhotoClick(event, 'materials', materialCameraInputRef)}
-                >
-                    <Camera size={20} /> Take Photo
-                    <TextInput
-                        ref={materialCameraInputRef}
-                        key={`${materialKey}-camera`}
-                        type="file"
-                        accept="image/*"
-                        capture="environment"
-                        onChange={(e) => setMaterial((p) => ({ ...p, photo: e.target.files?.[0] || null }))}
-                    />
-                </label>
-                <label className="jf-file-btn jf-file-outline"><Image size={20} /> Gallery<TextInput key={`${materialKey}-gallery`} type="file" accept="image/*" onChange={(e) => setMaterial((p) => ({ ...p, photo: e.target.files?.[0] || null }))} /></label>
-            </div>
-            <div className="jf-note">{material.photo?.name || 'No photo selected'}</div>
             <div style={{ marginTop: 10 }}>
                 <div className="jf-small-title" style={{ fontSize: 16, marginBottom: 6 }}>Recent Material Requests</div>
                 <div className="jf-recent-list jf-recent-list-two">
@@ -1114,7 +1142,7 @@ export default function ProgressSubmit({ submitToken }) {
                                 type="button"
                                 className="jf-card-action"
                                 title="Delete material request"
-                                disabled={deletingMaterialId === row.id}
+                                disabled={projectLocked || deletingMaterialId === row.id}
                                 onClick={() => setMaterialDeleteTarget(row)}
                             >
                                 <Trash2 size={16} />
@@ -1231,7 +1259,7 @@ export default function ProgressSubmit({ submitToken }) {
                                                                         type="button"
                                                                         className="jf-scope-photo-delete"
                                                                         title="Delete photo"
-                                                                        disabled={deletingWeeklyPhotoId === photo.id}
+                                                                        disabled={weeklyLocked || deletingWeeklyPhotoId === photo.id}
                                                                         onClick={(event) => {
                                                                             event.stopPropagation();
                                                                             setWeeklyPhotoDeleteTarget(photo);
@@ -1355,33 +1383,36 @@ export default function ProgressSubmit({ submitToken }) {
     const photosContent = (
         <div className="jf-photo-layout">
             <div>
-                <div className="jf-row">
-                    <label
-                        className="jf-file-btn jf-file-blue"
-                        onClick={(event) => handleTakePhotoClick(event, 'photos', photoCameraInputRef)}
-                    >
-                        <Camera size={20} /> TAKE PHOTO
-                        <TextInput
-                            ref={photoCameraInputRef}
-                            key={`${photoKey}-camera`}
-                            type="file"
-                            accept="image/*"
-                            capture="environment"
-                            onChange={(e) => setPhotoForm((p) => ({ ...p, photo: e.target.files?.[0] || null }))}
-                        />
+                <div style={lockedFormStyle}>
+                    <div className="jf-row">
+                        <label
+                            className="jf-file-btn jf-file-blue"
+                            onClick={(event) => handleTakePhotoClick(event, 'photos', photoCameraInputRef)}
+                        >
+                            <Camera size={20} /> TAKE PHOTO
+                            <TextInput
+                                ref={photoCameraInputRef}
+                                key={`${photoKey}-camera`}
+                                type="file"
+                                accept="image/*"
+                                capture="environment"
+                                disabled={projectLocked}
+                                onChange={(e) => setPhotoForm((p) => ({ ...p, photo: e.target.files?.[0] || null }))}
+                            />
+                        </label>
+                        <label className="jf-file-btn jf-file-outline"><Image size={20} /> Gallery<TextInput ref={photoInputRef} key={`${photoKey}-gallery`} type="file" accept="image/*" disabled={projectLocked} onChange={(e) => setPhotoForm((p) => ({ ...p, photo: e.target.files?.[0] || null }))} /></label>
+                    </div>
+                    <div className="jf-note">{photoForm.photo?.name || 'No photo selected'}</div>
+                    <label className="jf-label" style={{ marginTop: 10 }}>CHOOSE CATEGORY
+                        <select className="jf-input" disabled={projectLocked} value={photoForm.category} onChange={(e) => setPhotoForm((p) => ({ ...p, category: e.target.value }))}>
+                            <option value="">Select category</option>
+                            {categories.map((c) => <option key={c} value={c}>{c}</option>)}
+                        </select>
                     </label>
-                    <label className="jf-file-btn jf-file-outline"><Image size={20} /> Gallery<TextInput ref={photoInputRef} key={`${photoKey}-gallery`} type="file" accept="image/*" onChange={(e) => setPhotoForm((p) => ({ ...p, photo: e.target.files?.[0] || null }))} /></label>
+                    <label className="jf-label" style={{ marginTop: 10 }}>ADD DESCRIPTION
+                        <input className="jf-input" disabled={projectLocked} placeholder="Enter description (optional)" value={photoForm.description} onChange={(e) => setPhotoForm((p) => ({ ...p, description: e.target.value }))} />
+                    </label>
                 </div>
-                <div className="jf-note">{photoForm.photo?.name || 'No photo selected'}</div>
-                <label className="jf-label" style={{ marginTop: 10 }}>CHOOSE CATEGORY
-                    <select className="jf-input" value={photoForm.category} onChange={(e) => setPhotoForm((p) => ({ ...p, category: e.target.value }))}>
-                        <option value="">Select category</option>
-                        {categories.map((c) => <option key={c} value={c}>{c}</option>)}
-                    </select>
-                </label>
-                <label className="jf-label" style={{ marginTop: 10 }}>ADD DESCRIPTION
-                    <input className="jf-input" placeholder="Enter description (optional)" value={photoForm.description} onChange={(e) => setPhotoForm((p) => ({ ...p, description: e.target.value }))} />
-                </label>
             </div>
             <div>
                 <div className="jf-small-title">Recent Photos</div>
@@ -1392,7 +1423,7 @@ export default function ProgressSubmit({ submitToken }) {
                                 type="button"
                                 className="jf-photo-action"
                                 title="Delete photo"
-                                disabled={deletingPhotoId === photo.id}
+                                disabled={projectLocked || deletingPhotoId === photo.id}
                                 onClick={() => setPhotoDeleteTarget(photo)}
                             >
                                 <Trash2 size={16} />
@@ -1411,37 +1442,40 @@ export default function ProgressSubmit({ submitToken }) {
                         </div>
                     ))}
                 </div>
-                <button type="button" className="jf-btn jf-btn-blue" onClick={() => photoInputRef.current?.click()}>ADD PHOTO</button>
+                <button type="button" className="jf-btn jf-btn-blue" disabled={projectLocked} onClick={() => photoInputRef.current?.click()}>ADD PHOTO</button>
             </div>
         </div>
     );
 
     const issueContent = (
         <>
-            <label className="jf-label">Issue Title<input className="jf-input" value={issue.issue_title} onChange={(e) => setIssue((p) => ({ ...p, issue_title: e.target.value }))} /></label>
-            <label className="jf-label">Description<textarea className="jf-input" rows={4} value={issue.description} onChange={(e) => setIssue((p) => ({ ...p, description: e.target.value }))} /></label>
-            <div className="jf-row" style={{ marginTop: 6 }}>
-                <label
-                    className="jf-file-btn"
-                    onClick={(event) => handleTakePhotoClick(event, 'issues', issueCameraInputRef)}
-                >
-                    <Camera size={20} /> Take Photo
-                    <TextInput
-                        ref={issueCameraInputRef}
-                        key={`${issueKey}-camera`}
-                        type="file"
-                        accept="image/*"
-                        capture="environment"
-                        onChange={(e) => setIssue((p) => ({ ...p, photo: e.target.files?.[0] || null }))}
-                    />
-                </label>
-                <label className="jf-file-btn jf-file-outline"><Image size={20} /> Gallery<TextInput key={`${issueKey}-gallery`} type="file" accept="image/*" onChange={(e) => setIssue((p) => ({ ...p, photo: e.target.files?.[0] || null }))} /></label>
-            </div>
-            <div className="jf-note">{issue.photo?.name || 'No photo selected'}</div>
-            <div className="jf-radio-row">
-                {['low', 'normal', 'high'].map((v) => (
-                    <label key={v}><input type="radio" name="urgency" value={v} checked={issue.urgency === v} onChange={(e) => setIssue((p) => ({ ...p, urgency: e.target.value }))} /> {v[0].toUpperCase() + v.slice(1)}</label>
-                ))}
+            <div style={lockedFormStyle}>
+                <label className="jf-label">Issue Title<input className="jf-input" disabled={projectLocked} value={issue.issue_title} onChange={(e) => setIssue((p) => ({ ...p, issue_title: e.target.value }))} /></label>
+                <label className="jf-label">Description<textarea className="jf-input" disabled={projectLocked} rows={4} value={issue.description} onChange={(e) => setIssue((p) => ({ ...p, description: e.target.value }))} /></label>
+                <div className="jf-row" style={{ marginTop: 6 }}>
+                    <label
+                        className="jf-file-btn"
+                        onClick={(event) => handleTakePhotoClick(event, 'issues', issueCameraInputRef)}
+                    >
+                        <Camera size={20} /> Take Photo
+                        <TextInput
+                            ref={issueCameraInputRef}
+                            key={`${issueKey}-camera`}
+                            type="file"
+                            accept="image/*"
+                            capture="environment"
+                            disabled={projectLocked}
+                            onChange={(e) => setIssue((p) => ({ ...p, photo: e.target.files?.[0] || null }))}
+                        />
+                    </label>
+                    <label className="jf-file-btn jf-file-outline"><Image size={20} /> Gallery<TextInput key={`${issueKey}-gallery`} type="file" accept="image/*" disabled={projectLocked} onChange={(e) => setIssue((p) => ({ ...p, photo: e.target.files?.[0] || null }))} /></label>
+                </div>
+                <div className="jf-note">{issue.photo?.name || 'No photo selected'}</div>
+                <div className="jf-radio-row">
+                    {['low', 'normal', 'high'].map((v) => (
+                        <label key={v}><input type="radio" name="urgency" value={v} disabled={projectLocked} checked={issue.urgency === v} onChange={(e) => setIssue((p) => ({ ...p, urgency: e.target.value }))} /> {v[0].toUpperCase() + v.slice(1)}</label>
+                    ))}
+                </div>
             </div>
             <div style={{ marginTop: 10 }}>
                 <div className="jf-small-title" style={{ fontSize: 16, marginBottom: 6 }}>Recent Issue Reports</div>
@@ -1454,7 +1488,7 @@ export default function ProgressSubmit({ submitToken }) {
                                 type="button"
                                 className="jf-card-action"
                                 title="Delete issue report"
-                                disabled={deletingIssueId === row.id}
+                                disabled={projectLocked || deletingIssueId === row.id}
                                 onClick={() => setIssueDeleteTarget(row)}
                             >
                                 <Trash2 size={16} />
@@ -1500,12 +1534,26 @@ export default function ProgressSubmit({ submitToken }) {
     );
 
     const contentByKey = {
-        attendance: sectionLoading.attendance ? skeletonSection : attendanceContent,
-        delivery: sectionLoading.delivery ? skeletonSection : deliveryContent,
-        materials: sectionLoading.materials ? skeletonSection : materialContent,
+        attendance: sectionLoading.attendance
+            ? skeletonSection
+            : (
+                <fieldset disabled={projectLocked} style={{ border: 0, margin: 0, padding: 0, minInlineSize: 0 }}>
+                    {attendanceContent}
+                </fieldset>
+            ),
+        delivery: sectionLoading.delivery
+            ? skeletonSection
+            : deliveryContent,
+        materials: sectionLoading.materials
+            ? skeletonSection
+            : materialContent,
         weekly: sectionLoading.weekly ? skeletonSection : weeklyContent,
-        photos: sectionLoading.photos ? skeletonSection : photosContent,
-        issues: sectionLoading.issues ? skeletonSection : issueContent,
+        photos: sectionLoading.photos
+            ? skeletonSection
+            : photosContent,
+        issues: sectionLoading.issues
+            ? skeletonSection
+            : issueContent,
     };
 
     return (
@@ -1571,6 +1619,7 @@ export default function ProgressSubmit({ submitToken }) {
                     .jf-skel.line{height:14px;margin:6px 0}
                     .jf-skel.box{height:38px}
                     .jf-skel.table{height:120px;margin-top:8px}
+                    .jf-locked{border:1px solid #d4cec0;background:#f5f2ea;border-radius:12px;padding:12px 14px;margin-top:12px;font-size:13px;font-weight:700;color:#7a5e2f}
                     @keyframes jf-shimmer{0%{background-position:200% 0}100%{background-position:-200% 0}}
                     @media (max-width:980px){.jf-photo-layout{grid-template-columns:1fr}}
                     @media (max-width:760px){.jf-grid2{grid-template-columns:1fr}.jf-recent-list-two{grid-template-columns:1fr}.jf-acc-title{font-size:20px}.jf-acc-head{min-height:68px}.jf-submit-btn{font-size:16px;min-height:46px}}
@@ -1587,6 +1636,11 @@ export default function ProgressSubmit({ submitToken }) {
                             </a>
                         </div>
                     </div>
+                    {projectLocked ? (
+                        <div className="jf-locked">
+                            This project is {resolvedLockStatus || 'completed'}. All inputs and submissions are locked.
+                        </div>
+                    ) : null}
 
                     {SECTIONS.map((section) => (
                         <div key={section.key} className="jf-acc">
@@ -1601,7 +1655,14 @@ export default function ProgressSubmit({ submitToken }) {
                     ))}
 
                     <div className="jf-submit-wrap">
-                        <button type="button" className="jf-submit-btn" disabled={submitting} onClick={submitAll}>{submitting ? 'Submitting...' : 'Submit All'}</button>
+                        <button
+                            type="button"
+                            className="jf-submit-btn"
+                            disabled={submitting || projectLocked}
+                            onClick={submitAll}
+                        >
+                            {submitting ? 'Submitting...' : 'Submit All'}
+                        </button>
                     </div>
                 </div>
             </div>

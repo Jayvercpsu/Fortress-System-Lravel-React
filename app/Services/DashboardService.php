@@ -992,6 +992,15 @@ class DashboardService
             ->whereIn('id', $assignedProjectIds->all())
             ->orderBy('name')
             ->get(['id', 'name', 'client', 'phase', 'status', 'overall_progress'])
+            ->filter(function (Project $project) {
+                $status = ProjectStatus::fromMixed((string) ($project->status ?? ''));
+                if (in_array($status, [ProjectStatus::COMPLETED, ProjectStatus::CANCELLED], true)) {
+                    return false;
+                }
+
+                $phase = Str::lower(trim((string) ($project->phase ?? '')));
+                return !in_array($phase, ['completed', 'complete', 'done', 'cancelled', 'canceled'], true);
+            })
             ->map(function (Project $project) use ($user) {
                 $token = $this->ensureForemanSubmitToken($project, $user);
 

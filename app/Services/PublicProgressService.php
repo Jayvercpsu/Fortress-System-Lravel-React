@@ -38,6 +38,7 @@ class PublicProgressService
     public function show(string $token)
     {
         $submitToken = $this->resolveActiveToken($token);
+        $submitToken->loadMissing('project');
         $currentWeekStart = Carbon::now('Asia/Manila')
             ->startOfWeek(Carbon::MONDAY)
             ->toDateString();
@@ -353,6 +354,8 @@ class PublicProgressService
                 'token' => $submitToken->token,
                 'project_id' => $submitToken->project_id,
                 'project_name' => $submitToken->project->name,
+                'project_phase' => $submitToken->project?->phase,
+                'project_status' => $submitToken->project?->status,
                 'foreman_name' => $submitToken->foreman->fullname,
                 'expires_at' => optional($submitToken->expires_at)?->toDateTimeString(),
                 'current_date' => Carbon::now('Asia/Manila')->toDateString(),
@@ -377,6 +380,23 @@ class PublicProgressService
     private function normalizeNameKey(string $value): string
     {
         return Str::lower(Str::squish($value));
+    }
+
+    private function ensureProjectEditable(ProgressSubmitToken $submitToken): void
+    {
+        $submitToken->loadMissing('project');
+        $phase = Str::lower(trim((string) ($submitToken->project?->phase ?? '')));
+        $status = Str::lower(trim((string) ($submitToken->project?->status ?? '')));
+        $cancelledValues = ['cancelled', 'canceled'];
+        $completedValues = ['completed', 'complete', 'done'];
+
+        if (in_array($phase, $cancelledValues, true) || in_array($status, $cancelledValues, true)) {
+            abort(403, 'This project is cancelled and no longer accepts submissions.');
+        }
+
+        if (in_array($phase, $completedValues, true) || in_array($status, $completedValues, true)) {
+            abort(403, 'This project is completed and no longer accepts submissions.');
+        }
     }
 
     public function receipt(Request $request, string $token)
@@ -572,6 +592,7 @@ class PublicProgressService
     public function store(Request $request, string $token)
     {
         $submitToken = $this->resolveActiveToken($token);
+        $this->ensureProjectEditable($submitToken);
 
         $validated = $request->validate([
             'progress_note' => ['required', 'string', 'max:2000'],
@@ -607,6 +628,7 @@ class PublicProgressService
     public function storeAll(Request $request, string $token)
     {
         $submitToken = $this->resolveActiveToken($token);
+        $this->ensureProjectEditable($submitToken);
 
         $rules = [
             'attendance_week_start' => ['nullable', 'date'],
@@ -1079,6 +1101,7 @@ class PublicProgressService
     public function storeAttendance(Request $request, string $token)
     {
         $submitToken = $this->resolveActiveToken($token);
+        $this->ensureProjectEditable($submitToken);
 
         $rules = [
             'week_start' => ['required', 'date'],
@@ -1146,6 +1169,7 @@ class PublicProgressService
     public function storeDelivery(Request $request, string $token)
     {
         $submitToken = $this->resolveActiveToken($token);
+        $this->ensureProjectEditable($submitToken);
 
         $validated = $request->validate([
             'delivery_date' => ['required', 'date'],
@@ -1207,6 +1231,7 @@ class PublicProgressService
     public function deleteDelivery(Request $request, string $token, DeliveryConfirmation $deliveryConfirmation)
     {
         $submitToken = $this->resolveActiveToken($token);
+        $this->ensureProjectEditable($submitToken);
 
         if ((int) $deliveryConfirmation->project_id !== (int) $submitToken->project_id
             || (int) $deliveryConfirmation->foreman_id !== (int) $submitToken->foreman_id) {
@@ -1234,6 +1259,7 @@ class PublicProgressService
     public function storeMaterialRequest(Request $request, string $token)
     {
         $submitToken = $this->resolveActiveToken($token);
+        $this->ensureProjectEditable($submitToken);
 
         $validated = $request->validate([
             'material_name' => ['required', 'string', 'max:255'],
@@ -1287,6 +1313,7 @@ class PublicProgressService
     public function deleteMaterialRequest(Request $request, string $token, MaterialRequest $materialRequest)
     {
         $submitToken = $this->resolveActiveToken($token);
+        $this->ensureProjectEditable($submitToken);
 
         if ((int) $materialRequest->project_id !== (int) $submitToken->project_id
             || (int) $materialRequest->foreman_id !== (int) $submitToken->foreman_id) {
@@ -1314,6 +1341,7 @@ class PublicProgressService
     public function storeWeeklyProgress(Request $request, string $token)
     {
         $submitToken = $this->resolveActiveToken($token);
+        $this->ensureProjectEditable($submitToken);
 
         $validated = $request->validate([
             'week_start' => ['required', 'date'],
@@ -1370,6 +1398,7 @@ class PublicProgressService
     public function deleteWeeklyScopePhoto(Request $request, string $token, ScopePhoto $scopePhoto)
     {
         $submitToken = $this->resolveActiveToken($token);
+        $this->ensureProjectEditable($submitToken);
         $scopePhoto->loadMissing('scope');
 
         $scope = $scopePhoto->scope;
@@ -1413,6 +1442,7 @@ class PublicProgressService
     public function storePhoto(Request $request, string $token)
     {
         $submitToken = $this->resolveActiveToken($token);
+        $this->ensureProjectEditable($submitToken);
 
         $validated = $request->validate([
             'photo' => UploadManager::imageRules(true),
@@ -1449,6 +1479,7 @@ class PublicProgressService
     public function deletePhoto(Request $request, string $token, ProgressPhoto $progressPhoto)
     {
         $submitToken = $this->resolveActiveToken($token);
+        $this->ensureProjectEditable($submitToken);
 
         if ((int) $progressPhoto->project_id !== (int) $submitToken->project_id
             || (int) $progressPhoto->foreman_id !== (int) $submitToken->foreman_id) {
@@ -1471,6 +1502,7 @@ class PublicProgressService
     public function storeIssueReport(Request $request, string $token)
     {
         $submitToken = $this->resolveActiveToken($token);
+        $this->ensureProjectEditable($submitToken);
 
         $validated = $request->validate([
             'issue_title' => ['required', 'string', 'max:255'],
@@ -1518,6 +1550,7 @@ class PublicProgressService
     public function deleteIssueReport(Request $request, string $token, IssueReport $issueReport)
     {
         $submitToken = $this->resolveActiveToken($token);
+        $this->ensureProjectEditable($submitToken);
 
         if ((int) $issueReport->project_id !== (int) $submitToken->project_id
             || (int) $issueReport->foreman_id !== (int) $submitToken->foreman_id) {
