@@ -23,6 +23,10 @@ interface BuildRepositoryInterface
 
     public function scopesWithPhotos(Project $project): Collection;
 
+    public function weeklyAccomplishmentsForProjectIds(array $projectIds): Collection;
+
+    public function weeklyScopePhotoCaptionsForProjectIds(array $projectIds): Collection;
+
     public function insertDefaultScopes(Project $project, array $scopeNames): void;
 
     public function projectForemanOptions(Project $project): array;

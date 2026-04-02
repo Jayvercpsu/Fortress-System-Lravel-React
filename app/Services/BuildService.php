@@ -9,6 +9,8 @@ use App\Models\User;
 use App\Models\WeeklyAccomplishment;
 use App\Repositories\Contracts\BuildRepositoryInterface;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
+use Illuminate\Support\Str;
 
 class BuildService
 {
@@ -118,6 +120,8 @@ class BuildService
             ])
             ->values();
 
+        $weeklyHistory = $this->buildWeeklyHistoryPayload($project, $scopes);
+
         $payload['total_expenses'] = $expenseTotal;
         $payload['remaining_budget'] = $totalClientPayment - $expenseTotal;
         $payload['budget_vs_actual'] = $constructionContract - $expenseTotal;
@@ -149,6 +153,7 @@ class BuildService
                 ],
                 'scopes' => $scopes,
                 'foreman_options' => $this->buildRepository->projectForemanOptions($project),
+                'weekly_history' => $weeklyHistory,
             ],
         ];
     }
@@ -174,5 +179,120 @@ class BuildService
     private function defaultConstructionScopes(): array
     {
         return WeeklyAccomplishment::defaultScopeOfWorks();
+    }
+
+    private function buildWeeklyHistoryPayload(Project $project, iterable $scopeRows): array
+    {
+        $familyProjectIds = $this->resolveHistoryProjectIds($project);
+        $weeklyRows = $this->buildRepository->weeklyAccomplishmentsForProjectIds($familyProjectIds);
+        $scopePhotoCaptions = $this->buildRepository->weeklyScopePhotoCaptionsForProjectIds($familyProjectIds);
+
+        $scopeNameByKey = collect($scopeRows)
+            ->mapWithKeys(function (array $scope): array {
+                $scopeName = trim((string) ($scope['scope_name'] ?? ''));
+                if ($scopeName === '') {
+                    return [];
+                }
+
+                return [Str::lower($scopeName) => $scopeName];
+            })
+            ->all();
+
+        $scopeKeysInOrder = collect($scopeRows)
+            ->map(fn (array $scope) => Str::lower(trim((string) ($scope['scope_name'] ?? ''))))
+            ->filter(fn (string $scopeKey) => $scopeKey !== '')
+            ->values()
+            ->all();
+
+        $scopeProgressByWeek = [];
+        $weekStarts = collect();
+
+        foreach ($weeklyRows as $row) {
+            $weekStart = $row->week_start
+                ? Carbon::parse((string) $row->week_start)->startOfWeek(Carbon::MONDAY)->toDateString()
+                : null;
+            $scopeName = trim((string) ($row->scope_of_work ?? ''));
+            if ($weekStart === null || $scopeName === '') {
+                continue;
+            }
+
+            $scopeKey = Str::lower($scopeName);
+            if (!isset($scopeNameByKey[$scopeKey])) {
+                $scopeNameByKey[$scopeKey] = $scopeName;
+                $scopeKeysInOrder[] = $scopeKey;
+            }
+
+            if (!isset($scopeProgressByWeek[$weekStart])) {
+                $scopeProgressByWeek[$weekStart] = [];
+            }
+
+            $scopeProgressByWeek[$weekStart][$scopeKey] = round((float) ($row->percent_completed ?? 0), 2);
+            $weekStarts->push($weekStart);
+        }
+
+        $scopePhotoCaptions
+            ->map(fn ($caption) => $this->extractWeekStartFromCaption($caption))
+            ->filter()
+            ->each(fn (string $weekStart) => $weekStarts->push($weekStart));
+
+        $currentWeekStart = Carbon::now('Asia/Manila')->startOfWeek(Carbon::MONDAY)->toDateString();
+        $weekStarts->push($currentWeekStart);
+
+        $orderedWeekStarts = $weekStarts
+            ->unique()
+            ->sort()
+            ->values()
+            ->all();
+
+        $expandedWeeklyHistory = [];
+        $carryByScope = [];
+
+        foreach ($orderedWeekStarts as $weekStart) {
+            $explicitWeekProgress = $scopeProgressByWeek[$weekStart] ?? [];
+            $carryByScope = array_merge($carryByScope, $explicitWeekProgress);
+            $expandedWeeklyHistory[$weekStart] = $carryByScope;
+        }
+
+        return [
+            'week_starts' => $orderedWeekStarts,
+            'latest_week_start' => !empty($orderedWeekStarts) ? (string) collect($orderedWeekStarts)->last() : null,
+            'current_week_start' => $currentWeekStart,
+            'scope_keys_in_order' => $scopeKeysInOrder,
+            'scope_name_by_key' => $scopeNameByKey,
+            'scope_progress_by_week' => $expandedWeeklyHistory,
+        ];
+    }
+
+    private function resolveHistoryProjectIds(Project $project): array
+    {
+        $rootProjectId = $project->source_project_id ? (int) $project->source_project_id : (int) $project->id;
+
+        return Project::query()
+            ->where(function ($query) use ($rootProjectId) {
+                $query->where('id', $rootProjectId)
+                    ->orWhere('source_project_id', $rootProjectId);
+            })
+            ->pluck('id')
+            ->map(fn ($id) => (int) $id)
+            ->filter()
+            ->unique()
+            ->values()
+            ->all();
+    }
+
+    private function extractWeekStartFromCaption(?string $caption): ?string
+    {
+        $value = trim((string) $caption);
+        if ($value === '') {
+            return null;
+        }
+
+        if (preg_match('/Week:\\s*(\\d{4}-\\d{2}-\\d{2})/i', $value, $matches) !== 1) {
+            return null;
+        }
+
+        return Carbon::parse((string) $matches[1])
+            ->startOfWeek(Carbon::MONDAY)
+            ->toDateString();
     }
 }

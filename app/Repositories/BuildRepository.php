@@ -8,7 +8,9 @@ use App\Models\Material;
 use App\Models\Project;
 use App\Models\ProjectAssignment;
 use App\Models\ProjectScope;
+use App\Models\ScopePhoto;
 use App\Models\User;
+use App\Models\WeeklyAccomplishment;
 use App\Repositories\Contracts\BuildRepositoryInterface;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Collection;
@@ -104,6 +106,46 @@ class BuildRepository implements BuildRepositoryInterface
         }
 
         return $query->get();
+    }
+
+    public function weeklyAccomplishmentsForProjectIds(array $projectIds): Collection
+    {
+        $normalizedIds = collect($projectIds)
+            ->map(fn ($id) => (int) $id)
+            ->filter()
+            ->unique()
+            ->values()
+            ->all();
+
+        if (empty($normalizedIds)) {
+            return collect();
+        }
+
+        return WeeklyAccomplishment::query()
+            ->whereIn('project_id', $normalizedIds)
+            ->whereNotNull('week_start')
+            ->orderBy('week_start')
+            ->orderBy('updated_at')
+            ->orderBy('id')
+            ->get(['id', 'project_id', 'week_start', 'scope_of_work', 'percent_completed', 'updated_at']);
+    }
+
+    public function weeklyScopePhotoCaptionsForProjectIds(array $projectIds): Collection
+    {
+        $normalizedIds = collect($projectIds)
+            ->map(fn ($id) => (int) $id)
+            ->filter()
+            ->unique()
+            ->values()
+            ->all();
+
+        if (empty($normalizedIds)) {
+            return collect();
+        }
+
+        return ScopePhoto::query()
+            ->whereHas('scope', fn ($query) => $query->whereIn('project_id', $normalizedIds))
+            ->pluck('caption');
     }
 
     public function insertDefaultScopes(Project $project, array $scopeNames): void

@@ -131,6 +131,7 @@ export default function AdminBuildShow({
     const monitoringProject = monitoring?.project ?? null;
     const monitoringScopes = monitoring?.scopes ?? [];
     const monitoringForemen = monitoring?.foreman_options ?? [];
+    const monitoringWeeklyHistory = monitoring?.weekly_history ?? {};
 
     useEffect(() => {
         const url = new URL(window.location.href);
@@ -416,6 +417,7 @@ export default function AdminBuildShow({
                                     project={monitoringProject}
                                     scopes={monitoringScopes}
                                     foreman_options={monitoringForemen}
+                                    weekly_history={monitoringWeeklyHistory}
                                     readOnly={isLocked}
                                 />
                             </div>

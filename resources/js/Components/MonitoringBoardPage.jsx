@@ -42,11 +42,55 @@ const weightedScopePercent = (weightPercent, progressPercent, computedPercent) =
     return ((Number(weightPercent) || 0) * clampPercent(progressPercent)) / 100;
 };
 const formatPercent = (value, maxDecimals = 2) => `${Number(value || 0).toFixed(maxDecimals)}%`;
+const normalizeScopeKey = (value) => String(value || '').trim().toLowerCase();
+const normalizeToMonday = (value) => {
+    const text = String(value || '').trim();
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(text)) return '';
+    const [year, month, day] = text.split('-').map((part) => Number(part));
+    if ([year, month, day].some((part) => Number.isNaN(part))) return '';
+    const date = new Date(year, month - 1, day);
+    if (Number.isNaN(date.getTime())) return '';
+    const mondayOffset = (date.getDay() + 6) % 7;
+    date.setDate(date.getDate() - mondayOffset);
+    const normalizedYear = date.getFullYear();
+    const normalizedMonth = String(date.getMonth() + 1).padStart(2, '0');
+    const normalizedDay = String(date.getDate()).padStart(2, '0');
+    return `${normalizedYear}-${normalizedMonth}-${normalizedDay}`;
+};
+const formatWeekLabel = (value) => {
+    const text = String(value || '').trim();
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(text)) return '-';
+    const [year, month, day] = text.split('-').map((part) => Number(part));
+    if ([year, month, day].some((part) => Number.isNaN(part))) return text;
+    const date = new Date(year, month - 1, day);
+    if (Number.isNaN(date.getTime())) return text;
+    return date.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
+};
+const formatSignedPercent = (value) => {
+    const numeric = Number(value || 0);
+    const prefix = numeric > 0 ? '+' : '';
+    return `${prefix}${numeric.toFixed(2)}%`;
+};
+const formatSignedMoney = (value) => {
+    const numeric = Number(value || 0);
+    const prefix = numeric > 0 ? '+' : '';
+    return `${prefix}${money(numeric)}`;
+};
+const currentMonday = () => {
+    const date = new Date();
+    const mondayOffset = (date.getDay() + 6) % 7;
+    date.setDate(date.getDate() - mondayOffset);
+    const normalizedYear = date.getFullYear();
+    const normalizedMonth = String(date.getMonth() + 1).padStart(2, '0');
+    const normalizedDay = String(date.getDate()).padStart(2, '0');
+    return `${normalizedYear}-${normalizedMonth}-${normalizedDay}`;
+};
 
 export default function MonitoringBoardPage({
     project,
     scopes = [],
     foreman_options: foremanOptions = [],
+    weekly_history: weeklyHistory = {},
     embedded = false,
     readOnly = false,
 }) {
@@ -69,6 +113,8 @@ export default function MonitoringBoardPage({
     const [scopePage, setScopePage] = useState(1);
     const [scopePerPage, setScopePerPage] = useState(10);
     const [scopeTableLoading, setScopeTableLoading] = useState(false);
+    const [showHistoryModal, setShowHistoryModal] = useState(false);
+    const [historyWeekStart, setHistoryWeekStart] = useState('');
     const showBackButton = !embedded;
     useEffect(() => {
         setOrderedScopes(Array.isArray(scopes) ? scopes : []);
@@ -87,6 +133,175 @@ export default function MonitoringBoardPage({
             })
             .filter(Boolean);
     }, [foremanOptions]);
+
+    const historyProgressByWeek = useMemo(() => {
+        const source = weeklyHistory?.scope_progress_by_week && typeof weeklyHistory.scope_progress_by_week === 'object'
+            ? weeklyHistory.scope_progress_by_week
+            : {};
+
+        return Object.entries(source).reduce((acc, [weekKey, scopesByWeek]) => {
+            const normalizedWeek = normalizeToMonday(weekKey);
+            if (!normalizedWeek || !scopesByWeek || typeof scopesByWeek !== 'object') return acc;
+
+            const normalizedScopes = Object.entries(scopesByWeek).reduce((scopeAcc, [scopeKey, percent]) => {
+                const normalizedKey = normalizeScopeKey(scopeKey);
+                if (!normalizedKey) return scopeAcc;
+                scopeAcc[normalizedKey] = Number(percent || 0);
+                return scopeAcc;
+            }, {});
+
+            acc[normalizedWeek] = normalizedScopes;
+            return acc;
+        }, {});
+    }, [weeklyHistory?.scope_progress_by_week]);
+
+    const historyWeekStarts = useMemo(() => {
+        const weekStartsFromPayload = Array.isArray(weeklyHistory?.week_starts)
+            ? weeklyHistory.week_starts
+            : [];
+
+        return Array.from(new Set([
+            ...weekStartsFromPayload.map((week) => normalizeToMonday(week)).filter(Boolean),
+            ...Object.keys(historyProgressByWeek).map((week) => normalizeToMonday(week)).filter(Boolean),
+        ])).sort();
+    }, [weeklyHistory?.week_starts, historyProgressByWeek]);
+
+    const effectiveHistoryWeekStarts = useMemo(() => (
+        historyWeekStarts.length > 0 ? historyWeekStarts : [currentMonday()]
+    ), [historyWeekStarts]);
+
+    const historyScopeNameByKey = useMemo(() => {
+        const fromPayload = weeklyHistory?.scope_name_by_key && typeof weeklyHistory.scope_name_by_key === 'object'
+            ? weeklyHistory.scope_name_by_key
+            : {};
+
+        return Object.entries(fromPayload).reduce((acc, [scopeKey, scopeName]) => {
+            const normalizedKey = normalizeScopeKey(scopeKey);
+            const normalizedName = String(scopeName || '').trim();
+            if (!normalizedKey || normalizedName === '') return acc;
+            acc[normalizedKey] = normalizedName;
+            return acc;
+        }, {});
+    }, [weeklyHistory?.scope_name_by_key]);
+
+    const historyScopeWeightByKey = useMemo(() => (
+        orderedScopes.reduce((acc, scope) => {
+            const key = normalizeScopeKey(scope?.scope_name);
+            if (!key) return acc;
+            acc[key] = Number(scope?.weight_percent || 0);
+            return acc;
+        }, {})
+    ), [orderedScopes]);
+
+    const historyScopeContractByKey = useMemo(() => (
+        orderedScopes.reduce((acc, scope) => {
+            const key = normalizeScopeKey(scope?.scope_name);
+            if (!key) return acc;
+            acc[key] = Number(scope?.contract_amount || 0);
+            return acc;
+        }, {})
+    ), [orderedScopes]);
+
+    const historyScopeKeysInOrder = useMemo(() => {
+        const payloadKeys = Array.isArray(weeklyHistory?.scope_keys_in_order)
+            ? weeklyHistory.scope_keys_in_order
+            : [];
+
+        const orderedScopeKeys = orderedScopes
+            .map((scope) => normalizeScopeKey(scope?.scope_name))
+            .filter(Boolean);
+
+        return Array.from(new Set([
+            ...orderedScopeKeys,
+            ...payloadKeys.map((scopeKey) => normalizeScopeKey(scopeKey)).filter(Boolean),
+            ...Object.values(historyProgressByWeek).flatMap((weekMap) => Object.keys(weekMap || {})),
+        ]));
+    }, [weeklyHistory?.scope_keys_in_order, orderedScopes, historyProgressByWeek]);
+
+    useEffect(() => {
+        const preferredWeekStart = normalizeToMonday(weeklyHistory?.latest_week_start)
+            || effectiveHistoryWeekStarts[effectiveHistoryWeekStarts.length - 1];
+
+        setHistoryWeekStart((previous) => (
+            effectiveHistoryWeekStarts.includes(previous) ? previous : preferredWeekStart
+        ));
+    }, [effectiveHistoryWeekStarts, weeklyHistory?.latest_week_start]);
+
+    const activeHistoryWeekStart = effectiveHistoryWeekStarts.includes(historyWeekStart)
+        ? historyWeekStart
+        : (effectiveHistoryWeekStarts[effectiveHistoryWeekStarts.length - 1] || '');
+
+    const activeHistoryWeekIndex = effectiveHistoryWeekStarts.findIndex((week) => week === activeHistoryWeekStart);
+    const previousHistoryWeekStart = activeHistoryWeekIndex > 0 ? effectiveHistoryWeekStarts[activeHistoryWeekIndex - 1] : '';
+    const nextHistoryWeekStart = activeHistoryWeekIndex >= 0 && activeHistoryWeekIndex < effectiveHistoryWeekStarts.length - 1
+        ? effectiveHistoryWeekStarts[activeHistoryWeekIndex + 1]
+        : '';
+
+    const activeHistoryWeekMap = historyProgressByWeek[activeHistoryWeekStart] || {};
+    const previousHistoryWeekMap = previousHistoryWeekStart ? (historyProgressByWeek[previousHistoryWeekStart] || {}) : {};
+
+    const historyRows = useMemo(() => (
+        historyScopeKeysInOrder.map((scopeKey) => {
+            const displayName = historyScopeNameByKey[scopeKey]
+                || orderedScopes.find((scope) => normalizeScopeKey(scope?.scope_name) === scopeKey)?.scope_name
+                || scopeKey;
+            const weightPercent = Number(historyScopeWeightByKey[scopeKey] || 0);
+            const contractAmount = Number(historyScopeContractByKey[scopeKey] || 0);
+            const currentProgress = Number(activeHistoryWeekMap[scopeKey] || 0);
+            const previousProgress = Number(previousHistoryWeekMap[scopeKey] || 0);
+            const currentWeighted = Number(((weightPercent * currentProgress) / 100).toFixed(2));
+            const previousWeighted = Number(((weightPercent * previousProgress) / 100).toFixed(2));
+            const currentAmount = Number(((contractAmount * currentProgress) / 100).toFixed(2));
+            const previousAmount = Number(((contractAmount * previousProgress) / 100).toFixed(2));
+
+            return {
+                scope_key: scopeKey,
+                scope_name: displayName,
+                weight_percent: weightPercent,
+                contract_amount: contractAmount,
+                current_progress: currentProgress,
+                previous_progress: previousProgress,
+                delta_progress: Number((currentProgress - previousProgress).toFixed(2)),
+                current_weighted: currentWeighted,
+                previous_weighted: previousWeighted,
+                delta_weighted: Number((currentWeighted - previousWeighted).toFixed(2)),
+                current_amount: currentAmount,
+                previous_amount: previousAmount,
+                delta_amount: Number((currentAmount - previousAmount).toFixed(2)),
+            };
+        })
+    ), [
+        historyScopeKeysInOrder,
+        historyScopeNameByKey,
+        orderedScopes,
+        historyScopeWeightByKey,
+        historyScopeContractByKey,
+        activeHistoryWeekMap,
+        previousHistoryWeekMap,
+    ]);
+
+    const historySummary = useMemo(() => {
+        const totals = historyRows.reduce((acc, row) => ({
+            currentWeighted: acc.currentWeighted + row.current_weighted,
+            previousWeighted: acc.previousWeighted + row.previous_weighted,
+            currentAmount: acc.currentAmount + row.current_amount,
+            previousAmount: acc.previousAmount + row.previous_amount,
+        }), {
+            currentWeighted: 0,
+            previousWeighted: 0,
+            currentAmount: 0,
+            previousAmount: 0,
+        });
+
+        return {
+            currentWeighted: Number(totals.currentWeighted.toFixed(2)),
+            previousWeighted: Number(totals.previousWeighted.toFixed(2)),
+            deltaWeighted: Number((totals.currentWeighted - totals.previousWeighted).toFixed(2)),
+            currentAmount: Number(totals.currentAmount.toFixed(2)),
+            previousAmount: Number(totals.previousAmount.toFixed(2)),
+            deltaAmount: Number((totals.currentAmount - totals.previousAmount).toFixed(2)),
+        };
+    }, [historyRows]);
 
     const {
         data: createData,
@@ -398,6 +613,24 @@ export default function MonitoringBoardPage({
         );
     };
 
+    const openHistoryModal = () => {
+        setShowHistoryModal(true);
+    };
+
+    const closeHistoryModal = () => {
+        setShowHistoryModal(false);
+    };
+
+    const goToPreviousHistoryWeek = () => {
+        if (!previousHistoryWeekStart) return;
+        setHistoryWeekStart(previousHistoryWeekStart);
+    };
+
+    const goToNextHistoryWeek = () => {
+        if (!nextHistoryWeekStart) return;
+        setHistoryWeekStart(nextHistoryWeekStart);
+    };
+
     const content = (
         <>
             {showBackButton && (
@@ -425,7 +658,14 @@ export default function MonitoringBoardPage({
                         <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 4 }}>Status</div>
                         <div style={{ fontWeight: 700 }}>{project.status}</div>
                     </div>
-                    <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                    <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, flexWrap: 'wrap' }}>
+                        <ActionButton
+                            type="button"
+                            onClick={openHistoryModal}
+                            style={{ padding: '8px 12px', fontSize: 12 }}
+                        >
+                            Show History
+                        </ActionButton>
                         <ActionButton
                             type="button"
                             onClick={openSortModal}
@@ -1067,6 +1307,216 @@ export default function MonitoringBoardPage({
                     onClose={closeDeletePhoto}
                     onConfirm={confirmDeletePhoto}
                 />
+                <Modal
+                    open={showHistoryModal}
+                    onClose={closeHistoryModal}
+                    title="Weekly Progress History Comparison"
+                    maxWidth={1200}
+                >
+                    <div style={{ display: 'grid', gap: 14 }}>
+                        <div
+                            style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'space-between',
+                                gap: 10,
+                                flexWrap: 'wrap',
+                                padding: 12,
+                                borderRadius: 10,
+                                border: '1px solid var(--border-color)',
+                                background: 'var(--surface-2)',
+                            }}
+                        >
+                            <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+                                <ActionButton
+                                    type="button"
+                                    onClick={goToPreviousHistoryWeek}
+                                    disabled={!previousHistoryWeekStart}
+                                    style={{ padding: '8px 12px', fontSize: 12 }}
+                                >
+                                    Prev Week
+                                </ActionButton>
+                                <ActionButton
+                                    type="button"
+                                    onClick={goToNextHistoryWeek}
+                                    disabled={!nextHistoryWeekStart}
+                                    style={{ padding: '8px 12px', fontSize: 12 }}
+                                >
+                                    Next Week
+                                </ActionButton>
+                            </div>
+
+                            <div style={{ minWidth: 240 }}>
+                                <SelectInput
+                                    value={activeHistoryWeekStart}
+                                    onChange={(event) => setHistoryWeekStart(event.target.value)}
+                                    style={{ ...inputStyle, padding: '8px 10px' }}
+                                >
+                                    {effectiveHistoryWeekStarts.map((weekStart) => (
+                                        <option key={weekStart} value={weekStart}>
+                                            {`${formatWeekLabel(weekStart)} (${weekStart})`}
+                                        </option>
+                                    ))}
+                                </SelectInput>
+                            </div>
+                        </div>
+
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 10 }}>
+                            <div style={{ ...cardStyle, padding: 12 }}>
+                                <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 4 }}>
+                                    Selected Week
+                                </div>
+                                <div style={{ fontWeight: 700, fontSize: 14 }}>{formatWeekLabel(activeHistoryWeekStart)}</div>
+                                <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{activeHistoryWeekStart || '-'}</div>
+                            </div>
+                            <div style={{ ...cardStyle, padding: 12 }}>
+                                <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 4 }}>
+                                    Compared Week
+                                </div>
+                                <div style={{ fontWeight: 700, fontSize: 14 }}>
+                                    {previousHistoryWeekStart ? formatWeekLabel(previousHistoryWeekStart) : 'No previous week'}
+                                </div>
+                                <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{previousHistoryWeekStart || '-'}</div>
+                            </div>
+                            <div style={{ ...cardStyle, padding: 12 }}>
+                                <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 4 }}>
+                                    Weighted Progress
+                                </div>
+                                <div style={{ fontWeight: 700, fontSize: 16 }}>{formatPercent(historySummary.currentWeighted)}</div>
+                                <div
+                                    style={{
+                                        fontSize: 12,
+                                        color: historySummary.deltaWeighted >= 0 ? '#16a34a' : '#dc2626',
+                                        marginTop: 2,
+                                    }}
+                                >
+                                    {formatSignedPercent(historySummary.deltaWeighted)} vs previous
+                                </div>
+                            </div>
+                            <div style={{ ...cardStyle, padding: 12 }}>
+                                <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 4 }}>
+                                    Accomplishment Amount
+                                </div>
+                                <div style={{ fontWeight: 700, fontSize: 16 }}>{money(historySummary.currentAmount)}</div>
+                                <div
+                                    style={{
+                                        fontSize: 12,
+                                        color: historySummary.deltaAmount >= 0 ? '#16a34a' : '#dc2626',
+                                        marginTop: 2,
+                                    }}
+                                >
+                                    {formatSignedMoney(historySummary.deltaAmount)} vs previous
+                                </div>
+                            </div>
+                        </div>
+
+                        <div style={{ border: '1px solid var(--border-color)', borderRadius: 10, overflow: 'hidden' }}>
+                            <div style={{ maxHeight: 430, overflow: 'auto' }}>
+                                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+                                    <thead>
+                                        <tr>
+                                            {[
+                                                'Scope',
+                                                'Weight',
+                                                'Prev %',
+                                                'Current %',
+                                                'Delta %',
+                                                'Prev WT %',
+                                                'Current WT %',
+                                                'Delta WT %',
+                                                'Prev Accomp Amount',
+                                                'Current Accomp Amount',
+                                                'Delta Amount',
+                                            ].map((label) => (
+                                                <th
+                                                    key={label}
+                                                    style={{
+                                                        textAlign: 'left',
+                                                        borderBottom: '1px solid var(--border-color)',
+                                                        padding: '10px 8px',
+                                                        fontSize: 12,
+                                                        color: 'var(--text-muted)',
+                                                        fontWeight: 600,
+                                                        whiteSpace: 'nowrap',
+                                                        background: 'var(--surface-1)',
+                                                        position: 'sticky',
+                                                        top: 0,
+                                                        zIndex: 1,
+                                                    }}
+                                                >
+                                                    {label}
+                                                </th>
+                                            ))}
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {historyRows.map((row) => (
+                                            <tr key={row.scope_key}>
+                                                <td style={{ padding: '10px 8px', borderBottom: '1px solid var(--border-color)', minWidth: 220 }}>
+                                                    {row.scope_name}
+                                                </td>
+                                                <td style={{ padding: '10px 8px', borderBottom: '1px solid var(--border-color)', whiteSpace: 'nowrap' }}>
+                                                    {formatPercent(row.weight_percent)}
+                                                </td>
+                                                <td style={{ padding: '10px 8px', borderBottom: '1px solid var(--border-color)', whiteSpace: 'nowrap' }}>
+                                                    {formatPercent(row.previous_progress)}
+                                                </td>
+                                                <td style={{ padding: '10px 8px', borderBottom: '1px solid var(--border-color)', whiteSpace: 'nowrap', fontWeight: 600 }}>
+                                                    {formatPercent(row.current_progress)}
+                                                </td>
+                                                <td
+                                                    style={{
+                                                        padding: '10px 8px',
+                                                        borderBottom: '1px solid var(--border-color)',
+                                                        whiteSpace: 'nowrap',
+                                                        color: row.delta_progress >= 0 ? '#16a34a' : '#dc2626',
+                                                        fontWeight: 600,
+                                                    }}
+                                                >
+                                                    {formatSignedPercent(row.delta_progress)}
+                                                </td>
+                                                <td style={{ padding: '10px 8px', borderBottom: '1px solid var(--border-color)', whiteSpace: 'nowrap' }}>
+                                                    {formatPercent(row.previous_weighted)}
+                                                </td>
+                                                <td style={{ padding: '10px 8px', borderBottom: '1px solid var(--border-color)', whiteSpace: 'nowrap', fontWeight: 600 }}>
+                                                    {formatPercent(row.current_weighted)}
+                                                </td>
+                                                <td
+                                                    style={{
+                                                        padding: '10px 8px',
+                                                        borderBottom: '1px solid var(--border-color)',
+                                                        whiteSpace: 'nowrap',
+                                                        color: row.delta_weighted >= 0 ? '#16a34a' : '#dc2626',
+                                                        fontWeight: 600,
+                                                    }}
+                                                >
+                                                    {formatSignedPercent(row.delta_weighted)}
+                                                </td>
+                                                <td style={{ padding: '10px 8px', borderBottom: '1px solid var(--border-color)', whiteSpace: 'nowrap' }}>
+                                                    {money(row.previous_amount)}
+                                                </td>
+                                                <td style={{ padding: '10px 8px', borderBottom: '1px solid var(--border-color)', whiteSpace: 'nowrap', fontWeight: 600 }}>
+                                                    {money(row.current_amount)}
+                                                </td>
+                                                <td
+                                                    style={{
+                                                        padding: '10px 8px',
+                                                        borderBottom: '1px solid var(--border-color)',
+                                                        whiteSpace: 'nowrap',
+                                                        color: row.delta_amount >= 0 ? '#16a34a' : '#dc2626',
+                                                        fontWeight: 600,
+                                                    }}
+                                                >
+                                                    {formatSignedMoney(row.delta_amount)}
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </Modal>
                 <Modal
                     open={showSortModal}
                     onClose={closeSortModal}
