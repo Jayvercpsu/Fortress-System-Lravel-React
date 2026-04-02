@@ -42,7 +42,8 @@ class ProjectObserver
         }
 
         if (
-            $project->wasChanged('overall_progress')
+            config('fortress.auto_complete_project_on_progress', false)
+            && $project->wasChanged('overall_progress')
             && (int) $project->overall_progress >= 100
             && $project->status !== (string) config('fortress.project_status_completed', ProjectStatus::COMPLETED->value)
         ) {
