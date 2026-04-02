@@ -2397,7 +2397,6 @@ export default function MonitoringBoardIndexPage({
                         <div style={{ ...boardPanel, display: 'grid', gap: 12 }}>
                             <div style={{ fontWeight: 600 }}>Design Computation Snapshot</div>
                             <div style={{ fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.4 }}>
-                                These values mirror the Design Tracker computations so you can review progress and collections while adding an entry.
                             </div>
 
                             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 12 }}>
@@ -2860,7 +2859,6 @@ export default function MonitoringBoardIndexPage({
                     <div style={{ ...boardPanel, display: 'grid', gap: 12 }}>
                         <div style={{ fontWeight: 600 }}>Design Computation Snapshot</div>
                         <div style={{ fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.4 }}>
-                            This section mirrors the Design Tracker computations for easy reference while editing.
                         </div>
 
                         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 12 }}>
