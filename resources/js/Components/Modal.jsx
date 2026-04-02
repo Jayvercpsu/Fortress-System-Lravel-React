@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 
-export default function Modal({ open, onClose, title, children, maxWidth = 960 }) {
+export default function Modal({ open, onClose, title, headerContent, children, maxWidth = 960 }) {
     useEffect(() => {
         if (!open) return;
 
@@ -75,6 +75,18 @@ export default function Modal({ open, onClose, title, children, maxWidth = 960 }
                         Close
                     </button>
                 </div>
+
+                {headerContent ? (
+                    <div
+                        style={{
+                            padding: '10px 14px',
+                            borderBottom: '1px solid var(--border-color)',
+                            background: 'var(--surface-1)',
+                        }}
+                    >
+                        {headerContent}
+                    </div>
+                ) : null}
 
                 <div style={{ padding: 14, overflow: 'auto' }}>{children}</div>
             </div>

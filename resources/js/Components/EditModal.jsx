@@ -6,6 +6,7 @@ export default function EditModal({
     onClose,
     title,
     description,
+    headerContent,
     onSubmit,
     submitLabel = 'Save',
     cancelLabel = 'Cancel',
@@ -14,7 +15,7 @@ export default function EditModal({
     children,
 }) {
     return (
-        <Modal open={open} onClose={onClose} title={title} maxWidth={maxWidth}>
+        <Modal open={open} onClose={onClose} title={title} headerContent={headerContent} maxWidth={maxWidth}>
             <form onSubmit={onSubmit} style={{ display: 'grid', gap: 14 }}>
                 {description ? <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>{description}</div> : null}
                 {children}

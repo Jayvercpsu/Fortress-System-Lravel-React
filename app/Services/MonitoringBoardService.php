@@ -75,6 +75,12 @@ class MonitoringBoardService
                 'date_paid' => optional($item->date_paid)?->toDateString(),
                 'progress_percent' => (int) $item->progress_percent,
                 'remarks' => $item->remarks,
+                'design_contract_amount' => $item->design_contract_amount,
+                'downpayment' => $item->downpayment,
+                'total_received' => $item->total_received,
+                'office_payroll_deduction' => $item->office_payroll_deduction,
+                'client_approval_status' => $item->client_approval_status,
+                'design_computation_basis' => $item->design_computation_basis,
                 'project_id' => $item->project_id,
                 'project_deleted' => $item->project_id ? !isset($existingProjectLookup[$item->project_id]) : false,
                 'converted_at' => optional($item->converted_at)?->toDateTimeString(),
@@ -185,6 +191,50 @@ class MonitoringBoardService
 
         $progress = is_numeric($validated['progress_percent'] ?? null) ? (int) $validated['progress_percent'] : 0;
         $validated['progress_percent'] = max(0, min(100, $progress));
+
+        $validated['design_contract_amount'] = is_numeric($validated['design_contract_amount'] ?? null)
+            ? (float) $validated['design_contract_amount']
+            : null;
+        $validated['downpayment'] = is_numeric($validated['downpayment'] ?? null)
+            ? (float) $validated['downpayment']
+            : null;
+        $validated['total_received'] = is_numeric($validated['total_received'] ?? null)
+            ? (float) $validated['total_received']
+            : null;
+        $validated['office_payroll_deduction'] = is_numeric($validated['office_payroll_deduction'] ?? null)
+            ? (float) $validated['office_payroll_deduction']
+            : null;
+        $validated['client_approval_status'] = trim((string) ($validated['client_approval_status'] ?? ''));
+        if ($validated['client_approval_status'] === '') {
+            $validated['client_approval_status'] = null;
+        }
+
+        if (array_key_exists('design_computation_basis', $validated)) {
+            if (!is_array($validated['design_computation_basis'])) {
+                $validated['design_computation_basis'] = null;
+            } else {
+                $sanitizedBasis = [];
+                foreach ($validated['design_computation_basis'] as $row) {
+                    if (!is_array($row)) {
+                        continue;
+                    }
+                    $label = trim((string) ($row['label'] ?? ''));
+                    $percent = is_numeric($row['percent'] ?? null) ? (float) $row['percent'] : 0;
+                    $progress = is_numeric($row['progress'] ?? null) ? (float) $row['progress'] : 0;
+                    $key = trim((string) ($row['key'] ?? ''));
+                    $entry = [
+                        'label' => $label,
+                        'percent' => $percent,
+                        'progress' => $progress,
+                    ];
+                    if ($key !== '') {
+                        $entry['key'] = $key;
+                    }
+                    $sanitizedBasis[] = $entry;
+                }
+                $validated['design_computation_basis'] = $sanitizedBasis;
+            }
+        }
 
         return $validated;
     }

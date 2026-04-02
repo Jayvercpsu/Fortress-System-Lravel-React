@@ -14,6 +14,7 @@ import toast from 'react-hot-toast';
 import { Check, Lock, Trash2, User as UserIcon } from 'lucide-react';
 import OptimizedImage from './OptimizedImage';
 import { toastMessages } from '../constants/toastMessages';
+import { DESIGN_COMPUTATION_BASIS } from '../Utils/designComputation';
 
 const inputStyle = {
     width: '100%',
@@ -240,7 +241,7 @@ const normalizeStatus = (status, fallback) => {
 const normalizeProgressValue = (value) => {
     const numeric = Number(value);
     if (!Number.isFinite(numeric)) return 0;
-    return Math.max(0, Math.min(100, Math.round(numeric)));
+    return Math.max(0, Math.min(100, round2(numeric)));
 };
 
 const parseTimelineRange = (value) => {
@@ -283,7 +284,7 @@ const sortDirectionOptions = [
 const getSortValue = (row, key) => {
     const raw = row?.[key];
     if (key === 'progress_percent') {
-        const numeric = Number(raw);
+        const numeric = Number(row?.computed_progress ?? raw);
         return Number.isFinite(numeric) ? numeric : null;
     }
     if (key === 'created_at') {
@@ -334,6 +335,15 @@ const getStatusBadgeStyle = (statusValue) => {
 };
 
 const formatDate = (value) => (value ? String(value) : '-');
+const round2 = (value) => {
+    const numeric = Number(value);
+    if (!Number.isFinite(numeric)) return 0;
+    return Math.round((numeric + Number.EPSILON) * 100) / 100;
+};
+const formatPercent2 = (value) =>
+    round2(value).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const money = (value) =>
+    `P ${round2(value).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 const getInitials = (value) => {
     const parts = String(value || '')
         .trim()
@@ -342,6 +352,125 @@ const getInitials = (value) => {
         .slice(0, 2);
     if (parts.length === 0) return 'NA';
     return parts.map((part) => part.charAt(0).toUpperCase()).join('');
+};
+
+const basisEditableHeaderStyle = {
+    display: 'grid',
+    gridTemplateColumns: 'minmax(0, 1fr) 90px 120px 90px 80px 130px 60px',
+    gap: 10,
+    fontSize: 11,
+    fontWeight: 700,
+    color: 'var(--text-muted)',
+    textTransform: 'uppercase',
+    letterSpacing: 0.3,
+    padding: '4px 0',
+};
+
+const basisEditableRowStyle = {
+    display: 'grid',
+    gridTemplateColumns: 'minmax(0, 1fr) 90px 120px 90px 80px 130px 60px',
+    gap: 10,
+    alignItems: 'center',
+    fontSize: 12,
+    padding: '6px 0',
+    borderTop: '1px solid rgba(148, 163, 184, 0.12)',
+};
+
+const milestoneTextStyle = {
+    lineHeight: 1.35,
+};
+
+const modalTabContainerStyle = {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: 6,
+    padding: 4,
+    borderRadius: 999,
+    border: '1px solid var(--border-color)',
+    background: 'var(--surface-2)',
+};
+
+const modalTabButtonStyle = {
+    padding: '6px 14px',
+    borderRadius: 999,
+    border: '1px solid transparent',
+    background: 'transparent',
+    fontSize: 12,
+    fontWeight: 600,
+    color: 'var(--text-muted)',
+    cursor: 'pointer',
+};
+
+const modalTabButtonActiveStyle = {
+    background: 'var(--active-bg)',
+    borderColor: 'color-mix(in srgb, var(--active-text) 60%, var(--border-color))',
+    color: 'var(--active-text)',
+};
+const DEFAULT_DESIGN_BASIS = DESIGN_COMPUTATION_BASIS.map((milestone, index) => ({
+    key: milestone.key || `basis-${index + 1}`,
+    label: milestone.label,
+    percent: Number(milestone.percent || 0),
+    progress: 0,
+}));
+
+const cloneDesignBasis = (basis) => basis.map((item) => ({ ...item }));
+
+const normalizeDesignBasis = (basis) => {
+    if (!Array.isArray(basis)) {
+        return cloneDesignBasis(DEFAULT_DESIGN_BASIS);
+    }
+    return basis.map((item, index) => ({
+        key: item?.key || `basis-${index + 1}`,
+        label: typeof item?.label === 'string' ? item.label : String(item?.label ?? ''),
+        percent: item?.percent ?? 0,
+        progress: item?.progress ?? 0,
+    }));
+};
+
+const computeDesignProgressWithBasis = ({ basis, designContractAmount, totalReceived, clientApprovalStatus }) => {
+    const normalizedBasis = normalizeDesignBasis(basis);
+    const totalPercent = normalizedBasis.reduce((sum, item) => sum + Number(item.percent || 0), 0);
+    const progressSum = normalizedBasis.reduce(
+        (sum, item) => sum + (Number(item.percent || 0) * Number(item.progress || 0)) / 100,
+        0
+    );
+
+    return Math.max(0, Math.min(100, round2(progressSum)));
+};
+
+const computeDesignMilestoneBreakdownWithBasis = (basis, designContractAmount) => {
+    const normalizedBasis = normalizeDesignBasis(basis);
+    const contractAmount = Math.max(0, Number(designContractAmount || 0));
+    let cumulativePercent = 0;
+    let cumulativeAmount = 0;
+
+    return normalizedBasis.map((milestone) => {
+        const percent = round2(Number(milestone.percent || 0));
+        const progress = round2(Number(milestone.progress || 0));
+        const amount = round2((contractAmount * percent) / 100);
+        const wtPercent = round2((percent * progress) / 100);
+        const accompAmount = round2((amount * progress) / 100);
+        cumulativePercent += percent;
+        cumulativeAmount += amount;
+
+        return {
+            ...milestone,
+            percent,
+            progress,
+            amount,
+            wt_percent: wtPercent,
+            accomp_amount: accompAmount,
+            cumulative_percent: cumulativePercent,
+            cumulative_amount: cumulativeAmount,
+        };
+    });
+};
+
+const computationCardStyle = {
+    background: 'var(--surface-1)',
+    border: '1px solid var(--border-color)',
+    borderRadius: 12,
+    padding: 12,
 };
 const normalizeNameKey = (value) =>
     String(value || '')
@@ -394,6 +523,12 @@ export default function MonitoringBoardIndexPage({
         date_paid: '',
         progress_percent: 0,
         remarks: '',
+        design_contract_amount: '',
+        downpayment: '',
+        total_received: '',
+        office_payroll_deduction: '',
+        client_approval_status: 'pending',
+        design_computation_basis: cloneDesignBasis(DEFAULT_DESIGN_BASIS),
     });
 
     const {
@@ -428,6 +563,12 @@ export default function MonitoringBoardIndexPage({
         date_paid: '',
         progress_percent: 0,
         remarks: '',
+        design_contract_amount: '',
+        downpayment: '',
+        total_received: '',
+        office_payroll_deduction: '',
+        client_approval_status: 'pending',
+        design_computation_basis: cloneDesignBasis(DEFAULT_DESIGN_BASIS),
     });
     const baseDesignerOptions = Array.isArray(designerOptions) ? designerOptions : [];
     const baseDepartmentEntries = Array.isArray(departments) ? departments : [];
@@ -458,6 +599,113 @@ export default function MonitoringBoardIndexPage({
     const [editCustomDepartment, setEditCustomDepartment] = useState('');
     const [editItem, setEditItem] = useState(null);
     const [infoItem, setInfoItem] = useState(null);
+    const [createActiveTab, setCreateActiveTab] = useState('details');
+    const [editActiveTab, setEditActiveTab] = useState('details');
+    const toNumber = (value) => Number(value || 0);
+    const createDesignBasis = normalizeDesignBasis(createData.design_computation_basis);
+    const createDesignProgress = computeDesignProgressWithBasis({
+        basis: createDesignBasis,
+        designContractAmount: toNumber(createData.design_contract_amount),
+        totalReceived: toNumber(createData.total_received),
+        clientApprovalStatus: createData.client_approval_status,
+    });
+    const createMilestoneBreakdown = computeDesignMilestoneBreakdownWithBasis(
+        createDesignBasis,
+        toNumber(createData.design_contract_amount)
+    );
+    const createRemaining = toNumber(createData.design_contract_amount) - toNumber(createData.total_received);
+    const createNetIncome = toNumber(createData.total_received) - toNumber(createData.office_payroll_deduction);
+    const editDesignBasis = normalizeDesignBasis(editData.design_computation_basis);
+    const editDesignProgress = computeDesignProgressWithBasis({
+        basis: editDesignBasis,
+        designContractAmount: toNumber(editData.design_contract_amount),
+        totalReceived: toNumber(editData.total_received),
+        clientApprovalStatus: editData.client_approval_status,
+    });
+    const editMilestoneBreakdown = computeDesignMilestoneBreakdownWithBasis(
+        editDesignBasis,
+        toNumber(editData.design_contract_amount)
+    );
+    const editRemaining = toNumber(editData.design_contract_amount) - toNumber(editData.total_received);
+    const editNetIncome = toNumber(editData.total_received) - toNumber(editData.office_payroll_deduction);
+    const createBasisKey = () => `basis-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+    const getCreateBasisList = () =>
+        Array.isArray(createData.design_computation_basis)
+            ? createData.design_computation_basis
+            : cloneDesignBasis(DEFAULT_DESIGN_BASIS);
+    const getEditBasisList = () =>
+        Array.isArray(editData.design_computation_basis)
+            ? editData.design_computation_basis
+            : cloneDesignBasis(DEFAULT_DESIGN_BASIS);
+    const updateCreateBasisItem = (key, field, value) => {
+        const next = getCreateBasisList().map((item) =>
+            item.key === key ? { ...item, [field]: value } : item
+        );
+        setCreateData('design_computation_basis', next);
+    };
+    const updateEditBasisItem = (key, field, value) => {
+        const next = getEditBasisList().map((item) =>
+            item.key === key ? { ...item, [field]: value } : item
+        );
+        setEditData('design_computation_basis', next);
+    };
+    const addCreateBasisItem = () => {
+        const next = [...getCreateBasisList(), { key: createBasisKey(), label: '', percent: 0 }];
+        setCreateData('design_computation_basis', next);
+    };
+    const addEditBasisItem = () => {
+        const next = [...getEditBasisList(), { key: createBasisKey(), label: '', percent: 0 }];
+        setEditData('design_computation_basis', next);
+    };
+    const removeCreateBasisItem = (key) => {
+        const next = getCreateBasisList().filter((item) => item.key !== key);
+        setCreateData('design_computation_basis', next);
+    };
+    const removeEditBasisItem = (key) => {
+        const next = getEditBasisList().filter((item) => item.key !== key);
+        setEditData('design_computation_basis', next);
+    };
+    const renderModalTabs = (activeTab, onChange, showSnapshot = true) => (
+        <div style={modalTabContainerStyle}>
+            <button
+                type="button"
+                onClick={() => onChange('details')}
+                style={{
+                    ...modalTabButtonStyle,
+                    ...(activeTab === 'details' ? modalTabButtonActiveStyle : {}),
+                }}
+            >
+                Project Details
+            </button>
+            {showSnapshot ? (
+                <button
+                    type="button"
+                    onClick={() => onChange('snapshot')}
+                    style={{
+                        ...modalTabButtonStyle,
+                        ...(activeTab === 'snapshot' ? modalTabButtonActiveStyle : {}),
+                    }}
+                >
+                    Design Snapshot
+                </button>
+            ) : null}
+        </div>
+    );
+
+    useEffect(() => {
+        const rounded = Math.round(Number(createDesignProgress || 0));
+        if (Number(createData.progress_percent || 0) !== rounded) {
+            setCreateData('progress_percent', rounded);
+        }
+    }, [createDesignProgress]); // eslint-disable-line react-hooks/exhaustive-deps
+
+    useEffect(() => {
+        if (!editItem) return;
+        const rounded = Math.round(Number(editDesignProgress || 0));
+        if (Number(editData.progress_percent || 0) !== rounded) {
+            setEditData('progress_percent', rounded);
+        }
+    }, [editDesignProgress, editItem]); // eslint-disable-line react-hooks/exhaustive-deps
     const [knownDepartments, setKnownDepartments] = useState([]);
     const departmentIdLookup = useMemo(() => {
         const next = new Map();
@@ -660,9 +908,20 @@ export default function MonitoringBoardIndexPage({
 
     const groupedItems = useMemo(() => {
         const needle = String(search || '').trim().toLowerCase();
+        const preparedItems = Array.isArray(items)
+            ? items.map((item) => ({
+                ...item,
+                computed_progress: computeDesignProgressWithBasis({
+                    basis: item.design_computation_basis,
+                    designContractAmount: Number(item.design_contract_amount || 0),
+                    totalReceived: Number(item.total_received || 0),
+                    clientApprovalStatus: item.client_approval_status,
+                }),
+            }))
+            : [];
         const filtered = needle === ''
-            ? items
-            : items.filter((item) => (
+            ? preparedItems
+            : preparedItems.filter((item) => (
                 [
                     item.department,
                     item.client_name,
@@ -870,6 +1129,12 @@ export default function MonitoringBoardIndexPage({
                 setCreateData('progress_percent', 0);
                 setCreateData('status', resolvedStatusOptions[0]);
                 setCreateData('project_type', PROJECT_TYPE_OPTIONS[0]);
+                setCreateData('design_contract_amount', '');
+                setCreateData('downpayment', '');
+                setCreateData('total_received', '');
+                setCreateData('office_payroll_deduction', '');
+                setCreateData('client_approval_status', 'pending');
+                setCreateData('design_computation_basis', cloneDesignBasis(DEFAULT_DESIGN_BASIS));
                 setShowCreateModal(false);
                 toast.success(toastMessages.monitoringBoard.entryAdded);
             },
@@ -883,6 +1148,7 @@ export default function MonitoringBoardIndexPage({
         const initialDepartment = String(item.department ?? '').trim();
         const isPresetDepartment = departmentOptions.includes(initialDepartment);
         setEditItem(item);
+        setEditActiveTab('details');
         if (clearEditErrors) clearEditErrors();
         setEditProjectTypeOption(isPresetType ? initialProjectType : OTHER_PROJECT_TYPE_OPTION);
         setEditCustomProjectType(isPresetType ? '' : initialProjectType);
@@ -892,6 +1158,9 @@ export default function MonitoringBoardIndexPage({
                 : ''
         );
         setEditCustomDepartment(isPresetDepartment ? '' : initialDepartment);
+        const normalizedBasis = Array.isArray(item.design_computation_basis)
+            ? normalizeDesignBasis(item.design_computation_basis)
+            : cloneDesignBasis(DEFAULT_DESIGN_BASIS);
         setEditData({
             department: item.department ?? '',
             client_name: item.client_name ?? '',
@@ -906,6 +1175,12 @@ export default function MonitoringBoardIndexPage({
             date_paid: item.date_paid ?? '',
             progress_percent: Number(item.progress_percent ?? 0),
             remarks: item.remarks ?? '',
+            design_contract_amount: item.design_contract_amount ?? '',
+            downpayment: item.downpayment ?? '',
+            total_received: item.total_received ?? '',
+            office_payroll_deduction: item.office_payroll_deduction ?? '',
+            client_approval_status: item.client_approval_status ?? 'pending',
+            design_computation_basis: normalizedBasis,
         });
     };
 
@@ -1121,12 +1396,15 @@ export default function MonitoringBoardIndexPage({
                             />
                         </div>
                         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                            <ActionButton
-                                type="button"
-                                variant="success"
-                                onClick={() => setShowCreateModal(true)}
-                                style={{ padding: '8px 14px', fontSize: 12 }}
-                            >
+                              <ActionButton
+                                  type="button"
+                                  variant="success"
+                                 onClick={() => {
+                                     setCreateActiveTab('details');
+                                     setShowCreateModal(true);
+                                 }}
+                                  style={{ padding: '8px 14px', fontSize: 12 }}
+                              >
                                 Add Entry
                             </ActionButton>
                             <div style={shortcutPill}>{items.length} items</div>
@@ -1377,7 +1655,7 @@ export default function MonitoringBoardIndexPage({
                                             ) : (
                                                 pagedRows.map((item) => {
                                                 const isProjectDeleted = Boolean(item.project_deleted);
-                                                const progressValue = normalizeProgressValue(item.progress_percent);
+                                                const progressValue = normalizeProgressValue(item.computed_progress ?? item.progress_percent);
                                                 const statusValue = item.status ?? resolvedStatusOptions[0];
                                                 const fileCount = Array.isArray(item.files) ? item.files.length : 0;
                                                 const timelineRange = parseTimelineRange(item.timeline);
@@ -1525,7 +1803,7 @@ export default function MonitoringBoardIndexPage({
                                                                                 textAlign: 'center',
                                                                             }}
                                                                         >
-                                                                            {progressValue}%
+                                                                            {formatPercent2(progressValue)}%
                                                                         </div>
                                                                     </div>
                                                                 </div>
@@ -1765,6 +2043,16 @@ export default function MonitoringBoardIndexPage({
                 >
                     {infoItem ? (
                         <div style={{ display: 'grid', gap: 12 }}>
+                            {/*
+                                Keep computed snapshot for completed entries visible in info modal.
+                            */}
+                            {(() => {
+                                const infoMilestones = computeDesignMilestoneBreakdownWithBasis(
+                                    infoItem.design_computation_basis,
+                                    Number(infoItem.design_contract_amount || 0)
+                                );
+                                return (
+                                    <>
                             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 12 }}>
                                 <label>
                                     <div style={{ fontSize: 12, marginBottom: 6 }}>Department</div>
@@ -1817,8 +2105,21 @@ export default function MonitoringBoardIndexPage({
                                     <TextInput value={formatDate(infoItem.date_paid)} readOnly style={inputStyle} />
                                 </label>
                                 <label>
-                                    <div style={{ fontSize: 12, marginBottom: 6 }}>Progress (%)</div>
-                                    <TextInput value={String(infoItem.progress_percent ?? 0)} readOnly style={inputStyle} />
+                                    <div style={{ fontSize: 12, marginBottom: 6 }}>Design Progress (%) (Automatic)</div>
+                                    <TextInput
+                                        value={String(
+                                            round2(
+                                                computeDesignProgressWithBasis({
+                                                    basis: infoItem.design_computation_basis,
+                                                    designContractAmount: Number(infoItem.design_contract_amount || 0),
+                                                    totalReceived: Number(infoItem.total_received || 0),
+                                                    clientApprovalStatus: infoItem.client_approval_status,
+                                                })
+                                            ).toFixed(2)
+                                        )}
+                                        readOnly
+                                        style={inputStyle}
+                                    />
                                 </label>
                             </div>
 
@@ -1827,11 +2128,42 @@ export default function MonitoringBoardIndexPage({
                                 <TextareaInput value={infoItem.remarks ?? ''} readOnly style={{ ...inputStyle, minHeight: 90 }} />
                             </label>
 
+                            <div style={{ ...boardPanel, display: 'grid', gap: 8 }}>
+                                <div style={{ fontWeight: 700 }}>Design Computation Snapshot</div>
+                                <div style={basisEditableHeaderStyle}>
+                                    <div>Milestone</div>
+                                    <div>Weight</div>
+                                    <div>Contract</div>
+                                    <div>Progress</div>
+                                    <div>WT %</div>
+                                    <div>Accomp Amount</div>
+                                    <div />
+                                </div>
+                                {infoMilestones.length === 0 ? (
+                                    <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>No milestones yet.</div>
+                                ) : (
+                                    infoMilestones.map((milestone) => (
+                                        <div key={milestone.key} style={basisEditableRowStyle}>
+                                            <div style={milestoneTextStyle}>{milestone.label}</div>
+                                            <div style={milestoneTextStyle}>{formatPercent2(milestone.percent)}%</div>
+                                            <div style={milestoneTextStyle}>{money(milestone.amount)}</div>
+                                            <div style={milestoneTextStyle}>{formatPercent2(milestone.progress)}%</div>
+                                            <div style={milestoneTextStyle}>{formatPercent2(milestone.wt_percent)}%</div>
+                                            <div style={milestoneTextStyle}>{money(milestone.accomp_amount)}</div>
+                                            <div />
+                                        </div>
+                                    ))
+                                )}
+                            </div>
+
                             <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
                                 <ActionButton type="button" variant="neutral" onClick={closeInfo}>
                                     Close
                                 </ActionButton>
                             </div>
+                                    </>
+                                );
+                            })()}
                         </div>
                     ) : null}
                 </Modal>
@@ -1843,9 +2175,11 @@ export default function MonitoringBoardIndexPage({
                         setShowCreateModal(false);
                     }}
                     title="Add Monitoring Entry"
+                    headerContent={renderModalTabs(createActiveTab, setCreateActiveTab, true)}
                     maxWidth={860}
                 >
                     <form onSubmit={submitCreate} style={{ display: 'grid', gap: 12 }}>
+                        <div style={{ display: createActiveTab === 'details' ? 'grid' : 'none', gap: 12 }}>
                         <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>New project name/client</div>
                         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 12 }}>
                             <label>
@@ -2045,20 +2379,189 @@ export default function MonitoringBoardIndexPage({
                             </label>
 
                             <label>
-                                <div style={{ fontSize: 12, marginBottom: 6 }}>Progress (%)</div>
+                                <div style={{ fontSize: 12, marginBottom: 6 }}>Design Progress (%)</div>
                                 <TextInput
                                     type="number"
                                     min="0"
                                     max="100"
-                                    value={createData.progress_percent}
-                                    onChange={(event) => setCreateData('progress_percent', event.target.value)}
-                                    style={boardInputStyle}
+                                    value={round2(createDesignProgress).toFixed(2)}
+                                    readOnly
+                                    style={{ ...boardInputStyle, opacity: 0.9, cursor: 'not-allowed' }}
                                 />
-                                {createErrors.progress_percent && <div style={{ color: '#f87171', fontSize: 12, marginTop: 4 }}>{createErrors.progress_percent}</div>}
                             </label>
+
+                            </div>
                         </div>
 
-                        <label>
+                        <div style={{ display: createActiveTab === 'snapshot' ? 'grid' : 'none', gap: 12 }}>
+                        <div style={{ ...boardPanel, display: 'grid', gap: 12 }}>
+                            <div style={{ fontWeight: 600 }}>Design Computation Snapshot</div>
+                            <div style={{ fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.4 }}>
+                                These values mirror the Design Tracker computations so you can review progress and collections while adding an entry.
+                            </div>
+
+                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 12 }}>
+                                <div style={computationCardStyle}>
+                                    <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 4 }}>Design Contract Amount</div>
+                                    <div style={{ fontWeight: 700 }}>{money(createData.design_contract_amount)}</div>
+                                </div>
+                                <div style={computationCardStyle}>
+                                    <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 4 }}>Design Remaining</div>
+                                    <div style={{ fontWeight: 700, color: createRemaining < 0 ? '#f87171' : '#4ade80' }}>
+                                        {money(createRemaining)}
+                                    </div>
+                                </div>
+                                <div style={computationCardStyle}>
+                                    <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 4 }}>Net Income</div>
+                                    <div style={{ fontWeight: 700, color: createNetIncome < 0 ? '#f87171' : '#4ade80' }}>
+                                        {money(createNetIncome)}
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 12 }}>
+                                <label>
+                                    <div style={{ fontSize: 12, marginBottom: 6 }}>Design Contract Amount</div>
+                                    <TextInput
+                                        type="number"
+                                        step="0.01"
+                                        min="0"
+                                        value={createData.design_contract_amount}
+                                        onChange={(event) => setCreateData('design_contract_amount', event.target.value)}
+                                        style={boardInputStyle}
+                                    />
+                                    {createErrors.design_contract_amount && <div style={{ color: '#f87171', fontSize: 12, marginTop: 4 }}>{createErrors.design_contract_amount}</div>}
+                                </label>
+
+                                <label>
+                                    <div style={{ fontSize: 12, marginBottom: 6 }}>Downpayment</div>
+                                    <TextInput
+                                        type="number"
+                                        step="0.01"
+                                        min="0"
+                                        value={createData.downpayment}
+                                        onChange={(event) => setCreateData('downpayment', event.target.value)}
+                                        style={boardInputStyle}
+                                    />
+                                    {createErrors.downpayment && <div style={{ color: '#f87171', fontSize: 12, marginTop: 4 }}>{createErrors.downpayment}</div>}
+                                </label>
+
+                                <label>
+                                    <div style={{ fontSize: 12, marginBottom: 6 }}>Total Received</div>
+                                    <TextInput
+                                        type="number"
+                                        step="0.01"
+                                        min="0"
+                                        value={createData.total_received}
+                                        onChange={(event) => setCreateData('total_received', event.target.value)}
+                                        style={boardInputStyle}
+                                    />
+                                    {createErrors.total_received && <div style={{ color: '#f87171', fontSize: 12, marginTop: 4 }}>{createErrors.total_received}</div>}
+                                </label>
+
+                                <label>
+                                    <div style={{ fontSize: 12, marginBottom: 6 }}>Office Payroll Deduction</div>
+                                    <TextInput
+                                        type="number"
+                                        step="0.01"
+                                        min="0"
+                                        value={createData.office_payroll_deduction}
+                                        onChange={(event) => setCreateData('office_payroll_deduction', event.target.value)}
+                                        style={boardInputStyle}
+                                    />
+                                    {createErrors.office_payroll_deduction && <div style={{ color: '#f87171', fontSize: 12, marginTop: 4 }}>{createErrors.office_payroll_deduction}</div>}
+                                </label>
+
+                                <label>
+                                    <div style={{ fontSize: 12, marginBottom: 6 }}>Design Progress (%) (Automatic)</div>
+                                    <TextInput
+                                        type="number"
+                                        min="0"
+                                        max="100"
+                                        value={round2(createDesignProgress).toFixed(2)}
+                                        readOnly
+                                        style={{ ...boardInputStyle, opacity: 0.9, cursor: 'not-allowed' }}
+                                    />
+                                </label>
+
+                                <label>
+                                    <div style={{ fontSize: 12, marginBottom: 6 }}>Client Approval Status</div>
+                                    <SelectInput
+                                        value={createData.client_approval_status}
+                                        onChange={(event) => setCreateData('client_approval_status', event.target.value)}
+                                        style={boardInputStyle}
+                                    >
+                                        <option value="pending">Pending</option>
+                                        <option value="approved">Approved</option>
+                                        <option value="rejected">Rejected</option>
+                                    </SelectInput>
+                                    {createErrors.client_approval_status && <div style={{ color: '#f87171', fontSize: 12, marginTop: 4 }}>{createErrors.client_approval_status}</div>}
+                                </label>
+                            </div>
+
+                            <div style={{ display: 'grid', gap: 8 }}>
+                                <div style={{ fontWeight: 700 }}>Design Computation Basis</div>
+                                <div style={basisEditableHeaderStyle}>
+                                    <div>Milestone</div>
+                                    <div>Weight</div>
+                                    <div>Contract</div>
+                                    <div>Progress</div>
+                                    <div>WT %</div>
+                                    <div>Accomp Amount</div>
+                                    <div />
+                                </div>
+                                {createMilestoneBreakdown.length === 0 ? (
+                                    <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>No milestones yet.</div>
+                                ) : (
+                                    createMilestoneBreakdown.map((milestone) => (
+                                        <div key={milestone.key} style={basisEditableRowStyle}>
+                                        <TextInput
+                                            value={milestone.label}
+                                            onChange={(event) => updateCreateBasisItem(milestone.key, 'label', event.target.value)}
+                                            placeholder="Milestone label"
+                                            style={boardInputStyle}
+                                        />
+                                        <TextInput
+                                            type="number"
+                                            step="0.01"
+                                            min="0"
+                                            value={milestone.percent}
+                                            onChange={(event) => updateCreateBasisItem(milestone.key, 'percent', event.target.value)}
+                                            style={boardInputStyle}
+                                        />
+                                        <div style={milestoneTextStyle}>{money(milestone.amount)}</div>
+                                        <TextInput
+                                            type="number"
+                                            step="0.01"
+                                            min="0"
+                                            max="100"
+                                            value={milestone.progress}
+                                            onChange={(event) => updateCreateBasisItem(milestone.key, 'progress', event.target.value)}
+                                            style={boardInputStyle}
+                                        />
+                                        <div style={milestoneTextStyle}>{formatPercent2(milestone.wt_percent)}%</div>
+                                        <div style={milestoneTextStyle}>{money(milestone.accomp_amount)}</div>
+                                        <ActionButton
+                                            type="button"
+                                            variant="danger"
+                                            onClick={() => removeCreateBasisItem(milestone.key)}
+                                            style={{ padding: '6px 8px', fontSize: 11 }}
+                                            >
+                                                <Trash2 size={14} />
+                                            </ActionButton>
+                                        </div>
+                                    ))
+                                )}
+                                <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                                    <ActionButton type="button" variant="neutral" onClick={addCreateBasisItem} style={{ padding: '8px 12px', fontSize: 12 }}>
+                                        Add Milestone
+                                    </ActionButton>
+                                </div>
+                            </div>
+                        </div>
+                        </div>
+
+                        <label style={{ display: createActiveTab === 'details' ? 'grid' : 'none', gap: 6 }}>
                             <div style={{ fontSize: 12, marginBottom: 6 }}>Remarks</div>
                             <TextareaInput
                                 value={createData.remarks}
@@ -2138,8 +2641,10 @@ export default function MonitoringBoardIndexPage({
                     title={editItem ? `Edit Monitoring Entry - ${editItem.project_name}` : 'Edit Monitoring Entry'}
                     submitLabel="Save Changes"
                     processing={updating}
+                    headerContent={renderModalTabs(editActiveTab, setEditActiveTab, editItem?.department !== COMPLETED_DEPARTMENT)}
                     maxWidth={860}
                 >
+                    <div style={{ display: editActiveTab === 'details' ? 'grid' : 'none', gap: 12 }}>
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 12 }}>
                         <label>
                             <div style={{ fontSize: 12, marginBottom: 6 }}>Department</div>
@@ -2332,25 +2837,194 @@ export default function MonitoringBoardIndexPage({
                                 value={editData.date_paid}
                                 onChange={(value) => setEditData('date_paid', value)}
                                 style={inputStyle}
-                            />
+                                />
                             {editErrors.date_paid && <div style={{ color: '#f87171', fontSize: 12, marginTop: 4 }}>{editErrors.date_paid}</div>}
                         </label>
 
                         <label>
-                            <div style={{ fontSize: 12, marginBottom: 6 }}>Progress (%)</div>
+                            <div style={{ fontSize: 12, marginBottom: 6 }}>Design Progress (%)</div>
                             <TextInput
                                 type="number"
                                 min="0"
                                 max="100"
-                                value={editData.progress_percent}
-                                onChange={(event) => setEditData('progress_percent', event.target.value)}
-                                style={inputStyle}
+                                value={round2(editDesignProgress).toFixed(2)}
+                                readOnly
+                                style={{ ...inputStyle, opacity: 0.9, cursor: 'not-allowed' }}
                             />
-                            {editErrors.progress_percent && <div style={{ color: '#f87171', fontSize: 12, marginTop: 4 }}>{editErrors.progress_percent}</div>}
                         </label>
+
+                    </div>
                     </div>
 
-                    <label style={{ marginTop: 12, display: 'grid', gap: 6 }}>
+                        <div style={{ display: editActiveTab === 'snapshot' && editItem?.department !== COMPLETED_DEPARTMENT ? 'grid' : 'none', gap: 12 }}>
+                    <div style={{ ...boardPanel, display: 'grid', gap: 12 }}>
+                        <div style={{ fontWeight: 600 }}>Design Computation Snapshot</div>
+                        <div style={{ fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.4 }}>
+                            This section mirrors the Design Tracker computations for easy reference while editing.
+                        </div>
+
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 12 }}>
+                            <div style={computationCardStyle}>
+                                <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 4 }}>Design Contract Amount</div>
+                                <div style={{ fontWeight: 700 }}>{money(editData.design_contract_amount)}</div>
+                            </div>
+                            <div style={computationCardStyle}>
+                                <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 4 }}>Design Remaining</div>
+                                <div style={{ fontWeight: 700, color: editRemaining < 0 ? '#f87171' : '#4ade80' }}>
+                                    {money(editRemaining)}
+                                </div>
+                            </div>
+                            <div style={computationCardStyle}>
+                                <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 4 }}>Net Income</div>
+                                <div style={{ fontWeight: 700, color: editNetIncome < 0 ? '#f87171' : '#4ade80' }}>
+                                    {money(editNetIncome)}
+                                </div>
+                            </div>
+                        </div>
+
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 12 }}>
+                            <label>
+                                <div style={{ fontSize: 12, marginBottom: 6 }}>Design Contract Amount</div>
+                                <TextInput
+                                    type="number"
+                                    step="0.01"
+                                    min="0"
+                                    value={editData.design_contract_amount}
+                                    onChange={(event) => setEditData('design_contract_amount', event.target.value)}
+                                    style={inputStyle}
+                                />
+                                {editErrors.design_contract_amount && <div style={{ color: '#f87171', fontSize: 12, marginTop: 4 }}>{editErrors.design_contract_amount}</div>}
+                            </label>
+
+                            <label>
+                                <div style={{ fontSize: 12, marginBottom: 6 }}>Downpayment</div>
+                                <TextInput
+                                    type="number"
+                                    step="0.01"
+                                    min="0"
+                                    value={editData.downpayment}
+                                    onChange={(event) => setEditData('downpayment', event.target.value)}
+                                    style={inputStyle}
+                                />
+                                {editErrors.downpayment && <div style={{ color: '#f87171', fontSize: 12, marginTop: 4 }}>{editErrors.downpayment}</div>}
+                            </label>
+
+                            <label>
+                                <div style={{ fontSize: 12, marginBottom: 6 }}>Total Received</div>
+                                <TextInput
+                                    type="number"
+                                    step="0.01"
+                                    min="0"
+                                    value={editData.total_received}
+                                    onChange={(event) => setEditData('total_received', event.target.value)}
+                                    style={inputStyle}
+                                />
+                                {editErrors.total_received && <div style={{ color: '#f87171', fontSize: 12, marginTop: 4 }}>{editErrors.total_received}</div>}
+                            </label>
+
+                            <label>
+                                <div style={{ fontSize: 12, marginBottom: 6 }}>Office Payroll Deduction</div>
+                                <TextInput
+                                    type="number"
+                                    step="0.01"
+                                    min="0"
+                                    value={editData.office_payroll_deduction}
+                                    onChange={(event) => setEditData('office_payroll_deduction', event.target.value)}
+                                    style={inputStyle}
+                                />
+                                {editErrors.office_payroll_deduction && <div style={{ color: '#f87171', fontSize: 12, marginTop: 4 }}>{editErrors.office_payroll_deduction}</div>}
+                            </label>
+
+                            <label>
+                                <div style={{ fontSize: 12, marginBottom: 6 }}>Design Progress (%) (Automatic)</div>
+                                <TextInput
+                                    type="number"
+                                    min="0"
+                                    max="100"
+                                    value={round2(editDesignProgress).toFixed(2)}
+                                    readOnly
+                                    style={{ ...inputStyle, opacity: 0.9, cursor: 'not-allowed' }}
+                                />
+                            </label>
+
+                            <label>
+                                <div style={{ fontSize: 12, marginBottom: 6 }}>Client Approval Status</div>
+                                <SelectInput
+                                    value={editData.client_approval_status}
+                                    onChange={(event) => setEditData('client_approval_status', event.target.value)}
+                                    style={inputStyle}
+                                >
+                                    <option value="pending">Pending</option>
+                                    <option value="approved">Approved</option>
+                                    <option value="rejected">Rejected</option>
+                                </SelectInput>
+                                {editErrors.client_approval_status && <div style={{ color: '#f87171', fontSize: 12, marginTop: 4 }}>{editErrors.client_approval_status}</div>}
+                            </label>
+                        </div>
+
+                        <div style={{ display: 'grid', gap: 8 }}>
+                            <div style={{ fontWeight: 700 }}>Design Computation Basis</div>
+                            <div style={basisEditableHeaderStyle}>
+                                <div>Milestone</div>
+                                <div>Weight</div>
+                                <div>Contract</div>
+                                <div>Progress</div>
+                                <div>WT %</div>
+                                <div>Accomp Amount</div>
+                                <div />
+                            </div>
+                            {editMilestoneBreakdown.length === 0 ? (
+                                <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>No milestones yet.</div>
+                            ) : (
+                                editMilestoneBreakdown.map((milestone) => (
+                                    <div key={milestone.key} style={basisEditableRowStyle}>
+                                    <TextInput
+                                        value={milestone.label}
+                                        onChange={(event) => updateEditBasisItem(milestone.key, 'label', event.target.value)}
+                                        placeholder="Milestone label"
+                                        style={inputStyle}
+                                    />
+                                    <TextInput
+                                        type="number"
+                                        step="0.01"
+                                        min="0"
+                                        value={milestone.percent}
+                                        onChange={(event) => updateEditBasisItem(milestone.key, 'percent', event.target.value)}
+                                        style={inputStyle}
+                                    />
+                                    <div style={milestoneTextStyle}>{money(milestone.amount)}</div>
+                                    <TextInput
+                                        type="number"
+                                        step="0.01"
+                                        min="0"
+                                        max="100"
+                                        value={milestone.progress}
+                                        onChange={(event) => updateEditBasisItem(milestone.key, 'progress', event.target.value)}
+                                        style={inputStyle}
+                                    />
+                                    <div style={milestoneTextStyle}>{formatPercent2(milestone.wt_percent)}%</div>
+                                    <div style={milestoneTextStyle}>{money(milestone.accomp_amount)}</div>
+                                    <ActionButton
+                                        type="button"
+                                        variant="danger"
+                                        onClick={() => removeEditBasisItem(milestone.key)}
+                                        style={{ padding: '6px 8px', fontSize: 11 }}
+                                        >
+                                            <Trash2 size={14} />
+                                        </ActionButton>
+                                    </div>
+                                ))
+                            )}
+                            <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                                <ActionButton type="button" variant="neutral" onClick={addEditBasisItem} style={{ padding: '8px 12px', fontSize: 12 }}>
+                                    Add Milestone
+                                </ActionButton>
+                            </div>
+                        </div>
+                    </div>
+                    </div>
+
+                    <label style={{ display: editActiveTab === 'details' ? 'grid' : 'none', gap: 6 }}>
                         <div style={{ fontSize: 12 }}>Remarks</div>
                         <TextareaInput
                             value={editData.remarks}
