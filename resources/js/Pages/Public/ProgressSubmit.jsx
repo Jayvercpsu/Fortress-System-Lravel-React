@@ -147,6 +147,23 @@ const buildAttendanceRows = (workerRows = []) => (
         }))
         : [blankRow()]
 );
+const mergeAttendanceRowsWithWorkerPool = (rows = [], workerPool = []) => {
+    const currentRows = cloneAttendanceRows(rows).filter((row) => !isForemanRole(row.worker_role));
+    const existing = new Set(
+        currentRows
+            .map((row) => workerIdentity(row.worker_name, row.worker_role))
+            .filter((id) => id !== '')
+    );
+    const missingWorkers = workerPool
+        .filter((worker) => !existing.has(workerIdentity(worker.name, worker.role)))
+        .map((worker) => ({
+            row_key: sharedAttendanceRowKey(worker.name, worker.role),
+            worker_name: worker.name,
+            worker_role: worker.role,
+            days: blankDays(),
+        }));
+    return [...currentRows, ...missingWorkers];
+};
 let weeklyRowSeed = 0;
 const nextWeeklyRowKey = () => {
     weeklyRowSeed += 1;
@@ -498,24 +515,10 @@ export default function ProgressSubmit({ submitToken }) {
         currentDate <= weeklyWeekEndDate
     ) || projectLocked;
     const defaultWeeklyRowsForWeek = useMemo(() => buildWeeklyRows(resolveWeeklyScopeList(weeklyWeekKey)), [resolveWeeklyScopeList, weeklyWeekKey]);
-    const attendanceRows = useMemo(() => {
-        const currentRows = cloneAttendanceRows(attendanceWeekDrafts[attendanceWeekKey] ?? defaultAttendanceRows)
-            .filter((row) => !isForemanRole(row.worker_role));
-        const existing = new Set(
-            currentRows
-                .map((row) => workerIdentity(row.worker_name, row.worker_role))
-                .filter((id) => id !== '')
-        );
-        const missingWorkers = attendanceWorkerPool
-            .filter((worker) => !existing.has(workerIdentity(worker.name, worker.role)))
-            .map((worker) => ({
-                row_key: sharedAttendanceRowKey(worker.name, worker.role),
-                worker_name: worker.name,
-                worker_role: worker.role,
-                days: blankDays(),
-            }));
-        return [...currentRows, ...missingWorkers];
-    }, [attendanceWeekDrafts, attendanceWeekKey, defaultAttendanceRows, attendanceWorkerPool]);
+    const attendanceRows = useMemo(
+        () => mergeAttendanceRowsWithWorkerPool(attendanceWeekDrafts[attendanceWeekKey] ?? defaultAttendanceRows, attendanceWorkerPool),
+        [attendanceWeekDrafts, attendanceWeekKey, defaultAttendanceRows, attendanceWorkerPool]
+    );
     const weeklyRows = weeklyWeekDrafts[weeklyWeekKey] ?? defaultWeeklyRowsForWeek;
 
     const firstError = useMemo(() => {
@@ -768,7 +771,8 @@ export default function ProgressSubmit({ submitToken }) {
     };
     const setCurrentAttendanceRows = (updater) => {
         setAttendanceWeekDrafts((prev) => {
-            const currentRows = cloneAttendanceRows(prev[attendanceWeekKey] ?? attendanceRows);
+            const sourceRows = Array.isArray(prev[attendanceWeekKey]) ? prev[attendanceWeekKey] : defaultAttendanceRows;
+            const currentRows = mergeAttendanceRowsWithWorkerPool(sourceRows, attendanceWorkerPool);
             const nextRows = typeof updater === 'function' ? updater(currentRows) : updater;
             return { ...prev, [attendanceWeekKey]: cloneAttendanceRows(nextRows) };
         });

@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Enums\ProjectStatus;
 use App\Models\Project;
 use App\Models\ProjectAssignment;
 use App\Models\User;
@@ -112,7 +113,21 @@ class HrWorkerService
                     return;
                 }
 
-                $selected = $family
+                $eligible = $family->filter(function (Project $project) {
+                    $phase = ProjectFlow::normalizePhase($project->phase);
+                    if ($phase === Project::PHASE_COMPLETED) {
+                        return false;
+                    }
+
+                    $status = ProjectFlow::normalizeStatus($project->status);
+                    return !in_array($status, [ProjectStatus::COMPLETED->value, ProjectStatus::CANCELLED->value], true);
+                });
+
+                if ($eligible->isEmpty()) {
+                    return;
+                }
+
+                $selected = $eligible
                     ->sortByDesc(function (Project $project) {
                         $phaseRank = match (ProjectFlow::normalizePhase($project->phase)) {
                             Project::PHASE_COMPLETED => 3,
@@ -134,7 +149,7 @@ class HrWorkerService
                     'label' => (string) $selected->name,
                 ];
 
-                $familyProjectIdsBySelectedId[(string) $selected->id] = $family
+                $familyProjectIdsBySelectedId[(string) $selected->id] = $eligible
                     ->pluck('id')
                     ->map(fn ($id) => (int) $id)
                     ->unique()

@@ -376,6 +376,10 @@ class ProjectService
     public function projectPayload(Project $project): array
     {
         $computed = $this->computedTrackerMetrics($project);
+        $assigned = trim((string) ($project->assigned ?? ''));
+        if ($assigned === '') {
+            $assigned = $this->foremanNamesByProjectId([$project->id])[(int) $project->id] ?? '';
+        }
 
         return [
             'id' => $project->id,
@@ -384,7 +388,7 @@ class ProjectService
             'type' => $project->type,
             'location' => $project->location,
             'assigned_role' => ProjectFlow::normalizeAssignedRoleList($project->assigned_role ?? null),
-            'assigned' => $project->assigned,
+            'assigned' => $assigned !== '' ? $assigned : null,
             'target' => optional($project->target)->toDateString(),
             'status' => ProjectFlow::normalizeStatus($project->status),
             'phase' => ProjectFlow::normalizePhase($project->phase),
@@ -674,7 +678,7 @@ class ProjectService
         ))->appends($request->query());
     }
 
-    private function projectIndexCardPayload(Project $project, ?array $weightedByProjectId = null): array
+    private function projectIndexCardPayload(Project $project, ?array $weightedByProjectId = null, array $foremanNamesByProjectId = []): array
     {
         $phase = ProjectFlow::normalizePhase($project->phase);
         $designProgress = DesignComputation::computeProgress(
@@ -697,6 +701,11 @@ class ProjectService
                 || $phase === 'Construction'
             );
 
+        $assigned = trim((string) ($project->assigned ?? ''));
+        if ($assigned === '' && isset($foremanNamesByProjectId[(int) $project->id])) {
+            $assigned = $foremanNamesByProjectId[(int) $project->id];
+        }
+
         return [
             'id' => $project->id,
             'source_project_id' => $project->source_project_id !== null ? (int) $project->source_project_id : null,
@@ -705,7 +714,7 @@ class ProjectService
             'type' => $project->type,
             'location' => $project->location,
             'assigned_role' => ProjectFlow::normalizeAssignedRoleList($project->assigned_role ?? null),
-            'assigned' => $project->assigned,
+            'assigned' => $assigned,
             'target' => optional($project->target)->toDateString(),
             'status' => $status,
             'phase' => $phase,
@@ -721,6 +730,70 @@ class ProjectService
             'remaining_balance' => (float) ($project->remaining_balance ?? 0),
             'is_new_today' => (bool) optional($project->created_at)->isToday(),
         ];
+    }
+
+    private function foremanNamesByProjectId(array $projectIds): array
+    {
+        $ids = collect($projectIds)
+            ->map(fn ($id) => (int) $id)
+            ->filter(fn (int $id) => $id > 0)
+            ->unique()
+            ->values();
+
+        if ($ids->isEmpty()) {
+            return [];
+        }
+
+        $assignments = ProjectAssignment::query()
+            ->whereIn('project_id', $ids->all())
+            ->where('role_in_project', ProjectAssignment::ROLE_FOREMAN)
+            ->get(['project_id', 'user_id']);
+
+        if ($assignments->isEmpty()) {
+            return [];
+        }
+
+        $userIds = $assignments
+            ->pluck('user_id')
+            ->map(fn ($id) => (int) $id)
+            ->filter(fn (int $id) => $id > 0)
+            ->unique()
+            ->values();
+
+        if ($userIds->isEmpty()) {
+            return [];
+        }
+
+        $namesByUserId = User::query()
+            ->where('role', User::ROLE_FOREMAN)
+            ->whereIn('id', $userIds->all())
+            ->pluck('fullname', 'id')
+            ->map(fn ($name) => trim((string) $name))
+            ->filter(fn ($name) => $name !== '')
+            ->all();
+
+        $grouped = [];
+        foreach ($assignments as $assignment) {
+            $projectId = (int) $assignment->project_id;
+            $userId = (int) $assignment->user_id;
+            $name = $namesByUserId[$userId] ?? '';
+            if ($name === '') {
+                continue;
+            }
+            if (!isset($grouped[$projectId])) {
+                $grouped[$projectId] = [];
+            }
+            $grouped[$projectId][] = $name;
+        }
+
+        foreach ($grouped as $projectId => $names) {
+            $grouped[$projectId] = collect($names)
+                ->unique(fn ($value) => mb_strtolower((string) $value))
+                ->values()
+                ->implode(', ');
+        }
+
+        return $grouped;
     }
 
     private function weightedProgressForProject(Project $project, ?array $weightedByProjectId = null): float
@@ -799,9 +872,10 @@ class ProjectService
         $weightedByProjectId = $this->projectRepository
             ->weightedProgressByProjectIds($items->pluck('id')->all())
             ->all();
+        $foremanNamesByProjectId = $this->foremanNamesByProjectId($items->pluck('id')->all());
 
         $items = $items
-            ->map(fn (Project $project) => $this->projectIndexCardPayload($project, $weightedByProjectId))
+            ->map(fn (Project $project) => $this->projectIndexCardPayload($project, $weightedByProjectId, $foremanNamesByProjectId))
             ->values();
 
         $visibleCount = $items->count();

@@ -134,7 +134,13 @@ export default function HrWorkersIndex({
         return allowed[0]?.id ? String(allowed[0].id) : '';
     };
 
-    const defaultProjectId = projectList[0]?.id ? String(projectList[0].id) : '';
+    const firstAssignableProjectId = (() => {
+        const firstProjectWithForeman = projectList.find((project) => foremanOptionsForProject(project.id).length > 0);
+        return firstProjectWithForeman?.id ? String(firstProjectWithForeman.id) : '';
+    })();
+    const hasAnyAssignableProject = firstAssignableProjectId !== '';
+
+    const defaultProjectId = firstAssignableProjectId || (projectList[0]?.id ? String(projectList[0].id) : '');
     const defaultForemanId = foremanOptionsForProject(defaultProjectId)[0]?.id
         ? String(foremanOptionsForProject(defaultProjectId)[0].id)
         : '';
@@ -435,6 +441,22 @@ export default function HrWorkersIndex({
 
     const createForemanOptions = foremanOptionsForProject(createForm.data.project_id);
     const editForemanOptions = foremanOptionsForProject(editForm.data.project_id);
+    const openCreateModal = () => {
+        if (projectList.length === 0) {
+            return;
+        }
+
+        const currentProjectId = String(createForm.data.project_id || '');
+        const currentForemanOptions = foremanOptionsForProject(currentProjectId);
+
+        if (currentForemanOptions.length === 0 && firstAssignableProjectId) {
+            const nextForemanId = resolveForemanIdForProject(firstAssignableProjectId);
+            createForm.setData('project_id', firstAssignableProjectId);
+            createForm.setData('foreman_id', nextForemanId);
+        }
+
+        setShowCreateModal(true);
+    };
 
     return (
         <>
@@ -446,8 +468,8 @@ export default function HrWorkersIndex({
                             <ActionButton
                                 type="button"
                                 variant="success"
-                                onClick={() => setShowCreateModal(true)}
-                                disabled={projectList.length === 0 || createForemanOptions.length === 0}
+                                onClick={openCreateModal}
+                                disabled={projectList.length === 0 || !hasAnyAssignableProject}
                                 style={{ padding: '8px 12px', fontSize: 12 }}
                             >
                                 Add Worker

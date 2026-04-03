@@ -40,13 +40,6 @@ const singleLineClampStyle = {
 
 const money = (value) => `P ${Number(value || 0).toLocaleString(undefined, { maximumFractionDigits: 0 })}`;
 const pct = (value) => `${Math.max(0, Math.min(100, Number(value || 0)))}%`;
-const approvalStatusTone = (status) => {
-    const normalized = String(status || '').trim().toLowerCase();
-    if (normalized === 'approved') return '#22c55e';
-    if (normalized === 'rejected') return '#f87171';
-    return 'var(--text-main)';
-};
-
 const statusTone = (status) => {
     const normalized = String(status || '').trim().toLowerCase();
     if (normalized === 'completed') {
@@ -490,19 +483,6 @@ export default function ProjectsKanbanPage({
                                                 <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, minWidth: 0 }}>
                                                     <span style={{ color: 'var(--text-muted)' }}>Foremen</span>
                                                     <span title={project.assigned || '-'} style={{ textAlign: 'right', ...singleLineClampStyle }}>{project.assigned || '-'}</span>
-                                                </div>
-                                                <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, minWidth: 0 }}>
-                                                    <span style={{ color: 'var(--text-muted)' }}>Client Approval</span>
-                                                    <span
-                                                        title={project.design_approval_status || 'Pending'}
-                                                        style={{
-                                                            textAlign: 'right',
-                                                            color: approvalStatusTone(project.design_approval_status),
-                                                            ...singleLineClampStyle,
-                                                        }}
-                                                    >
-                                                        {project.design_approval_status || 'Pending'}
-                                                    </span>
                                                 </div>
                                                 <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, minWidth: 0 }}>
                                                     <span style={{ color: 'var(--text-muted)' }}>Contract</span>

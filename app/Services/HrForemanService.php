@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Enums\ProjectStatus;
 use App\Models\Project;
 use App\Models\ProjectAssignment;
 use App\Models\User;
@@ -78,6 +79,18 @@ class HrForemanService
         $projectLabelsById = collect($projectOptions)
             ->mapWithKeys(fn (array $option) => [(int) $option['id'] => (string) ($option['label'] ?? $option['name'] ?? '')])
             ->all();
+        $allowedProjectIds = array_fill_keys(array_keys($projectLabelsById), true);
+
+        if ($allowedProjectIds !== []) {
+            $assignedProjectIdsByForeman = collect($assignedProjectIdsByForeman)
+                ->map(function (array $ids) use ($allowedProjectIds) {
+                    return collect($ids)
+                        ->filter(fn ($id) => isset($allowedProjectIds[(int) $id]))
+                        ->values()
+                        ->all();
+                })
+                ->all();
+        }
 
         $foremen = $pageForemen->map(function (User $foreman) use ($assignedProjectIdsByForeman, $projectLabelsById) {
             $assignedIds = $assignedProjectIdsByForeman[$foreman->id] ?? [];
@@ -191,14 +204,19 @@ class HrForemanService
         }
 
         foreach ($ids as $projectId) {
-            ProjectAssignment::query()->updateOrCreate(
-                [
+            $assignment = ProjectAssignment::query()
+                ->withTrashed()
+                ->firstOrNew([
                     'project_id' => $projectId,
                     'user_id' => $foremanId,
-                    'role_in_project' => ProjectAssignment::ROLE_FOREMAN,
-                ],
-                []
-            );
+                ]);
+
+            $assignment->role_in_project = ProjectAssignment::ROLE_FOREMAN;
+            if ($assignment->deleted_at !== null) {
+                $assignment->deleted_at = null;
+            }
+
+            $assignment->save();
         }
     }
 
@@ -219,7 +237,21 @@ class HrForemanService
                     return;
                 }
 
-                $selected = $family
+                $eligible = $family->filter(function (Project $project) {
+                    $phase = ProjectFlow::normalizePhase($project->phase);
+                    if ($phase === Project::PHASE_COMPLETED) {
+                        return false;
+                    }
+
+                    $status = ProjectFlow::normalizeStatus($project->status);
+                    return !in_array($status, [ProjectStatus::COMPLETED->value, ProjectStatus::CANCELLED->value], true);
+                });
+
+                if ($eligible->isEmpty()) {
+                    return;
+                }
+
+                $selected = $eligible
                     ->sortByDesc(function (Project $project) {
                         $phaseRank = match (ProjectFlow::normalizePhase($project->phase)) {
                             Project::PHASE_COMPLETED => 3,
@@ -241,7 +273,7 @@ class HrForemanService
                     'label' => (string) $selected->name,
                 ];
 
-                $family->each(function (Project $project) use (&$selectedIdByProjectId, $selected) {
+                $eligible->each(function (Project $project) use (&$selectedIdByProjectId, $selected) {
                     $selectedIdByProjectId[(int) $project->id] = (int) $selected->id;
                 });
             });
