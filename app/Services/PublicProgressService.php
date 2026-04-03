@@ -694,7 +694,7 @@ class PublicProgressService
                 ];
             })
             ->filter(fn (array $row) => !$this->isForemanRole($row['worker_role']))
-            ->filter(fn (array $row) => $row['worker_name'] !== '' && collect($row['days'])->contains(fn ($status) => $status !== ''))
+            ->filter(fn (array $row) => $row['worker_name'] !== '')
             ->values();
 
         if ($attendanceEntries->isNotEmpty()) {
