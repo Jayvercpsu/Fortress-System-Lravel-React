@@ -40,13 +40,31 @@ const money = (value) => `P${Number(value || 0).toLocaleString()}`;
 const mono = { fontFamily: "'DM Mono', monospace" };
 const dateOnly = (value) => (value ? String(value).slice(0, 10) : '-');
 
-export default function Payroll({ payrolls = [], totalPayable = 0, workerOptions = [], payrollGroup = 'workers' }) {
+export default function Payroll({
+    payrolls = [],
+    totalPayable = 0,
+    workerOptions = [],
+    payrollGroup = 'workers',
+    projectOptions = [],
+    selectedProject = null,
+}) {
     const [showForm, setShowForm] = useState(false);
     const [editingRow, setEditingRow] = useState(null);
-    const groupQuery = payrollGroup ? `?group=${encodeURIComponent(payrollGroup)}` : '';
+    const isStaff = payrollGroup === 'staff';
+    const selectedProjectId = !isStaff && selectedProject?.id ? String(selectedProject.id) : '';
+    const groupQueryParams = new URLSearchParams();
+    if (payrollGroup) {
+        groupQueryParams.set('group', payrollGroup);
+    }
+    if (!isStaff && selectedProjectId) {
+        groupQueryParams.set('project_id', selectedProjectId);
+    }
+    const groupQuery = groupQueryParams.toString() ? `?${groupQueryParams.toString()}` : '';
     const personLabel = payrollGroup === 'staff' ? 'Staff' : 'Worker';
+    const canAddEntry = isStaff || Boolean(selectedProjectId);
 
     const { data, setData, post, errors, processing, reset } = useForm({
+        project_id: selectedProjectId,
         worker_name: '',
         role: '',
         hours: '',
@@ -56,6 +74,7 @@ export default function Payroll({ payrolls = [], totalPayable = 0, workerOptions
     });
 
     const editForm = useForm({
+        project_id: selectedProjectId,
         worker_name: '',
         role: '',
         week_start: '',
@@ -150,9 +169,32 @@ export default function Payroll({ payrolls = [], totalPayable = 0, workerOptions
         }
     };
 
+    const projectDropdownOptions = useMemo(
+        () => (Array.isArray(projectOptions) ? projectOptions : []).map((project) => ({
+            id: project.id,
+            label: `${project.name}${project.client ? ` - ${project.client}` : ''}`,
+        })),
+        [projectOptions]
+    );
+
+    const switchProject = (value) => {
+        if (isStaff) {
+            return;
+        }
+        router.get('/payroll', {
+            group: payrollGroup,
+            project_id: value || '',
+        }, {
+            preserveScroll: true,
+            preserveState: false,
+            replace: true,
+        });
+    };
+
     const openEditModal = (row) => {
         setEditingRow(row);
         editForm.setData({
+            project_id: isStaff ? '' : String(row.project_id ?? row.project?.id ?? selectedProjectId ?? ''),
             worker_name: row.worker_name ?? '',
             role: row.role ?? '',
             week_start: dateOnly(row.week_start) === '-' ? '' : dateOnly(row.week_start),
@@ -192,104 +234,119 @@ export default function Payroll({ payrolls = [], totalPayable = 0, workerOptions
     const editNet = useMemo(() => editGross - Number(editForm.data.deductions || 0), [editGross, editForm.data.deductions]);
 
     const columns = useMemo(
-        () => [
-            {
-                key: 'worker_name',
-                label: personLabel,
-                width: 180,
-                render: (row) => <div style={{ fontWeight: 600 }}>{row.worker_name}</div>,
-                searchAccessor: (row) => row.worker_name,
-            },
-            {
-                key: 'role',
-                label: 'Role',
-                width: 100,
-                render: (row) => <span style={{ color: 'var(--text-muted)', fontSize: 12 }}>{row.role}</span>,
-                searchAccessor: (row) => row.role,
-            },
-            {
-                key: 'week_start',
-                label: 'Week',
-                width: 130,
-                render: (row) => (
-                    <span style={{ ...mono, fontSize: 12, color: 'var(--text-muted-2)' }}>{dateOnly(row.week_start)}</span>
-                ),
-                searchAccessor: (row) => row.week_start,
-            },
-            {
-                key: 'hours',
-                label: 'Hours',
-                width: 90,
-                align: 'right',
-                render: (row) => <span style={mono}>{Number(row.hours || 0).toFixed(2)}</span>,
-            },
-            {
-                key: 'rate_per_hour',
-                label: 'Rate',
-                width: 100,
-                align: 'right',
-                render: (row) => <span style={mono}>{money(row.rate_per_hour)}</span>,
-            },
-            {
-                key: 'gross',
-                label: 'Gross',
-                width: 100,
-                align: 'right',
-                render: (row) => <span style={mono}>{money(row.gross)}</span>,
-            },
-            {
-                key: 'deductions',
-                label: 'Deduct',
-                width: 110,
-                align: 'right',
-                render: (row) => <span style={{ ...mono, color: '#f87171' }}>-{money(row.deductions)}</span>,
-            },
-            {
-                key: 'net',
-                label: 'Net',
-                width: 100,
-                align: 'right',
-                render: (row) => <span style={{ ...mono, fontWeight: 600, color: '#4ade80' }}>{money(row.net)}</span>,
-            },
-            {
-                key: 'status',
-                label: 'Status',
-                width: 100,
-                render: (row) => (
-                    <span
-                        style={{
-                            fontSize: 11,
-                            padding: '3px 8px',
-                            borderRadius: 20,
-                            color: statusColor[row.status] || 'var(--text-muted)',
-                            background: `${statusColor[row.status] || '#8b949e'}22`,
-                            border: `1px solid ${(statusColor[row.status] || '#8b949e')}44`,
-                            textTransform: 'capitalize',
-                            fontWeight: 600,
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                        }}
-                    >
-                        {row.status}
-                    </span>
-                ),
-                searchAccessor: (row) => row.status,
-            },
-            {
-                key: 'action',
-                label: 'Action',
-                width: 110,
-                align: 'right',
-                render: (row) => (
-                    <div style={{ display: 'inline-flex', gap: 8 }}>
-                        <ActionButton type="button" variant="edit" onClick={() => openEditModal(row)}>
-                            Edit
-                        </ActionButton>
-                    </div>
-                ),
-            },
-        ],
-        [payrolls, personLabel]
+        () => {
+            const baseColumns = [
+                {
+                    key: 'project_name',
+                    label: 'Project',
+                    width: 210,
+                    render: (row) => (
+                        <div style={{ fontWeight: 600 }}>
+                            {row.project_name || row.project?.name || (isStaff ? 'Office Payroll' : '-')}
+                        </div>
+                    ),
+                    searchAccessor: (row) => row.project_name || row.project?.name || (isStaff ? 'Office Payroll' : ''),
+                },
+                {
+                    key: 'worker_name',
+                    label: personLabel,
+                    width: 180,
+                    render: (row) => <div style={{ fontWeight: 600 }}>{row.worker_name}</div>,
+                    searchAccessor: (row) => row.worker_name,
+                },
+                {
+                    key: 'role',
+                    label: 'Role',
+                    width: 100,
+                    render: (row) => <span style={{ color: 'var(--text-muted)', fontSize: 12 }}>{row.role}</span>,
+                    searchAccessor: (row) => row.role,
+                },
+                {
+                    key: 'week_start',
+                    label: 'Week',
+                    width: 130,
+                    render: (row) => (
+                        <span style={{ ...mono, fontSize: 12, color: 'var(--text-muted-2)' }}>{dateOnly(row.week_start)}</span>
+                    ),
+                    searchAccessor: (row) => row.week_start,
+                },
+                {
+                    key: 'hours',
+                    label: 'Hours',
+                    width: 90,
+                    align: 'right',
+                    render: (row) => <span style={mono}>{Number(row.hours || 0).toFixed(2)}</span>,
+                },
+                {
+                    key: 'rate_per_hour',
+                    label: 'Rate',
+                    width: 100,
+                    align: 'right',
+                    render: (row) => <span style={mono}>{money(row.rate_per_hour)}</span>,
+                },
+                {
+                    key: 'gross',
+                    label: 'Gross',
+                    width: 100,
+                    align: 'right',
+                    render: (row) => <span style={mono}>{money(row.gross)}</span>,
+                },
+                {
+                    key: 'deductions',
+                    label: 'Deduct',
+                    width: 110,
+                    align: 'right',
+                    render: (row) => <span style={{ ...mono, color: '#f87171' }}>-{money(row.deductions)}</span>,
+                },
+                {
+                    key: 'net',
+                    label: 'Net',
+                    width: 100,
+                    align: 'right',
+                    render: (row) => <span style={{ ...mono, fontWeight: 600, color: '#4ade80' }}>{money(row.net)}</span>,
+                },
+                {
+                    key: 'status',
+                    label: 'Status',
+                    width: 100,
+                    render: (row) => (
+                        <span
+                            style={{
+                                fontSize: 11,
+                                padding: '3px 8px',
+                                borderRadius: 20,
+                                color: statusColor[row.status] || 'var(--text-muted)',
+                                background: `${statusColor[row.status] || '#8b949e'}22`,
+                                border: `1px solid ${(statusColor[row.status] || '#8b949e')}44`,
+                                textTransform: 'capitalize',
+                                fontWeight: 600,
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                            }}
+                        >
+                            {row.status}
+                        </span>
+                    ),
+                    searchAccessor: (row) => row.status,
+                },
+                {
+                    key: 'action',
+                    label: 'Action',
+                    width: 110,
+                    align: 'right',
+                    render: (row) => (
+                        <div style={{ display: 'inline-flex', gap: 8 }}>
+                            <ActionButton type="button" variant="edit" onClick={() => openEditModal(row)}>
+                                Edit
+                            </ActionButton>
+                        </div>
+                    ),
+                },
+            ];
+
+            return isStaff ? baseColumns.filter((column) => column.key !== 'project_name') : baseColumns;
+        },
+        [payrolls, personLabel, isStaff]
     );
 
     return (
@@ -322,14 +379,39 @@ export default function Payroll({ payrolls = [], totalPayable = 0, workerOptions
                             padding: '20px 24px',
                             display: 'flex',
                             alignItems: 'center',
-                            justifyContent: 'flex-end',
+                            justifyContent: 'space-between',
                             gap: 8,
                             flexWrap: 'wrap',
                         }}
                     >
+                            <div style={{ minWidth: 280 }}>
+                                <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 6 }}>
+                                    {isStaff ? 'Payroll Scope' : 'Project Scope'}
+                                </div>
+                                {isStaff ? (
+                                    <div>
+                                        <div style={{ fontWeight: 600 }}>Office Payroll</div>
+                                        <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+                                            Staff payroll records are not tagged to projects.
+                                        </div>
+                                    </div>
+                                ) : (
+                                    <SearchableDropdown
+                                        options={projectDropdownOptions}
+                                        value={selectedProjectId}
+                                        onChange={switchProject}
+                                        placeholder="Select project"
+                                        searchPlaceholder="Search project..."
+                                        emptyMessage="No projects found"
+                                        pageSize={6}
+                                        loadMoreLabel="Load more"
+                                    />
+                                )}
+                            </div>
                             <ActionButton
                                 onClick={() => setShowForm((v) => !v)}
                                 variant={showForm ? 'neutral' : 'success'}
+                                disabled={!canAddEntry}
                                 style={{
                                     padding: '9px 20px',
                                     fontSize: 13,
@@ -341,12 +423,40 @@ export default function Payroll({ payrolls = [], totalPayable = 0, workerOptions
                     </div>
                 </div>
 
+                {!isStaff && !selectedProjectId ? (
+                    <div style={{ ...cardStyle, marginBottom: 24, color: 'var(--text-muted)' }}>
+                        Select a project first so payroll records are tagged correctly for project expenses and computations.
+                    </div>
+                ) : null}
+
                 {showForm && (
                     <div style={{ ...cardStyle, padding: 24, marginBottom: 24 }}>
                         <div style={{ fontWeight: 600, marginBottom: 16 }}>New Payroll Entry</div>
 
                         <form onSubmit={submit}>
                             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12, marginBottom: 12 }}>
+                                {!isStaff ? (
+                                    <div>
+                                        <label style={{ display: 'block', color: 'var(--text-muted)', fontSize: 12, marginBottom: 4 }}>
+                                            Project
+                                        </label>
+                                        <SearchableDropdown
+                                            options={projectDropdownOptions}
+                                            value={data.project_id}
+                                            onChange={(value) => setData('project_id', value || '')}
+                                            placeholder="Select project"
+                                            searchPlaceholder="Search project..."
+                                            emptyMessage="No projects found"
+                                            pageSize={6}
+                                            loadMoreLabel="Load more"
+                                            clearable={false}
+                                            style={{ ...inputStyle, padding: '8px 10px' }}
+                                        />
+                                        {errors?.project_id && (
+                                            <p style={{ color: '#f85149', fontSize: 12, marginTop: 4 }}>{errors.project_id}</p>
+                                        )}
+                                    </div>
+                                ) : null}
                                 {[
                                     ['Worker Name', 'worker_name', 'text'],
                                     ['Role', 'role', 'text'],
@@ -423,6 +533,27 @@ export default function Payroll({ payrolls = [], totalPayable = 0, workerOptions
                     {editingRow && (
                         <form onSubmit={saveEdit} style={{ display: 'grid', gap: 14 }}>
                             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 12 }}>
+                                {!isStaff ? (
+                                    <label>
+                                        <div style={{ fontSize: 12, marginBottom: 6 }}>Project</div>
+                                        <SearchableDropdown
+                                            options={projectDropdownOptions}
+                                            value={editForm.data.project_id}
+                                            onChange={(value) => editForm.setData('project_id', value || '')}
+                                            placeholder="Select project"
+                                            searchPlaceholder="Search project..."
+                                            emptyMessage="No projects found"
+                                            pageSize={6}
+                                            loadMoreLabel="Load more"
+                                            clearable={false}
+                                            style={{ ...inputStyle, padding: '8px 10px' }}
+                                        />
+                                        {editForm.errors.project_id && (
+                                            <div style={{ color: '#f85149', fontSize: 12, marginTop: 4 }}>{editForm.errors.project_id}</div>
+                                        )}
+                                    </label>
+                                ) : null}
+
                                 <label>
                                     <div style={{ fontSize: 12, marginBottom: 6 }}>{personLabel} Name</div>
                                     <SearchableDropdown

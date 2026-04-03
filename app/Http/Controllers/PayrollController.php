@@ -135,7 +135,8 @@ class PayrollController extends Controller
         $cutoff = $this->payrollService->markPaid(
             $request->validated(),
             (int) Auth::id(),
-            (string) $request->query('group', 'workers')
+            (string) $request->query('group', 'workers'),
+            (int) $request->query('project_id', 0) ?: null
         );
 
         return redirect()->route('payroll.run', $this->payrollService->markPaidQueryParams($request, $cutoff));
@@ -145,7 +146,8 @@ class PayrollController extends Controller
     {
         return $this->payrollService->exportResponse(
             (int) $request->validated('cutoff_id'),
-            (string) $request->query('group', 'workers')
+            (string) $request->query('group', 'workers'),
+            (int) $request->query('project_id', 0) ?: null
         );
     }
 }

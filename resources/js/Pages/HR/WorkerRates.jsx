@@ -36,7 +36,15 @@ const money = (value) =>
 
 export default function WorkerRates({ workerRates = [], workerRateTable = {}, rateGroup = 'workers' }) {
     const [editingRow, setEditingRow] = useState(null);
-    const groupQuery = rateGroup ? `?group=${encodeURIComponent(rateGroup)}` : '';
+    const selectedProjectId = workerRateTable?.project_id ? String(workerRateTable.project_id) : '';
+    const groupQueryParams = new URLSearchParams();
+    if (rateGroup) {
+        groupQueryParams.set('group', rateGroup);
+    }
+    if (selectedProjectId) {
+        groupQueryParams.set('project_id', selectedProjectId);
+    }
+    const groupQuery = groupQueryParams.toString() ? `?${groupQueryParams.toString()}` : '';
     const pageTitle = rateGroup === 'staff' ? 'Staff Rates' : 'Worker Rates';
     const summaryTitle = rateGroup === 'staff' ? 'Staff Rate Management' : 'Worker Rate Management';
 
@@ -60,6 +68,7 @@ export default function WorkerRates({ workerRates = [], workerRateTable = {}, ra
             per_page: overrides.per_page !== undefined ? overrides.per_page : table.perPage,
             page: overrides.page !== undefined ? overrides.page : table.page,
             group: overrides.group !== undefined ? overrides.group : rateGroup,
+            project_id: overrides.project_id !== undefined ? overrides.project_id : selectedProjectId,
         };
         if (!params.search) delete params.search;
         return params;

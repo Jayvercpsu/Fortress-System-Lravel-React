@@ -30,6 +30,9 @@ class Payroll extends Model
     protected $fillable = [
         'user_id',
         'cutoff_id',
+        'project_id',
+        'project_name',
+        'project_client',
         'worker_name',
         'role',
         'hours',
@@ -63,6 +66,11 @@ class Payroll extends Model
     public function cutoff()
     {
         return $this->belongsTo(PayrollCutoff::class, 'cutoff_id');
+    }
+
+    public function project()
+    {
+        return $this->belongsTo(Project::class, 'project_id');
     }
 
     public function deductionItems()

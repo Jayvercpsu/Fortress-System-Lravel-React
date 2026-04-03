@@ -6,6 +6,8 @@ use App\Models\Attendance;
 use App\Models\Payroll;
 use App\Models\PayrollCutoff;
 use App\Models\PayrollDeduction;
+use App\Models\Project;
+use App\Models\ProjectAssignment;
 use App\Models\User;
 use App\Models\Worker;
 use App\Repositories\Contracts\PayrollRepositoryInterface;
@@ -16,32 +18,35 @@ use Illuminate\Support\Str;
 
 class PayrollRepository implements PayrollRepositoryInterface
 {
-    public function latestPayrollsWithUser(?string $group = null): EloquentCollection
+    public function latestPayrollsWithUser(?string $group = null, ?int $projectId = null): EloquentCollection
     {
         $query = Payroll::query()
-            ->with('user')
+            ->with(['user', 'project:id,name,client,status,phase'])
             ->latest();
 
         $this->applyRoleGroupFilter($query, $group, 'role');
+        $this->applyProjectFilter($query, $projectId);
 
         return $query->get();
     }
 
-    public function totalPayableByStatuses(array $statuses, ?string $group = null): float
+    public function totalPayableByStatuses(array $statuses, ?string $group = null, ?int $projectId = null): float
     {
         $query = Payroll::query()->whereIn('status', $statuses);
         $this->applyRoleGroupFilter($query, $group, 'role');
+        $this->applyProjectFilter($query, $projectId);
 
         return (float) $query->sum('net');
     }
 
-    public function latestPayrollWorkers(): EloquentCollection
+    public function latestPayrollWorkers(?int $projectId = null): EloquentCollection
     {
         return Payroll::query()
+            ->when($projectId !== null, fn ($query) => $query->where('project_id', $projectId))
             ->whereNotNull('worker_name')
             ->where('worker_name', '!=', '')
             ->orderByDesc('id')
-            ->get(['worker_name', 'role', 'rate_per_hour']);
+            ->get(['worker_name', 'role', 'rate_per_hour', 'project_id']);
     }
 
     public function workersForOptions(): EloquentCollection
@@ -73,23 +78,31 @@ class PayrollRepository implements PayrollRepositoryInterface
         $payroll->update($attributes);
     }
 
-    public function runPayrollPaginator(?int $cutoffId, string $search, int $perPage, ?string $group = null): LengthAwarePaginator
+    public function runPayrollPaginator(?int $cutoffId, string $search, int $perPage, ?string $group = null, ?int $projectId = null): LengthAwarePaginator
     {
         $query = Payroll::query()
-            ->with(['deductionItems', 'releasedBy:id,fullname'])
+            ->with(['deductionItems', 'releasedBy:id,fullname', 'project:id,name,client,status,phase'])
             ->when($cutoffId, fn ($q) => $q->where('cutoff_id', $cutoffId), fn ($q) => $q->whereRaw('1=0'))
             ->when($search !== '', function ($q) use ($search) {
                 $q->where(function ($sub) use ($search) {
                     $sub
                         ->where('worker_name', 'like', "%{$search}%")
                         ->orWhere('role', 'like', "%{$search}%")
-                        ->orWhere('status', 'like', "%{$search}%");
+                        ->orWhere('status', 'like', "%{$search}%")
+                        ->orWhereHas('project', function ($projectQuery) use ($search) {
+                            $projectQuery
+                                ->where('name', 'like', "%{$search}%")
+                                ->orWhere('client', 'like', "%{$search}%");
+                        });
                 });
             });
 
         $this->applyRoleGroupFilter($query, $group, 'role');
+        $this->applyProjectFilter($query, $projectId);
 
         return $query
+            ->orderByRaw('project_id is null')
+            ->orderBy('project_id')
             ->orderBy('worker_name')
             ->paginate($perPage)
             ->withQueryString();
@@ -108,24 +121,27 @@ class PayrollRepository implements PayrollRepositoryInterface
             ->first();
     }
 
-    public function cutoffOptionsRows(int $limit = 20): EloquentCollection
+    public function cutoffOptionsRows(?string $group = null, ?int $projectId = null, int $limit = 20): EloquentCollection
     {
+        $cutoffIds = Payroll::query()
+            ->select('cutoff_id')
+            ->whereNotNull('cutoff_id')
+            ->when($projectId !== null, fn ($query) => $query->where('project_id', $projectId));
+        $this->applyRoleGroupFilter($cutoffIds, $group, 'role');
+
         return PayrollCutoff::query()
-            ->withCount('payrolls')
-            ->withSum('payrolls as total_hours_sum', 'hours')
-            ->withSum('payrolls as total_gross_sum', 'gross')
-            ->withSum('payrolls as total_deductions_sum', 'deductions')
-            ->withSum('payrolls as total_net_sum', 'net')
+            ->whereIn('id', $cutoffIds)
             ->orderByDesc('end_date')
             ->orderByDesc('id')
             ->take($limit)
             ->get();
     }
 
-    public function payrollAggregatesByCutoffId(int $cutoffId, ?string $group = null): array
+    public function payrollAggregatesByCutoffId(int $cutoffId, ?string $group = null, ?int $projectId = null): array
     {
         $payrolls = Payroll::query()->where('cutoff_id', $cutoffId);
         $this->applyRoleGroupFilter($payrolls, $group, 'role');
+        $this->applyProjectFilter($payrolls, $projectId);
 
         return [
             'payroll_count' => (int) (clone $payrolls)->count(),
@@ -136,23 +152,29 @@ class PayrollRepository implements PayrollRepositoryInterface
         ];
     }
 
-    public function paidPayrollCountByCutoffId(int $cutoffId, ?string $group = null): int
+    public function paidPayrollCountByCutoffId(int $cutoffId, ?string $group = null, ?int $projectId = null): int
     {
         $query = Payroll::query()
             ->where('cutoff_id', $cutoffId)
             ->where('status', Payroll::STATUS_PAID);
 
         $this->applyRoleGroupFilter($query, $group, 'role');
+        $this->applyProjectFilter($query, $projectId);
 
         return $query->count();
     }
 
-    public function workersWithForeman(): EloquentCollection
+    public function workersWithForeman(?int $projectId = null): EloquentCollection
     {
-        return Worker::query()
+        $query = Worker::query()
             ->with('foreman:id,fullname')
-            ->orderBy('name')
-            ->get();
+            ->orderBy('name');
+
+        if ($projectId !== null) {
+            $query->where('project_id', $projectId);
+        }
+
+        return $query->get();
     }
 
     public function foremenForRates(): EloquentCollection
@@ -161,6 +183,19 @@ class PayrollRepository implements PayrollRepositoryInterface
             ->where('role', User::ROLE_FOREMAN)
             ->orderBy('fullname')
             ->get(['id', 'fullname', 'email', 'default_rate_per_hour', 'updated_at']);
+    }
+
+    public function foremenForProject(int $projectId): EloquentCollection
+    {
+        return User::query()
+            ->select(['users.id', 'users.fullname', 'users.default_rate_per_hour'])
+            ->join('project_assignments', 'project_assignments.user_id', '=', 'users.id')
+            ->where('project_assignments.project_id', $projectId)
+            ->where('project_assignments.role_in_project', ProjectAssignment::ROLE_FOREMAN)
+            ->whereNull('project_assignments.deleted_at')
+            ->where('users.role', User::ROLE_FOREMAN)
+            ->orderBy('users.fullname')
+            ->get();
     }
 
     public function staffUsersForRates(): EloquentCollection
@@ -185,9 +220,12 @@ class PayrollRepository implements PayrollRepositoryInterface
         ]);
     }
 
-    public function attendanceSummaryBetween(string $startDate, string $endDate, ?string $group = null): Collection
+    public function attendanceSummaryBetween(string $startDate, string $endDate, ?string $group = null, ?int $projectId = null): Collection
     {
         $query = Attendance::query()->whereBetween('date', [$startDate, $endDate]);
+        if ($projectId !== null) {
+            $query->where('project_id', $projectId);
+        }
         $this->applyRoleGroupFilter($query, $group, 'worker_role');
 
         return $query
@@ -213,10 +251,11 @@ class PayrollRepository implements PayrollRepositoryInterface
         );
     }
 
-    public function deletePayrollsByCutoffId(int $cutoffId, ?string $group = null): void
+    public function deletePayrollsByCutoffId(int $cutoffId, ?string $group = null, ?int $projectId = null): void
     {
         $query = Payroll::query()->where('cutoff_id', $cutoffId);
         $this->applyRoleGroupFilter($query, $group, 'role');
+        $this->applyProjectFilter($query, $projectId);
         $query->delete();
     }
 
@@ -254,23 +293,38 @@ class PayrollRepository implements PayrollRepositoryInterface
             ->sum('amount');
     }
 
-    public function payrollsByCutoffId(int $cutoffId, ?string $group = null): EloquentCollection
+    public function payrollsByCutoffId(int $cutoffId, ?string $group = null, ?int $projectId = null): EloquentCollection
     {
         $query = Payroll::query()->where('cutoff_id', $cutoffId);
         $this->applyRoleGroupFilter($query, $group, 'role');
+        $this->applyProjectFilter($query, $projectId);
 
         return $query->get();
     }
 
-    public function payrollsForExportByCutoffId(int $cutoffId, ?string $group = null): EloquentCollection
+    public function payrollsForExportByCutoffId(int $cutoffId, ?string $group = null, ?int $projectId = null): EloquentCollection
     {
         $query = Payroll::query()
-            ->with('deductionItems')
+            ->with(['deductionItems', 'project:id,name,client'])
             ->where('cutoff_id', $cutoffId);
 
         $this->applyRoleGroupFilter($query, $group, 'role');
+        $this->applyProjectFilter($query, $projectId);
 
         return $query->orderBy('worker_name')->get();
+    }
+
+    public function projectOptionsRows(): EloquentCollection
+    {
+        return Project::query()
+            ->whereRaw('LOWER(COALESCE(status, \'\')) not in (?, ?)', ['cancelled', 'canceled'])
+            ->orderBy('name')
+            ->get(['id', 'name', 'client', 'phase', 'status', 'contract_amount']);
+    }
+
+    public function projectById(int $id): ?Project
+    {
+        return Project::query()->find($id);
     }
 
     public function workerDefaultRateByName(string $workerName): ?float
@@ -343,6 +397,15 @@ class PayrollRepository implements PayrollRepositoryInterface
             ->where('role', User::ROLE_FOREMAN)
             ->where('fullname', $workerName)
             ->update(['default_rate_per_hour' => $rate]);
+    }
+
+    private function applyProjectFilter($query, ?int $projectId): void
+    {
+        if ($projectId === null || $projectId <= 0) {
+            return;
+        }
+
+        $query->where('project_id', $projectId);
     }
 
     private function applyRoleGroupFilter($query, ?string $group, string $roleColumn = 'role'): void

@@ -16,7 +16,13 @@ class UpdatePayrollRequest extends FormRequest
 
     public function rules(): array
     {
+        $group = strtolower((string) $this->query('group', 'workers'));
+        $projectRule = $group === 'staff'
+            ? ['nullable', 'integer', 'exists:projects,id']
+            : ['required', 'integer', 'exists:projects,id'];
+
         return [
+            'project_id' => $projectRule,
             'worker_name' => ['required', 'string', 'max:255'],
             'role' => ['required', 'string', 'max:255'],
             'week_start' => ['required', 'date'],

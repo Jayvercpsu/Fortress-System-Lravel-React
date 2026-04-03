@@ -5,6 +5,7 @@ namespace App\Repositories\Contracts;
 use App\Models\Payroll;
 use App\Models\PayrollCutoff;
 use App\Models\PayrollDeduction;
+use App\Models\Project;
 use App\Models\User;
 use App\Models\Worker;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
@@ -13,11 +14,11 @@ use Illuminate\Support\Collection;
 
 interface PayrollRepositoryInterface
 {
-    public function latestPayrollsWithUser(?string $group = null): EloquentCollection;
+    public function latestPayrollsWithUser(?string $group = null, ?int $projectId = null): EloquentCollection;
 
-    public function totalPayableByStatuses(array $statuses, ?string $group = null): float;
+    public function totalPayableByStatuses(array $statuses, ?string $group = null, ?int $projectId = null): float;
 
-    public function latestPayrollWorkers(): EloquentCollection;
+    public function latestPayrollWorkers(?int $projectId = null): EloquentCollection;
 
     public function workersForOptions(): EloquentCollection;
 
@@ -27,21 +28,22 @@ interface PayrollRepositoryInterface
 
     public function updatePayroll(Payroll $payroll, array $attributes): void;
 
-    public function runPayrollPaginator(?int $cutoffId, string $search, int $perPage, ?string $group = null): LengthAwarePaginator;
+    public function runPayrollPaginator(?int $cutoffId, string $search, int $perPage, ?string $group = null, ?int $projectId = null): LengthAwarePaginator;
 
     public function findCutoffById(int $id): ?PayrollCutoff;
 
     public function latestCutoff(): ?PayrollCutoff;
 
-    public function cutoffOptionsRows(int $limit = 20): EloquentCollection;
+    public function cutoffOptionsRows(?string $group = null, ?int $projectId = null, int $limit = 20): EloquentCollection;
 
-    public function payrollAggregatesByCutoffId(int $cutoffId, ?string $group = null): array;
+    public function payrollAggregatesByCutoffId(int $cutoffId, ?string $group = null, ?int $projectId = null): array;
 
-    public function paidPayrollCountByCutoffId(int $cutoffId, ?string $group = null): int;
+    public function paidPayrollCountByCutoffId(int $cutoffId, ?string $group = null, ?int $projectId = null): int;
 
-    public function workersWithForeman(): EloquentCollection;
+    public function workersWithForeman(?int $projectId = null): EloquentCollection;
 
     public function foremenForRates(): EloquentCollection;
+    public function foremenForProject(int $projectId): EloquentCollection;
 
     public function staffUsersForRates(): EloquentCollection;
 
@@ -49,13 +51,13 @@ interface PayrollRepositoryInterface
 
     public function updateForemanDefaultRate(User $user, float $rate): void;
 
-    public function attendanceSummaryBetween(string $startDate, string $endDate, ?string $group = null): Collection;
+    public function attendanceSummaryBetween(string $startDate, string $endDate, ?string $group = null, ?int $projectId = null): Collection;
 
     public function findCutoffByRange(string $startDate, string $endDate): ?PayrollCutoff;
 
     public function firstOrCreateCutoff(string $startDate, string $endDate, string $status = PayrollCutoff::STATUS_GENERATED): PayrollCutoff;
 
-    public function deletePayrollsByCutoffId(int $cutoffId, ?string $group = null): void;
+    public function deletePayrollsByCutoffId(int $cutoffId, ?string $group = null, ?int $projectId = null): void;
 
     public function createDeduction(Payroll $payroll, array $attributes): PayrollDeduction;
 
@@ -69,9 +71,13 @@ interface PayrollRepositoryInterface
 
     public function sumIncentiveAmount(Payroll $payroll): float;
 
-    public function payrollsByCutoffId(int $cutoffId, ?string $group = null): EloquentCollection;
+    public function payrollsByCutoffId(int $cutoffId, ?string $group = null, ?int $projectId = null): EloquentCollection;
 
-    public function payrollsForExportByCutoffId(int $cutoffId, ?string $group = null): EloquentCollection;
+    public function payrollsForExportByCutoffId(int $cutoffId, ?string $group = null, ?int $projectId = null): EloquentCollection;
+
+    public function projectOptionsRows(): EloquentCollection;
+
+    public function projectById(int $id): ?Project;
 
     public function workerDefaultRateByName(string $workerName): ?float;
 

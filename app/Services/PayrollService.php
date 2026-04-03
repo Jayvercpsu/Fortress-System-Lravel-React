@@ -5,6 +5,9 @@ namespace App\Services;
 use App\Models\Payroll;
 use App\Models\PayrollCutoff;
 use App\Models\PayrollDeduction;
+use App\Models\Project;
+use App\Support\Projects\ProjectFlow;
+use App\Models\Expense;
 use App\Models\User;
 use App\Models\Worker;
 use App\Repositories\Contracts\PayrollRepositoryInterface;
@@ -29,15 +32,20 @@ class PayrollService
     public function indexPayload(Request $request): array
     {
         $group = $this->normalizePayrollGroup((string) $request->query('group', 'workers'));
-        $payrolls = $this->payrollRepository->latestPayrollsWithUser($group);
-        $totalPayable = $this->payrollRepository->totalPayableByStatuses(Payroll::payableStatuses(), $group);
-        $workerOptions = $this->manualPayrollWorkerOptions($group);
+        $selectedProject = $this->resolveSelectedProject($request, $group);
+        $selectedProjectId = $selectedProject?->id;
+
+        $payrolls = $this->payrollRepository->latestPayrollsWithUser($group, $selectedProjectId);
+        $totalPayable = $this->payrollRepository->totalPayableByStatuses(Payroll::payableStatuses(), $group, $selectedProjectId);
+        $workerOptions = $this->manualPayrollWorkerOptions($group, $selectedProjectId);
 
         return [
             'payrolls' => $payrolls,
             'totalPayable' => $totalPayable,
             'workerOptions' => $workerOptions,
             'payrollGroup' => $group,
+            'projectOptions' => $this->projectOptionsPayload($selectedProject, $group),
+            'selectedProject' => $selectedProject ? $this->projectPayload($selectedProject) : null,
         ];
     }
 
@@ -47,8 +55,13 @@ class PayrollService
         $deductions = (float) ($validated['deductions'] ?? 0);
         $net = $gross - $deductions;
 
+        $projectId = $validated['project_id'] ?? null;
+        $projectSnapshot = $this->resolveProjectSnapshot($projectId !== null && $projectId !== '' ? (int) $projectId : null);
         $this->payrollRepository->createPayroll([
             'user_id' => $authId,
+            'project_id' => $projectId !== null && $projectId !== '' ? (int) $projectId : null,
+            'project_name' => $projectSnapshot['name'],
+            'project_client' => $projectSnapshot['client'],
             'worker_name' => $validated['worker_name'],
             'role' => $validated['role'],
             'hours' => $validated['hours'],
@@ -75,7 +88,12 @@ class PayrollService
         $deductions = round((float) ($validated['deductions'] ?? 0), 2);
         $net = round($gross - $deductions, 2);
 
+        $projectId = $validated['project_id'] ?? null;
+        $projectSnapshot = $this->resolveProjectSnapshot($projectId !== null && $projectId !== '' ? (int) $projectId : null);
         $this->payrollRepository->updatePayroll($payroll, [
+            'project_id' => $projectId !== null && $projectId !== '' ? (int) $projectId : null,
+            'project_name' => $projectSnapshot['name'],
+            'project_client' => $projectSnapshot['client'],
             'worker_name' => $validated['worker_name'],
             'role' => $validated['role'],
             'week_start' => $validated['week_start'],
@@ -115,13 +133,16 @@ class PayrollService
     {
         [$search, $perPage] = $this->runTableParams($request);
         $group = $this->normalizePayrollGroup((string) $request->query('group', 'workers'));
+        $selectedProject = $this->resolveSelectedProject($request, $group);
+        $selectedProjectId = $selectedProject?->id;
 
-        $selectedCutoff = $this->resolveSelectedCutoff($request, $group);
+        $selectedCutoff = $this->resolveSelectedCutoff($request, $group, $selectedProjectId);
         $payrollPaginator = $this->payrollRepository->runPayrollPaginator(
             $selectedCutoff?->id,
             $search,
             $perPage,
-            $group
+            $group,
+            $selectedProjectId
         );
 
         $payrollRows = collect($payrollPaginator->items())
@@ -129,12 +150,21 @@ class PayrollService
             ->values();
 
         return [
-            'cutoffs' => $this->cutoffOptions($group),
-            'selectedCutoff' => $selectedCutoff ? $this->cutoffPayload($selectedCutoff, $group) : null,
+            'projectOptions' => $this->projectOptionsPayload($selectedProject, $group),
+            'selectedProject' => $selectedProject ? $this->projectPayload($selectedProject) : null,
+            'cutoffs' => $this->cutoffOptions($group, $selectedProjectId),
+            'selectedCutoff' => $selectedCutoff ? $this->cutoffPayload($selectedCutoff, $group, $selectedProjectId) : null,
             'payrollRows' => $payrollRows,
+            'projectFinancialSummary' => $selectedProject
+                ? $this->projectFinancialSummaryPayload($selectedProject, $group, $selectedCutoff)
+                : null,
+            'generateProjectOptions' => $this->generateProjectOptionsPayload($selectedProject, $group),
+            'payrollHistory' => $this->payrollHistoryPayload($group),
+            'projectPayrollHistory' => $this->payrollHistoryPayload($group),
             'payrollGroup' => $group,
             'payrollTable' => [
                 'search' => $search,
+                'project_id' => $selectedProjectId,
                 'per_page' => $payrollPaginator->perPage(),
                 'current_page' => $payrollPaginator->currentPage(),
                 'last_page' => max(1, $payrollPaginator->lastPage()),
@@ -151,6 +181,7 @@ class PayrollService
         [$search, $perPage] = $this->runTableParams($request);
         $needle = mb_strtolower($search);
         $group = $this->normalizePayrollGroup((string) $request->query('group', 'workers'));
+        $projectId = (int) $request->query('project_id', 0) ?: null;
 
         if ($group === 'staff') {
             $staffRows = $this->payrollRepository->staffUsersForRates()
@@ -204,6 +235,7 @@ class PayrollService
                 'workerRates' => $items,
                 'workerRateTable' => [
                     'search' => $search,
+                    'project_id' => $projectId,
                     'per_page' => $paginator->perPage(),
                     'current_page' => $paginator->currentPage(),
                     'last_page' => max(1, $paginator->lastPage()),
@@ -300,6 +332,7 @@ class PayrollService
             'workerRates' => $items,
             'workerRateTable' => [
                 'search' => $search,
+                'project_id' => $projectId,
                 'per_page' => $paginator->perPage(),
                 'current_page' => $paginator->currentPage(),
                 'last_page' => max(1, $paginator->lastPage()),
@@ -336,9 +369,18 @@ class PayrollService
     {
         $startDate = $validated['start_date'];
         $endDate = $validated['end_date'];
+        $projectId = (int) ($validated['project_id'] ?? 0);
         $normalizedGroup = $this->normalizePayrollGroup((string) $group);
+        if ($normalizedGroup !== 'staff' && $projectId <= 0) {
+            throw ValidationException::withMessages([
+                'project_id' => 'Please select a project.',
+            ]);
+        }
+        if ($normalizedGroup === 'staff') {
+            $projectId = null;
+        }
 
-        $attendanceSummary = $this->payrollRepository->attendanceSummaryBetween($startDate, $endDate, $normalizedGroup);
+        $attendanceSummary = $this->payrollRepository->attendanceSummaryBetween($startDate, $endDate, $normalizedGroup, $projectId);
 
         $attendanceSummary = collect($attendanceSummary);
         $summaryByName = $attendanceSummary
@@ -379,7 +421,7 @@ class PayrollService
         if ($normalizedGroup === 'workers') {
             $extras = collect();
 
-            foreach ($this->payrollRepository->workersWithForeman() as $worker) {
+            foreach ($this->payrollRepository->workersWithForeman($projectId) as $worker) {
                 $name = trim((string) ($worker->name ?? ''));
                 if ($name === '') {
                     continue;
@@ -401,7 +443,7 @@ class PayrollService
                 $summaryByName->put($key, true);
             }
 
-            foreach ($this->payrollRepository->foremenForRates() as $foreman) {
+            foreach ($this->payrollRepository->foremenForProject($projectId) as $foreman) {
                 $name = trim((string) ($foreman->fullname ?? ''));
                 if ($name === '') {
                     continue;
@@ -432,8 +474,8 @@ class PayrollService
         $existingCutoff = $this->payrollRepository->findCutoffByRange($startDate, $endDate);
 
         if ($existingCutoff) {
-            $aggregates = $this->payrollRepository->payrollAggregatesByCutoffId((int) $existingCutoff->id, $normalizedGroup);
-            $paidCount = $this->payrollRepository->paidPayrollCountByCutoffId((int) $existingCutoff->id, $normalizedGroup);
+            $aggregates = $this->payrollRepository->payrollAggregatesByCutoffId((int) $existingCutoff->id, $normalizedGroup, $projectId);
+            $paidCount = $this->payrollRepository->paidPayrollCountByCutoffId((int) $existingCutoff->id, $normalizedGroup, $projectId);
             $payrollCount = (int) ($aggregates['payroll_count'] ?? 0);
 
             if ($payrollCount > 0 && $paidCount >= $payrollCount) {
@@ -443,9 +485,10 @@ class PayrollService
             }
         }
 
-        return DB::transaction(function () use ($startDate, $endDate, $attendanceSummary, $authId, $normalizedGroup) {
+        return DB::transaction(function () use ($startDate, $endDate, $attendanceSummary, $authId, $normalizedGroup, $projectId) {
             $cutoff = $this->payrollRepository->firstOrCreateCutoff($startDate, $endDate);
-            $this->payrollRepository->deletePayrollsByCutoffId((int) $cutoff->id, $normalizedGroup);
+            $this->payrollRepository->deletePayrollsByCutoffId((int) $cutoff->id, $normalizedGroup, $projectId);
+            $projectSnapshot = $this->resolveProjectSnapshot($projectId);
 
             foreach ($attendanceSummary as $row) {
                 $hours = round((float) ($row->total_hours ?? 0), 2);
@@ -455,6 +498,9 @@ class PayrollService
                 $this->payrollRepository->createPayroll([
                     'user_id' => $authId,
                     'cutoff_id' => $cutoff->id,
+                    'project_id' => $projectId,
+                    'project_name' => $projectSnapshot['name'],
+                    'project_client' => $projectSnapshot['client'],
                     'worker_name' => $row->worker_name,
                     'role' => $row->worker_role ?: 'Labor',
                     'hours' => $hours,
@@ -503,13 +549,13 @@ class PayrollService
         return $payroll;
     }
 
-    public function markPaid(array $validated, int $authId, ?string $group = null): PayrollCutoff
+    public function markPaid(array $validated, int $authId, ?string $group = null, ?int $projectId = null): PayrollCutoff
     {
         $cutoff = $this->payrollRepository->findCutoffById((int) $validated['cutoff_id']);
         abort_unless($cutoff instanceof PayrollCutoff, 404);
 
         $normalizedGroup = $this->normalizePayrollGroup((string) $group);
-        $payrolls = $this->payrollRepository->payrollsByCutoffId((int) $cutoff->id, $normalizedGroup);
+        $payrolls = $this->payrollRepository->payrollsByCutoffId((int) $cutoff->id, $normalizedGroup, $projectId);
 
         if ($payrolls->isEmpty()) {
             throw ValidationException::withMessages([
@@ -544,13 +590,13 @@ class PayrollService
         return $cutoff;
     }
 
-    public function exportResponse(int $cutoffId, ?string $group = null): StreamedResponse
+    public function exportResponse(int $cutoffId, ?string $group = null, ?int $projectId = null): StreamedResponse
     {
         $cutoff = $this->payrollRepository->findCutoffById($cutoffId);
         abort_unless($cutoff instanceof PayrollCutoff, 404);
 
         $normalizedGroup = $this->normalizePayrollGroup((string) $group);
-        $payrolls = $this->payrollRepository->payrollsForExportByCutoffId((int) $cutoff->id, $normalizedGroup);
+        $payrolls = $this->payrollRepository->payrollsForExportByCutoffId((int) $cutoff->id, $normalizedGroup, $projectId);
 
         $filename = sprintf(
             'payroll-cutoff-%s-to-%s.csv',
@@ -561,11 +607,19 @@ class PayrollService
         return response()->streamDownload(function () use ($payrolls, $cutoff) {
             $out = fopen('php://output', 'w');
 
-            fputcsv($out, ['Cutoff Start', optional($cutoff->start_date)->toDateString()]);
-            fputcsv($out, ['Cutoff End', optional($cutoff->end_date)->toDateString()]);
+            $formatCsvDate = function ($value) {
+                if (!$value) {
+                    return '';
+                }
+                return '="' . $value . '"';
+            };
+
+            fputcsv($out, ['Cutoff Start', $formatCsvDate(optional($cutoff->start_date)->toDateString())]);
+            fputcsv($out, ['Cutoff End', $formatCsvDate(optional($cutoff->end_date)->toDateString())]);
             fputcsv($out, ['Status', $cutoff->status]);
             fputcsv($out, []);
             fputcsv($out, [
+                'Project',
                 'Worker Name',
                 'Role',
                 'Hours',
@@ -588,6 +642,7 @@ class PayrollService
                     ->where('type', PayrollDeduction::TYPE_INCENTIVE)
                     ->sum('amount'), 2);
                 fputcsv($out, [
+                    $payroll->project?->name ?: ($payroll->project_name ?: '-'),
                     $payroll->worker_name,
                     $payroll->role,
                     (float) $payroll->hours,
@@ -597,7 +652,7 @@ class PayrollService
                     $deductionTotal,
                     (float) $payroll->net,
                     $payroll->status,
-                    optional($payroll->released_at)?->toDateTimeString(),
+                    $formatCsvDate(optional($payroll->released_at)?->toDateTimeString()),
                     $payroll->payment_reference,
                     $payroll->bank_export_ref,
                 ]);
@@ -613,6 +668,7 @@ class PayrollService
     {
         return array_filter([
             'cutoff_id' => $request->query('cutoff_id', $payroll->cutoff_id),
+            'project_id' => $request->query('project_id', $payroll->project_id),
             'search' => $request->query('search'),
             'per_page' => $request->query('per_page'),
             'page' => $request->query('page'),
@@ -624,6 +680,7 @@ class PayrollService
     {
         return array_filter([
             'cutoff_id' => $cutoff->id,
+            'project_id' => $request->query('project_id'),
             'search' => $request->query('search'),
             'per_page' => $request->query('per_page'),
             'page' => $request->query('page'),
@@ -633,16 +690,18 @@ class PayrollService
 
     public function runGenerateQueryParams(Request $request, PayrollCutoff $cutoff): array
     {
-        return [
+        return array_filter([
             'cutoff_id' => $cutoff->id,
+            'project_id' => $request->query('project_id', $request->input('project_id')),
             'per_page' => $request->query('per_page', 10),
             'group' => $request->query('group', 'workers'),
-        ];
+        ], fn ($value) => $value !== null && $value !== '');
     }
 
     public function tableQueryParams(Request $request): array
     {
         return array_filter([
+            'project_id' => $request->query('project_id'),
             'search' => $request->query('search'),
             'per_page' => $request->query('per_page'),
             'page' => $request->query('page'),
@@ -672,34 +731,34 @@ class PayrollService
         return $normalized;
     }
 
-    private function resolveSelectedCutoff(Request $request, string $group): ?PayrollCutoff
+    private function resolveSelectedCutoff(Request $request, string $group, ?int $projectId = null): ?PayrollCutoff
     {
         $cutoffId = (int) $request->query('cutoff_id', 0);
 
         if ($cutoffId > 0) {
             $found = $this->payrollRepository->findCutoffById($cutoffId);
-            if ($found && $this->hasCutoffRowsForGroup($found, $group)) {
+            if ($found && $this->hasCutoffRowsForGroup($found, $group, $projectId)) {
                 return $found;
             }
         }
 
-        return $this->latestCutoffForGroup($group);
+        return $this->latestCutoffForGroup($group, $projectId);
     }
 
-    private function cutoffOptions(string $group): Collection
+    private function cutoffOptions(string $group, ?int $projectId = null): Collection
     {
         return $this->payrollRepository
-            ->cutoffOptionsRows()
-            ->map(fn (PayrollCutoff $cutoff) => $this->cutoffPayload($cutoff, $group))
+            ->cutoffOptionsRows($group, $projectId)
+            ->map(fn (PayrollCutoff $cutoff) => $this->cutoffPayload($cutoff, $group, $projectId))
             ->filter(fn (array $payload) => (int) ($payload['payroll_count'] ?? 0) > 0)
             ->values();
     }
 
-    private function cutoffPayload(PayrollCutoff $cutoff, string $group): array
+    private function cutoffPayload(PayrollCutoff $cutoff, string $group, ?int $projectId = null): array
     {
-        $aggregates = $this->payrollRepository->payrollAggregatesByCutoffId((int) $cutoff->id, $group);
+        $aggregates = $this->payrollRepository->payrollAggregatesByCutoffId((int) $cutoff->id, $group, $projectId);
         $payrollCount = (int) $aggregates['payroll_count'];
-        $paidCount = $this->payrollRepository->paidPayrollCountByCutoffId((int) $cutoff->id, $group);
+        $paidCount = $this->payrollRepository->paidPayrollCountByCutoffId((int) $cutoff->id, $group, $projectId);
         $groupStatus = $payrollCount > 0 && $paidCount >= $payrollCount
             ? PayrollCutoff::STATUS_PAID
             : PayrollCutoff::STATUS_GENERATED;
@@ -720,7 +779,7 @@ class PayrollService
 
     private function payrollRowPayload(Payroll $payroll): array
     {
-        $payroll->loadMissing(['deductionItems', 'releasedBy:id,fullname']);
+        $payroll->loadMissing(['deductionItems', 'releasedBy:id,fullname', 'project:id,name,client,status,phase,contract_amount']);
 
         $deductionItems = $payroll->deductionItems
             ->map(fn (PayrollDeduction $deduction) => [
@@ -734,6 +793,9 @@ class PayrollService
         return [
             'id' => $payroll->id,
             'cutoff_id' => $payroll->cutoff_id,
+            'project_id' => $payroll->project_id !== null ? (int) $payroll->project_id : null,
+            'project_name' => $payroll->project?->name ?? $payroll->project_name,
+            'project_client' => $payroll->project?->client ?? $payroll->project_client,
             'worker_name' => $payroll->worker_name,
             'role' => $payroll->role,
             'hours' => (float) $payroll->hours,
@@ -813,12 +875,12 @@ class PayrollService
         }
     }
 
-    private function manualPayrollWorkerOptions(string $group): Collection
+    private function manualPayrollWorkerOptions(string $group, ?int $projectId = null): Collection
     {
         if ($group === 'staff') {
             $options = [];
 
-            $latestPayrollWorkers = $this->payrollRepository->latestPayrollWorkers();
+            $latestPayrollWorkers = $this->payrollRepository->latestPayrollWorkers($projectId);
             foreach ($latestPayrollWorkers as $payroll) {
                 $role = (string) ($payroll->role ?? '');
                 if (!$this->isStaffRoleLabel($role)) {
@@ -872,7 +934,7 @@ class PayrollService
 
         $options = [];
 
-        $latestPayrollWorkers = $this->payrollRepository->latestPayrollWorkers();
+        $latestPayrollWorkers = $this->payrollRepository->latestPayrollWorkers($projectId);
         foreach ($latestPayrollWorkers as $payroll) {
             if ($this->isStaffRoleLabel((string) ($payroll->role ?? ''))) {
                 continue;
@@ -894,7 +956,14 @@ class PayrollService
             }
         }
 
-        $workers = $this->payrollRepository->workersForOptions();
+        $workers = $projectId !== null
+            ? $this->payrollRepository->workersWithForeman($projectId)->map(function (Worker $worker) {
+                return (object) [
+                    'name' => $worker->name,
+                    'default_rate_per_hour' => $worker->default_rate_per_hour,
+                ];
+            })
+            : $this->payrollRepository->workersForOptions();
         foreach ($workers as $worker) {
             $name = trim((string) $worker->name);
             if ($name === '') {
@@ -917,7 +986,9 @@ class PayrollService
             }
         }
 
-        $foremen = $this->payrollRepository->foremenForOptions();
+        $foremen = $projectId !== null
+            ? $this->payrollRepository->foremenForProject($projectId)
+            : $this->payrollRepository->foremenForOptions();
         foreach ($foremen as $foreman) {
             $name = trim((string) $foreman->fullname);
             if ($name === '') {
@@ -979,22 +1050,357 @@ class PayrollService
         };
     }
 
-    private function hasCutoffRowsForGroup(PayrollCutoff $cutoff, string $group): bool
+    private function hasCutoffRowsForGroup(PayrollCutoff $cutoff, string $group, ?int $projectId = null): bool
     {
-        $aggregates = $this->payrollRepository->payrollAggregatesByCutoffId((int) $cutoff->id, $group);
+        $aggregates = $this->payrollRepository->payrollAggregatesByCutoffId((int) $cutoff->id, $group, $projectId);
         return (int) ($aggregates['payroll_count'] ?? 0) > 0;
     }
 
-    private function latestCutoffForGroup(string $group): ?PayrollCutoff
+    private function latestCutoffForGroup(string $group, ?int $projectId = null): ?PayrollCutoff
     {
-        $candidates = $this->payrollRepository->cutoffOptionsRows();
+        $candidates = $this->payrollRepository->cutoffOptionsRows($group, $projectId);
         foreach ($candidates as $cutoff) {
-            if ($this->hasCutoffRowsForGroup($cutoff, $group)) {
+            if ($this->hasCutoffRowsForGroup($cutoff, $group, $projectId)) {
                 return $cutoff;
             }
         }
 
         return null;
+    }
+
+    private function resolveSelectedProject(Request $request, string $group): ?Project
+    {
+        if ($this->normalizePayrollGroup($group) === 'staff') {
+            return null;
+        }
+        $requestedProjectId = (int) $request->query('project_id', 0);
+        if ($requestedProjectId > 0) {
+            $requested = $this->payrollRepository->projectById($requestedProjectId);
+            if ($requested instanceof Project) {
+                return $requested;
+            }
+        }
+
+        $latestTaggedProjectId = (int) (Payroll::query()
+            ->whereNotNull('project_id')
+            ->orderByDesc('id')
+            ->value('project_id') ?? 0);
+        if ($latestTaggedProjectId > 0) {
+            $latestTaggedProject = $this->payrollRepository->projectById($latestTaggedProjectId);
+            if ($latestTaggedProject instanceof Project) {
+                return $latestTaggedProject;
+            }
+        }
+
+        return $this->payrollRepository->projectOptionsRows()->first();
+    }
+
+    private function projectOptionsPayload(?Project $selectedProject = null, ?string $group = null): Collection
+    {
+        if ($this->normalizePayrollGroup((string) $group) === 'staff') {
+            return collect();
+        }
+        $options = $this->payrollRepository->projectOptionsRows()->values();
+        $selectedId = $selectedProject?->id;
+
+        if ($selectedProject && !$options->contains(fn (Project $project) => (int) $project->id === (int) $selectedId)) {
+            $options = $options->prepend($selectedProject);
+        }
+
+        return $options->map(fn (Project $project) => $this->projectPayload($project))->values();
+    }
+
+    private function generateProjectOptionsPayload(?Project $selectedProject = null, ?string $group = null): Collection
+    {
+        if ($this->normalizePayrollGroup((string) $group) === 'staff') {
+            return collect();
+        }
+
+        $phaseKey = ProjectFlow::phaseMatchKey(Project::PHASE_CONSTRUCTION);
+        $phaseExpr = "LOWER(REPLACE(REPLACE(REPLACE(COALESCE(phase, ''), '-', ''), ' ', ''), '_', ''))";
+        $statusExpr = "LOWER(REPLACE(REPLACE(REPLACE(COALESCE(status, ''), '-', ''), ' ', ''), '_', ''))";
+        $statusExclusions = ['completed', 'complete', 'done', 'cancelled', 'canceled'];
+
+        return Project::query()
+            ->whereRaw("{$phaseExpr} = ?", [$phaseKey])
+            ->whereRaw("{$statusExpr} not in (?, ?, ?, ?, ?)", $statusExclusions)
+            ->orderBy('name')
+            ->get(['id', 'name', 'client', 'phase', 'status', 'contract_amount'])
+            ->map(fn (Project $project) => $this->projectPayload($project))
+            ->values();
+    }
+
+    private function projectPayload(Project $project): array
+    {
+        return [
+            'id' => (int) $project->id,
+            'name' => (string) $project->name,
+            'client' => (string) ($project->client ?? ''),
+            'phase' => (string) ($project->phase ?? ''),
+            'status' => (string) ($project->status ?? ''),
+            'contract_amount' => (float) ($project->contract_amount ?? 0),
+        ];
+    }
+
+    private function resolveProjectSnapshot(?int $projectId): array
+    {
+        if (!$projectId || $projectId <= 0) {
+            return ['name' => null, 'client' => null];
+        }
+
+        $project = $this->payrollRepository->projectById($projectId);
+        if (!$project instanceof Project) {
+            return ['name' => null, 'client' => null];
+        }
+
+        return [
+            'name' => (string) ($project->name ?? ''),
+            'client' => (string) ($project->client ?? ''),
+        ];
+    }
+
+    private function projectFinancialSummaryPayload(Project $project, string $group, ?PayrollCutoff $selectedCutoff = null): array
+    {
+        $projectId = (int) $project->id;
+        $contractAmount = round((float) ($project->contract_amount ?? 0), 2);
+        $projectPayrollQuery = Payroll::query()->where('project_id', $projectId);
+        $this->applyGroupFilterToPayrollQuery($projectPayrollQuery, $group);
+
+        $totalPayrollNet = round((float) (clone $projectPayrollQuery)->sum('net'), 2);
+        $totalPayrollGross = round((float) (clone $projectPayrollQuery)->sum('gross'), 2);
+        $totalPayrollDeductions = round((float) (clone $projectPayrollQuery)->sum('deductions'), 2);
+        $payrollRowsCount = (int) (clone $projectPayrollQuery)->count();
+        $paidRowsCount = (int) (clone $projectPayrollQuery)->where('status', Payroll::STATUS_PAID)->count();
+
+        $totalExpenses = round((float) Expense::query()
+            ->where('project_id', $projectId)
+            ->sum('amount'), 2);
+
+        $trackedTotalCost = round($totalPayrollNet + $totalExpenses, 2);
+        $remainingBudget = round($contractAmount - $trackedTotalCost, 2);
+        $utilizationPercent = $contractAmount > 0
+            ? round(($trackedTotalCost / $contractAmount) * 100, 2)
+            : 0.0;
+
+        $cutoffTotals = [
+            'cutoff_id' => null,
+            'row_count' => 0,
+            'hours' => 0.0,
+            'gross' => 0.0,
+            'deductions' => 0.0,
+            'net' => 0.0,
+        ];
+
+        if ($selectedCutoff) {
+            $cutoffQuery = Payroll::query()
+                ->where('project_id', $projectId)
+                ->where('cutoff_id', (int) $selectedCutoff->id);
+            $this->applyGroupFilterToPayrollQuery($cutoffQuery, $group);
+
+            $cutoffTotals = [
+                'cutoff_id' => (int) $selectedCutoff->id,
+                'row_count' => (int) (clone $cutoffQuery)->count(),
+                'hours' => round((float) (clone $cutoffQuery)->sum('hours'), 2),
+                'gross' => round((float) (clone $cutoffQuery)->sum('gross'), 2),
+                'deductions' => round((float) (clone $cutoffQuery)->sum('deductions'), 2),
+                'net' => round((float) (clone $cutoffQuery)->sum('net'), 2),
+            ];
+        }
+
+        return [
+            'project' => $this->projectPayload($project),
+            'totals' => [
+                'contract_amount' => $contractAmount,
+                'payroll_rows' => $payrollRowsCount,
+                'paid_rows' => $paidRowsCount,
+                'payroll_gross' => $totalPayrollGross,
+                'payroll_deductions' => $totalPayrollDeductions,
+                'payroll_net' => $totalPayrollNet,
+                'expenses_total' => $totalExpenses,
+                'tracked_total_cost' => $trackedTotalCost,
+                'remaining_budget' => $remainingBudget,
+                'budget_utilization_pct' => $utilizationPercent,
+            ],
+            'selected_cutoff' => $cutoffTotals,
+        ];
+    }
+
+    private function payrollHistoryPayload(string $group): Collection
+    {
+        $normalizedGroup = $this->normalizePayrollGroup($group);
+        $historyRows = Payroll::query()->whereNotNull('cutoff_id');
+
+        if ($normalizedGroup === 'staff') {
+            $historyRows
+                ->whereNull('project_id')
+                ->selectRaw('
+                    cutoff_id,
+                    COUNT(*) as payroll_count,
+                    SUM(hours) as total_hours,
+                    SUM(gross) as total_gross,
+                    SUM(deductions) as total_deductions,
+                    SUM(net) as total_net,
+                    SUM(CASE WHEN status = ? THEN 1 ELSE 0 END) as paid_count
+                ', [Payroll::STATUS_PAID]);
+            $this->applyGroupFilterToPayrollQuery($historyRows, $group);
+
+            $historyRows = $historyRows
+                ->groupBy('cutoff_id')
+                ->orderByDesc('cutoff_id')
+                ->with(['cutoff:id,start_date,end_date,status'])
+                ->limit(20)
+                ->get();
+
+            return $historyRows
+                ->map(function (Payroll $row) use ($group) {
+                    $payrollCount = (int) ($row->payroll_count ?? 0);
+                    $paidCount = (int) ($row->paid_count ?? 0);
+                    $cutoffId = (int) ($row->cutoff_id ?? 0);
+
+                    return [
+                        'cutoff_id' => $cutoffId,
+                        'project_id' => null,
+                        'project_name' => 'Office Payroll',
+                        'project_client' => '',
+                        'cutoff_start' => optional($row->cutoff?->start_date)?->toDateString(),
+                        'cutoff_end' => optional($row->cutoff?->end_date)?->toDateString(),
+                        'payroll_count' => $payrollCount,
+                        'paid_count' => $paidCount,
+                        'status' => $payrollCount > 0 && $paidCount >= $payrollCount
+                            ? PayrollCutoff::STATUS_PAID
+                            : PayrollCutoff::STATUS_GENERATED,
+                        'total_hours' => round((float) ($row->total_hours ?? 0), 2),
+                        'total_gross' => round((float) ($row->total_gross ?? 0), 2),
+                        'total_deductions' => round((float) ($row->total_deductions ?? 0), 2),
+                        'total_net' => round((float) ($row->total_net ?? 0), 2),
+                        'transactions' => $this->payrollHistoryTransactionsPayload($cutoffId, null, $group)->all(),
+                    ];
+                })
+                ->values();
+        }
+
+        $historyRows
+            ->whereNotNull('project_id')
+            ->selectRaw('
+                cutoff_id,
+                project_id,
+                MIN(project_name) as project_name,
+                MIN(project_client) as project_client,
+                COUNT(*) as payroll_count,
+                SUM(hours) as total_hours,
+                SUM(gross) as total_gross,
+                SUM(deductions) as total_deductions,
+                SUM(net) as total_net,
+                SUM(CASE WHEN status = ? THEN 1 ELSE 0 END) as paid_count
+            ', [Payroll::STATUS_PAID]);
+        $this->applyGroupFilterToPayrollQuery($historyRows, $group);
+
+        $historyRows = $historyRows
+            ->groupBy('cutoff_id', 'project_id')
+            ->orderByDesc('cutoff_id')
+            ->orderBy('project_id')
+            ->with([
+                'cutoff:id,start_date,end_date,status',
+                'project:id,name,client',
+            ])
+            ->limit(20)
+            ->get();
+
+        return $historyRows
+            ->map(function (Payroll $row) use ($group) {
+                $payrollCount = (int) ($row->payroll_count ?? 0);
+                $paidCount = (int) ($row->paid_count ?? 0);
+                $projectId = (int) ($row->project_id ?? 0);
+                $cutoffId = (int) ($row->cutoff_id ?? 0);
+
+                return [
+                    'cutoff_id' => $cutoffId,
+                    'project_id' => $projectId > 0 ? $projectId : null,
+                    'project_name' => $row->project?->name ?: ($row->project_name ?: '-'),
+                    'project_client' => $row->project?->client ?: ($row->project_client ?: '-'),
+                    'cutoff_start' => optional($row->cutoff?->start_date)?->toDateString(),
+                    'cutoff_end' => optional($row->cutoff?->end_date)?->toDateString(),
+                    'payroll_count' => $payrollCount,
+                    'paid_count' => $paidCount,
+                    'status' => $payrollCount > 0 && $paidCount >= $payrollCount
+                        ? PayrollCutoff::STATUS_PAID
+                        : PayrollCutoff::STATUS_GENERATED,
+                    'total_hours' => round((float) ($row->total_hours ?? 0), 2),
+                    'total_gross' => round((float) ($row->total_gross ?? 0), 2),
+                    'total_deductions' => round((float) ($row->total_deductions ?? 0), 2),
+                    'total_net' => round((float) ($row->total_net ?? 0), 2),
+                    'transactions' => $this->payrollHistoryTransactionsPayload($cutoffId, $projectId, $group)->all(),
+                ];
+            })
+            ->values();
+    }
+
+    private function payrollHistoryTransactionsPayload(int $cutoffId, ?int $projectId, string $group): Collection
+    {
+        if ($cutoffId <= 0) {
+            return collect();
+        }
+
+        $query = Payroll::query()
+            ->with(['deductionItems', 'releasedBy:id,fullname'])
+            ->where('cutoff_id', $cutoffId);
+        if ($projectId !== null && $projectId > 0) {
+            $query->where('project_id', $projectId);
+        } else {
+            $query->whereNull('project_id');
+        }
+        $this->applyGroupFilterToPayrollQuery($query, $group);
+
+        return $query
+            ->orderBy('worker_name')
+            ->get()
+            ->map(function (Payroll $payroll) {
+                $incentives = round((float) $payroll->deductionItems
+                    ->where('type', PayrollDeduction::TYPE_INCENTIVE)
+                    ->sum('amount'), 2);
+
+                return [
+                    'id' => (int) $payroll->id,
+                    'worker_name' => (string) ($payroll->worker_name ?? ''),
+                    'role' => (string) ($payroll->role ?? ''),
+                    'hours' => round((float) ($payroll->hours ?? 0), 2),
+                    'rate_per_hour' => round((float) ($payroll->rate_per_hour ?? 0), 2),
+                    'gross' => round((float) ($payroll->gross ?? 0), 2),
+                    'incentives' => $incentives,
+                    'deductions' => round((float) ($payroll->deductions ?? 0), 2),
+                    'net' => round((float) ($payroll->net ?? 0), 2),
+                    'status' => (string) ($payroll->status ?? ''),
+                    'released_at' => optional($payroll->released_at)?->toDateTimeString(),
+                    'released_by_name' => $payroll->releasedBy?->fullname,
+                    'payment_reference' => $payroll->payment_reference,
+                    'bank_export_ref' => $payroll->bank_export_ref,
+                ];
+            })
+            ->values();
+    }
+
+    private function applyGroupFilterToPayrollQuery($query, string $group): void
+    {
+        $normalizedGroup = $this->normalizePayrollGroup($group);
+        $roleField = "LOWER(COALESCE(role, ''))";
+        $staffRoleMatchers = ['hr', 'human resources', 'admin', 'administrator', 'designer'];
+
+        if ($normalizedGroup === 'staff') {
+            $query->where(function ($sub) use ($roleField, $staffRoleMatchers) {
+                foreach ($staffRoleMatchers as $matcher) {
+                    $sub->orWhereRaw("{$roleField} = ?", [$matcher])
+                        ->orWhereRaw("{$roleField} like ?", ['%' . $matcher . '%']);
+                }
+            })->whereRaw("{$roleField} not like '%head%admin%'");
+            return;
+        }
+
+        $query->where(function ($sub) use ($roleField, $staffRoleMatchers) {
+            $sub->whereRaw("{$roleField} not like '%head%admin%'");
+            foreach ($staffRoleMatchers as $matcher) {
+                $sub->whereRaw("{$roleField} not like ?", ['%' . $matcher . '%']);
+            }
+        });
     }
 
     private function syncWorkerDefaultRate(string $workerName, float $ratePerHour): void

@@ -654,7 +654,7 @@ class ProjectService
                     'design_office_payroll_deduction' => $designPayloadOfficePayrollDeduction,
                     'includes_design_office_payroll_deduction_in_project_total' => false,
                     'includes_payroll_deductions_in_project_total' => false,
-                    'payroll_deductions_note' => 'Payroll deductions are not included in Project Computations because payroll rows are not linked to project_id.',
+                    'payroll_deductions_note' => 'Payroll deductions are tracked only for payroll rows tagged to this project.',
                 ],
             ],
         ];
