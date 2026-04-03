@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Http\Requests\Payrolls\ExportPayrollRequest;
+use App\Http\Requests\Payrolls\DeletePayrollHistoryRequest;
 use App\Http\Requests\Payrolls\GeneratePayrollFromAttendanceRequest;
 use App\Http\Requests\Payrolls\MarkPayrollPaidRequest;
 use App\Http\Requests\Payrolls\StorePayrollDeductionRequest;
@@ -149,5 +150,16 @@ class PayrollController extends Controller
             (string) $request->query('group', 'workers'),
             (int) $request->query('project_id', 0) ?: null
         );
+    }
+
+    public function destroyHistory(DeletePayrollHistoryRequest $request)
+    {
+        $this->payrollService->deleteHistory(
+            (int) $request->validated('cutoff_id'),
+            (string) $request->query('group', 'workers'),
+            $request->validated('project_id')
+        );
+
+        return back()->with('success', __('messages.payroll.history_deleted'));
     }
 }

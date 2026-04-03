@@ -135,6 +135,8 @@ class PayrollService
         $group = $this->normalizePayrollGroup((string) $request->query('group', 'workers'));
         $selectedProject = $this->resolveSelectedProject($request, $group);
         $selectedProjectId = $selectedProject?->id;
+        $historyPage = max(1, (int) $request->query('history_page', 1));
+        $historyPerPage = 20;
 
         $selectedCutoff = $this->resolveSelectedCutoff($request, $group, $selectedProjectId);
         $payrollPaginator = $this->payrollRepository->runPayrollPaginator(
@@ -149,6 +151,8 @@ class PayrollService
             ->map(fn (Payroll $payroll) => $this->payrollRowPayload($payroll))
             ->values();
 
+        $historyPayload = $this->payrollHistoryPayload($group, $historyPage, $historyPerPage, $request);
+
         return [
             'projectOptions' => $this->projectOptionsPayload($selectedProject, $group),
             'selectedProject' => $selectedProject ? $this->projectPayload($selectedProject) : null,
@@ -159,8 +163,9 @@ class PayrollService
                 ? $this->projectFinancialSummaryPayload($selectedProject, $group, $selectedCutoff)
                 : null,
             'generateProjectOptions' => $this->generateProjectOptionsPayload($selectedProject, $group),
-            'payrollHistory' => $this->payrollHistoryPayload($group),
-            'projectPayrollHistory' => $this->payrollHistoryPayload($group),
+            'payrollHistory' => $historyPayload['rows'],
+            'projectPayrollHistory' => $historyPayload['rows'],
+            'payrollHistoryTable' => $historyPayload['pager'],
             'payrollGroup' => $group,
             'payrollTable' => [
                 'search' => $search,
@@ -174,6 +179,18 @@ class PayrollService
             ],
             'today' => now()->toDateString(),
         ];
+    }
+
+    public function deleteHistory(int $cutoffId, ?string $group = null, ?int $projectId = null): void
+    {
+        $normalizedGroup = $this->normalizePayrollGroup((string) $group);
+        if ($normalizedGroup === 'workers' && (!$projectId || $projectId <= 0)) {
+            throw ValidationException::withMessages([
+                'project_id' => 'Project is required to delete worker payroll history.',
+            ]);
+        }
+
+        $this->payrollRepository->deletePayrollsByCutoffId($cutoffId, $normalizedGroup, $projectId);
     }
 
     public function workerRatesPayload(Request $request): array
@@ -1225,7 +1242,7 @@ class PayrollService
         ];
     }
 
-    private function payrollHistoryPayload(string $group): Collection
+    private function payrollHistoryPayload(string $group, int $page, int $perPage, Request $request): array
     {
         $normalizedGroup = $this->normalizePayrollGroup($group);
         $historyRows = Payroll::query()->whereNotNull('cutoff_id');
@@ -1248,10 +1265,21 @@ class PayrollService
                 ->groupBy('cutoff_id')
                 ->orderByDesc('cutoff_id')
                 ->with(['cutoff:id,start_date,end_date,status'])
-                ->limit(20)
                 ->get();
 
-            return $historyRows
+            $total = $historyRows->count();
+            $page = max(1, $page);
+            $perPage = max(1, $perPage);
+            $items = $historyRows->forPage($page, $perPage)->values();
+            $paginator = new LengthAwarePaginator(
+                $items,
+                $total,
+                $perPage,
+                $page,
+                ['path' => $request->url(), 'query' => $request->query()]
+            );
+
+            $rows = $items
                 ->map(function (Payroll $row) use ($group) {
                     $payrollCount = (int) ($row->payroll_count ?? 0);
                     $paidCount = (int) ($row->paid_count ?? 0);
@@ -1277,6 +1305,10 @@ class PayrollService
                     ];
                 })
                 ->values();
+            return [
+                'rows' => $rows,
+                'pager' => $paginator->toArray(),
+            ];
         }
 
         $historyRows
@@ -1303,10 +1335,21 @@ class PayrollService
                 'cutoff:id,start_date,end_date,status',
                 'project:id,name,client',
             ])
-            ->limit(20)
             ->get();
 
-        return $historyRows
+        $total = $historyRows->count();
+        $page = max(1, $page);
+        $perPage = max(1, $perPage);
+        $items = $historyRows->forPage($page, $perPage)->values();
+        $paginator = new LengthAwarePaginator(
+            $items,
+            $total,
+            $perPage,
+            $page,
+            ['path' => $request->url(), 'query' => $request->query()]
+        );
+
+        $rows = $items
             ->map(function (Payroll $row) use ($group) {
                 $payrollCount = (int) ($row->payroll_count ?? 0);
                 $paidCount = (int) ($row->paid_count ?? 0);
@@ -1330,9 +1373,14 @@ class PayrollService
                     'total_deductions' => round((float) ($row->total_deductions ?? 0), 2),
                     'total_net' => round((float) ($row->total_net ?? 0), 2),
                     'transactions' => $this->payrollHistoryTransactionsPayload($cutoffId, $projectId, $group)->all(),
-                ];
+                    ];
             })
             ->values();
+
+        return [
+            'rows' => $rows,
+            'pager' => $paginator->toArray(),
+        ];
     }
 
     private function payrollHistoryTransactionsPayload(int $cutoffId, ?int $projectId, string $group): Collection

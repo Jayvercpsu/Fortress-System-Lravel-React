@@ -5,12 +5,14 @@ import SearchableDropdown from '../../Components/SearchableDropdown';
 import Modal from '../../Components/Modal';
 import ActionButton from '../../Components/ActionButton';
 import ConfirmationModal from '../../Components/ConfirmationModal';
+import InlinePagination from '../../Components/InlinePagination';
 import SelectInput from '../../Components/SelectInput';
 import TextInput from '../../Components/TextInput';
 import { Head, router, useForm } from '@inertiajs/react';
 import { useEffect, useMemo, useState } from 'react';
 import toast from 'react-hot-toast';
 import { toastMessages } from '../../constants/toastMessages';
+import { Trash2 } from 'lucide-react';
 
 const cardStyle = {
     background: 'var(--surface-1)',
@@ -65,6 +67,7 @@ export default function PayrollRun({
     generateProjectOptions = [],
     payrollHistory = [],
     projectPayrollHistory = [],
+    payrollHistoryTable = {},
     payrollTable = {},
     payrollGroup = 'workers',
     today = '',
@@ -75,6 +78,7 @@ export default function PayrollRun({
     const [deductionToDelete, setDeductionToDelete] = useState(null);
     const [deletingDeduction, setDeletingDeduction] = useState(false);
     const [historyDetailRow, setHistoryDetailRow] = useState(null);
+    const [historyToDelete, setHistoryToDelete] = useState(null);
     const isStaff = payrollGroup === 'staff';
     const selectedProjectId = !isStaff && selectedProject?.id ? String(selectedProject.id) : '';
     const groupQueryParams = new URLSearchParams();
@@ -97,6 +101,9 @@ export default function PayrollRun({
         from: payrollTable?.from ?? null,
         to: payrollTable?.to ?? null,
     };
+    const historyPager = payrollHistoryTable || {};
+    const historyPage = Number(historyPager?.current_page ?? 1);
+    const historyPerPage = Number(historyPager?.per_page ?? 20);
 
     const generateForm = useForm({
         project_id: selectedProjectId,
@@ -171,6 +178,8 @@ export default function PayrollRun({
             per_page: overrides.per_page !== undefined ? overrides.per_page : table.perPage,
             page: overrides.page !== undefined ? overrides.page : table.page,
             group: overrides.group !== undefined ? overrides.group : payrollGroup,
+            history_page: overrides.history_page !== undefined ? overrides.history_page : historyPage,
+            history_per_page: overrides.history_per_page !== undefined ? overrides.history_per_page : historyPerPage,
         };
 
         return Object.fromEntries(
@@ -286,6 +295,27 @@ export default function PayrollRun({
                 toast.success(toastMessages.payrollRun.cutoffPaidSuccess);
             },
             onError: () => toast.error(toastMessages.payrollRun.cutoffPaidError),
+        });
+    };
+
+    const submitHistoryDelete = () => {
+        if (!historyToDelete?.cutoff_id) return;
+        const payload = {
+            cutoff_id: historyToDelete.cutoff_id,
+        };
+        if (historyToDelete.project_id) {
+            payload.project_id = historyToDelete.project_id;
+        }
+        router.delete(`/payroll/history${queryString()}`, {
+            data: payload,
+            preserveScroll: true,
+            preserveState: true,
+            onSuccess: () => {
+                setHistoryToDelete(null);
+                setHistoryDetailRow(null);
+                toast.success('Payroll history deleted.');
+            },
+            onError: () => toast.error('Unable to delete payroll history.'),
         });
     };
 
@@ -891,13 +921,22 @@ export default function PayrollRun({
                                                         <td style={{ padding: 8, borderBottom: '1px solid var(--border-color)', textAlign: 'right', fontFamily: "'DM Mono', monospace", color: '#f87171' }}>{money(row.total_deductions)}</td>
                                                         <td style={{ padding: 8, borderBottom: '1px solid var(--border-color)', textAlign: 'right', fontFamily: "'DM Mono', monospace", color: '#4ade80' }}>{money(row.total_net)}</td>
                                                         <td style={{ padding: 8, borderBottom: '1px solid var(--border-color)', textAlign: 'right' }}>
-                                                            <ActionButton
-                                                                type="button"
-                                                                variant="neutral"
-                                                                onClick={() => setHistoryDetailRow(row)}
-                                                            >
-                                                                View Transactions
-                                                            </ActionButton>
+                                                            <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end', flexWrap: 'wrap' }}>
+                                                                <ActionButton
+                                                                    type="button"
+                                                                    variant="neutral"
+                                                                    onClick={() => setHistoryDetailRow(row)}
+                                                                >
+                                                                    View Transactions
+                                                                </ActionButton>
+                                                                <ActionButton
+                                                                    type="button"
+                                                                    variant="danger"
+                                                                    onClick={() => setHistoryToDelete(row)}
+                                                                >
+                                                                    <Trash2 size={14} />
+                                                                </ActionButton>
+                                                            </div>
                                                         </td>
                                                     </tr>
                                                 ))}
@@ -905,6 +944,10 @@ export default function PayrollRun({
                                         </table>
                                     </div>
                                 )}
+                                <InlinePagination
+                                    pager={historyPager}
+                                    onNavigate={(url) => router.visit(url, { preserveScroll: true, preserveState: true })}
+                                />
                             </div>
                         </>
                     ) : (
@@ -1338,6 +1381,19 @@ export default function PayrollRun({
                     }
                     confirmLabel={deletingDeduction ? 'Deleting...' : 'Delete'}
                     processing={deletingDeduction}
+                    danger
+                />
+                <ConfirmationModal
+                    open={!!historyToDelete}
+                    onClose={() => setHistoryToDelete(null)}
+                    onConfirm={submitHistoryDelete}
+                    title="Delete Payroll History"
+                    message={
+                        historyToDelete
+                            ? `Delete payroll history for cutoff ${historyToDelete.cutoff_start || historyToDelete.cutoff_id} ${historyToDelete.project_name ? `(${historyToDelete.project_name})` : ''}?`
+                            : 'Delete payroll history?'
+                    }
+                    confirmLabel="Delete"
                     danger
                 />
             </Layout>

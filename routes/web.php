@@ -97,6 +97,7 @@ Route::middleware(['auth', 'role:head_admin,admin,hr'])->group(function () {
     Route::post('/payroll/run/generate', [PayrollController::class, 'generateFromAttendance'])->name('payroll.run.generate');
     Route::post('/payroll/run/mark-paid', [PayrollController::class, 'markPaid'])->name('payroll.run.mark_paid');
     Route::get('/payroll/export', [PayrollController::class, 'export'])->name('payroll.export');
+    Route::delete('/payroll/history', [PayrollController::class, 'destroyHistory'])->name('payroll.history.destroy');
     Route::post('/payroll/{payroll}/deductions', [PayrollController::class, 'addDeduction'])->name('payroll.deductions.store');
     Route::patch('/payroll-deductions/{payrollDeduction}', [PayrollController::class, 'updateDeduction'])->name('payroll.deductions.update');
     Route::delete('/payroll-deductions/{payrollDeduction}', [PayrollController::class, 'destroyDeduction'])->name('payroll.deductions.destroy');
