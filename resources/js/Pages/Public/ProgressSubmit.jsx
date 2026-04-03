@@ -828,6 +828,16 @@ export default function ProgressSubmit({ submitToken }) {
             toast.error(`This project is ${resolvedLockStatus || 'completed'}. Submissions are locked.`);
             return;
         }
+        const savedAttendanceByIdentity = new Map(
+            (initialAttendanceDrafts[attendanceWeekKey] || [])
+                .map((row) => {
+                    const id = workerIdentity(row?.worker_name, row?.worker_role);
+                    if (!id) return null;
+                    const hasAny = DAYS.some((d) => String(row?.days?.[d.key] || '').trim() !== '');
+                    return hasAny ? [id, true] : null;
+                })
+                .filter(Boolean)
+        );
         const attendanceEntries = attendanceRows
             .filter((row) => !isForemanRole(row.worker_role))
             .map((row) => ({
@@ -835,7 +845,12 @@ export default function ProgressSubmit({ submitToken }) {
                 worker_role: String(row.worker_role || '').trim(),
                 days: DAYS.reduce((acc, d) => ({ ...acc, [d.key]: String(row?.days?.[d.key] || '').trim().toUpperCase() }), {}),
             }))
-            .filter((row) => row.worker_name !== '' && DAYS.some((d) => row.days[d.key] !== ''));
+            .filter((row) => {
+                if (row.worker_name === '') return false;
+                if (DAYS.some((d) => row.days[d.key] !== '')) return true;
+                const id = workerIdentity(row.worker_name, row.worker_role);
+                return id ? savedAttendanceByIdentity.has(id) : false;
+            });
         const safeAttendanceEntries = attendanceLocked ? [] : attendanceEntries;
 
         const weeklyScopes = weeklyRows

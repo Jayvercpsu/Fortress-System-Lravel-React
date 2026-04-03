@@ -723,13 +723,15 @@ class PublicProgressService
             $weekStart = Carbon::parse($selectedWeekStart, 'Asia/Manila');
 
             foreach ($attendanceEntries as $entry) {
+                $deleteDates = [];
                 foreach (Attendance::DAY_KEYS as $dayKey) {
                     $status = $entry['days'][$dayKey] ?? '';
+                    $date = $weekStart->copy()->addDays(Attendance::DAY_OFFSETS[$dayKey])->toDateString();
                     if ($status === '') {
+                        $deleteDates[] = $date;
                         continue;
                     }
 
-                    $date = $weekStart->copy()->addDays(Attendance::DAY_OFFSETS[$dayKey])->toDateString();
                     $hours = (float) (Attendance::STATUS_HOURS[$status] ?? 0);
 
                     $this->foremanProgressRepository->attendances()->updateOrCreate(
@@ -748,6 +750,16 @@ class PublicProgressService
                             'selfie_path' => null,
                         ]
                     );
+                }
+
+                if (!empty($deleteDates)) {
+                    $this->foremanProgressRepository->attendances()
+                        ->where('foreman_id', $submitToken->foreman_id)
+                        ->where('project_id', $submitToken->project_id)
+                        ->where('worker_name', $entry['worker_name'])
+                        ->where('worker_role', $entry['worker_role'])
+                        ->whereIn('date', $deleteDates)
+                        ->delete();
                 }
             }
 
@@ -1131,13 +1143,15 @@ class PublicProgressService
             if ($this->isForemanRole($workerRole)) {
                 continue;
             }
+            $deleteDates = [];
             foreach (Attendance::DAY_KEYS as $dayKey) {
                 $status = strtoupper(trim((string) ($entry['days'][$dayKey] ?? '')));
+                $date = $weekStart->copy()->addDays(Attendance::DAY_OFFSETS[$dayKey])->toDateString();
                 if ($status === '') {
+                    $deleteDates[] = $date;
                     continue;
                 }
 
-                $date = $weekStart->copy()->addDays(Attendance::DAY_OFFSETS[$dayKey])->toDateString();
                 $hours = (float) (Attendance::STATUS_HOURS[$status] ?? 0);
 
                 $this->foremanProgressRepository->attendances()->updateOrCreate(
@@ -1156,6 +1170,16 @@ class PublicProgressService
                         'selfie_path' => null,
                     ]
                 );
+            }
+
+            if (!empty($deleteDates)) {
+                $this->foremanProgressRepository->attendances()
+                    ->where('foreman_id', $submitToken->foreman_id)
+                    ->where('project_id', $submitToken->project_id)
+                    ->where('worker_name', $workerName)
+                    ->where('worker_role', $workerRole !== '' ? $workerRole : 'Worker')
+                    ->whereIn('date', $deleteDates)
+                    ->delete();
             }
         }
 
