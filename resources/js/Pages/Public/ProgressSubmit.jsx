@@ -1650,9 +1650,6 @@ export default function ProgressSubmit({ submitToken }) {
                         <div>Foreman: <strong>{submitToken.foreman_name}</strong></div>
                         {submitToken.expires_at ? <div>Link expires at: {submitToken.expires_at}</div> : null}
                         <div className="jf-meta-actions">
-                            <a href={receiptUrl} className="jf-meta-link" target="_blank" rel="noreferrer">
-                                Open Receipt
-                            </a>
                         </div>
                     </div>
                     {projectLocked ? (

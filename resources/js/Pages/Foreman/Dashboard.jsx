@@ -426,7 +426,7 @@ export default function ForemanDashboard({
                                             <div>
                                                 <div style={{ fontWeight: 700 }}>{project.name}</div>
                                                 <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
-                                                    {project.client || 'No client'} â€¢ {project.phase || '-'} â€¢ {project.status || '-'}
+                                                    {project.client || 'No client'} &bull; {project.phase || '-'} &bull; {project.status || '-'}
                                                 </div>
                                             </div>
                                             <div style={{ fontSize: 12, ...mono }}>{project.overall_progress}%</div>
@@ -554,7 +554,7 @@ export default function ForemanDashboard({
                                             ) : null}
                                             <div style={{ fontWeight: 700 }}>{item.issue_title}</div>
                                             <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
-                                                {item.severity || '-'} â€¢ {item.status || 'open'}
+                                                {item.severity || '-'} &bull; {item.status || 'open'}
                                             </div>
                                         </div>
                                     ))}
@@ -579,7 +579,7 @@ export default function ForemanDashboard({
                                                             photo_path: item.photo_path,
                                                             caption: item.item_delivered || 'Delivery photo',
                                                             project_name: item.project_name || 'Unassigned',
-                                                            meta: `Qty: ${item.quantity || '-'} â€¢ ${item.delivery_date || '-'}`,
+                                                            meta: `Qty: ${item.quantity || '-'} \u2022 ${item.delivery_date || '-'}`,
                                                             created_at: item.created_at,
                                                         })
                                                     }
@@ -597,7 +597,7 @@ export default function ForemanDashboard({
                                                 Project: {item.project_name || 'Unassigned'} (ID: {item.project_id ?? '-'})
                                             </div>
                                             <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
-                                                {item.quantity || '-'} â€¢ {item.delivery_date || '-'}
+                                                {item.quantity || '-'} &bull; {item.delivery_date || '-'}
                                             </div>
                                             <div style={{ fontSize: 12, textTransform: 'capitalize', marginTop: 2 }}>{item.status || '-'}</div>
                                         </div>
