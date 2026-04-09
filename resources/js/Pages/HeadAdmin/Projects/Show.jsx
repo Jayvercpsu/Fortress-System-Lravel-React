@@ -758,11 +758,11 @@ export default function HeadAdminProjectsShow({
                                 Finance
                             </div>
                             <div style={{ display: 'grid', gap: 8 }}>
-                                <ActionButton href={`/projects/${project.id}/payments`} style={shortcutButtonStyle}>
-                                    Open Payments
-                                </ActionButton>
                                 <ActionButton href={`/projects/${project.id}/financials`} style={shortcutButtonStyle}>
                                     Open Financials
+                                </ActionButton>
+                                <ActionButton href={`/projects/${project.id}/payments`} style={shortcutButtonStyle}>
+                                    Open Payments
                                 </ActionButton>
                             </div>
                         </div>

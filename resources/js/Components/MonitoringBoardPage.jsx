@@ -107,7 +107,60 @@ export default function MonitoringBoardPage({
     const [deletingPhoto, setDeletingPhoto] = useState(false);
     const [uploadScopeId, setUploadScopeId] = useState(null);
     const [photoInputKey, setPhotoInputKey] = useState(0);
+    // Scope photo preview state (per-row). Stores the scope id and which photo index is active.
     const [scopePreview, setScopePreview] = useState(null);
+    const previewScope = useMemo(() => {
+        const scopeId = scopePreview?.scopeId;
+        if (!scopeId) return null;
+        return orderedScopes.find((scope) => String(scope?.id) === String(scopeId)) || null;
+    }, [orderedScopes, scopePreview?.scopeId]);
+    const previewPhotos = useMemo(() => (
+        Array.isArray(previewScope?.photos) ? previewScope.photos : []
+    ), [previewScope]);
+    const previewIndex = useMemo(() => {
+        const raw = Number(scopePreview?.index ?? 0);
+        const safe = Number.isFinite(raw) ? raw : 0;
+        return Math.min(Math.max(0, safe), Math.max(0, previewPhotos.length - 1));
+    }, [previewPhotos.length, scopePreview?.index]);
+    const previewPhoto = previewPhotos[previewIndex] || null;
+    const canPrevPhoto = !!previewPhoto && previewIndex > 0;
+    const canNextPhoto = !!previewPhoto && previewIndex < previewPhotos.length - 1;
+
+    const closeScopePreview = () => setScopePreview(null);
+    const goPrevScopePhoto = () => setScopePreview((prev) => (
+        prev ? { ...prev, index: Math.max(0, Number(prev.index ?? 0) - 1) } : prev
+    ));
+    const goNextScopePhoto = () => setScopePreview((prev) => (
+        prev ? { ...prev, index: Number(prev.index ?? 0) + 1 } : prev
+    ));
+
+    useEffect(() => {
+        if (!scopePreview) return;
+        if (previewPhotos.length > 0) return;
+        closeScopePreview();
+    }, [scopePreview, previewPhotos.length]);
+
+    useEffect(() => {
+        if (!previewPhoto) return;
+
+        const onKeyDown = (event) => {
+            if (event.key === 'ArrowLeft') {
+                if (canPrevPhoto) {
+                    event.preventDefault();
+                    goPrevScopePhoto();
+                }
+            }
+            if (event.key === 'ArrowRight') {
+                if (canNextPhoto) {
+                    event.preventDefault();
+                    goNextScopePhoto();
+                }
+            }
+        };
+
+        window.addEventListener('keydown', onKeyDown);
+        return () => window.removeEventListener('keydown', onKeyDown);
+    }, [previewPhoto, canPrevPhoto, canNextPhoto]);
     const [showCreateModal, setShowCreateModal] = useState(false);
     const [scopeSearch, setScopeSearch] = useState('');
     const [scopePage, setScopePage] = useState(1);
@@ -811,7 +864,14 @@ export default function MonitoringBoardPage({
                                                             >
                                                                 <button
                                                                     type="button"
-                                                                    onClick={() => setScopePreview({ ...photo, scope: scope.scope_name })}
+                                                                    onClick={() => {
+                                                                        const photos = Array.isArray(scope?.photos) ? scope.photos : [];
+                                                                        const clickedIndex = photos.findIndex((item) => String(item?.id) === String(photo?.id));
+                                                                        setScopePreview({
+                                                                            scopeId: scope.id,
+                                                                            index: clickedIndex >= 0 ? clickedIndex : 0,
+                                                                        });
+                                                                    }}
                                                                     style={{
                                                                         border: 'none',
                                                                         background: 'transparent',
@@ -1589,16 +1649,45 @@ export default function MonitoringBoardPage({
                     </div>
                 </Modal>
                 <Modal
-                    open={!!scopePreview}
-                    onClose={() => setScopePreview(null)}
-                    title={scopePreview?.caption || scopePreview?.scope || 'Scope Photo'}
+                    open={!!previewPhoto}
+                    onClose={closeScopePreview}
+                    title={previewPhoto?.caption || previewScope?.scope_name || 'Scope Photo'}
+                    headerContent={previewPhoto ? (
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
+                            <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+                                {previewScope?.scope_name ? `Scope: ${previewScope.scope_name}` : null}
+                            </div>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                <span style={{ fontSize: 12, fontFamily: "'DM Mono', monospace", color: 'var(--text-muted)' }}>
+                                    {`${previewIndex + 1} / ${previewPhotos.length}`}
+                                </span>
+                                <ActionButton
+                                    type="button"
+                                    onClick={goPrevScopePhoto}
+                                    disabled={!canPrevPhoto}
+                                    style={{ padding: '6px 10px', fontSize: 12 }}
+                                >
+                                    Prev
+                                </ActionButton>
+                                <ActionButton
+                                    type="button"
+                                    onClick={goNextScopePhoto}
+                                    disabled={!canNextPhoto}
+                                    style={{ padding: '6px 10px', fontSize: 12 }}
+                                >
+                                    Next
+                                </ActionButton>
+                            </div>
+                        </div>
+                    ) : null}
                     maxWidth={900}
                 >
-                    {scopePreview && (
+                    {previewPhoto && (
                         <div style={{ display: 'grid', gap: 10 }}>
                             <OptimizedImage
-                                src={`/files/${scopePreview.photo_path}`}
-                                alt={scopePreview.caption || scopePreview.scope || 'Scope photo'}
+                                key={previewPhoto.id || previewPhoto.photo_path}
+                                src={`/files/${previewPhoto.photo_path}`}
+                                alt={previewPhoto.caption || previewScope?.scope_name || 'Scope photo'}
                                 style={{
                                     width: '100%',
                                     maxHeight: '70vh',
@@ -1609,9 +1698,9 @@ export default function MonitoringBoardPage({
                                 }}
                             />
                             <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
-                                {scopePreview.scope ? `Scope: ${scopePreview.scope}` : null}
-                                {scopePreview.scope && scopePreview.created_at ? ' | ' : ''}
-                                {scopePreview.created_at || '-'}
+                                {previewScope?.scope_name ? `Scope: ${previewScope.scope_name}` : null}
+                                {previewScope?.scope_name && previewPhoto.created_at ? ' | ' : ''}
+                                {previewPhoto.created_at || '-'}
                             </div>
                         </div>
                     )}

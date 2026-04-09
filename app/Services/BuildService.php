@@ -36,10 +36,17 @@ class BuildService
     public function showPayload(Request $request, string $projectId): array
     {
         $project = $this->buildRepository->findProjectOrFail($projectId);
+        $financialsSourceProject = $project;
+        if ($project->source_project_id !== null) {
+            $resolvedSourceProject = Project::query()->find((int) $project->source_project_id);
+            if ($resolvedSourceProject !== null) {
+                $financialsSourceProject = $resolvedSourceProject;
+            }
+        }
 
         $build = $this->buildRepository->firstOrCreateBuildByProjectId($projectId);
-        $constructionContract = (float) $build->construction_contract;
-        $totalClientPayment = (float) $build->total_client_payment;
+        $constructionContract = (float) ($financialsSourceProject->construction_cost ?? 0);
+        $totalClientPayment = (float) ($financialsSourceProject->total_client_payment ?? 0);
 
         $payload = [
             'project_id' => $build->project_id,
@@ -128,6 +135,7 @@ class BuildService
 
         return [
             'projectId' => (string) $projectId,
+            'financialsSourceProjectId' => (string) $financialsSourceProject->id,
             'build' => $payload,
             'expenses' => $expenses,
             'expenseCategoryTotals' => $expenseCategoryTotals,

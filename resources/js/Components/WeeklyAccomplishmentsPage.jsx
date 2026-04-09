@@ -1,4 +1,4 @@
-﻿import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import Layout from './Layout';
 import Modal from './Modal';
 import ProjectAccordionTable from './ProjectAccordionTable';
@@ -12,6 +12,17 @@ const cardStyle = {
     padding: 16,
 };
 
+const navButtonStyle = (enabled) => ({
+    border: '1px solid var(--border-color)',
+    background: 'var(--button-bg)',
+    color: 'var(--text-main)',
+    borderRadius: 8,
+    padding: '6px 10px',
+    cursor: enabled ? 'pointer' : 'not-allowed',
+    fontSize: 12,
+    opacity: enabled ? 1 : 0.55,
+});
+
 export default function WeeklyAccomplishmentsPage({
     weeklyAccomplishments = [],
     weeklyAccomplishmentTable = {},
@@ -19,7 +30,57 @@ export default function WeeklyAccomplishmentsPage({
     statusFilters = [],
     projects = [],
 }) {
-    const [previewPhoto, setPreviewPhoto] = useState(null);
+    // Photo preview modal state: identify which scope list we are browsing + current index.
+    const [photoPreview, setPhotoPreview] = useState(null);
+
+    const previewScopeKey = String(photoPreview?.scopeKey ?? '');
+    const previewPhotos = useMemo(() => {
+        if (!previewScopeKey) return [];
+        const list = weeklyScopePhotoMap?.[previewScopeKey];
+        return Array.isArray(list) ? list : [];
+    }, [previewScopeKey, weeklyScopePhotoMap]);
+
+    const previewIndex = useMemo(() => {
+        if (!photoPreview) return 0;
+        const raw = Number(photoPreview.index ?? 0);
+        const safe = Number.isFinite(raw) ? raw : 0;
+        return Math.min(Math.max(0, safe), Math.max(0, previewPhotos.length - 1));
+    }, [photoPreview, previewPhotos.length]);
+
+    const previewPhoto = previewPhotos[previewIndex] || null;
+    const canPrev = !!previewPhoto && previewIndex > 0;
+    const canNext = !!previewPhoto && previewIndex < previewPhotos.length - 1;
+
+    const closePreview = () => setPhotoPreview(null);
+    const goPrev = () => setPhotoPreview((prev) => (
+        prev ? { ...prev, index: Math.max(0, Number(prev.index ?? 0) - 1) } : prev
+    ));
+    const goNext = () => setPhotoPreview((prev) => (
+        prev ? { ...prev, index: Number(prev.index ?? 0) + 1 } : prev
+    ));
+
+    useEffect(() => {
+        if (!previewPhoto) return;
+
+        const onKeyDown = (e) => {
+            if (e.key === 'ArrowLeft') {
+                if (canPrev) {
+                    e.preventDefault();
+                    goPrev();
+                }
+            }
+            if (e.key === 'ArrowRight') {
+                if (canNext) {
+                    e.preventDefault();
+                    goNext();
+                }
+            }
+        };
+
+        window.addEventListener('keydown', onKeyDown);
+        return () => window.removeEventListener('keydown', onKeyDown);
+    }, [previewPhoto, canPrev, canNext]);
+
     const columns = [
         {
             key: 'created_at',
@@ -80,7 +141,14 @@ export default function WeeklyAccomplishmentsPage({
                             <button
                                 key={`scope-photo-${photo.id}`}
                                 type="button"
-                                onClick={() => setPreviewPhoto({ ...photo, scope: row.scope_of_work })}
+                                onClick={() => {
+                                    const clickedIndex = photos.findIndex((item) => String(item?.id) === String(photo?.id));
+                                    setPhotoPreview({
+                                        scopeKey,
+                                        scopeLabel: row.scope_of_work,
+                                        index: clickedIndex >= 0 ? clickedIndex : 0,
+                                    });
+                                }}
                                 style={{ border: 'none', background: 'transparent', padding: 0, cursor: 'pointer' }}
                             >
                                 <OptimizedImage
@@ -101,50 +169,70 @@ export default function WeeklyAccomplishmentsPage({
             <Head title="Weekly Accomplishments" />
             <Layout title="Weekly Accomplishments">
                 <div style={cardStyle}>
-                <ProjectAccordionTable
-                    columns={columns}
-                    rows={weeklyAccomplishments}
-                    projects={projects}
-                    rowKey="id"
-                    searchPlaceholder="Search weekly accomplishments..."
-                    emptyMessage="No weekly accomplishments yet."
-                    routePath="/weekly-accomplishments"
-                    table={weeklyAccomplishmentTable}
-                    groupPageSize={10}
-                    expandAllGroups
-                    statusOptions={statusFilters}
-                />
-            </div>
-            <Modal
-                open={!!previewPhoto}
-                onClose={() => setPreviewPhoto(null)}
-                title={previewPhoto?.caption || previewPhoto?.scope || 'Scope Photo'}
-                maxWidth={900}
-            >
-                {previewPhoto && (
-                    <div style={{ display: 'grid', gap: 10 }}>
-                        <OptimizedImage
-                            src={`/files/${previewPhoto.photo_path}`}
-                            alt={previewPhoto.caption || previewPhoto.scope || 'Scope photo'}
-                            style={{
-                                width: '100%',
-                                maxHeight: '70vh',
-                                objectFit: 'contain',
-                                border: '1px solid var(--border-color)',
-                                borderRadius: 8,
-                                background: 'var(--surface-2)',
-                            }}
-                        />
-                        <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
-                            {previewPhoto.scope ? `Scope: ${previewPhoto.scope}` : null}
-                            {previewPhoto.scope && previewPhoto.created_at ? ' | ' : ''}
-                            {previewPhoto.created_at || '-'}
-                        </div>
-                    </div>
-                )}
-            </Modal>
-        </Layout>
-    </>
-);
-}
+                    <ProjectAccordionTable
+                        columns={columns}
+                        rows={weeklyAccomplishments}
+                        projects={projects}
+                        rowKey="id"
+                        searchPlaceholder="Search weekly accomplishments..."
+                        emptyMessage="No weekly accomplishments yet."
+                        routePath="/weekly-accomplishments"
+                        table={weeklyAccomplishmentTable}
+                        groupPageSize={10}
+                        expandAllGroups
+                        statusOptions={statusFilters}
+                    />
+                </div>
 
+                <Modal
+                    open={!!previewPhoto}
+                    onClose={closePreview}
+                    title={previewPhoto?.caption || photoPreview?.scopeLabel || 'Scope Photo'}
+                    maxHeight="94vh"
+                    headerContent={previewPhoto ? (
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
+                            <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+                                {photoPreview?.scopeLabel ? `Scope: ${photoPreview.scopeLabel}` : null}
+                            </div>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                <span style={{ fontSize: 12, fontFamily: "'DM Mono', monospace", color: 'var(--text-muted)' }}>
+                                    {`${previewIndex + 1} / ${previewPhotos.length}`}
+                                </span>
+                                <button type="button" onClick={goPrev} disabled={!canPrev} style={navButtonStyle(canPrev)}>
+                                    Prev
+                                </button>
+                                <button type="button" onClick={goNext} disabled={!canNext} style={navButtonStyle(canNext)}>
+                                    Next
+                                </button>
+                            </div>
+                        </div>
+                    ) : null}
+                    maxWidth={900}
+                >
+                    {previewPhoto && (
+                        <div style={{ display: 'grid', gap: 10 }}>
+                            <OptimizedImage
+                                key={previewPhoto.id || previewPhoto.photo_path}
+                                src={`/files/${previewPhoto.photo_path}`}
+                                alt={previewPhoto.caption || photoPreview?.scopeLabel || 'Scope photo'}
+                                style={{
+                                    width: '100%',
+                                    maxHeight: '70vh',
+                                    objectFit: 'contain',
+                                    border: '1px solid var(--border-color)',
+                                    borderRadius: 8,
+                                    background: 'var(--surface-2)',
+                                }}
+                            />
+                            <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+                                {photoPreview?.scopeLabel ? `Scope: ${photoPreview.scopeLabel}` : null}
+                                {photoPreview?.scopeLabel && previewPhoto.created_at ? ' | ' : ''}
+                                {previewPhoto.created_at || '-'}
+                            </div>
+                        </div>
+                    )}
+                </Modal>
+            </Layout>
+        </>
+    );
+}

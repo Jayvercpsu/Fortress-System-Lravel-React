@@ -37,6 +37,7 @@ const today = () => new Date().toISOString().slice(0, 10);
 
 export default function AdminBuildShow({
     projectId,
+    financialsSourceProjectId = null,
     build,
     expenses = [],
     expenseTotal = 0,
@@ -57,11 +58,10 @@ export default function AdminBuildShow({
     const projectStatus = String(monitoring?.project?.status || build?.project_status || build?.status || '').trim().toLowerCase();
     const projectPhase = String(monitoring?.project?.phase || '').trim().toLowerCase();
     const isLocked = projectPhase === 'completed' || projectStatus === 'completed' || projectStatus === 'cancelled';
-
-    const { data, setData, patch, processing, errors } = useForm({
+    const trackerPreview = {
         construction_contract: build.construction_contract ?? 0,
         total_client_payment: build.total_client_payment ?? 0,
-    });
+    };
 
     const expenseCategoryNames = Array.isArray(expenses)
         ? expenses.map((e) => String(e.category || '').trim()).filter(Boolean)
@@ -121,13 +121,13 @@ export default function AdminBuildShow({
         to: expenseTable?.to ?? null,
     };
     const totalExpenses = totalExpenseAmount;
-    const remainingBudget = Number(data.total_client_payment || 0) - totalExpenses;
-    const budgetVsActual = Number(data.construction_contract || 0) - totalExpenses;
+    const remainingBudget = Number(trackerPreview.total_client_payment || 0) - totalExpenses;
+    const budgetVsActual = Number(trackerPreview.construction_contract || 0) - totalExpenses;
     const paymentProgress =
-        Number(data.construction_contract || 0) > 0
-            ? (Number(data.total_client_payment || 0) / Number(data.construction_contract || 0)) * 100
+        Number(trackerPreview.construction_contract || 0) > 0
+            ? (Number(trackerPreview.total_client_payment || 0) / Number(trackerPreview.construction_contract || 0)) * 100
             : 0;
-    const remainingIncome = Number(data.construction_contract || 0) - totalExpenseAmount;
+    const remainingIncome = Number(trackerPreview.construction_contract || 0) - totalExpenseAmount;
     const monitoringProject = monitoring?.project ?? null;
     const monitoringScopes = monitoring?.scopes ?? [];
     const monitoringForemen = monitoring?.foreman_options ?? [];
@@ -180,16 +180,6 @@ export default function AdminBuildShow({
         const params = new URLSearchParams(buildExpenseQueryParams(overrides));
         const queryString = params.toString();
         return queryString ? `?${queryString}` : '';
-    };
-
-    const submit = (e) => {
-        e.preventDefault();
-        if (isLocked) return;
-        patch(`/projects/${projectId}/build`, {
-            preserveScroll: true,
-            onSuccess: () => toast.success(toastMessages.build.trackerUpdateSuccess),
-            onError: () => toast.error(toastMessages.build.fixHighlighted),
-        });
     };
 
     const submitExpense = (e) => {
@@ -336,7 +326,7 @@ export default function AdminBuildShow({
 
                 {activeTab === 'tracker' && (
                     <div style={{ display: 'grid', gap: 16 }}>
-                        <form onSubmit={submit} style={{ display: 'grid', gap: 16 }}>
+                        <div style={{ display: 'grid', gap: 16 }}>
                             <div style={{ ...cardStyle, display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12 }}>
                                 <div>
                                     <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 4 }}>Total Expenses</div>
@@ -359,14 +349,12 @@ export default function AdminBuildShow({
                         <div style={{ ...cardStyle, display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 14 }}>
                             <label>
                                 <div style={{ fontSize: 12, marginBottom: 6 }}>Construction Contract</div>
-                                <TextInput type="number" step="0.01" min="0" value={data.construction_contract} onChange={(e) => setData('construction_contract', e.target.value)} style={inputStyle} disabled={isLocked} />
-                                {errors.construction_contract && <div style={{ color: '#f87171', fontSize: 12, marginTop: 4 }}>{errors.construction_contract}</div>}
+                                <TextInput type="number" step="0.01" min="0" value={trackerPreview.construction_contract} style={inputStyle} readOnly disabled />
                             </label>
 
                             <label>
                                 <div style={{ fontSize: 12, marginBottom: 6 }}>Total Client Payment</div>
-                                <TextInput type="number" step="0.01" min="0" value={data.total_client_payment} onChange={(e) => setData('total_client_payment', e.target.value)} style={inputStyle} disabled={isLocked} />
-                                {errors.total_client_payment && <div style={{ color: '#f87171', fontSize: 12, marginTop: 4 }}>{errors.total_client_payment}</div>}
+                                <TextInput type="number" step="0.01" min="0" value={trackerPreview.total_client_payment} style={inputStyle} readOnly disabled />
                             </label>
                             <div style={{ gridColumn: '1 / -1', border: '1px dashed var(--border-color)', borderRadius: 10, padding: 12 }}>
                                 <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 8 }}>
@@ -386,29 +374,31 @@ export default function AdminBuildShow({
                                         </ActionButton>
                                     </div>
                                 ) : (
-                                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}>
-                                        {expenseBreakdown.map((item) => (
-                                            <div key={item.category} style={{ border: '1px solid var(--border-color)', borderRadius: 8, padding: '8px 10px' }}>
-                                                <div style={{ fontSize: 12, color: 'var(--text-muted)', textTransform: 'capitalize' }}>{item.category}</div>
-                                                <div style={{ fontWeight: 600 }}>{money(item.amount)}</div>
-                                            </div>
-                                        ))}
+                                    <div style={{ display: 'grid', gap: 10 }}>
+                                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}>
+                                            {expenseBreakdown.map((item) => (
+                                                <div key={item.category} style={{ border: '1px solid var(--border-color)', borderRadius: 8, padding: '8px 10px' }}>
+                                                    <div style={{ fontSize: 12, color: 'var(--text-muted)', textTransform: 'capitalize' }}>{item.category}</div>
+                                                    <div style={{ fontWeight: 600 }}>{money(item.amount)}</div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                        <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                                            <ActionButton
+                                                type="button"
+                                                variant="success"
+                                                onClick={() => setActiveTab('expenses')}
+                                                disabled={isLocked}
+                                                style={{ padding: '8px 12px', fontSize: 12 }}
+                                            >
+                                                Add Expense
+                                            </ActionButton>
+                                        </div>
                                     </div>
                                 )}
                             </div>
                         </div>
-
-                        <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-                            <ActionButton
-                                type="submit"
-                                variant="success"
-                                disabled={processing || isLocked}
-                                style={{ padding: '10px 16px', fontSize: 13 }}
-                            >
-                                {processing ? 'Saving...' : 'Save Build Tracker'}
-                            </ActionButton>
                         </div>
-                        </form>
                         {monitoringProject && (
                             <div style={{ display: 'grid', gap: 12 }}>
                                 <div style={{ fontSize: 14, fontWeight: 700 }}>Scope of Works</div>

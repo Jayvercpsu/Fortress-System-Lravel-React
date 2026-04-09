@@ -1,6 +1,12 @@
 import { useEffect } from 'react';
 
-export default function Modal({ open, onClose, title, headerContent, children, maxWidth = 960 }) {
+function resolveMaxHeight(value) {
+    if (value === null || value === undefined || value === '') return '90vh';
+    if (typeof value === 'number' && Number.isFinite(value)) return `${value}px`;
+    return value;
+}
+
+export default function Modal({ open, onClose, title, headerContent, children, maxWidth = 960, maxHeight }) {
     useEffect(() => {
         if (!open) return;
 
@@ -39,7 +45,7 @@ export default function Modal({ open, onClose, title, headerContent, children, m
                 style={{
                     width: '100%',
                     maxWidth,
-                    maxHeight: '90vh',
+                    maxHeight: resolveMaxHeight(maxHeight),
                     background: 'var(--surface-1)',
                     border: '1px solid var(--border-color)',
                     borderRadius: 12,

@@ -41,14 +41,9 @@ class PaymentRepository implements PaymentRepositoryInterface
 
     public function syncProjectPaymentSummary(Project $project): void
     {
-        $totalClientPayment = (float) $project->payments()->sum('amount');
         $lastPaidDate = $project->payments()->max('date_paid');
-        $contractAmount = (float) $project->contract_amount;
-        $remainingBalance = $contractAmount - $totalClientPayment;
 
         $project->update([
-            'total_client_payment' => $totalClientPayment,
-            'remaining_balance' => $remainingBalance,
             'last_paid_date' => $lastPaidDate,
         ]);
     }
