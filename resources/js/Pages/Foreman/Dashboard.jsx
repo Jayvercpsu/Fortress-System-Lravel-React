@@ -9,6 +9,7 @@ import { Fragment, useEffect, useMemo, useState } from 'react';
 import toast from 'react-hot-toast';
 import OptimizedImage from '../../Components/OptimizedImage';
 import { toastMessages } from '../../constants/toastMessages';
+import { formatYmd, formatYmdHmAmPm } from '../../Utils/dateTimeFormat';
 
 const cardStyle = {
     background: 'var(--surface-1)',
@@ -579,7 +580,7 @@ export default function ForemanDashboard({
                                                             photo_path: item.photo_path,
                                                             caption: item.item_delivered || 'Delivery photo',
                                                             project_name: item.project_name || 'Unassigned',
-                                                            meta: `Qty: ${item.quantity || '-'} \u2022 ${item.delivery_date || '-'}`,
+                                                            meta: `Qty: ${item.quantity || '-'} \u2022 ${formatYmd(item.delivery_date)}`,
                                                             created_at: item.created_at,
                                                         })
                                                     }
@@ -597,7 +598,7 @@ export default function ForemanDashboard({
                                                 Project: {item.project_name || 'Unassigned'} (ID: {item.project_id ?? '-'})
                                             </div>
                                             <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
-                                                {item.quantity || '-'} &bull; {item.delivery_date || '-'}
+                                                {item.quantity || '-'} &bull; {formatYmd(item.delivery_date)}
                                             </div>
                                             <div style={{ fontSize: 12, textTransform: 'capitalize', marginTop: 2 }}>{item.status || '-'}</div>
                                         </div>
@@ -695,8 +696,8 @@ export default function ForemanDashboard({
                                                         <td style={{ border: '1px solid var(--border-color)', padding: '8px 10px', fontSize: 13, textAlign: 'right', ...mono }}>
                                                             {Number(row.avg_percent_completed ?? 0).toFixed(1)}%
                                                         </td>
-                                                        <td style={{ border: '1px solid var(--border-color)', padding: '8px 10px', fontSize: 13, textAlign: 'center', ...mono }}>{row.latest_week_start || '-'}</td>
-                                                        <td style={{ border: '1px solid var(--border-color)', padding: '8px 10px', fontSize: 12, textAlign: 'center' }}>{row.last_submitted_at || '-'}</td>
+                                                        <td style={{ border: '1px solid var(--border-color)', padding: '8px 10px', fontSize: 13, textAlign: 'center', ...mono }}>{formatYmd(row.latest_week_start)}</td>
+                                                        <td style={{ border: '1px solid var(--border-color)', padding: '8px 10px', fontSize: 12, textAlign: 'center', ...mono }}>{formatYmdHmAmPm(row.last_submitted_at)}</td>
                                                         <td style={{ border: '1px solid var(--border-color)', padding: '8px 10px', textAlign: 'center' }}>
                                                             <button
                                                                 type="button"
@@ -720,7 +721,7 @@ export default function ForemanDashboard({
                                                         <tr>
                                                             <td colSpan={7} style={{ border: '1px solid var(--border-color)', padding: 10, background: 'var(--surface-2)' }}>
                                                                 <div style={{ fontSize: 12, fontWeight: 700, marginBottom: 8 }}>
-                                                                    Latest Week Scope Entries {row.latest_week_start ? `(${row.latest_week_start})` : ''}
+                                                                    Latest Week Scope Entries {row.latest_week_start ? `(${formatYmd(row.latest_week_start)})` : ''}
                                                                 </div>
                                                                 {latestScopeEntries.length === 0 ? (
                                                                     <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
@@ -777,7 +778,7 @@ export default function ForemanDashboard({
                                 }}
                             />
                             <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
-                                Project: {dashboardPreviewPhoto.project_name || 'Unassigned'} | {dashboardPreviewPhoto.created_at || '-'}
+                                Project: {dashboardPreviewPhoto.project_name || 'Unassigned'} | {formatYmdHmAmPm(dashboardPreviewPhoto.created_at)}
                             </div>
                             {dashboardPreviewPhoto.meta ? (
                                 <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{dashboardPreviewPhoto.meta}</div>

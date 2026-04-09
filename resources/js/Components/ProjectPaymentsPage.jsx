@@ -8,6 +8,7 @@ import { useState } from 'react';
 import toast from 'react-hot-toast';
 import { ArrowLeft } from 'lucide-react';
 import { toastMessages } from '../constants/toastMessages';
+import { formatYmdHmAmPm } from '../Utils/dateTimeFormat';
 
 const cardStyle = {
     background: 'var(--surface-1)',
@@ -123,7 +124,7 @@ export default function ProjectPaymentsPage({ project, payments = [], paymentTab
         {
             key: 'date_paid',
             label: 'Date Paid',
-            render: (payment) => payment.date_paid || '-',
+            render: (payment) => formatYmdHmAmPm(payment.date_paid),
             searchAccessor: (payment) => payment.date_paid,
         },
         {
@@ -148,7 +149,7 @@ export default function ProjectPaymentsPage({ project, payments = [], paymentTab
         {
             key: 'created_at',
             label: 'Created At',
-            render: (payment) => payment.created_at || '-',
+            render: (payment) => formatYmdHmAmPm(payment.created_at),
             searchAccessor: (payment) => payment.created_at,
         },
         {
@@ -214,7 +215,7 @@ export default function ProjectPaymentsPage({ project, payments = [], paymentTab
                     </div>
                     <div>
                         <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>Last Paid Date</div>
-                        <div style={{ fontWeight: 700 }}>{project.last_paid_date || '-'}</div>
+                        <div style={{ fontWeight: 700 }}>{formatYmdHmAmPm(project.last_paid_date)}</div>
                     </div>
                 </div>
                 <fieldset disabled={isLocked} style={{ border: 'none', padding: 0, margin: 0 }}>

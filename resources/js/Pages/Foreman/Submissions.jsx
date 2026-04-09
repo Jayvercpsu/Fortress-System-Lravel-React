@@ -7,6 +7,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import toast from 'react-hot-toast';
 import OptimizedImage from '../../Components/OptimizedImage';
+import { formatYmd, formatYmdHmAmPm } from '../../Utils/dateTimeFormat';
 
 const card = {
     background: 'var(--surface-1)',
@@ -327,7 +328,9 @@ export default function ForemanSubmissions({
                                                 <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 3 }}>
                                                     {row.remarks ? `Remarks: ${row.remarks}` : 'No remarks'}
                                                 </div>
-                                                <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>{row.created_at || '-'}</div>
+                                                <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4, fontFamily: "'DM Mono', monospace" }}>
+                                                    {formatYmdHmAmPm(row.created_at)}
+                                                </div>
                                             </div>
                                         ))
                                     )}
@@ -375,7 +378,9 @@ export default function ForemanSubmissions({
                                                 <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4, whiteSpace: 'normal' }}>
                                                     {row.description || 'No description'}
                                                 </div>
-                                                <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>{row.created_at || '-'}</div>
+                                                <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4, fontFamily: "'DM Mono', monospace" }}>
+                                                    {formatYmdHmAmPm(row.created_at)}
+                                                </div>
                                             </div>
                                         ))
                                     )}
@@ -398,7 +403,7 @@ export default function ForemanSubmissions({
                                                                 setPreviewPhoto({
                                                                     photo_path: row.photo_path,
                                                                     caption: row.item_delivered || 'Delivery photo',
-                                                                    meta: `Delivery Date: ${row.delivery_date || '-'} | Supplier: ${row.supplier || 'None'}`,
+                                                                    meta: `Delivery Date: ${formatYmd(row.delivery_date)} | Supplier: ${row.supplier || 'None'}`,
                                                                     created_at: row.created_at,
                                                                     project_name: row.project_name || 'Unassigned',
                                                                     previewKind: 'delivery',
@@ -422,9 +427,11 @@ export default function ForemanSubmissions({
                                                 </div>
                                                 <div style={{ fontSize: 12, marginTop: 4 }}>Qty: {row.quantity || '-'}</div>
                                                 <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 3 }}>
-                                                    Delivery Date: {row.delivery_date || '-'} {row.supplier ? `| Supplier: ${row.supplier}` : ''}
+                                                    Delivery Date: {formatYmd(row.delivery_date)} {row.supplier ? `| Supplier: ${row.supplier}` : ''}
                                                 </div>
-                                                <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>{row.created_at || '-'}</div>
+                                                <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4, fontFamily: "'DM Mono', monospace" }}>
+                                                    {formatYmdHmAmPm(row.created_at)}
+                                                </div>
                                             </div>
                                         ))
                                     )}
@@ -492,7 +499,9 @@ export default function ForemanSubmissions({
                                                         {photo.caption || 'No caption'}
                                                     </div>
                                                     <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 3 }}>
-                                                        {photo.created_at || '-'}
+                                                        <span style={{ fontFamily: "'DM Mono', monospace" }}>
+                                                            {formatYmdHmAmPm(photo.created_at)}
+                                                        </span>
                                                     </div>
                                                 </button>
                                             ))}
@@ -591,7 +600,9 @@ export default function ForemanSubmissions({
                                                                     {photo.caption || 'No caption'}
                                                                 </div>
                                                                 <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 3 }}>
-                                                                    {photo.created_at || '-'}
+                                                                    <span style={{ fontFamily: "'DM Mono', monospace" }}>
+                                                                        {formatYmdHmAmPm(photo.created_at)}
+                                                                    </span>
                                                                 </div>
                                                             </button>
                                                         ))}
@@ -654,7 +665,7 @@ export default function ForemanSubmissions({
                                 ) : null}
                             </div>
                             <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
-                                Project: {previewPhoto.project_name || 'Unassigned'} | {previewPhoto.created_at || '-'}
+                                Project: {previewPhoto.project_name || 'Unassigned'} | {formatYmdHmAmPm(previewPhoto.created_at)}
                             </div>
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
                                 <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>

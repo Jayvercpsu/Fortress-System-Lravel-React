@@ -15,6 +15,7 @@ import { Check, Lock, Trash2, User as UserIcon } from 'lucide-react';
 import OptimizedImage from './OptimizedImage';
 import { toastMessages } from '../constants/toastMessages';
 import { DESIGN_COMPUTATION_BASIS } from '../Utils/designComputation';
+import { formatYmdHmAmPm } from '../Utils/dateTimeFormat';
 
 const inputStyle = {
     width: '100%',
@@ -96,6 +97,8 @@ const boardTableCell = {
     border: '1px solid color-mix(in srgb, var(--border-color) 85%, transparent)',
     whiteSpace: 'nowrap',
     color: 'var(--text-main)',
+    background: 'var(--mb-row-bg, transparent)',
+    transition: 'background 140ms ease',
 };
 
 const actionDropdownStyle = {
@@ -334,7 +337,7 @@ const getStatusBadgeStyle = (statusValue) => {
     };
 };
 
-const formatDate = (value) => (value ? String(value) : '-');
+const formatDate = (value) => formatYmdHmAmPm(value);
 const round2 = (value) => {
     const numeric = Number(value);
     if (!Number.isFinite(numeric)) return 0;
@@ -1385,6 +1388,14 @@ export default function MonitoringBoardIndexPage({
         <>
             <Head title="Monitoring Board" />
             <Layout title="Monitoring Board">
+                <style>{`
+                    .monitoring-board-table .mb-row{
+                        --mb-row-bg: transparent;
+                    }
+                    .monitoring-board-table .mb-row:hover{
+                        --mb-row-bg: color-mix(in srgb, var(--surface-2) 72%, var(--surface-1));
+                    }
+                `}</style>
                 <div style={boardShell}>
                     <div style={boardToolbar}>
                         <div style={{ flex: '1 1 360px', minWidth: 220, maxWidth: 520 }}>
@@ -1460,7 +1471,7 @@ export default function MonitoringBoardIndexPage({
                         };
                         const stickyCellStyle = {
                             ...selectionCellStyle,
-                            background: `color-mix(in srgb, ${groupColor} 10%, var(--surface-1))`,
+                            background: `var(--mb-row-bg, color-mix(in srgb, ${groupColor} 10%, var(--surface-1)))`,
                         };
                         const headerLabels = isCompletedGroup
                             ? [
@@ -1609,7 +1620,7 @@ export default function MonitoringBoardIndexPage({
                             {!isCollapsed && (
                                 <>
                                 <div style={{ overflowX: 'auto', width: '100%', maxWidth: '100%', minWidth: 0 }}>
-                                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12, minWidth: 1500 }}>
+                                    <table className="monitoring-board-table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12, minWidth: 1500 }}>
                                         <thead>
                                             <tr>
                                                 <th style={{ ...boardTableHeaderCell, ...stickyHeaderStyle }}>
@@ -1662,7 +1673,7 @@ export default function MonitoringBoardIndexPage({
                                                 const progressDashOffset = progressCircleCircumference - (progressValue / 100) * progressCircleCircumference;
 
                                                 return (
-                                                    <tr key={item.id}>
+                                                    <tr key={item.id} className="mb-row">
                                                         <td style={{ ...boardTableCell, ...stickyCellStyle }}>
                                                             <button
                                                                 type="button"
@@ -1970,7 +1981,7 @@ export default function MonitoringBoardIndexPage({
                                             <div style={{ minWidth: 0 }}>
                                                 <div style={{ fontWeight: 600, fontSize: 13 }}>{file.original_name || 'File'}</div>
                                                 <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>
-                                                    {(file.mime_type || 'file').toUpperCase()} • {file.created_at || 'Uploaded'}
+                                                    {(file.mime_type || 'file').toUpperCase()} • {formatYmdHmAmPm(file.created_at, 'Uploaded')}
                                                 </div>
                                             </div>
                                             <div style={{ display: 'flex', gap: 8 }}>

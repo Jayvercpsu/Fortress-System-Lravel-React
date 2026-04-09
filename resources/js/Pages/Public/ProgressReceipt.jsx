@@ -10,7 +10,7 @@ import {
     Link2,
     Printer,
 } from 'lucide-react';
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import ActionButton from '../../Components/ActionButton';
 import Modal from '../../Components/Modal';
 
@@ -149,7 +149,8 @@ export default function ProgressReceipt({
     token,
     expires_at: expiresAt,
 }) {
-    const [previewPhoto, setPreviewPhoto] = useState(null);
+    // Photo preview state is scoped to the clicked scope row so Prev/Next stays within that row.
+    const [photoPreview, setPhotoPreview] = useState(null);
 
     const projectName = project?.name || receipt?.project_name || 'Project Receipt';
     const clientName = project?.client || receipt?.client_name || 'Client unavailable';
@@ -175,6 +176,63 @@ export default function ProgressReceipt({
         resolved: Number(issueSummary?.resolved ?? 0),
     };
     const accessText = String(token || receipt?.access_link || '').trim() || 'Unavailable';
+
+    const previewScope = useMemo(() => {
+        const scopeId = photoPreview?.scopeId;
+        if (!scopeId) return null;
+        return scopeRows.find((scope) => String(scope?.id) === String(scopeId)) || null;
+    }, [photoPreview?.scopeId, scopeRows]);
+
+    const previewPhotos = useMemo(
+        () => (Array.isArray(previewScope?.photos) ? previewScope.photos : []),
+        [previewScope],
+    );
+
+    const previewIndex = useMemo(() => {
+        const raw = Number(photoPreview?.index ?? 0);
+        const safe = Number.isFinite(raw) ? raw : 0;
+        return Math.min(Math.max(0, safe), Math.max(0, previewPhotos.length - 1));
+    }, [photoPreview?.index, previewPhotos.length]);
+
+    const previewPhoto = previewPhotos[previewIndex] || null;
+    const canPrev = !!previewPhoto && previewIndex > 0;
+    const canNext = !!previewPhoto && previewIndex < previewPhotos.length - 1;
+
+    const closePreview = () => setPhotoPreview(null);
+    const goPrev = () =>
+        setPhotoPreview((prev) =>
+            prev ? { ...prev, index: Math.max(0, Number(prev.index ?? 0) - 1) } : prev,
+        );
+    const goNext = () =>
+        setPhotoPreview((prev) => (prev ? { ...prev, index: Number(prev.index ?? 0) + 1 } : prev));
+
+    useEffect(() => {
+        if (!photoPreview) return;
+        if (previewPhotos.length > 0) return;
+        closePreview();
+    }, [photoPreview, previewPhotos.length]);
+
+    useEffect(() => {
+        if (!previewPhoto) return;
+
+        const onKeyDown = (event) => {
+            if (event.key === 'ArrowLeft') {
+                if (canPrev) {
+                    event.preventDefault();
+                    goPrev();
+                }
+            }
+            if (event.key === 'ArrowRight') {
+                if (canNext) {
+                    event.preventDefault();
+                    goNext();
+                }
+            }
+        };
+
+        window.addEventListener('keydown', onKeyDown);
+        return () => window.removeEventListener('keydown', onKeyDown);
+    }, [previewPhoto, canPrev, canNext]);
 
     return (
         <>
@@ -906,13 +964,14 @@ export default function ProgressReceipt({
                                                                     key={photo.id}
                                                                     type="button"
                                                                     className="receipt-photo-thumb"
-                                                                    onClick={() =>
-                                                                        setPreviewPhoto({
-                                                                            ...photo,
-                                                                            caption: photo.caption || scope.scopeName,
-                                                                            meta: scope.scopeName,
-                                                                        })
-                                                                    }
+                                                                    onClick={() => {
+                                                                        const photos = Array.isArray(scope?.photos) ? scope.photos : [];
+                                                                        const clickedIndex = photos.findIndex((item) => String(item?.id) === String(photo?.id));
+                                                                        setPhotoPreview({
+                                                                            scopeId: scope.id,
+                                                                            index: clickedIndex >= 0 ? clickedIndex : 0,
+                                                                        });
+                                                                    }}
                                                                 >
                                                                     <OptimizedImage
                                                                         src={`/files/${photo.photo_path}`}
@@ -1017,20 +1076,40 @@ export default function ProgressReceipt({
                 </div>
                 <Modal
                     open={!!previewPhoto}
-                    onClose={() => setPreviewPhoto(null)}
-                    title={previewPhoto?.caption || 'Photo preview'}
+                    onClose={closePreview}
+                    title={previewPhoto?.caption || previewScope?.scopeName || 'Photo preview'}
+                    headerContent={previewPhoto ? (
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
+                            <div className="receipt-muted">
+                                {previewScope?.scopeName ? `Scope: ${previewScope.scopeName}` : null}
+                            </div>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                <span style={{ fontSize: 12, fontFamily: "'DM Mono', monospace", color: 'var(--text-muted)' }}>
+                                    {`${previewIndex + 1} / ${previewPhotos.length}`}
+                                </span>
+                                <ActionButton type="button" onClick={goPrev} disabled={!canPrev} style={{ padding: '6px 10px', fontSize: 12 }}>
+                                    Prev
+                                </ActionButton>
+                                <ActionButton type="button" onClick={goNext} disabled={!canNext} style={{ padding: '6px 10px', fontSize: 12 }}>
+                                    Next
+                                </ActionButton>
+                            </div>
+                        </div>
+                    ) : null}
                     maxWidth={920}
                 >
                     {previewPhoto ? (
                         <div style={{ display: 'grid', gap: 12 }}>
                             <OptimizedImage
+                                key={previewPhoto.id || previewPhoto.photo_path}
                                 src={`/files/${previewPhoto.photo_path}`}
-                                alt={previewPhoto.caption || 'Scope photo'}
+                                alt={previewPhoto.caption || previewScope?.scopeName || 'Scope photo'}
                                 className="receipt-modal-image"
                             />
                             <div className="receipt-muted">
-                                {previewPhoto.meta ? `${previewPhoto.meta}` : ''}
-                                {previewPhoto.created_at ? ` | ${formatDateTime(previewPhoto.created_at)}` : ''}
+                                {previewScope?.scopeName ? `${previewScope.scopeName}` : ''}
+                                {previewScope?.scopeName && previewPhoto.created_at ? ' | ' : ''}
+                                {previewPhoto.created_at ? `${formatDateTime(previewPhoto.created_at)}` : ''}
                             </div>
                         </div>
                     ) : null}

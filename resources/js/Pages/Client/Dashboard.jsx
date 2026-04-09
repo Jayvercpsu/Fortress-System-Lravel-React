@@ -4,6 +4,7 @@ import DataTable from '../../Components/DataTable';
 import Modal from '../../Components/Modal';
 import OptimizedImage from '../../Components/OptimizedImage';
 import { Head, router } from '@inertiajs/react';
+import { formatYmd, formatYmdHmAmPm } from '../../Utils/dateTimeFormat';
 
 const cardStyle = {
     background: 'var(--surface-1)',
@@ -146,7 +147,11 @@ export default function ClientDashboard({
         {
             key: 'created_at',
             label: 'Date',
-            render: (row) => row.created_at || '-',
+            render: (row) => (
+                <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 12 }}>
+                    {formatYmdHmAmPm(row.created_at)}
+                </span>
+            ),
             searchAccessor: (row) => row.created_at,
         },
     ];
@@ -200,7 +205,11 @@ export default function ClientDashboard({
         {
             key: 'week_start',
             label: 'Week Start',
-            render: (row) => row.week_start || '-',
+            render: (row) => (
+                <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 12 }}>
+                    {formatYmd(row.week_start)}
+                </span>
+            ),
             searchAccessor: (row) => row.week_start,
         },
         {
@@ -224,7 +233,11 @@ export default function ClientDashboard({
         {
             key: 'created_at',
             label: 'Date',
-            render: (row) => row.created_at || '-',
+            render: (row) => (
+                <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 12 }}>
+                    {formatYmdHmAmPm(row.created_at)}
+                </span>
+            ),
             searchAccessor: (row) => row.created_at,
         },
     ];
@@ -334,7 +347,7 @@ export default function ClientDashboard({
                         />
                         <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
                             Uploaded by: {previewPhoto.uploaded_by || '-'} | Project: {previewPhoto.project_name || '-'} |{' '}
-                            {previewPhoto.created_at || '-'}
+                            {formatYmdHmAmPm(previewPhoto.created_at)}
                         </div>
                     </div>
                 )}
@@ -362,7 +375,7 @@ export default function ClientDashboard({
                         <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
                             {previewScopePhoto.scope ? `Scope: ${previewScopePhoto.scope}` : null}
                             {previewScopePhoto.scope && previewScopePhoto.created_at ? ' | ' : ''}
-                            {previewScopePhoto.created_at || '-'}
+                            {formatYmdHmAmPm(previewScopePhoto.created_at)}
                         </div>
                     </div>
                 )}

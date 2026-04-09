@@ -5,6 +5,7 @@ import Layout from './Layout';
 import Modal from './Modal';
 import ProjectAccordionTable from './ProjectAccordionTable';
 import OptimizedImage from './OptimizedImage';
+import { formatYmdHmAmPm } from '../Utils/dateTimeFormat';
 
 const cardStyle = {
     background: 'var(--surface-1)',
@@ -72,7 +73,11 @@ export default function IssueReportsPage({ issues = [], issueTable = {}, statusF
             key: 'created_at',
             label: 'Reported At',
             width: 170,
-            render: (row) => <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 12 }}>{row.created_at || '-'}</span>,
+            render: (row) => (
+                <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 12 }}>
+                    {formatYmdHmAmPm(row.created_at)}
+                </span>
+            ),
         },
         {
             key: 'foreman_name',
@@ -105,7 +110,7 @@ export default function IssueReportsPage({ issues = [], issueTable = {}, statusF
                         onClick={() => setPreviewPhoto({
                             path: row.photo_path,
                             caption: row.issue_title || 'Issue photo',
-                            meta: `${row.severity || 'normal'} issue Â· ${row.foreman_name || 'Unknown foreman'}`,
+                            meta: `${row.severity || 'normal'} issue | ${row.foreman_name || 'Unknown foreman'}`,
                         })}
                         style={{ border: 'none', background: 'transparent', padding: 0, cursor: 'pointer' }}
                     >

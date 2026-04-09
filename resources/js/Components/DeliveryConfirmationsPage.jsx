@@ -4,6 +4,7 @@ import ProjectAccordionTable from './ProjectAccordionTable';
 import { Head } from '@inertiajs/react';
 import { useState } from 'react';
 import OptimizedImage from './OptimizedImage';
+import { formatYmdHmAmPm } from '../Utils/dateTimeFormat';
 
 const cardStyle = {
     background: 'var(--surface-1)',
@@ -54,7 +55,11 @@ export default function DeliveryConfirmationsPage({
             key: 'delivery_date',
             label: 'Delivery Date',
             width: 130,
-            render: (row) => <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 12 }}>{row.delivery_date || '-'}</span>,
+            render: (row) => (
+                <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 12 }}>
+                    {formatYmdHmAmPm(row.delivery_date)}
+                </span>
+            ),
         },
         {
             key: 'project',
@@ -103,7 +108,7 @@ export default function DeliveryConfirmationsPage({
                         onClick={() => setPreviewPhoto({
                             path: row.photo_path,
                             caption: row.item_delivered || 'Delivery photo',
-                            meta: `${row.delivery_date || '-'} Â· ${row.supplier || 'Unknown supplier'}`,
+                            meta: `${formatYmdHmAmPm(row.delivery_date)} | ${row.supplier || 'Unknown supplier'}`,
                         })}
                         style={{ border: 'none', background: 'transparent', padding: 0, cursor: 'pointer' }}
                     >
@@ -142,7 +147,11 @@ export default function DeliveryConfirmationsPage({
             key: 'created_at',
             label: 'Logged At',
             width: 170,
-            render: (row) => <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 12 }}>{row.created_at || '-'}</span>,
+            render: (row) => (
+                <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 12 }}>
+                    {formatYmdHmAmPm(row.created_at)}
+                </span>
+            ),
         },
     ];
 

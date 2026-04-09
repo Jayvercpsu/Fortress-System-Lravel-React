@@ -14,6 +14,7 @@ import toast from 'react-hot-toast';
 import { ArrowLeft, GripVertical, Trash2 } from 'lucide-react';
 import OptimizedImage from './OptimizedImage';
 import { toastMessages } from '../constants/toastMessages';
+import { formatYmdHmAmPm } from '../Utils/dateTimeFormat';
 
 const cardStyle = {
     background: 'var(--surface-1)',
@@ -904,7 +905,7 @@ export default function MonitoringBoardPage({
                                                                             {photo.caption || 'No caption'}
                                                                         </div>
                                                                         <div style={{ fontSize: 10, color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                                                            {photo.created_at || '-'}
+                                                                            {formatYmdHmAmPm(photo.created_at)}
                                                                         </div>
                                                                     </div>
                                                                 </button>
@@ -995,7 +996,7 @@ export default function MonitoringBoardPage({
                                             </div>
                                         </td>
                                         <td style={{ padding: '10px 8px', borderBottom: '1px solid var(--border-color)', whiteSpace: 'nowrap' }}>
-                                            {scope.updated_at || '-'}
+                                            {formatYmdHmAmPm(scope.updated_at)}
                                         </td>
                                         <td style={{ padding: '10px 8px', borderBottom: '1px solid var(--border-color)' }}>
                                             <div style={{ display: 'inline-flex', gap: 8 }}>
@@ -1700,7 +1701,7 @@ export default function MonitoringBoardPage({
                             <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
                                 {previewScope?.scope_name ? `Scope: ${previewScope.scope_name}` : null}
                                 {previewScope?.scope_name && previewPhoto.created_at ? ' | ' : ''}
-                                {previewPhoto.created_at || '-'}
+                                {formatYmdHmAmPm(previewPhoto.created_at)}
                             </div>
                         </div>
                     )}

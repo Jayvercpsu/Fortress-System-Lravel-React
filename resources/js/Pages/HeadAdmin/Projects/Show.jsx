@@ -11,6 +11,7 @@ import { useEffect, useState } from 'react';
 import toast from 'react-hot-toast';
 import OptimizedImage from '../../../Components/OptimizedImage';
 import { toastMessages } from '../../../constants/toastMessages';
+import { formatYmdHmAmPm } from '../../../Utils/dateTimeFormat';
 
 const cardStyle = {
     background: 'var(--surface-1)',
@@ -565,7 +566,7 @@ export default function HeadAdminProjectsShow({
         {
             key: 'created_at',
             label: 'Uploaded At',
-            render: (file) => <div style={{ fontSize: 13 }}>{file.created_at || '-'}</div>,
+            render: (file) => <div style={{ fontSize: 13 }}>{formatYmdHmAmPm(file.created_at)}</div>,
             searchAccessor: (file) => file.created_at,
         },
         {

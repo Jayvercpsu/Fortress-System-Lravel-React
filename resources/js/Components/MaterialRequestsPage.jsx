@@ -5,6 +5,7 @@ import ActionButton from './ActionButton';
 import { Head, router } from '@inertiajs/react';
 import { useState } from 'react';
 import OptimizedImage from './OptimizedImage';
+import { formatYmdHmAmPm } from '../Utils/dateTimeFormat';
 
 const cardStyle = {
     background: 'var(--surface-1)',
@@ -50,7 +51,11 @@ export default function MaterialRequestsPage({
             key: 'created_at',
             label: 'Submitted',
             width: 170,
-            render: (row) => <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 12 }}>{row.created_at || '-'}</span>,
+            render: (row) => (
+                <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 12 }}>
+                    {formatYmdHmAmPm(row.created_at)}
+                </span>
+            ),
         },
         {
             key: 'foreman_name',

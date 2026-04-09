@@ -8,6 +8,7 @@ import Modal from '../../Components/Modal';
 import OptimizedImage from '../../Components/OptimizedImage';
 import TextInput from '../../Components/TextInput';
 import { toastMessages } from '../../constants/toastMessages';
+import { formatYmdHmAmPm } from '../../Utils/dateTimeFormat';
 
 const DAYS = [
     { key: 'mon', label: 'Mon' },
@@ -1095,7 +1096,7 @@ export default function ProgressSubmit({ submitToken }) {
                                     onClick={() => openPhotoPreview(
                                         row.photo_path,
                                         row.item_delivered || 'Delivery Photo',
-                                        `Delivery Date: ${row.delivery_date || '-'}${row.supplier ? ` | Supplier: ${row.supplier}` : ''}`
+                                        `Delivery Date: ${formatYmdHmAmPm(row.delivery_date)}${row.supplier ? ` | Supplier: ${row.supplier}` : ''}`
                                     )}
                                     style={{ display: 'block', marginBottom: 6, border: 'none', background: 'transparent', padding: 0, width: '100%', cursor: 'pointer' }}
                                 >
@@ -1111,9 +1112,9 @@ export default function ProgressSubmit({ submitToken }) {
                                 <span className="jf-recent-chip">{humanize(row.status)}</span>
                             </div>
                             <div className="jf-note">Qty: {row.quantity || '-'}</div>
-                            <div className="jf-note">Delivery Date: {row.delivery_date || '-'}</div>
+                            <div className="jf-note">Delivery Date: {formatYmdHmAmPm(row.delivery_date)}</div>
                             <div className="jf-note">Supplier: {row.supplier || '-'}</div>
-                            <div className="jf-note">Submitted: {row.created_at || '-'}</div>
+                            <div className="jf-note">Submitted: {formatYmdHmAmPm(row.created_at)}</div>
                         </div>
                     ))}
                 </div>
@@ -1189,7 +1190,7 @@ export default function ProgressSubmit({ submitToken }) {
                             </div>
                             <div className="jf-note">Qty: {row.quantity || '-'} {row.unit || ''}</div>
                             <div className="jf-note">Remarks: {row.remarks || '-'}</div>
-                            <div className="jf-note">Submitted: {row.created_at || '-'}</div>
+                            <div className="jf-note">Submitted: {formatYmdHmAmPm(row.created_at)}</div>
                         </div>
                     ))}
                 </div>
@@ -1291,7 +1292,7 @@ export default function ProgressSubmit({ submitToken }) {
                                                                         onClick={() => openPhotoPreview(
                                                                             photo.photo_path,
                                                                             row.scope_of_work || photo.caption || 'Scope Photo',
-                                                                            photo.created_at || ''
+                                                                            formatYmdHmAmPm(photo.created_at, '')
                                                                         )}
                                                                         style={{ display: 'block', border: 'none', background: 'transparent', padding: 0, cursor: 'pointer' }}
                                                                     >
@@ -1449,14 +1450,14 @@ export default function ProgressSubmit({ submitToken }) {
                             </button>
                             <button
                                 type="button"
-                                onClick={() => openPhotoPreview(photo.photo_path, photo.caption || 'Photo', photo.created_at || '')}
+                                onClick={() => openPhotoPreview(photo.photo_path, photo.caption || 'Photo', formatYmdHmAmPm(photo.created_at, ''))}
                                 style={{ border: 'none', background: 'transparent', padding: 0, cursor: 'pointer', width: 90, justifySelf: 'start' }}
                             >
                                 <OptimizedImage src={`/files/${photo.photo_path}`} alt={photo.caption || 'Photo'} />
                             </button>
                             <div>
                                 <div style={{ fontWeight: 700 }}>{photo.caption || 'No description'}</div>
-                                <div className="jf-note">{photo.created_at || '-'}</div>
+                                <div className="jf-note">{formatYmdHmAmPm(photo.created_at)}</div>
                             </div>
                         </div>
                     ))}
@@ -1535,7 +1536,7 @@ export default function ProgressSubmit({ submitToken }) {
                             </div>
                             <div className="jf-note">Severity: {humanize(row.severity)}</div>
                             <div className="jf-note" style={{ whiteSpace: 'pre-wrap' }}>{row.description || '-'}</div>
-                            <div className="jf-note">Submitted: {row.created_at || '-'}</div>
+                            <div className="jf-note">Submitted: {formatYmdHmAmPm(row.created_at)}</div>
                         </div>
                     ))}
                 </div>
@@ -1645,13 +1646,13 @@ export default function ProgressSubmit({ submitToken }) {
                 `}</style>
                 <div className="jf-top" />
                 <div className="jf-wrap">
-                    <div className="jf-meta">
-                        <div>Project: <strong>{submitToken.project_name}</strong></div>
-                        <div>Foreman: <strong>{submitToken.foreman_name}</strong></div>
-                        {submitToken.expires_at ? <div>Link expires at: {submitToken.expires_at}</div> : null}
-                        <div className="jf-meta-actions">
+                        <div className="jf-meta">
+                            <div>Project: <strong>{submitToken.project_name}</strong></div>
+                            <div>Foreman: <strong>{submitToken.foreman_name}</strong></div>
+                            {submitToken.expires_at ? <div>Link expires at: {formatYmdHmAmPm(submitToken.expires_at)}</div> : null}
+                            <div className="jf-meta-actions">
+                            </div>
                         </div>
-                    </div>
                     {projectLocked ? (
                         <div className="jf-locked">
                             This project is {resolvedLockStatus || 'completed'}. All inputs and submissions are locked.

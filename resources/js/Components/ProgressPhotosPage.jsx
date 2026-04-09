@@ -4,6 +4,7 @@ import ProjectAccordionTable from './ProjectAccordionTable';
 import { Head } from '@inertiajs/react';
 import { useState } from 'react';
 import OptimizedImage from './OptimizedImage';
+import { formatYmdHmAmPm } from '../Utils/dateTimeFormat';
 
 const cardStyle = {
     background: 'var(--surface-1)',
@@ -59,7 +60,14 @@ export default function ProgressPhotosPage({ photos = [], photoTable = {}, statu
         {
             key: 'created_at',
             label: 'Uploaded At',
-            render: (photo) => photo.created_at || '-',
+            render: (photo) => {
+                const value = photo?.created_at ?? photo?.uploaded_at ?? photo?.updated_at ?? '';
+                return (
+                    <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 12 }}>
+                        {formatYmdHmAmPm(value)}
+                    </span>
+                );
+            },
         },
     ];
 
@@ -104,7 +112,7 @@ export default function ProgressPhotosPage({ photos = [], photoTable = {}, statu
                                 }}
                             />
                             <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
-                                Uploaded by: {previewPhoto.foreman_name || '-'} | Project: {previewPhoto.project_name || '-'} | {previewPhoto.created_at || '-'}
+                                Uploaded by: {previewPhoto.foreman_name || '-'} | Project: {previewPhoto.project_name || '-'} | {formatYmdHmAmPm(previewPhoto.created_at ?? previewPhoto.uploaded_at ?? previewPhoto.updated_at)}
                             </div>
                         </div>
                     )}

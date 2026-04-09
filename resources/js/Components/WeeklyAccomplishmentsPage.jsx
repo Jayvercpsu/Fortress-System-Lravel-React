@@ -4,6 +4,7 @@ import Modal from './Modal';
 import ProjectAccordionTable from './ProjectAccordionTable';
 import { Head } from '@inertiajs/react';
 import OptimizedImage from './OptimizedImage';
+import { formatYmd, formatYmdHmAmPm } from '../Utils/dateTimeFormat';
 
 const cardStyle = {
     background: 'var(--surface-1)',
@@ -86,7 +87,11 @@ export default function WeeklyAccomplishmentsPage({
             key: 'created_at',
             label: 'Submitted',
             width: 170,
-            render: (row) => <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 12 }}>{row.created_at || '-'}</span>,
+            render: (row) => (
+                <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 12 }}>
+                    {formatYmdHmAmPm(row.created_at)}
+                </span>
+            ),
         },
         {
             key: 'foreman_name',
@@ -104,7 +109,11 @@ export default function WeeklyAccomplishmentsPage({
             key: 'week_start',
             label: 'Week Start',
             width: 130,
-            render: (row) => row.week_start || '-',
+            render: (row) => (
+                <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 12 }}>
+                    {formatYmd(row.week_start)}
+                </span>
+            ),
         },
         {
             key: 'scope_of_work',
@@ -227,7 +236,7 @@ export default function WeeklyAccomplishmentsPage({
                             <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
                                 {photoPreview?.scopeLabel ? `Scope: ${photoPreview.scopeLabel}` : null}
                                 {photoPreview?.scopeLabel && previewPhoto.created_at ? ' | ' : ''}
-                                {previewPhoto.created_at || '-'}
+                                {formatYmdHmAmPm(previewPhoto.created_at)}
                             </div>
                         </div>
                     )}
