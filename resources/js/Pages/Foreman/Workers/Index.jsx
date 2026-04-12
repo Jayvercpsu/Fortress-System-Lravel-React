@@ -285,7 +285,7 @@ export default function ForemanWorkersIndex({ workers = [], workerTable = {}, as
                                     No assigned projects found. Ask Head Admin to assign you to a project first.
                                 </div>
                             )}
-                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 14 }}>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
                                 <label>
                                     <div style={{ fontSize: 12, marginBottom: 6 }}>Project (Assigned)</div>
                                     <SearchableDropdown
@@ -412,7 +412,7 @@ export default function ForemanWorkersIndex({ workers = [], workerTable = {}, as
                             processing={editForm.processing}
                             maxWidth={820}
                         >
-                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 14 }}>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
                                 <label>
                                     <div style={{ fontSize: 12, marginBottom: 6 }}>Project (Assigned)</div>
                                     <SearchableDropdown

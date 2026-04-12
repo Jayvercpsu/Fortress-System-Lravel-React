@@ -154,7 +154,7 @@ export default function DesignerDashboard({ projects = [], filters = {} }) {
 
                                 return (
                                     <div key={row.id} style={{ ...cardStyle, display: 'grid', gap: 12 }}>
-                                        <div style={{ display: 'grid', gap: 8, gridTemplateColumns: 'repeat(4, minmax(0, 1fr))' }}>
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2">
                                             <div>
                                                 <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 4 }}>Project</div>
                                                 <div style={{ fontWeight: 700 }}>{row.name}</div>
@@ -179,7 +179,7 @@ export default function DesignerDashboard({ projects = [], filters = {} }) {
                                             </div>
                                         </div>
 
-                                        <div style={{ display: 'grid', gap: 8, gridTemplateColumns: 'repeat(2, minmax(0, 1fr))' }}>
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                                             <label>
                                                 <div style={{ fontSize: 12, marginBottom: 6 }}>Design Start Date</div>
                                                 <DatePickerInput

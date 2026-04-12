@@ -255,7 +255,7 @@ export default function ForemanDashboard({
             <Head title="Foreman Dashboard" />
             <Layout title={`Foreman - ${user?.fullname || 'Dashboard'}`}>
                 <div style={{ display: 'grid', gap: 16 }}>
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: 12 }}>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
                         <StatCard label="Assigned Projects" value={assignedProjects.length} color="#60a5fa" />
                         <StatCard
                             label="My Attendance"
@@ -267,19 +267,16 @@ export default function ForemanDashboard({
                         <StatCard label="Open Issues (recent)" value={openIssues} color="#f87171" />
                     </div>
 
-                    <div style={{ display: 'grid', gridTemplateColumns: '1.3fr 1fr', gap: 12 }}>
+                    <div className="grid grid-cols-1 lg:[grid-template-columns:1.3fr_1fr] gap-3">
                         <div style={cardStyle}>
                             <div style={{ fontWeight: 700, marginBottom: 10 }}>Foreman Attendance</div>
                             <div
+                                className="grid grid-cols-1 sm:grid-cols-2 lg:[grid-template-columns:minmax(220px,1.4fr)_repeat(3,minmax(90px,auto))_auto_auto] gap-2 lg:items-center"
                                 style={{
                                     border: '1px solid var(--border-color)',
                                     borderRadius: 10,
                                     padding: 12,
                                     background: 'var(--surface-2)',
-                                    display: 'grid',
-                                    gridTemplateColumns: 'minmax(220px, 1.4fr) repeat(3, minmax(90px, auto)) auto auto',
-                                    gap: 8,
-                                    alignItems: 'center',
                                 }}
                             >
                                 <div>
@@ -395,7 +392,7 @@ export default function ForemanDashboard({
                         </div>
                     </div>
 
-                    <div style={{ display: 'grid', gridTemplateColumns: '1.1fr 0.9fr', gap: 12 }}>
+                    <div className="grid grid-cols-1 lg:[grid-template-columns:1.1fr_0.9fr] gap-3">
                         <div style={cardStyle}>
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
                                 <div style={{ fontWeight: 700 }}>Assigned Projects</div>
@@ -413,15 +410,12 @@ export default function ForemanDashboard({
                                     {assignedProjectRows.map((project) => (
                                         <div
                                             key={project.id}
+                                            className="grid grid-cols-1 gap-2 md:gap-8 md:items-center md:[grid-template-columns:1.5fr_auto_auto_auto]"
                                             style={{
                                                 border: '1px solid var(--border-color)',
                                                 borderRadius: 10,
                                                 padding: 12,
                                                 background: 'var(--surface-2)',
-                                                display: 'grid',
-                                                gridTemplateColumns: '1.5fr auto auto auto',
-                                                gap: 8,
-                                                alignItems: 'center',
                                             }}
                                         >
                                             <div>
@@ -482,7 +476,7 @@ export default function ForemanDashboard({
                         </div>
                     </div>
 
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12 }}>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                         <div style={cardStyle}>
                             <div style={{ fontWeight: 700, marginBottom: 10 }}>Recent Materials</div>
                             {materialRequestRows.length === 0 ? (
@@ -617,7 +611,7 @@ export default function ForemanDashboard({
                             </div>
                         </div>
                         <div style={{ display: 'grid', gap: 8, marginBottom: 10 }}>
-                            <div style={{ display: 'grid', gridTemplateColumns: 'minmax(180px, 280px) minmax(180px, 240px)', gap: 8 }}>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                                 <label style={{ display: 'grid', gap: 4, fontSize: 12, color: 'var(--text-muted)' }}>
                                     Project
                                     <SearchableDropdown
@@ -728,7 +722,7 @@ export default function ForemanDashboard({
                                                                         No scope entries found for the latest week.
                                                                     </div>
                                                                 ) : (
-                                                                    <div style={{ display: 'grid', gridTemplateColumns: '1fr auto auto', gap: 6 }}>
+                                                                    <div className="grid grid-cols-1 sm:[grid-template-columns:1fr_auto_auto] gap-1.5">
                                                                         {latestScopeEntries.map((entry, entryIndex) => (
                                                                             <Fragment key={`${rowKey}-entry-${entryIndex}`}>
                                                                                 <div style={{ fontSize: 12 }}>{entry.scope_of_work || '-'}</div>

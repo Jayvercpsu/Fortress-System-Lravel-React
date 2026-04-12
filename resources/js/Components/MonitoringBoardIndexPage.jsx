@@ -2064,7 +2064,7 @@ export default function MonitoringBoardIndexPage({
                                 );
                                 return (
                                     <>
-                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 12 }}>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                                 <label>
                                     <div style={{ fontSize: 12, marginBottom: 6 }}>Department</div>
                                     <TextInput value={infoItem.department ?? ''} readOnly style={inputStyle} />
@@ -2192,7 +2192,7 @@ export default function MonitoringBoardIndexPage({
                     <form onSubmit={submitCreate} style={{ display: 'grid', gap: 12 }}>
                         <div style={{ display: createActiveTab === 'details' ? 'grid' : 'none', gap: 12 }}>
                         <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>New project name/client</div>
-                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 12 }}>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                             <label>
                                 <div style={{ fontSize: 12, marginBottom: 6 }}>Department</div>
                                 {departmentOptions.length === 0 ? (
@@ -2410,7 +2410,7 @@ export default function MonitoringBoardIndexPage({
                             <div style={{ fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.4 }}>
                             </div>
 
-                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 12 }}>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                                 <div style={computationCardStyle}>
                                     <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 4 }}>Design Contract Amount</div>
                                     <div style={{ fontWeight: 700 }}>{money(createData.design_contract_amount)}</div>
@@ -2429,7 +2429,7 @@ export default function MonitoringBoardIndexPage({
                                 </div>
                             </div>
 
-                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 12 }}>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                                 <label>
                                     <div style={{ fontSize: 12, marginBottom: 6 }}>Design Contract Amount</div>
                                     <TextInput
@@ -2655,7 +2655,7 @@ export default function MonitoringBoardIndexPage({
                     maxWidth={860}
                 >
                     <div style={{ display: editActiveTab === 'details' ? 'grid' : 'none', gap: 12 }}>
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 12 }}>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                         <label>
                             <div style={{ fontSize: 12, marginBottom: 6 }}>Department</div>
                             {departmentOptions.length === 0 ? (
@@ -2872,7 +2872,7 @@ export default function MonitoringBoardIndexPage({
                         <div style={{ fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.4 }}>
                         </div>
 
-                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 12 }}>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                             <div style={computationCardStyle}>
                                 <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 4 }}>Design Contract Amount</div>
                                 <div style={{ fontWeight: 700 }}>{money(editData.design_contract_amount)}</div>
@@ -2891,7 +2891,7 @@ export default function MonitoringBoardIndexPage({
                             </div>
                         </div>
 
-                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 12 }}>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                             <label>
                                 <div style={{ fontSize: 12, marginBottom: 6 }}>Design Contract Amount</div>
                                 <TextInput

@@ -225,17 +225,18 @@ export default function ProjectAccordionTable({
 
     return (
         <div style={{ display: 'grid', gap: 12 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', flex: 1, minWidth: 0 }}>
+            <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                <div className="flex w-full md:w-auto" style={{ flex: 1, minWidth: 0 }}>
                     <TextInput
+                        className="w-full md:max-w-[420px]"
                         value={searchDraft}
                         onChange={(e) => setSearchDraft(e.target.value)}
                         placeholder={searchPlaceholder}
-                        style={{ ...controlStyle, minWidth: 220, maxWidth: 420, flex: '0 1 420px', width: '100%' }}
+                        style={{ ...controlStyle, minWidth: 0, width: '100%' }}
                     />
                 </div>
 
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                <div className="flex flex-wrap items-center gap-2 w-full md:w-auto md:justify-end">
                     <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>Per page</span>
                     <SelectInput
                         value={tableState.perPage}

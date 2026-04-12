@@ -3,6 +3,7 @@ import ActionButton from './ActionButton';
 import DataTable from './DataTable';
 import Modal from './Modal';
 import DatePickerInput from './DatePickerInput';
+import TextInput from './TextInput';
 import { Head, router, useForm, usePage } from '@inertiajs/react';
 import { useState } from 'react';
 import toast from 'react-hot-toast';
@@ -198,7 +199,7 @@ export default function ProjectPaymentsPage({ project, payments = [], paymentTab
                     </div>
                 </div>
 
-                <div style={{ ...cardStyle, display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, marginBottom: 16 }}>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 mb-4" style={cardStyle}>
                     <div>
                         <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>Contract Amount</div>
                         <div style={{ fontWeight: 700 }}>{money(project.contract_amount)}</div>
@@ -219,10 +220,10 @@ export default function ProjectPaymentsPage({ project, payments = [], paymentTab
                     </div>
                 </div>
                 <fieldset disabled={isLocked} style={{ border: 'none', padding: 0, margin: 0 }}>
-                    <form onSubmit={submitPayment} style={{ ...cardStyle, display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 12, marginBottom: 16 }}>
+                    <form onSubmit={submitPayment} className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-4" style={cardStyle}>
                         <label>
                             <div style={{ fontSize: 12, marginBottom: 6 }}>Amount</div>
-                            <input
+                            <TextInput
                                 type="number"
                                 min="0"
                                 step="0.01"
@@ -247,7 +248,7 @@ export default function ProjectPaymentsPage({ project, payments = [], paymentTab
 
                         <label>
                             <div style={{ fontSize: 12, marginBottom: 6 }}>Reference</div>
-                            <input
+                            <TextInput
                                 value={data.reference}
                                 onChange={(event) => setData('reference', event.target.value)}
                                 style={inputStyle}
@@ -259,7 +260,7 @@ export default function ProjectPaymentsPage({ project, payments = [], paymentTab
 
                         <label>
                             <div style={{ fontSize: 12, marginBottom: 6 }}>Note</div>
-                            <input
+                            <TextInput
                                 value={data.note}
                                 onChange={(event) => setData('note', event.target.value)}
                                 style={inputStyle}

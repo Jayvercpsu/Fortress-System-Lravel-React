@@ -70,7 +70,7 @@ export default function ReportsIndex({ summary = {}, projectProfitability = [] }
                     contract value, progress, expenses, and payroll so you can compare cash collected versus earned revenue,
                     visualize profitability, and launch receipt PDFs directly from the table.
                 </div>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: 12, marginBottom: 16 }}>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
                     <StatCard label="Projects" value={summary.project_count ?? 0} />
                     <StatCard label="Collected Contract Value" value={money(summary.collected_sum)} color="#22c55e" />
                     <StatCard label="Allocated Payroll" value={money(summary.allocated_payroll_sum)} color="#fbbf24" />

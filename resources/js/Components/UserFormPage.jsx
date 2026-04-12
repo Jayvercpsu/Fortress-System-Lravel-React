@@ -1,6 +1,9 @@
 import Layout from './Layout';
 import DatePickerInput from './DatePickerInput';
 import ActionButton from './ActionButton';
+import TextInput from './TextInput';
+import SelectInput from './SelectInput';
+import TextareaInput from './TextareaInput';
 import { Head, useForm } from '@inertiajs/react';
 import toast from 'react-hot-toast';
 import { toastMessages } from '../constants/toastMessages';
@@ -83,17 +86,17 @@ export default function UserFormPage({ mode = 'create', user = {} }) {
             <Layout title={layoutTitle}>
                 <div style={{ maxWidth: 980, display: 'grid', gap: 16 }}>
                     <form onSubmit={submit} style={{ display: 'grid', gap: 16 }}>
-                        <div style={{ ...cardStyle, display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 14 }}>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5" style={cardStyle}>
                             <Field label="Full Name" error={errors.fullname}>
-                                <input type="text" value={data.fullname} onChange={(e) => setData('fullname', e.target.value)} style={inputStyle} />
+                                <TextInput type="text" value={data.fullname} onChange={(e) => setData('fullname', e.target.value)} style={inputStyle} />
                             </Field>
 
                             <Field label="Email" error={errors.email}>
-                                <input type="email" value={data.email} onChange={(e) => setData('email', e.target.value)} style={inputStyle} />
+                                <TextInput type="email" value={data.email} onChange={(e) => setData('email', e.target.value)} style={inputStyle} />
                             </Field>
 
                             <Field label={isEdit ? 'New Password (optional)' : 'Password'} error={errors.password}>
-                                <input
+                                <TextInput
                                     type="password"
                                     value={data.password}
                                     onChange={(e) => setData('password', e.target.value)}
@@ -103,53 +106,53 @@ export default function UserFormPage({ mode = 'create', user = {} }) {
                             </Field>
 
                             <Field label="Role" error={errors.role}>
-                                <select value={data.role} onChange={(e) => setData('role', e.target.value)} style={inputStyle}>
+                                <SelectInput value={data.role} onChange={(e) => setData('role', e.target.value)} style={inputStyle}>
                                     <option value="admin">Admin</option>
                                     <option value="hr">HR</option>
                                     <option value="foreman">Foreman</option>
                                     <option value="designer">Designer</option>
-                                </select>
+                                </SelectInput>
                             </Field>
                         </div>
 
                         <div style={{ ...cardStyle, display: 'grid', gap: 12 }}>
                             <div style={{ fontWeight: 700 }}>User Details</div>
-                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 14 }}>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
                                 <Field label="Birth Date" error={errors.birth_date}>
                                     <DatePickerInput value={data.birth_date} onChange={(value) => setData('birth_date', value)} style={inputStyle} maxDate={new Date()} />
                                 </Field>
 
                                 <Field label="Place of Birth" error={errors.place_of_birth}>
-                                    <input type="text" value={data.place_of_birth} onChange={(e) => setData('place_of_birth', e.target.value)} style={inputStyle} />
+                                    <TextInput type="text" value={data.place_of_birth} onChange={(e) => setData('place_of_birth', e.target.value)} style={inputStyle} />
                                 </Field>
 
                                 <Field label="Sex" error={errors.sex}>
-                                    <select value={data.sex} onChange={(e) => setData('sex', e.target.value)} style={inputStyle}>
+                                    <SelectInput value={data.sex} onChange={(e) => setData('sex', e.target.value)} style={inputStyle}>
                                         <option value="">Select sex</option>
                                         <option value="male">Male</option>
                                         <option value="female">Female</option>
                                         <option value="other">Other</option>
-                                    </select>
+                                    </SelectInput>
                                 </Field>
 
                                 <Field label="Civil Status" error={errors.civil_status}>
-                                    <select value={data.civil_status} onChange={(e) => setData('civil_status', e.target.value)} style={inputStyle}>
+                                    <SelectInput value={data.civil_status} onChange={(e) => setData('civil_status', e.target.value)} style={inputStyle}>
                                         <option value="">Select civil status</option>
                                         <option value="Single">Single</option>
                                         <option value="Married">Married</option>
                                         <option value="Widowed">Widowed</option>
                                         <option value="Separated">Separated</option>
                                         <option value="Divorced">Divorced</option>
-                                    </select>
+                                    </SelectInput>
                                 </Field>
 
                                 <Field label="Phone" error={errors.phone}>
-                                    <input type="text" value={data.phone} onChange={(e) => setData('phone', e.target.value)} style={inputStyle} />
+                                    <TextInput type="text" value={data.phone} onChange={(e) => setData('phone', e.target.value)} style={inputStyle} />
                                 </Field>
 
                                 <div style={{ gridColumn: '1 / -1' }}>
                                     <Field label="Address" error={errors.address}>
-                                        <textarea
+                                        <TextareaInput
                                             value={data.address}
                                             onChange={(e) => setData('address', e.target.value)}
                                             style={{ ...inputStyle, minHeight: 90, resize: 'vertical' }}
@@ -159,7 +162,7 @@ export default function UserFormPage({ mode = 'create', user = {} }) {
                             </div>
                         </div>
 
-                        <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+                        <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', flexWrap: 'wrap' }}>
                             <ActionButton
                                 type="button"
                                 onClick={() => {

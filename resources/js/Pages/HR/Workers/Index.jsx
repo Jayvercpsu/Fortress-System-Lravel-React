@@ -372,14 +372,8 @@ export default function HrWorkersIndex({
 
     const filterBar = (
         <div
-            style={{
-                display: 'grid',
-                gridTemplateColumns: 'minmax(200px, 1fr) minmax(200px, 1fr) auto',
-                gap: 8,
-                alignItems: 'center',
-                flex: '1 1 520px',
-                minWidth: 320,
-            }}
+            className="grid grid-cols-1 sm:grid-cols-2 md:[grid-template-columns:minmax(200px,1fr)_minmax(200px,1fr)_auto] gap-2 md:items-center"
+            style={{ flex: '1 1 520px', minWidth: 0 }}
         >
             <SearchableDropdown
                 options={projectList}
@@ -404,7 +398,7 @@ export default function HrWorkersIndex({
                 searchPlaceholder="Search projects..."
                 emptyMessage="No projects found"
                 clearable
-                style={{ ...filterControlStyle, minHeight: 36, minWidth: 180 }}
+                style={{ ...filterControlStyle, minHeight: 36, minWidth: 0, width: '100%' }}
                 dropdownWidth={320}
             />
             <SearchableDropdown
@@ -421,7 +415,7 @@ export default function HrWorkersIndex({
                 searchPlaceholder="Search foremen..."
                 emptyMessage="No foremen found"
                 clearable
-                style={{ ...filterControlStyle, minHeight: 36, minWidth: 180 }}
+                style={{ ...filterControlStyle, minHeight: 36, minWidth: 0, width: '100%' }}
                 dropdownWidth={280}
             />
             <ActionButton
@@ -489,7 +483,6 @@ export default function HrWorkersIndex({
                             serverTotalPages={table.lastPage}
                             serverFrom={table.from}
                             serverTo={table.to}
-                            searchInputStyle={{ flex: '0 1 260px', width: 'auto', maxWidth: 320 }}
                             topLeftExtra={filterBar}
                             onServerSearchChange={(value) => navigateTable({ search: value, page: 1 })}
                             onServerPerPageChange={(value) => navigateTable({ per_page: value, page: 1 })}
@@ -507,7 +500,7 @@ export default function HrWorkersIndex({
                         <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
                             HR assigns workers to foremen and projects so they appear in attendance and submissions.
                         </div>
-                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 14 }}>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
                             <label>
                                 <div style={{ fontSize: 12, marginBottom: 6 }}>Project</div>
                                 <SearchableDropdown
@@ -637,7 +630,7 @@ export default function HrWorkersIndex({
                     processing={editForm.processing}
                     maxWidth={820}
                 >
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 14 }}>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
                         <label>
                             <div style={{ fontSize: 12, marginBottom: 6 }}>Project</div>
                             <SearchableDropdown

@@ -116,13 +116,13 @@ export default function AdminDashboard({ kpis = {}, projectSnapshotPager = null 
         <>
             <Head title="Dashboard" />
             <Layout title="Admin Dashboard">
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 12, marginBottom: 16 }}>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
                     <StatCard label="Total Projects" value={projectCounts.total ?? 0} />
                     <StatCard label="Company Progress" value={`${Number(kpis.company_progress_percent || 0).toFixed(1)}%`} color="#60a5fa" />
                 </div>
 
                 {isHeadAdmin ? (
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 16 }}>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-4">
                         <div style={cardStyle}>
                             <div style={{ fontWeight: 700, marginBottom: 10 }}>Net Profit Formula</div>
                             <div style={{ display: 'grid', gap: 4, fontSize: 13 }}>
@@ -160,7 +160,7 @@ export default function AdminDashboard({ kpis = {}, projectSnapshotPager = null 
                     </div>
                 ) : null}
 
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 16 }}>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-4">
                     <BreakdownPanel title="Projects by Status" items={projectCounts.by_status || []} />
                     <BreakdownPanel title="Projects by Phase" items={projectCounts.by_phase || []} />
                 </div>
@@ -175,15 +175,12 @@ export default function AdminDashboard({ kpis = {}, projectSnapshotPager = null 
                             {projectSnapshotRows.map((project) => (
                                 <div
                                     key={project.id}
+                                    className="grid grid-cols-1 gap-2 md:gap-8 md:items-center md:[grid-template-columns:1.5fr_auto_auto_auto_auto]"
                                     style={{
                                         border: '1px solid var(--border-color)',
                                         borderRadius: 8,
                                         background: 'var(--surface-2)',
                                         padding: 10,
-                                        display: 'grid',
-                                        gridTemplateColumns: '1.5fr auto auto auto auto',
-                                        gap: 8,
-                                        alignItems: 'center',
                                     }}
                                 >
                                     <div>
@@ -192,21 +189,25 @@ export default function AdminDashboard({ kpis = {}, projectSnapshotPager = null 
                                             {project.client} • {project.phase} • {project.status}
                                         </div>
                                     </div>
-                                    <div style={{ fontSize: 12, fontFamily: "'DM Mono', monospace" }}>
-                                        {project.overall_progress}%
+                                    <div className="grid grid-cols-2 gap-2 md:contents">
+                                        <div style={{ fontSize: 12, fontFamily: "'DM Mono', monospace" }}>
+                                            {project.overall_progress}%
+                                        </div>
+                                        <div style={{ fontSize: 12, fontFamily: "'DM Mono', monospace" }}>
+                                            {money(project.contract_amount)}
+                                        </div>
+                                        <div style={{ fontSize: 12, fontFamily: "'DM Mono', monospace" }}>
+                                            {money(project.total_client_payment)}
+                                        </div>
+                                        <div className="col-span-2 md:col-span-1 flex justify-end">
+                                            <ActionButton
+                                                href={`/projects/${project.id}`}
+                                                style={{ padding: '6px 10px', textAlign: 'center' }}
+                                            >
+                                                Open
+                                            </ActionButton>
+                                        </div>
                                     </div>
-                                    <div style={{ fontSize: 12, fontFamily: "'DM Mono', monospace" }}>
-                                        {money(project.contract_amount)}
-                                    </div>
-                                    <div style={{ fontSize: 12, fontFamily: "'DM Mono', monospace" }}>
-                                        {money(project.total_client_payment)}
-                                    </div>
-                                    <ActionButton
-                                        href={`/projects/${project.id}`}
-                                        style={{ padding: '6px 10px', textAlign: 'center' }}
-                                    >
-                                        Open
-                                    </ActionButton>
                                 </div>
                             ))}
                         </div>

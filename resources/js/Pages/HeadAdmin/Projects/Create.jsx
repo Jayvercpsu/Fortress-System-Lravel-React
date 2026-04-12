@@ -204,7 +204,7 @@ export default function HeadAdminProjectsCreate({ foremen = [], designers = [], 
                         Back to Projects
                     </ActionButton>
                 </div>
-                <form onSubmit={submit} style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 14, background: 'var(--surface-1)', border: '1px solid var(--border-color)', borderRadius: 12, padding: 16 }}>
+                <form onSubmit={submit} className="grid grid-cols-1 md:grid-cols-2 gap-3.5" style={{ background: 'var(--surface-1)', border: '1px solid var(--border-color)', borderRadius: 12, padding: 16 }}>
                     <label>
                         <div style={{ fontSize: 12, marginBottom: 6 }}>Project Name</div>
                         <TextInput value={data.name} onChange={(e) => setData('name', e.target.value)} style={inputStyle} />
@@ -256,7 +256,7 @@ export default function HeadAdminProjectsCreate({ foremen = [], designers = [], 
 
                     <div style={{ display: 'grid', gap: 6 }}>
                         <div style={{ fontSize: 12, marginBottom: 0 }}>Assigned</div>
-                        <div style={{ display: 'grid', gridTemplateColumns: '170px 1fr auto', gap: 8, alignItems: 'end' }}>
+                        <div className="grid grid-cols-1 gap-2 md:[grid-template-columns:170px_1fr_auto] md:items-end">
                             <SelectInput
                                 value={pendingAssignedRole}
                                 onChange={(e) => setPendingAssignedRole(e.target.value)}
@@ -328,7 +328,7 @@ export default function HeadAdminProjectsCreate({ foremen = [], designers = [], 
 
                     <div style={{ display: 'grid', gap: 6 }}>
                         <div style={{ fontSize: 12, marginBottom: 0 }}>Assigned Designers</div>
-                        <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 8, alignItems: 'end' }}>
+                        <div className="grid grid-cols-1 gap-2 sm:[grid-template-columns:1fr_auto] sm:items-end">
                             <SearchableDropdown
                                 options={designers}
                                 value={pendingAssignedDesigner}
@@ -402,7 +402,7 @@ export default function HeadAdminProjectsCreate({ foremen = [], designers = [], 
 
                     <div style={{ display: 'grid', gap: 6 }}>
                         <div style={{ fontSize: 12, marginBottom: 0 }}>Assigned Foremen</div>
-                        <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 8, alignItems: 'end' }}>
+                        <div className="grid grid-cols-1 gap-2 sm:[grid-template-columns:1fr_auto] sm:items-end">
                             <SearchableDropdown
                                 options={foremen}
                                 value={pendingAssignedForeman}

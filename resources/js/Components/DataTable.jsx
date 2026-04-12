@@ -143,7 +143,7 @@ export default function DataTable({
                         onChange={(e) => (serverSide ? setServerQueryDraft(e.target.value) : setQuery(e.target.value))}
                         placeholder={searchPlaceholder}
                         disabled={showSkeleton}
-                        style={{ ...controlStyle, minWidth: 220, maxWidth: 420, flex: '0 1 420px', width: '100%', ...(searchInputStyle || {}) }}
+                        style={{ ...controlStyle, minWidth: 0, maxWidth: 420, flex: '1 1 260px', width: '100%', ...(searchInputStyle || {}) }}
                     />
                     {topLeftExtra}
                 </div>

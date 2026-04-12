@@ -109,7 +109,7 @@ export default function HeadAdminDesignShow({ projectId, design }) {
 
                 <form onSubmit={submit} style={{ display: 'grid', gap: 16 }}>
                     <fieldset disabled={isLocked} style={{ border: 'none', padding: 0, margin: 0, display: 'contents' }}>
-                    <div style={{ ...cardStyle, display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
+                    <div style={{ ...cardStyle }} className="grid grid-cols-1 md:grid-cols-3 gap-3">
                         <div>
                             <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 4 }}>Design Contract Amount</div>
                             <div style={{ fontWeight: 700 }}>{money(data.design_contract_amount)}</div>
@@ -124,7 +124,7 @@ export default function HeadAdminDesignShow({ projectId, design }) {
                         </div>
                     </div>
 
-                    <div style={{ ...cardStyle, display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 14 }}>
+                    <div style={{ ...cardStyle }} className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
                         <div style={{ gridColumn: '1 / -1', fontSize: 12, color: 'var(--text-muted)' }}>
                             Saving here automatically updates Project Overview / Edit financial totals.
                         </div>

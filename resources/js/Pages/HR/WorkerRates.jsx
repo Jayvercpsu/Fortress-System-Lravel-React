@@ -241,9 +241,9 @@ export default function WorkerRates({ workerRates = [], workerRateTable = {}, ra
                     title={editingRow ? `Edit ${editingRow.person_type || 'Rate'} - ${editingRow.name}` : 'Edit Rate'}
                     maxWidth={560}
                 >
-                    {editingRow && (
-                        <form onSubmit={saveRate} style={{ display: 'grid', gap: 14 }}>
-                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 12 }}>
+                     {editingRow && (
+                         <form onSubmit={saveRate} style={{ display: 'grid', gap: 14 }}>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                                 <label>
                                     <div style={{ fontSize: 12, marginBottom: 6 }}>
                                         {editingRow.entity_type === 'foreman'

@@ -4,6 +4,7 @@ import Layout from './Layout';
 import DataTable from './DataTable';
 import DatePickerInput from './DatePickerInput';
 import ActionButton from './ActionButton';
+import SelectInput from './SelectInput';
 
 const cardStyle = {
     background: 'var(--surface-1)',
@@ -171,7 +172,7 @@ export default function AttendanceSummaryPage({
                             </div>
                             <div>
                                 <div style={{ fontSize: 12, marginBottom: 6, color: 'var(--text-muted)' }}>Foreman</div>
-                                <select
+                                <SelectInput
                                     value={draftFilters.foreman_id}
                                     onChange={(e) => setDraftFilters((prev) => ({ ...prev, foreman_id: e.target.value }))}
                                     style={inputStyle}
@@ -182,11 +183,11 @@ export default function AttendanceSummaryPage({
                                             {foreman.fullname}
                                         </option>
                                     ))}
-                                </select>
+                                </SelectInput>
                             </div>
                             <div>
                                 <div style={{ fontSize: 12, marginBottom: 6, color: 'var(--text-muted)' }}>Project</div>
-                                <select
+                                <SelectInput
                                     value={draftFilters.project_id}
                                     onChange={(e) => setDraftFilters((prev) => ({ ...prev, project_id: e.target.value }))}
                                     style={inputStyle}
@@ -197,11 +198,11 @@ export default function AttendanceSummaryPage({
                                             {project.label || project.name}
                                         </option>
                                     ))}
-                                </select>
+                                </SelectInput>
                             </div>
                             <div>
                                 <div style={{ fontSize: 12, marginBottom: 6, color: 'var(--text-muted)' }}>Worker Role</div>
-                                <select
+                                <SelectInput
                                     value={draftFilters.worker_role}
                                     onChange={(e) => setDraftFilters((prev) => ({ ...prev, worker_role: e.target.value }))}
                                     style={inputStyle}
@@ -212,11 +213,11 @@ export default function AttendanceSummaryPage({
                                             {role}
                                         </option>
                                     ))}
-                                </select>
+                                </SelectInput>
                             </div>
                             <div>
                                 <div style={{ fontSize: 12, marginBottom: 6, color: 'var(--text-muted)' }}>Entry Type</div>
-                                <select
+                                <SelectInput
                                     value={draftFilters.entry_mode}
                                     onChange={(e) => setDraftFilters((prev) => ({ ...prev, entry_mode: e.target.value }))}
                                     style={inputStyle}
@@ -224,11 +225,11 @@ export default function AttendanceSummaryPage({
                                     <option value="">All entry types</option>
                                     <option value="time_log">Time Log (with in/out)</option>
                                     <option value="status_based">Status-Based (weekly/day-code)</option>
-                                </select>
+                                </SelectInput>
                             </div>
                             <div>
                                 <div style={{ fontSize: 12, marginBottom: 6, color: 'var(--text-muted)' }}>Attendance Code</div>
-                                <select
+                                <SelectInput
                                     value={draftFilters.attendance_code}
                                     onChange={(e) => setDraftFilters((prev) => ({ ...prev, attendance_code: e.target.value }))}
                                     style={inputStyle}
@@ -239,11 +240,11 @@ export default function AttendanceSummaryPage({
                                             {code}
                                         </option>
                                     ))}
-                                </select>
+                                </SelectInput>
                             </div>
                         </div>
 
-                        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 12 }}>
+                        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 12, flexWrap: 'wrap' }}>
                             <ActionButton
                                 variant="neutral"
                                 onClick={() => {
@@ -265,7 +266,7 @@ export default function AttendanceSummaryPage({
                         </div>
                     </div>
 
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: 12 }}>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
                         {[
                             ['Total Logs', Number(summaryTotals?.total_logs ?? 0)],
                             ['Total Hours', Number(summaryTotals?.total_hours ?? 0).toFixed(1)],

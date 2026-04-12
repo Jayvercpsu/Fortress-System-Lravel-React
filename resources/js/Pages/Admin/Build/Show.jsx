@@ -327,7 +327,7 @@ export default function AdminBuildShow({
                 {activeTab === 'tracker' && (
                     <div style={{ display: 'grid', gap: 16 }}>
                         <div style={{ display: 'grid', gap: 16 }}>
-                            <div style={{ ...cardStyle, display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12 }}>
+                            <div style={{ ...cardStyle }} className="grid grid-cols-2 md:grid-cols-4 gap-3">
                                 <div>
                                     <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 4 }}>Total Expenses</div>
                                 <div style={{ fontWeight: 700 }}>{money(totalExpenses)}</div>
@@ -346,7 +346,7 @@ export default function AdminBuildShow({
                             </div>
                         </div>
 
-                        <div style={{ ...cardStyle, display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 14 }}>
+                        <div style={{ ...cardStyle }} className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
                             <label>
                                 <div style={{ fontSize: 12, marginBottom: 6 }}>Construction Contract</div>
                                 <TextInput type="number" step="0.01" min="0" value={trackerPreview.construction_contract} style={inputStyle} readOnly disabled />
@@ -361,7 +361,7 @@ export default function AdminBuildShow({
                                     Expense totals below are automatically linked to the Expenses tab and Project Overview.
                                 </div>
                                 {expenseBreakdown.length === 0 ? (
-                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
                                         <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>No expense entries yet.</div>
                                         <ActionButton
                                             type="button"
@@ -375,7 +375,7 @@ export default function AdminBuildShow({
                                     </div>
                                 ) : (
                                     <div style={{ display: 'grid', gap: 10 }}>
-                                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}>
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
                                             {expenseBreakdown.map((item) => (
                                                 <div key={item.category} style={{ border: '1px solid var(--border-color)', borderRadius: 8, padding: '8px 10px' }}>
                                                     <div style={{ fontSize: 12, color: 'var(--text-muted)', textTransform: 'capitalize' }}>{item.category}</div>
@@ -417,7 +417,7 @@ export default function AdminBuildShow({
 
                 {activeTab === 'expenses' && (
                     <div style={{ display: 'grid', gap: 16 }}>
-                        <div style={{ ...cardStyle, display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 12 }}>
+                        <div style={{ ...cardStyle }} className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                             <div>
                                 <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 4 }}>Total Expenses</div>
                                 <div style={{ fontWeight: 700 }}>{money(expenseTotal)}</div>
@@ -428,7 +428,7 @@ export default function AdminBuildShow({
                             </div>
                         </div>
 
-                        <form onSubmit={submitExpense} style={{ ...cardStyle, display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 12 }}>
+                        <form onSubmit={submitExpense} style={{ ...cardStyle }} className="grid grid-cols-1 md:grid-cols-2 gap-3">
                             <label>
                                 <div style={{ fontSize: 12, marginBottom: 6 }}>Category</div>
                                 <SearchableDropdown

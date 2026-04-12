@@ -5,6 +5,8 @@ import Modal from '../../../Components/Modal';
 import ConfirmationModal from '../../../Components/ConfirmationModal';
 import ProjectComputationsPanel from '../../../Components/ProjectComputationsPanel';
 import SearchableDropdown from '../../../Components/SearchableDropdown';
+import TextInput from '../../../Components/TextInput';
+import TextareaInput from '../../../Components/TextareaInput';
 import { Head, router, useForm, usePage } from '@inertiajs/react';
 import { Copy } from 'lucide-react';
 import { useEffect, useState } from 'react';
@@ -927,7 +929,7 @@ export default function HeadAdminProjectsShow({
                                         No assigned foremen found. Assign a foreman first.
                                     </div>
                                 ) : (
-                                    <div style={{ display: 'grid', gridTemplateColumns: 'minmax(220px, 1fr) auto auto', gap: 10, alignItems: 'end' }}>
+                                    <div className="grid grid-cols-1 gap-2.5 md:[grid-template-columns:minmax(220px,1fr)_auto_auto] md:items-end">
                                         <div>
                                             <div style={sectionLabelStyle}>Foreman</div>
                                             <SearchableDropdown
@@ -1037,7 +1039,7 @@ export default function HeadAdminProjectsShow({
                         <form onSubmit={uploadFile} style={{ ...cardStyle, display: 'grid', gap: 10 }}>
                             <div style={{ fontWeight: 700 }}>Upload Plan/File (max {MAX_UPLOAD_SIZE_LABEL})</div>
                             <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>Files over {MAX_UPLOAD_SIZE_LABEL} will be rejected.</div>
-                            <input type="file" onChange={handleFileInputChange} disabled={isLocked} />
+                            <TextInput type="file" onChange={handleFileInputChange} disabled={isLocked} style={inputStyle} />
                             {clientFileError && <div style={{ color: '#f87171', fontSize: 12 }}>{clientFileError}</div>}
                             {fileErrors.file && <div style={{ color: '#f87171', fontSize: 12 }}>{fileErrors.file}</div>}
                             <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
@@ -1074,7 +1076,12 @@ export default function HeadAdminProjectsShow({
                     <div style={{ display: 'grid', gap: 14 }}>
                         <form onSubmit={addUpdate} style={{ ...cardStyle, display: 'grid', gap: 10 }}>
                             <div style={{ fontWeight: 700 }}>Add Remark/Update</div>
-                            <textarea value={updateData.note} onChange={(e) => setUpdateData('note', e.target.value)} style={{ ...inputStyle, minHeight: 90 }} disabled={isLocked} />
+                            <TextareaInput
+                                value={updateData.note}
+                                onChange={(e) => setUpdateData('note', e.target.value)}
+                                style={{ ...inputStyle, minHeight: 90, resize: 'vertical' }}
+                                disabled={isLocked}
+                            />
                             {updateErrors.note && <div style={{ color: '#f87171', fontSize: 12 }}>{updateErrors.note}</div>}
                             <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
                                 <ActionButton type="submit" variant="success" disabled={postingUpdate || isLocked} style={{ padding: '8px 12px' }}>
@@ -1173,11 +1180,8 @@ export default function HeadAdminProjectsShow({
                             ].map(([label, value]) => (
                                 <div
                                     key={label}
+                                    className="grid grid-cols-1 gap-2 sm:[grid-template-columns:160px_1fr] sm:items-start"
                                     style={{
-                                        display: 'grid',
-                                        gridTemplateColumns: '160px 1fr',
-                                        gap: 8,
-                                        alignItems: 'start',
                                         border: '1px solid var(--border-color)',
                                         borderRadius: 8,
                                         background: 'var(--surface-2)',

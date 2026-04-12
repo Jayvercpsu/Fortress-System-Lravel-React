@@ -363,7 +363,7 @@ export default function Payroll({
                     </ActionButton>
                 </div>
 
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 16, marginBottom: 24 }}>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
                     <div style={{ ...cardStyle, padding: '20px 24px' }}>
                         <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 8, textTransform: 'uppercase' }}>
                             Total Payable
@@ -434,7 +434,7 @@ export default function Payroll({
                         <div style={{ fontWeight: 600, marginBottom: 16 }}>New Payroll Entry</div>
 
                         <form onSubmit={submit}>
-                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12, marginBottom: 12 }}>
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-3">
                                 {!isStaff ? (
                                     <div>
                                         <label style={{ display: 'block', color: 'var(--text-muted)', fontSize: 12, marginBottom: 4 }}>
@@ -532,7 +532,7 @@ export default function Payroll({
                 >
                     {editingRow && (
                         <form onSubmit={saveEdit} style={{ display: 'grid', gap: 14 }}>
-                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 12 }}>
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                                 {!isStaff ? (
                                     <label>
                                         <div style={{ fontSize: 12, marginBottom: 6 }}>Project</div>
@@ -660,15 +660,7 @@ export default function Payroll({
                                 </label>
                             </div>
 
-                            <div
-                                style={{
-                                    ...cardStyle,
-                                    display: 'grid',
-                                    gridTemplateColumns: 'repeat(3, minmax(0, 1fr))',
-                                    gap: 12,
-                                    padding: 12,
-                                }}
-                            >
+                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3" style={{ ...cardStyle, padding: 12 }}>
                                 <div>
                                     <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>Gross</div>
                                     <div style={{ ...mono, fontWeight: 700 }}>{money(editGross)}</div>

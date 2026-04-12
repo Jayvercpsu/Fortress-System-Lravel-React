@@ -260,7 +260,7 @@ export default function ProjectsKanbanPage({
                             onChange={(e) => setSearch(e.target.value)}
                             placeholder="Search projects..."
                             disabled={boardLoading}
-                            style={{ ...input, minWidth: 320, flex: '1 1 100%', maxWidth: 640 }}
+                            style={{ ...input, minWidth: 0, flex: '1 1 100%', maxWidth: 640 }}
                         />
                         <ActionButton type="submit" variant="success" style={{ padding: '9px 14px', fontSize: 13 }}>
                             Search

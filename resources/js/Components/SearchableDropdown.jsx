@@ -1,8 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Check, ChevronDown, Search, X } from 'lucide-react';
+import TextInput from './TextInput';
 
 const defaultControlStyle = {
     width: '100%',
+    minWidth: 0,
     minHeight: 40,
     background: 'var(--surface-2)',
     color: 'var(--text-main)',
@@ -39,6 +41,7 @@ export default function SearchableDropdown({
     const [open, setOpen] = useState(false);
     const [query, setQuery] = useState('');
     const [hoveredValue, setHoveredValue] = useState(null);
+    const [dropdownLayout, setDropdownLayout] = useState({ left: 0, width: null });
     const normalizedPageSize = Number(pageSize);
     const hasPagination = Number.isFinite(normalizedPageSize) && normalizedPageSize > 0;
     const [visibleCount, setVisibleCount] = useState(hasPagination ? normalizedPageSize : options.length);
@@ -101,6 +104,52 @@ export default function SearchableDropdown({
     }, [open]);
 
     useEffect(() => {
+        if (!open) {
+            setDropdownLayout({ left: 0, width: null });
+            return;
+        }
+        if (typeof window === 'undefined') return;
+
+        const viewportPadding = 12;
+        const update = () => {
+            const root = rootRef.current;
+            if (!root) return;
+
+            const rect = root.getBoundingClientRect();
+            const maxWidth = Math.max(180, window.innerWidth - viewportPadding * 2);
+            const desiredWidth =
+                typeof dropdownWidth === 'number'
+                    ? dropdownWidth
+                    : typeof dropdownWidth === 'string'
+                      ? null
+                      : rect.width;
+            const width = typeof desiredWidth === 'number' ? Math.min(desiredWidth, maxWidth) : null;
+            const effectiveWidth = width ?? rect.width;
+
+            let left = 0;
+            if (rect.left + effectiveWidth > window.innerWidth - viewportPadding) {
+                left = window.innerWidth - viewportPadding - effectiveWidth - rect.left;
+            }
+            if (rect.left + left < viewportPadding) {
+                left = viewportPadding - rect.left;
+            }
+
+            setDropdownLayout({ left, width });
+        };
+
+        const raf = window.requestAnimationFrame(update);
+        update();
+
+        window.addEventListener('resize', update);
+        window.addEventListener('scroll', update, true);
+        return () => {
+            window.cancelAnimationFrame(raf);
+            window.removeEventListener('resize', update);
+            window.removeEventListener('scroll', update, true);
+        };
+    }, [open, dropdownWidth]);
+
+    useEffect(() => {
         setVisibleCount(hasPagination ? normalizedPageSize : filteredOptions.length);
     }, [hasPagination, normalizedPageSize, query, filteredOptions.length, open]);
 
@@ -110,7 +159,7 @@ export default function SearchableDropdown({
     };
 
     return (
-        <div ref={rootRef} style={{ position: 'relative', width: '100%' }}>
+        <div ref={rootRef} style={{ position: 'relative', width: '100%', minWidth: 0, maxWidth: '100%' }}>
             <button
                 type="button"
                 disabled={disabled}
@@ -142,7 +191,7 @@ export default function SearchableDropdown({
                     <Search size={13} />
                 </div>
 
-                <div style={{ flex: 1, textAlign: 'left', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                <div style={{ flex: 1, minWidth: 0, textAlign: 'left', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                     {selectedOption ? (
                         <span>{getOptionLabel(selectedOption)}</span>
                     ) : (
@@ -186,9 +235,10 @@ export default function SearchableDropdown({
                     style={{
                         position: 'absolute',
                         top: 'calc(100% + 8px)',
-                        left: 0,
-                        width: dropdownWidth || '100%',
-                        minWidth: 240,
+                        left: dropdownLayout.left,
+                        width: dropdownLayout.width ?? dropdownWidth ?? '100%',
+                        minWidth: 'min(240px, 100%)',
+                        maxWidth: 'calc(100vw - 24px)',
                         zIndex: 40,
                         background: 'var(--surface-1)',
                         border: '1px solid var(--border-color)',
@@ -210,7 +260,8 @@ export default function SearchableDropdown({
                             }}
                         >
                             <Search size={14} style={{ color: 'var(--text-muted)' }} />
-                            <input
+                            <TextInput
+                                type="text"
                                 ref={searchRef}
                                 value={query}
                                 onChange={(e) => setQuery(e.target.value)}

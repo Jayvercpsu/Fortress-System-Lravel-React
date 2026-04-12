@@ -145,7 +145,7 @@ export default function KpiPrintPage({
                     </div>
                 </div>
 
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 12, marginBottom: 16 }}>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 mb-4">
                     <div style={cardStyle}>
                         <div style={{ fontSize: 11, color: '#64748b' }}>Total Workers</div>
                         <div style={{ fontSize: 18, fontWeight: 700 }}>{formatInt(summary?.total_workers ?? 0)}</div>
@@ -172,7 +172,7 @@ export default function KpiPrintPage({
                     </div>
                 </div>
 
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 16 }}>
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 mb-4">
                     <div style={cardStyle}>
                         <div style={{ fontWeight: 700, marginBottom: 8 }}>Top Workers</div>
                         {topWorkerRows.length === 0 ? (

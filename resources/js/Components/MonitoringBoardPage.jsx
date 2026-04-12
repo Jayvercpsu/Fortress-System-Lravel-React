@@ -1056,7 +1056,7 @@ export default function MonitoringBoardPage({
                     processing={updating}
                     maxWidth={860}
                 >
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 12 }}>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                         <label>
                             <div style={{ fontSize: 12, marginBottom: 6 }}>Scope Name</div>
                             <TextInput
@@ -1197,7 +1197,7 @@ export default function MonitoringBoardPage({
                     title="Add Scope"
                     maxWidth={860}
                 >
-                    <form onSubmit={submitCreate} style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 12 }}>
+                    <form onSubmit={submitCreate} className="grid grid-cols-1 md:grid-cols-2 gap-3">
                         <label>
                             <div style={{ fontSize: 12, marginBottom: 6 }}>Scope Name</div>
                             <TextInput

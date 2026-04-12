@@ -90,14 +90,14 @@ export default function HRDashboard({
         <>
             <Head title="HR Dashboard" />
             <Layout title="HR Dashboard">
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 12, marginBottom: 16 }}>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 mb-4">
                     <StatCard label="Payroll Payable" value={money(kpis.payroll_payable ?? totalPayable)} color="#fbbf24" />
                     <StatCard label="Payroll Deductions" value={money(kpis.payroll_deductions_total)} color="#fb7185" />
                     <StatCard label="Payroll Paid" value={money(kpis.payroll_paid_total)} color="#60a5fa" />
                 </div>
 
                 {isHeadAdmin ? (
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 16 }}>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-4">
                         <div style={cardStyle}>
                             <div style={{ fontWeight: 700, marginBottom: 10 }}>Net Profit Formula</div>
                             <div style={{ display: 'grid', gap: 4, fontSize: 13 }}>
@@ -135,7 +135,7 @@ export default function HRDashboard({
                     </div>
                 ) : null}
 
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 16 }}>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-4">
                     <div style={cardStyle}>
                         <div style={{ fontWeight: 700, marginBottom: 10 }}>Payroll Status Counts</div>
                         <div style={{ display: 'grid', gap: 8 }}>

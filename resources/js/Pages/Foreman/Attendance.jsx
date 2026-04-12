@@ -381,7 +381,7 @@ export default function ForemanAttendance({
             <Head title="Foreman Attendance" />
             <Layout title="Attendance">
                 <div style={{ display: 'grid', gap: 16 }}>
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 12 }}>
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                         <div style={cardStyle}>
                             <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 6 }}>Today Logs</div>
                             <div style={{ fontSize: 20, fontWeight: 700 }}>{Number(stats?.today_logs ?? 0)}</div>
@@ -574,7 +574,7 @@ export default function ForemanAttendance({
                     maxWidth={720}
                 >
                     <div style={{ display: 'grid', gap: 12 }}>
-                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                             <div>
                                 <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 6 }}>Company / Project</div>
                                 <SearchableDropdown
@@ -638,7 +638,7 @@ export default function ForemanAttendance({
                             />
                         </div>
 
-                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                             <div>
                                 <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 6 }}>Time In</div>
                                 <TimeInput

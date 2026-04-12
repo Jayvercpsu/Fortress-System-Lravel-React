@@ -1,5 +1,6 @@
 import Layout from './Layout';
 import ActionButton from './ActionButton';
+import TextInput from './TextInput';
 import { Head, router, useForm, usePage } from '@inertiajs/react';
 import { ArrowLeft } from 'lucide-react';
 import { useEffect } from 'react';
@@ -112,7 +113,7 @@ export default function ProjectFinancialsPage({ project }) {
                     </ActionButton>
                 </div>
 
-                    <div style={{ ...cardStyle, display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: 12 }}>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3" style={cardStyle}>
                         <div>
                             <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>Project</div>
                             <div style={{ fontWeight: 700 }}>{project?.name || '-'}</div>
@@ -134,60 +135,60 @@ export default function ProjectFinancialsPage({ project }) {
                     <form onSubmit={submit} style={{ ...cardStyle, display: 'grid', gap: 16 }}>
                         <div style={{ fontWeight: 700 }}>Financial Fields</div>
 
-                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 12 }}>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                             <label>
                                 <div style={{ fontSize: 12, marginBottom: 6, color: 'var(--text-muted)' }}>Contract Amount</div>
-                                <input
+                                <TextInput
                                     type="number"
                                     min="0"
                                     step="0.01"
                                     value={data.contract_amount}
                                     onChange={(e) => setData('contract_amount', e.target.value)}
                                     style={inputStyle}
-                                disabled={isLocked}
-                            />
+                                    disabled={isLocked}
+                                />
                                 {errors.contract_amount && <div style={{ color: '#f87171', fontSize: 12, marginTop: 4 }}>{errors.contract_amount}</div>}
                             </label>
 
                             <label>
                                 <div style={{ fontSize: 12, marginBottom: 6, color: 'var(--text-muted)' }}>Design Fee</div>
-                                <input
+                                <TextInput
                                     type="number"
                                     min="0"
                                     step="0.01"
                                     value={data.design_fee}
                                     onChange={(e) => setData('design_fee', e.target.value)}
                                     style={inputStyle}
-                                disabled={isLocked}
-                            />
+                                    disabled={isLocked}
+                                />
                                 {errors.design_fee && <div style={{ color: '#f87171', fontSize: 12, marginTop: 4 }}>{errors.design_fee}</div>}
                             </label>
 
                             <label>
                                 <div style={{ fontSize: 12, marginBottom: 6, color: 'var(--text-muted)' }}>Construction Cost</div>
-                                <input
+                                <TextInput
                                     type="number"
                                     min="0"
                                     step="0.01"
                                     value={data.construction_cost}
                                     onChange={(e) => setData('construction_cost', e.target.value)}
                                     style={inputStyle}
-                                disabled={isLocked}
-                            />
+                                    disabled={isLocked}
+                                />
                                 {errors.construction_cost && <div style={{ color: '#f87171', fontSize: 12, marginTop: 4 }}>{errors.construction_cost}</div>}
                             </label>
 
                             <label>
                                 <div style={{ fontSize: 12, marginBottom: 6, color: 'var(--text-muted)' }}>Total Client Payment</div>
-                                <input
+                                <TextInput
                                     type="number"
                                     min="0"
                                     step="0.01"
                                     value={data.total_client_payment}
                                     onChange={(e) => setData('total_client_payment', e.target.value)}
                                     style={inputStyle}
-                                disabled={isLocked}
-                            />
+                                    disabled={isLocked}
+                                />
                                 {errors.total_client_payment && <div style={{ color: '#f87171', fontSize: 12, marginTop: 4 }}>{errors.total_client_payment}</div>}
                             </label>
                         </div>

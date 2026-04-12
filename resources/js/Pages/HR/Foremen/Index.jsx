@@ -278,7 +278,7 @@ export default function HrForemenIndex({
                     maxWidth={820}
                 >
                     <form onSubmit={submitCreate} style={{ display: 'grid', gap: 14 }}>
-                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 14 }}>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
                             <label>
                                 <div style={{ fontSize: 12, marginBottom: 6 }}>Full Name</div>
                                 <TextInput value={createForm.data.fullname} onChange={(e) => createForm.setData('fullname', e.target.value)} style={inputStyle} />
@@ -372,7 +372,7 @@ export default function HrForemenIndex({
                     processing={editForm.processing}
                     maxWidth={820}
                 >
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 14 }}>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
                         <label>
                             <div style={{ fontSize: 12, marginBottom: 6 }}>Full Name</div>
                             <TextInput value={editForm.data.fullname} onChange={(e) => editForm.setData('fullname', e.target.value)} style={inputStyle} />

@@ -1,6 +1,6 @@
 ﻿import { Link, router, usePage } from '@inertiajs/react';
 import { useEffect, useRef, useState } from 'react';
-import { LoaderCircle, Moon, Sun } from 'lucide-react';
+import { LoaderCircle, Menu, Moon, Sun, X } from 'lucide-react';
 import toast from 'react-hot-toast';
 import BrandIcon from './BrandIcon';
 import OptimizedImage from './OptimizedImage';
@@ -104,6 +104,11 @@ export default function Layout({ children, title }) {
     const [isLoggingOut, setIsLoggingOut] = useState(false);
     const [isPageLoading, setIsPageLoading] = useState(false);
     const [loadingTargetPath, setLoadingTargetPath] = useState('');
+    const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
+    const [isDesktopViewport, setIsDesktopViewport] = useState(() => {
+        if (typeof window === 'undefined') return false;
+        return window.matchMedia('(min-width: 768px)').matches;
+    });
     const loadingTimerRef = useRef(null);
     const activeVisitPathRef = useRef('');
 
@@ -116,6 +121,36 @@ export default function Layout({ children, title }) {
         document.documentElement.setAttribute('data-theme', theme);
         localStorage.setItem('bb_theme', theme);
     }, [theme]);
+
+    useEffect(() => {
+        if (typeof window === 'undefined') return;
+
+        const media = window.matchMedia('(min-width: 768px)');
+        const handleChange = () => {
+            setIsDesktopViewport(media.matches);
+            if (media.matches) setIsMobileSidebarOpen(false);
+        };
+
+        handleChange();
+        if (typeof media.addEventListener === 'function') {
+            media.addEventListener('change', handleChange);
+            return () => media.removeEventListener('change', handleChange);
+        }
+
+        media.addListener(handleChange);
+        return () => media.removeListener(handleChange);
+    }, []);
+
+    useEffect(() => {
+        if (!isMobileSidebarOpen) return;
+
+        const handleKeyDown = (event) => {
+            if (event.key === 'Escape') setIsMobileSidebarOpen(false);
+        };
+
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
+    }, [isMobileSidebarOpen]);
 
     useEffect(() => {
         const clearLoadingTimer = () => {
@@ -188,6 +223,176 @@ export default function Layout({ children, title }) {
         });
     };
 
+    const closeMobileSidebar = () => setIsMobileSidebarOpen(false);
+
+    const SidebarContent = ({ showClose = false } = {}) => (
+        <>
+            <div
+                style={{
+                    padding: '12px 16px 20px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    gap: 10,
+                }}
+            >
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
+                    <BrandIcon size={36} borderRadius={8} priority />
+
+                    <div style={{ minWidth: 0 }}>
+                        <div
+                            style={{
+                                fontSize: 15,
+                                fontWeight: 700,
+                                color: 'var(--text-main)',
+                                whiteSpace: 'nowrap',
+                                overflow: 'hidden',
+                                textOverflow: 'ellipsis',
+                            }}
+                        >
+                            Fortress System
+                        </div>
+                        <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{roleLabels[user?.role]}</div>
+                    </div>
+                </div>
+
+                {showClose ? (
+                    <button
+                        type="button"
+                        onClick={closeMobileSidebar}
+                        aria-label="Close navigation"
+                        style={{
+                            width: 36,
+                            height: 36,
+                            borderRadius: 8,
+                            background: 'var(--button-bg)',
+                            border: '1px solid var(--border-color)',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            cursor: 'pointer',
+                            color: 'var(--text-main)',
+                            flexShrink: 0,
+                        }}
+                    >
+                        <X size={16} strokeWidth={2} />
+                    </button>
+                ) : null}
+            </div>
+
+            <nav style={{ flex: 1 }}>
+                {navItems
+                    .filter((item) => !item.headAdminOnly || user?.role === 'head_admin')
+                    .map((item) => {
+                        const itemPath = pathFromUrl(item.href);
+                        const exactOnlyPaths = new Set(['/head-admin', '/admin', '/hr', '/foreman', '/designer', '/client']);
+                        const exactOnly = exactOnlyPaths.has(itemPath);
+                        const aliasPathsByHref = {
+                            '/payroll/run': ['/payroll', '/payroll/worker-rates'],
+                        };
+                        const aliases = aliasPathsByHref[itemPath] || [];
+                        const active =
+                            currentPath === itemPath ||
+                            aliases.includes(currentPath) ||
+                            (!exactOnly && itemPath !== '/' && currentPath.startsWith(`${itemPath}/`)) ||
+                            (isHrSpecialProjectPage && itemPath === '/hr');
+
+                        return (
+                            <Link
+                                key={item.href}
+                                href={item.href}
+                                onClick={closeMobileSidebar}
+                                style={{
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: 10,
+                                    padding: '9px 16px',
+                                    margin: '1px 8px',
+                                    borderRadius: 6,
+                                    color: active ? 'var(--active-text)' : 'var(--text-muted)',
+                                    background: active ? 'var(--active-bg)' : 'transparent',
+                                    textDecoration: 'none',
+                                    fontSize: 13.5,
+                                    fontWeight: 500,
+                                    transition: 'all 0.15s',
+                                }}
+                            >
+                                <i className={item.icon} style={{ fontSize: 14 }} />
+                                {item.label}
+                            </Link>
+                        );
+                    })}
+            </nav>
+
+            <div style={{ padding: '12px 16px', borderTop: '1px solid var(--border-color)' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
+                    <div
+                        style={{
+                            width: 42,
+                            minWidth: 42,
+                            height: 42,
+                            minHeight: 42,
+                            borderRadius: 999,
+                            overflow: 'hidden',
+                            background: 'var(--surface-2)',
+                            border: '1px solid var(--border-color)',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            aspectRatio: '1 / 1',
+                        }}
+                    >
+                        {profilePhotoUrl ? (
+                            <OptimizedImage
+                                src={profilePhotoUrl}
+                                alt="Profile"
+                                priority
+                                style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: 999 }}
+                            />
+                        ) : (
+                            <BrandIcon size={32} borderRadius={999} />
+                        )}
+                    </div>
+                    <div style={{ minWidth: 0 }}>
+                        <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{user?.fullname}</div>
+                        <div
+                            style={{
+                                fontSize: 11,
+                                color: 'var(--text-muted-2)',
+                                whiteSpace: 'nowrap',
+                                overflow: 'hidden',
+                                textOverflow: 'ellipsis',
+                            }}
+                        >
+                            {user?.email}
+                        </div>
+                    </div>
+                </div>
+
+                <button
+                    onClick={() => {
+                        setShowLogoutModal(true);
+                        closeMobileSidebar();
+                    }}
+                    disabled={isLoggingOut}
+                    style={{
+                        background: 'var(--button-bg)',
+                        border: '1px solid var(--border-color)',
+                        color: '#f87171',
+                        borderRadius: 6,
+                        padding: '6px 12px',
+                        fontSize: 12,
+                        cursor: isLoggingOut ? 'not-allowed' : 'pointer',
+                        opacity: isLoggingOut ? 0.7 : 1,
+                        width: '100%',
+                    }}
+                >
+                    Logout
+                </button>
+            </div>
+        </>
+    );
+
     return (
         <>
             <style>{`
@@ -201,185 +406,133 @@ export default function Layout({ children, title }) {
                     fontFamily: "'DM Sans', sans-serif",
                     background: 'var(--bg-page)',
                     color: 'var(--text-main)',
-                    minHeight: '100vh',
-                    height: '100vh',
+                    minHeight: '100dvh',
+                    height: '100dvh',
                     display: 'flex',
                     overflow: 'hidden',
                 }}
             >
                 <aside
+                    className="hidden md:flex md:flex-col"
                     style={{
                         width: 240,
                         background: 'var(--bg-sidebar)',
                         borderRight: '1px solid var(--border-color)',
-                        display: 'flex',
-                        flexDirection: 'column',
                         padding: '16px 0',
                         flexShrink: 0,
-                        height: '100vh',
+                        height: '100dvh',
                         overflowY: 'auto',
                         position: 'sticky',
                         top: 0,
                     }}
                 >
-                    <div style={{ padding: '12px 16px 20px', display: 'flex', alignItems: 'center', gap: 10 }}>
-                        <BrandIcon size={36} borderRadius={8} priority />
-
-                        <div>
-                            <div style={{ fontSize: 15, fontWeight: 700 }}>Fortress System</div>
-                            <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{roleLabels[user?.role]}</div>
-                        </div>
-                    </div>
-
-                    <nav style={{ flex: 1 }}>
-                        {navItems.filter((item) => !item.headAdminOnly || user?.role === 'head_admin').map((item) => {
-                            const itemPath = pathFromUrl(item.href);
-                            const exactOnlyPaths = new Set(['/head-admin', '/admin', '/hr', '/foreman', '/designer', '/client']);
-                            const exactOnly = exactOnlyPaths.has(itemPath);
-                            const aliasPathsByHref = {
-                                '/payroll/run': ['/payroll', '/payroll/worker-rates'],
-                            };
-                            const aliases = aliasPathsByHref[itemPath] || [];
-                            const active =
-                                currentPath === itemPath ||
-                                aliases.includes(currentPath) ||
-                                (!exactOnly && itemPath !== '/' && currentPath.startsWith(`${itemPath}/`)) ||
-                                (isHrSpecialProjectPage && itemPath === '/hr');
-
-                            return (
-                                <Link
-                                    key={item.href}
-                                    href={item.href}
-                                    style={{
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        gap: 10,
-                                        padding: '9px 16px',
-                                        margin: '1px 8px',
-                                        borderRadius: 6,
-                                        color: active ? 'var(--active-text)' : 'var(--text-muted)',
-                                        background: active ? 'var(--active-bg)' : 'transparent',
-                                        textDecoration: 'none',
-                                        fontSize: 13.5,
-                                        fontWeight: 500,
-                                        transition: 'all 0.15s',
-                                    }}
-                                >
-                                    <i className={item.icon} style={{ fontSize: 14 }} />
-                                    {item.label}
-                                </Link>
-                            );
-                        })}
-                    </nav>
-
-                    <div style={{ padding: '12px 16px', borderTop: '1px solid var(--border-color)' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
-                        <div
-                            style={{
-                                width: 42,
-                                minWidth: 42,
-                                height: 42,
-                                minHeight: 42,
-                                borderRadius: 999,
-                                overflow: 'hidden',
-                                background: 'var(--surface-2)',
-                                border: '1px solid var(--border-color)',
-                                display: 'inline-flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                aspectRatio: '1 / 1',
-                            }}
-                        >
-                            {profilePhotoUrl ? (
-                                <OptimizedImage
-                                    src={profilePhotoUrl}
-                                    alt="Profile"
-                                    priority
-                                    style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: 999 }}
-                                />
-                            ) : (
-                                <BrandIcon size={32} borderRadius={999} />
-                            )}
-                        </div>
-                        <div style={{ minWidth: 0 }}>
-                            <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{user?.fullname}</div>
-                            <div
-                                style={{
-                                    fontSize: 11,
-                                    color: 'var(--text-muted-2)',
-                                    whiteSpace: 'nowrap',
-                                    overflow: 'hidden',
-                                    textOverflow: 'ellipsis',
-                                }}
-                            >
-                                {user?.email}
-                            </div>
-                        </div>
-                    </div>
-
-                        <button
-                            onClick={() => setShowLogoutModal(true)}
-                            disabled={isLoggingOut}
-                            style={{
-                                background: 'var(--button-bg)',
-                                border: '1px solid var(--border-color)',
-                                color: '#f87171',
-                                borderRadius: 6,
-                                padding: '6px 12px',
-                                fontSize: 12,
-                                cursor: isLoggingOut ? 'not-allowed' : 'pointer',
-                                opacity: isLoggingOut ? 0.7 : 1,
-                                width: '100%',
-                            }}
-                        >
-                            Logout
-                        </button>
-                    </div>
+                    <SidebarContent />
                 </aside>
 
                 <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', minWidth: 0 }}>
                     {/* Header (flex + toggle icon) */}
                     <div
+                        className="px-4 md:px-6 py-3.5"
                         style={{
-                            padding: '14px 24px',
                             borderBottom: '1px solid var(--border-color)',
                             background: 'var(--bg-page)',
                             position: 'sticky',
                             top: 0,
                             zIndex: 20,
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'space-between',
-                            gap: 16,
                         }}
                     >
-                        <div style={{ fontSize: 16, fontWeight: 600 }}>{title}</div>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16 }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 0 }}>
+                                <button
+                                    type="button"
+                                    onClick={() => setIsMobileSidebarOpen(true)}
+                                    title="Open navigation"
+                                    aria-label="Open navigation"
+                                    className="md:hidden inline-flex"
+                                    style={{
+                                        display: isDesktopViewport ? 'none' : 'inline-flex',
+                                        width: 36,
+                                        height: 36,
+                                        borderRadius: 8,
+                                        background: 'var(--button-bg)',
+                                        border: '1px solid var(--border-color)',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        cursor: 'pointer',
+                                        color: 'var(--text-main)',
+                                        flexShrink: 0,
+                                    }}
+                                >
+                                    <Menu size={16} strokeWidth={2} />
+                                </button>
 
-                        <button
-                            onClick={() => setTheme((t) => (t === 'dark' ? 'light' : 'dark'))}
-                            title={isDark ? 'Switch to light mode' : 'Switch to dark mode'}
-                            aria-label="Toggle theme"
-                            style={{
-                                width: 36,
-                                height: 36,
-                                borderRadius: 8,
-                                background: 'var(--button-bg)',
-                                border: '1px solid var(--border-color)',
-                                display: 'inline-flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                cursor: 'pointer',
-                                color: 'var(--text-main)',
-                            }}
-                        >
-                            {isDark ? <Sun size={16} strokeWidth={2} /> : <Moon size={16} strokeWidth={2} />}
-                        </button>
+                                <div
+                                    style={{
+                                        fontSize: 16,
+                                        fontWeight: 600,
+                                        minWidth: 0,
+                                        whiteSpace: 'nowrap',
+                                        overflow: 'hidden',
+                                        textOverflow: 'ellipsis',
+                                    }}
+                                >
+                                    {title}
+                                </div>
+                            </div>
+
+                            <button
+                                onClick={() => setTheme((t) => (t === 'dark' ? 'light' : 'dark'))}
+                                title={isDark ? 'Switch to light mode' : 'Switch to dark mode'}
+                                aria-label="Toggle theme"
+                                style={{
+                                    width: 36,
+                                    height: 36,
+                                    borderRadius: 8,
+                                    background: 'var(--button-bg)',
+                                    border: '1px solid var(--border-color)',
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    cursor: 'pointer',
+                                    color: 'var(--text-main)',
+                                    flexShrink: 0,
+                                }}
+                            >
+                                {isDark ? <Sun size={16} strokeWidth={2} /> : <Moon size={16} strokeWidth={2} />}
+                            </button>
+                        </div>
                     </div>
 
-                    <div style={{ flex: 1, overflowY: 'auto', padding: 24 }}>
+                    <div className="p-4 md:p-6" style={{ flex: 1, overflowY: 'auto' }}>
                         {isPageLoading ? <PageShimmerSkeleton variant={skeletonVariant} /> : children}
                     </div>
                 </div>
+            </div>
+
+            {/* Mobile Sidebar Drawer */}
+            <div
+                className={`md:hidden fixed inset-0 z-[1100] ${isMobileSidebarOpen ? '' : 'pointer-events-none'}`}
+                aria-hidden={!isMobileSidebarOpen}
+            >
+                <div
+                    className={`absolute inset-0 transition-opacity duration-150 ${isMobileSidebarOpen ? 'opacity-100' : 'opacity-0'}`}
+                    style={{ background: 'rgba(0,0,0,0.6)' }}
+                    onClick={closeMobileSidebar}
+                />
+                <aside
+                    className={`absolute inset-y-0 left-0 w-[240px] transition-transform duration-200 ${isMobileSidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}
+                    style={{
+                        background: 'var(--bg-sidebar)',
+                        borderRight: '1px solid var(--border-color)',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        padding: '16px 0',
+                        height: '100dvh',
+                        overflowY: 'auto',
+                    }}
+                >
+                    <SidebarContent showClose />
+                </aside>
             </div>
 
             {/* Logout Modal */}
@@ -401,7 +554,7 @@ export default function Layout({ children, title }) {
                             border: '1px solid var(--border-color)',
                             borderRadius: 10,
                             padding: 24,
-                            width: 320,
+                            width: 'min(320px, 92vw)',
                             textAlign: 'center',
                             color: 'var(--text-main)',
                         }}

@@ -1,6 +1,9 @@
 ﻿import Layout from '../../Components/Layout';
 import DatePickerInput from '../../Components/DatePickerInput';
 import ActionButton from '../../Components/ActionButton';
+import TextInput from '../../Components/TextInput';
+import SelectInput from '../../Components/SelectInput';
+import TextareaInput from '../../Components/TextareaInput';
 import { Head, useForm } from '@inertiajs/react';
 import { useEffect, useRef, useState } from 'react';
 import toast from 'react-hot-toast';
@@ -166,7 +169,7 @@ export default function SettingsIndex({ account }) {
             <Layout title="Settings">
                 <div style={{ display: 'grid', gap: 16, maxWidth: 980 }}>
                     <form ref={formRef} onSubmit={submit} style={{ display: 'grid', gap: 16 }}>
-                        <div style={{ display: 'grid', gridTemplateColumns: '240px 1fr', gap: 16, alignItems: 'start' }}>
+                        <div className="grid grid-cols-1 md:[grid-template-columns:240px_1fr] gap-4 md:items-start">
                         <div
                             style={{
                                 ...cardStyle,
@@ -221,7 +224,7 @@ export default function SettingsIndex({ account }) {
                                 </div>
                                 <label style={filePickerStyles.wrapper}>
                                     Choose File
-                                    <input
+                                    <TextInput
                                         name="profile_photo"
                                         type="file"
                                         accept="image/*"
@@ -247,9 +250,9 @@ export default function SettingsIndex({ account }) {
                                         Update your account information and password.
                                     </div>
 
-                                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 14 }}>
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
                                         <Field label="Full Name" error={errors.fullname}>
-                                        <input
+                                        <TextInput
                                             name="fullname"
                                             type="text"
                                             value={data.fullname}
@@ -259,7 +262,7 @@ export default function SettingsIndex({ account }) {
                                         </Field>
 
                                         <Field label="Email" error={errors.email}>
-                                        <input
+                                        <TextInput
                                             name="email"
                                             type="email"
                                             value={data.email}
@@ -269,7 +272,7 @@ export default function SettingsIndex({ account }) {
                                         </Field>
 
                                         <Field label="Role">
-                                        <input
+                                        <TextInput
                                             name="role"
                                             type="text"
                                             value={String(data.role || '').replace('_', ' ')}
@@ -279,7 +282,7 @@ export default function SettingsIndex({ account }) {
                                         </Field>
 
                                         <Field label="New Password (optional)" error={errors.password}>
-                                        <input
+                                        <TextInput
                                             name="password"
                                             type="password"
                                             value={data.password}
@@ -290,7 +293,7 @@ export default function SettingsIndex({ account }) {
                                         </Field>
 
                                         <Field label="Confirm New Password" error={errors.password_confirmation}>
-                                        <input
+                                        <TextInput
                                             name="password_confirmation"
                                             type="password"
                                             value={data.password_confirmation}
@@ -303,7 +306,7 @@ export default function SettingsIndex({ account }) {
 
                                 <div style={cardStyle}>
                                     <div style={{ fontWeight: 700, marginBottom: 12 }}>Personal Details</div>
-                                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 14 }}>
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
                                         <Field label="Birth Date" error={errors.birth_date}>
                                             <DatePickerInput
                                                 name="birth_date"
@@ -315,7 +318,7 @@ export default function SettingsIndex({ account }) {
                                         </Field>
 
                                         <Field label="Place of Birth" error={errors.place_of_birth}>
-                                            <input
+                                            <TextInput
                                                 name="place_of_birth"
                                                 type="text"
                                                 value={data.place_of_birth}
@@ -325,16 +328,16 @@ export default function SettingsIndex({ account }) {
                                         </Field>
 
                                         <Field label="Sex" error={errors.sex}>
-                                            <select name="sex" value={data.sex} onChange={(e) => setData('sex', e.target.value)} style={inputStyle}>
+                                            <SelectInput name="sex" value={data.sex} onChange={(e) => setData('sex', e.target.value)} style={inputStyle}>
                                                 <option value="">Select sex</option>
                                                 <option value="male">Male</option>
                                                 <option value="female">Female</option>
                                                 <option value="other">Other</option>
-                                            </select>
+                                            </SelectInput>
                                         </Field>
 
                                         <Field label="Civil Status" error={errors.civil_status}>
-                                            <select
+                                            <SelectInput
                                                 name="civil_status"
                                                 value={data.civil_status}
                                                 onChange={(e) => setData('civil_status', e.target.value)}
@@ -346,11 +349,11 @@ export default function SettingsIndex({ account }) {
                                                 <option value="Widowed">Widowed</option>
                                                 <option value="Separated">Separated</option>
                                                 <option value="Divorced">Divorced</option>
-                                            </select>
+                                            </SelectInput>
                                         </Field>
 
                                         <Field label="Phone" error={errors.phone}>
-                                            <input
+                                            <TextInput
                                                 name="phone"
                                                 type="text"
                                                 value={data.phone}
@@ -361,7 +364,7 @@ export default function SettingsIndex({ account }) {
 
                                         <div style={{ gridColumn: '1 / -1' }}>
                                             <Field label="Address" error={errors.address}>
-                                            <textarea
+                                            <TextareaInput
                                                 name="address"
                                                 value={data.address}
                                                 onChange={(e) => setData('address', e.target.value)}

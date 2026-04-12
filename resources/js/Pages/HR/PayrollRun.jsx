@@ -477,7 +477,7 @@ export default function PayrollRun({
             align: 'left',
             headerAlign: 'left',
             render: (row) => (
-                <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-start', flexWrap: 'nowrap', whiteSpace: 'nowrap' }}>
+                <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-start', flexWrap: 'wrap' }}>
                     <ActionButton
                         type="button"
                         variant={row.can_edit_deductions ? 'edit' : 'neutral'}
@@ -495,7 +495,7 @@ export default function PayrollRun({
         : baseColumns;
 
     const cutoffSelectControl = (
-        <div style={{ display: 'grid', gridTemplateColumns: '84px minmax(260px, 380px)', alignItems: 'center', columnGap: 8 }}>
+        <div className="grid grid-cols-1 sm:[grid-template-columns:84px_minmax(260px,380px)] gap-2 sm:items-center">
             <span style={{ fontSize: 12, color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>View Cutoff</span>
             <div style={{ width: '100%' }}>
                 <SearchableDropdown
@@ -516,7 +516,7 @@ export default function PayrollRun({
     );
 
     const projectSelectControl = (
-        <div style={{ display: 'grid', gridTemplateColumns: '84px minmax(260px, 380px)', alignItems: 'center', columnGap: 8 }}>
+        <div className="grid grid-cols-1 sm:[grid-template-columns:84px_minmax(260px,380px)] gap-2 sm:items-center">
             <span style={{ fontSize: 12, color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>Project</span>
             <div style={{ width: '100%' }}>
                 <SearchableDropdown
@@ -538,15 +538,8 @@ export default function PayrollRun({
 
     const groupTabs = (
         <div
-            style={{
-                ...cardStyle,
-                padding: 6,
-                display: 'grid',
-                gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
-                gap: 6,
-                alignItems: 'center',
-                background: 'var(--surface-2)',
-            }}
+            className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 items-center"
+            style={{ ...cardStyle, padding: 6, background: 'var(--surface-2)' }}
         >
             {[
                 { key: 'workers', label: 'Payroll for Workers', note: 'Workers + Foremen' },
@@ -663,18 +656,15 @@ export default function PayrollRun({
                             </div>
 
                             <div
-                                style={{
-                                    display: 'grid',
-                                    gridTemplateColumns: isStaff
-                                        ? 'repeat(2, minmax(220px, 300px)) auto'
-                                        : 'minmax(280px, 420px) repeat(2, minmax(220px, 300px)) auto',
-                                    gap: 12,
-                                    alignItems: 'flex-start',
-                                    justifyContent: 'center',
-                                }}
+                                className={`w-full grid grid-cols-1 sm:grid-cols-2 gap-3 items-start justify-center ${
+                                    isStaff
+                                        ? 'lg:[grid-template-columns:repeat(2,minmax(220px,300px))_auto]'
+                                        : 'lg:[grid-template-columns:minmax(280px,420px)_repeat(2,minmax(220px,300px))_auto]'
+                                }`}
+                                style={{ minWidth: 0 }}
                             >
                                 {!isStaff ? (
-                                    <label style={{ display: 'grid', alignContent: 'start' }}>
+                                    <label style={{ display: 'grid', alignContent: 'start', minWidth: 0 }}>
                                         <div style={{ fontSize: 12, marginBottom: 6 }}>Project</div>
                                         <SearchableDropdown
                                             options={generateProjectOptionsList.map((project) => ({
@@ -700,7 +690,7 @@ export default function PayrollRun({
                                     </label>
                                 ) : null}
 
-                                <label style={{ display: 'grid', alignContent: 'start' }}>
+                                <label style={{ display: 'grid', alignContent: 'start', minWidth: 0 }}>
                                     <div style={{ fontSize: 12, marginBottom: 6 }}>Cutoff Start</div>
                                     <DatePickerInput
                                         value={generateForm.data.start_date}
@@ -715,7 +705,7 @@ export default function PayrollRun({
                                     ) : null}
                                 </label>
 
-                                <label style={{ display: 'grid', alignContent: 'start' }}>
+                                <label style={{ display: 'grid', alignContent: 'start', minWidth: 0 }}>
                                     <div style={{ fontSize: 12, marginBottom: 6 }}>Cutoff End</div>
                                     <DatePickerInput
                                         value={generateForm.data.end_date}
@@ -743,7 +733,7 @@ export default function PayrollRun({
                     {showPayrollRun ? (
                         <>
                             {isStaff ? (
-                                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: 12 }}>
+                                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
                                     <div style={cardStyle}>
                                         <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 6 }}>Cutoff</div>
                                         <div style={{ fontWeight: 700 }}>{activeCutoff.start_date} to {activeCutoff.end_date}</div>
@@ -766,7 +756,7 @@ export default function PayrollRun({
                                     </div>
                                 </div>
                             ) : (
-                                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: 12 }}>
+                                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
                                     <div style={cardStyle}>
                                         <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 6 }}>Cutoff</div>
                                         <div style={{ fontWeight: 700 }}>{activeCutoff.start_date} to {activeCutoff.end_date}</div>
@@ -791,7 +781,7 @@ export default function PayrollRun({
                             )}
 
                             {!isStaff && projectTotals ? (
-                                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: 12 }}>
+                                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
                                     <div style={cardStyle}>
                                         <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 6 }}>Contract Budget</div>
                                         <div style={{ fontWeight: 700 }}>{money(projectTotals.contract_amount)}</div>
@@ -965,14 +955,14 @@ export default function PayrollRun({
                 >
                     {selectedPayroll && (
                         <div style={{ display: 'grid', gap: 14 }}>
-                            <div style={{ ...cardStyle, padding: 12, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                                <div>
-                                    <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>Tagged Project</div>
-                                    <div style={{ fontWeight: 700 }}>{selectedPayroll.project_name || '-'}</div>
-                                </div>
-                                <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{selectedPayroll.project_client || '-'}</div>
+                        <div style={{ ...cardStyle, padding: 12, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                            <div>
+                                <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>Tagged Project</div>
+                                <div style={{ fontWeight: 700 }}>{selectedPayroll.project_name || '-'}</div>
                             </div>
-                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: 10 }}>
+                            <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{selectedPayroll.project_client || '-'}</div>
+                        </div>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5">
                                 {(() => {
                                     const incentiveItems = (selectedPayroll?.deduction_items || []).filter((item) => item.type === 'incentive');
                                     const incentiveTotal = incentiveItems.reduce((sum, item) => sum + Number(item.amount || 0), 0);
@@ -1001,7 +991,7 @@ export default function PayrollRun({
 
                             <form onSubmit={submitHours} style={{ ...cardStyle, display: 'grid', gap: 10 }}>
                                 <div style={{ fontWeight: 700 }}>Update Hours</div>
-                                <div style={{ display: 'grid', gridTemplateColumns: '160px minmax(0, 1fr) auto', gap: 10, alignItems: 'end' }}>
+                                <div className="grid grid-cols-1 md:[grid-template-columns:160px_minmax(0,1fr)_auto] gap-3 md:items-end">
                                     <label>
                                         <div style={{ fontSize: 12, marginBottom: 6 }}>Hours Worked</div>
                                         <TextInput
@@ -1030,7 +1020,7 @@ export default function PayrollRun({
                             <div style={{ display: 'grid', gap: 12 }}>
                                     <form onSubmit={submitIncentive} style={{ ...cardStyle, display: 'grid', gap: 10 }}>
                                         <div style={{ fontWeight: 700 }}>Add Incentive</div>
-                                        <div style={{ display: 'grid', gridTemplateColumns: '160px minmax(0, 1fr) auto', gap: 10, alignItems: 'end' }}>
+                                        <div className="grid grid-cols-1 md:[grid-template-columns:160px_minmax(0,1fr)_auto] gap-3 md:items-end">
                                             <label>
                                                 <div style={{ fontSize: 12, marginBottom: 6 }}>Amount</div>
                                                 <TextInput
@@ -1078,14 +1068,11 @@ export default function PayrollRun({
                                                     {incentiveItems.map((item) => (
                                                         <div
                                                             key={item.id}
+                                                            className="grid grid-cols-1 gap-2 sm:[grid-template-columns:140px_120px_minmax(0,1fr)_auto] sm:gap-2.5 sm:items-center"
                                                             style={{
                                                                 border: '1px solid var(--border-color)',
                                                                 borderRadius: 10,
                                                                 padding: 10,
-                                                                display: 'grid',
-                                                                gridTemplateColumns: '140px 120px minmax(0, 1fr) auto',
-                                                                gap: 10,
-                                                                alignItems: 'center',
                                                             }}
                                                         >
                                                             <div style={{ fontSize: 12, textTransform: 'capitalize' }}>Incentive</div>
@@ -1109,7 +1096,7 @@ export default function PayrollRun({
 
                                     <form onSubmit={submitDeduction} style={{ ...cardStyle, display: 'grid', gap: 10 }}>
                                         <div style={{ fontWeight: 700 }}>Add Deduction</div>
-                                        <div style={{ display: 'grid', gridTemplateColumns: '160px 160px minmax(0, 1fr) auto', gap: 10, alignItems: 'end' }}>
+                                        <div className="grid grid-cols-1 md:[grid-template-columns:160px_160px_minmax(0,1fr)_auto] gap-3 md:items-end">
                                             <label>
                                                 <div style={{ fontSize: 12, marginBottom: 6 }}>Type</div>
                                                 <SelectInput value={deductionForm.data.type} onChange={(e) => deductionForm.setData('type', e.target.value)} style={inputStyle}>
@@ -1162,14 +1149,11 @@ export default function PayrollRun({
                                                     {deductionItems.map((item) => (
                                                         <div
                                                             key={item.id}
+                                                            className="grid grid-cols-1 gap-2 sm:[grid-template-columns:140px_120px_minmax(0,1fr)_auto] sm:gap-2.5 sm:items-center"
                                                             style={{
                                                                 border: '1px solid var(--border-color)',
                                                                 borderRadius: 10,
                                                                 padding: 10,
-                                                                display: 'grid',
-                                                                gridTemplateColumns: '140px 120px minmax(0, 1fr) auto',
-                                                                gap: 10,
-                                                                alignItems: 'center',
                                                             }}
                                                         >
                                                             <div style={{ fontSize: 12, textTransform: 'capitalize' }}>{String(item.type).replace('_', ' ')}</div>
@@ -1217,7 +1201,7 @@ export default function PayrollRun({
                                 </div>
                             </div>
 
-                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 12 }}>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                                 <label>
                                     <div style={{ fontSize: 12, marginBottom: 6 }}>Payment Reference (optional)</div>
                                     <TextInput

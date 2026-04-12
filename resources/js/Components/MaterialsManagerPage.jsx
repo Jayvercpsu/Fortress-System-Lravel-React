@@ -179,7 +179,7 @@ export default function MaterialsManagerPage({ materials = [], materialTable = {
             <Head title="Materials" />
             <Layout title="Materials">
                 <div style={{ display: 'grid', gap: 16 }}>
-                    <form onSubmit={submitCreate} style={{ ...cardStyle, display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 14 }}>
+                    <form onSubmit={submitCreate} className="grid grid-cols-1 md:grid-cols-2 gap-3.5" style={cardStyle}>
                         <label>
                             <div style={{ fontSize: 12, marginBottom: 6 }}>Material Name</div>
                             <TextInput value={createData.name} onChange={(e) => setCreateData('name', e.target.value)} style={inputStyle} placeholder="e.g. Cement" />
