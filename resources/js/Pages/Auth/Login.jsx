@@ -1,5 +1,5 @@
-import { useForm, Head } from '@inertiajs/react';
-import { useEffect } from 'react';
+import { useForm, Head, usePage } from '@inertiajs/react';
+import { useEffect, useMemo, useState } from 'react';
 import toast from 'react-hot-toast';
 import ActionButton from '../../Components/ActionButton';
 import BrandIcon from '../../Components/BrandIcon';
@@ -12,13 +12,44 @@ export default function Login() {
         document.documentElement.setAttribute('data-theme', savedTheme);
     }, []);
 
+    const { flash } = usePage().props;
+    const flashCooldownSeconds = Number(flash?.cooldown ?? 0) || 0;
+    const flashCooldownFor = String(flash?.cooldown_for ?? '');
+
     const { data, setData, post, errors, processing } = useForm({
         email: '',
         password: '',
     });
 
+    const identifier = useMemo(() => String(data.email || '').trim().toLowerCase(), [data.email]);
+    const [cooldownRemaining, setCooldownRemaining] = useState(0);
+    const [cooldownFor, setCooldownFor] = useState('');
+
+    useEffect(() => {
+        if (!flashCooldownSeconds) return;
+        setCooldownRemaining(Math.max(0, Math.floor(flashCooldownSeconds)));
+        setCooldownFor(flashCooldownFor);
+    }, [flashCooldownSeconds, flashCooldownFor]);
+
+    const cooldownActive = cooldownRemaining > 0 && (!cooldownFor || cooldownFor === identifier);
+
+    useEffect(() => {
+        if (!cooldownRemaining) return undefined;
+        const timer = window.setInterval(() => {
+            setCooldownRemaining((prev) => Math.max(0, prev - 1));
+        }, 1000);
+        return () => window.clearInterval(timer);
+    }, [cooldownRemaining]);
+
+    const cooldownLabel = useMemo(() => {
+        const minutes = Math.floor(cooldownRemaining / 60);
+        const seconds = String(cooldownRemaining % 60).padStart(2, '0');
+        return `${minutes}:${seconds}`;
+    }, [cooldownRemaining]);
+
     const submit = (e) => {
         e.preventDefault();
+        if (cooldownActive) return;
         post('/login', {
             onError: (formErrors) => {
                 if (formErrors?.email === 'Invalid credentials.') {
@@ -109,11 +140,15 @@ export default function Login() {
                                     }}
                                 />
 
-                                {errors.email && errors.email !== 'Invalid credentials.' && (
+                                {cooldownActive ? (
+                                    <p style={{ color: '#f59e0b', fontSize: 12, marginTop: 6 }}>
+                                        Too many attempts. Try again in {cooldownLabel}.
+                                    </p>
+                                ) : errors.email && errors.email !== 'Invalid credentials.' ? (
                                     <p style={{ color: '#f85149', fontSize: 12, marginTop: 4 }}>
                                         {errors.email}
                                     </p>
-                                )}
+                                ) : null}
                             </div>
 
                             <div style={{ marginBottom: 24 }}>
@@ -137,6 +172,7 @@ export default function Login() {
                                     value={data.password}
                                     onChange={(e) => setData('password', e.target.value)}
                                     autoComplete="current-password"
+                                    disabled={processing || cooldownActive}
                                     style={{
                                         width: '100%',
                                         background: 'var(--surface-2)',
@@ -154,14 +190,14 @@ export default function Login() {
                             <ActionButton
                                 type="submit"
                                 variant="success"
-                                disabled={processing}
+                                disabled={processing || cooldownActive}
                                 style={{
                                     width: '100%',
                                     padding: '11px 0',
                                     fontSize: 14,
                                 }}
                             >
-                                {processing ? 'Signing in...' : 'Sign In'}
+                                {processing ? 'Signing in...' : cooldownActive ? `Try again in ${cooldownLabel}` : 'Sign In'}
                             </ActionButton>
                         </form>
                     </div>

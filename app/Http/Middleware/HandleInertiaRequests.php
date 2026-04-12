@@ -24,6 +24,8 @@ class HandleInertiaRequests extends Middleware {
             'flash' => [
                 'success' => $request->session()->pull('success'),
                 'error'   => $request->session()->pull('error'),
+                'cooldown' => $request->session()->pull('cooldown'),
+                'cooldown_for' => $request->session()->pull('cooldown_for'),
             ],
         ]);
     }
