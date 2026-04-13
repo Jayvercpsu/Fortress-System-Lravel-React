@@ -74,6 +74,13 @@
     --status-done-text: #a7f3d0;
 }
 
+/* Make native date/time picker icons visible on dark theme */
+[data-theme="dark"] input[type="date"]::-webkit-calendar-picker-indicator,
+[data-theme="dark"] input[type="time"]::-webkit-calendar-picker-indicator {
+    filter: invert(1) brightness(1.05);
+    opacity: 0.9;
+}
+
 /* Reusable DatePickerInput (react-datepicker) */
 .bb-date-input-wrap {
     position: relative;
