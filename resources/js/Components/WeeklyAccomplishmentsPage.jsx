@@ -84,12 +84,12 @@ export default function WeeklyAccomplishmentsPage({
 
     const columns = [
         {
-            key: 'created_at',
+            key: 'submitted_at',
             label: 'Submitted',
             width: 170,
             render: (row) => (
                 <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 12 }}>
-                    {formatYmdHmAmPm(row.created_at)}
+                    {formatYmdHmAmPm(row.submitted_at || row.created_at)}
                 </span>
             ),
         },

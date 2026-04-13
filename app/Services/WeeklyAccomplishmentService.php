@@ -117,6 +117,7 @@ class WeeklyAccomplishmentService
                 'week_start' => $row->week_start ? (string) $row->week_start : null,
                 'scope_of_work' => $row->scope_of_work,
                 'percent_completed' => $row->percent_completed,
+                'submitted_at' => optional($row->updated_at)?->toDateTimeString(),
                 'created_at' => optional($row->created_at)?->toDateTimeString(),
             ])
             ->values();

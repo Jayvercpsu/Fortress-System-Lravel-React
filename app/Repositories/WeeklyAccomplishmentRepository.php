@@ -28,9 +28,9 @@ class WeeklyAccomplishmentRepository implements WeeklyAccomplishmentRepositoryIn
         $this->applySearch($query, $search);
 
         return (clone $query)
-            ->selectRaw('project_id, MAX(created_at) as last_created_at')
+            ->selectRaw('project_id, MAX(updated_at) as last_updated_at')
             ->groupBy('project_id')
-            ->orderByDesc('last_created_at')
+            ->orderByDesc('last_updated_at')
             ->paginate($perPage)
             ->withQueryString();
     }
@@ -61,7 +61,7 @@ class WeeklyAccomplishmentRepository implements WeeklyAccomplishmentRepositoryIn
             }
         });
 
-        return $query->latest()->get();
+        return $query->latest('updated_at')->get();
     }
 
     public function listScopePhotosByProjectIds(array $projectIds): Collection
