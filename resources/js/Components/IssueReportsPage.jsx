@@ -214,6 +214,7 @@ export default function IssueReportsPage({ issues = [], issueTable = {}, statusF
                     rowKey="id"
                     searchPlaceholder="Search issues..."
                     emptyMessage="No issue reports yet."
+                    groupEmptyMessage="No issues for this project."
                     routePath="/issues"
                     table={issueTable}
                     groupPageSize={10}

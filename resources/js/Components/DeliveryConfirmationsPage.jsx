@@ -166,6 +166,7 @@ export default function DeliveryConfirmationsPage({
                     projects={projects}
                     rowKey="id"
                     searchPlaceholder="Search deliveries..."
+                    groupEmptyMessage="No deliveries for this project."
                     emptyMessage="No delivery confirmations yet."
                     routePath="/delivery"
                     table={deliveryTable}

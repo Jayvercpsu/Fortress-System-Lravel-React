@@ -183,6 +183,7 @@ export default function MaterialRequestsPage({
                     rowKey="id"
                     searchPlaceholder="Search material requests..."
                     emptyMessage="No material requests yet."
+                    groupEmptyMessage="No material requests for this project."
                     routePath="/materials"
                     table={materialRequestTable}
                     groupPageSize={10}

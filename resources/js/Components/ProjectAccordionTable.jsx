@@ -32,6 +32,7 @@ export default function ProjectAccordionTable({
     rowKey = 'id',
     searchPlaceholder = 'Search...',
     emptyMessage = 'No records found.',
+    groupEmptyMessage = 'No records for this project.',
     routePath,
     table = {},
     groupPageSize = 5,
@@ -342,25 +343,36 @@ export default function ProjectAccordionTable({
                                                     </tr>
                                                 </thead>
                                                 <tbody>
-                                                    {pagedRows.map((row, index) => (
-                                                        <tr key={resolveRowKey(rowKey, row, index)}>
-                                                            {columns.map((column) => (
-                                                                <td
-                                                                    key={`${resolveRowKey(rowKey, row, index)}-${column.key}`}
-                                                                    style={{
-                                                                        padding: '10px 12px',
-                                                                        borderBottom: '1px solid var(--border-color)',
-                                                                        verticalAlign: 'top',
-                                                                        textAlign: column.align === 'right' ? 'right' : 'left',
-                                                                        width: column.width,
-                                                                        minWidth: column.width,
-                                                                    }}
-                                                                >
-                                                                    {column.render ? column.render(row) : row?.[column.key] ?? '-'}
-                                                                </td>
-                                                            ))}
+                                                    {pagedRows.length === 0 ? (
+                                                        <tr>
+                                                            <td
+                                                                colSpan={Math.max(columns.length, 1)}
+                                                                style={{ padding: 14, fontSize: 13, color: 'var(--text-muted)' }}
+                                                            >
+                                                                {groupEmptyMessage}
+                                                            </td>
                                                         </tr>
-                                                    ))}
+                                                    ) : (
+                                                        pagedRows.map((row, index) => (
+                                                            <tr key={resolveRowKey(rowKey, row, index)}>
+                                                                {columns.map((column) => (
+                                                                    <td
+                                                                        key={`${resolveRowKey(rowKey, row, index)}-${column.key}`}
+                                                                        style={{
+                                                                            padding: '10px 12px',
+                                                                            borderBottom: '1px solid var(--border-color)',
+                                                                            verticalAlign: 'top',
+                                                                            textAlign: column.align === 'right' ? 'right' : 'left',
+                                                                            width: column.width,
+                                                                            minWidth: column.width,
+                                                                        }}
+                                                                    >
+                                                                        {column.render ? column.render(row) : row?.[column.key] ?? '-'}
+                                                                    </td>
+                                                                ))}
+                                                            </tr>
+                                                        ))
+                                                    )}
                                                 </tbody>
                                             </table>
                                         </div>

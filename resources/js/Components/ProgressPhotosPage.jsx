@@ -81,14 +81,15 @@ export default function ProgressPhotosPage({ photos = [], photoTable = {}, statu
                         rows={photos}
                         projects={projects}
                         rowKey="id"
-                    searchPlaceholder="Search foreman, project, or caption..."
-                    emptyMessage="No foreman proof photos yet."
-                    routePath="/progress-photos"
-                    table={photoTable}
-                    statusOptions={statusFilters}
-                    groupPageSize={10}
-                    expandAllGroups
-                />
+                        searchPlaceholder="Search foreman, project, or caption..."
+                        emptyMessage="No foreman proof photos yet."
+                        groupEmptyMessage="No progress photos for this project."
+                        routePath="/progress-photos"
+                        table={photoTable}
+                        statusOptions={statusFilters}
+                        groupPageSize={10}
+                        expandAllGroups
+                    />
                 </div>
 
                 <Modal

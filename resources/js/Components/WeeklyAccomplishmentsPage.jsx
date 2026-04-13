@@ -185,6 +185,7 @@ export default function WeeklyAccomplishmentsPage({
                         rowKey="id"
                         searchPlaceholder="Search weekly accomplishments..."
                         emptyMessage="No weekly accomplishments yet."
+                        groupEmptyMessage="No accomplishments for this project."
                         routePath="/weekly-accomplishments"
                         table={weeklyAccomplishmentTable}
                         groupPageSize={10}
