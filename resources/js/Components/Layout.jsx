@@ -302,20 +302,7 @@ export default function Layout({ children, title }) {
                                 key={item.href}
                                 href={item.href}
                                 onClick={closeMobileSidebar}
-                                style={{
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    gap: 10,
-                                    padding: '9px 16px',
-                                    margin: '1px 8px',
-                                    borderRadius: 6,
-                                    color: active ? 'var(--active-text)' : 'var(--text-muted)',
-                                    background: active ? 'var(--active-bg)' : 'transparent',
-                                    textDecoration: 'none',
-                                    fontSize: 13.5,
-                                    fontWeight: 500,
-                                    transition: 'all 0.15s',
-                                }}
+                                className={`bb-sidebar-link${active ? ' is-active' : ''}`}
                             >
                                 <i className={item.icon} style={{ fontSize: 14 }} />
                                 {item.label}

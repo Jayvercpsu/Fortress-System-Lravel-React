@@ -81,6 +81,48 @@
     opacity: 0.9;
 }
 
+/* Sidebar links (Layout) */
+.bb-sidebar-link {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 9px 16px;
+    margin: 1px 8px;
+    border-radius: 6px;
+    color: var(--text-muted);
+    background: transparent;
+    text-decoration: none;
+    font-size: 13.5px;
+    font-weight: 500;
+    transition: background-color 0.15s, color 0.15s, box-shadow 0.15s, transform 0.15s;
+}
+
+@media (hover: hover) and (pointer: fine) {
+    .bb-sidebar-link:hover {
+        background: var(--surface-2);
+        color: var(--text-main);
+    }
+}
+
+.bb-sidebar-link:active {
+    transform: translateY(0.5px);
+}
+
+.bb-sidebar-link.is-active {
+    color: var(--active-text);
+    background: var(--active-bg);
+}
+
+@media (hover: hover) and (pointer: fine) {
+    .bb-sidebar-link.is-active:hover {
+        box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.06);
+    }
+
+    [data-theme="dark"] .bb-sidebar-link.is-active:hover {
+        box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+    }
+}
+
 /* Reusable DatePickerInput (react-datepicker) */
 .bb-date-input-wrap {
     position: relative;
