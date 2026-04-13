@@ -8,6 +8,7 @@ import { Head, useForm } from '@inertiajs/react';
 import { useEffect, useRef, useState } from 'react';
 import toast from 'react-hot-toast';
 import OptimizedImage from '../../Components/OptimizedImage';
+import Modal from '../../Components/Modal';
 import { toastMessages } from '../../constants/toastMessages';
 
 const cardStyle = {
@@ -96,6 +97,7 @@ export default function SettingsIndex({ account }) {
     const [previewPhotoUrl, setPreviewPhotoUrl] = useState(
         account?.profile_photo_path ? `/files/${account.profile_photo_path}` : ''
     );
+    const [isPhotoPreviewOpen, setIsPhotoPreviewOpen] = useState(false);
     const [photoError, setPhotoError] = useState('');
 
     useEffect(() => {
@@ -163,6 +165,13 @@ export default function SettingsIndex({ account }) {
         setData('profile_photo', file);
     };
 
+    const openPhotoPreview = () => {
+        if (!previewPhotoUrl) return;
+        setIsPhotoPreviewOpen(true);
+    };
+
+    const closePhotoPreview = () => setIsPhotoPreviewOpen(false);
+
     return (
         <>
             <Head title="Settings" />
@@ -180,7 +189,10 @@ export default function SettingsIndex({ account }) {
                             }}
                         >
                                 <div style={{ fontWeight: 700 }}>Profile Photo</div>
-                                <div
+                                <button
+                                    type="button"
+                                    onClick={openPhotoPreview}
+                                    disabled={!previewPhotoUrl}
                                     style={{
                                         width: 140,
                                         height: 140,
@@ -192,6 +204,8 @@ export default function SettingsIndex({ account }) {
                                         alignItems: 'center',
                                         justifyContent: 'center',
                                         margin: '0 auto',
+                                        cursor: previewPhotoUrl ? 'pointer' : 'default',
+                                        padding: 0,
                                     }}
                                 >
                                     {previewPhotoUrl ? (
@@ -206,7 +220,7 @@ export default function SettingsIndex({ account }) {
                                             No profile photo uploaded yet.
                                         </div>
                                     )}
-                                </div>
+                                </button>
                                 <div style={{ fontWeight: 500, fontSize: 14, color: 'var(--text-main)' }}>
                                     {account?.fullname || 'No name yet'}
                                 </div>
@@ -389,6 +403,23 @@ export default function SettingsIndex({ account }) {
                         </div>
                     </form>
                 </div>
+
+                <Modal open={isPhotoPreviewOpen} onClose={closePhotoPreview} title="Profile Photo" maxWidth={960} maxHeight="94vh">
+                    {previewPhotoUrl ? (
+                        <OptimizedImage
+                            src={previewPhotoUrl}
+                            alt="Profile preview"
+                            style={{
+                                width: '100%',
+                                maxHeight: '80vh',
+                                objectFit: 'contain',
+                                borderRadius: 12,
+                                border: '1px solid var(--border-color)',
+                                background: 'var(--surface-2)',
+                            }}
+                        />
+                    ) : null}
+                </Modal>
             </Layout>
         </>
     );
