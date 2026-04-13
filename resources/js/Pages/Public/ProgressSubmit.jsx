@@ -1272,7 +1272,7 @@ export default function ProgressSubmit({ submitToken }) {
                                                     {existingScopePhotos.length === 0 ? (
                                                         <div className="jf-note">No existing scope photos.</div>
                                                     ) : (
-                                                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(72px, 1fr))', gap: 6 }}>
+                                                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, 72px)', justifyContent: 'flex-start', gap: 6 }}>
                                                             {existingScopePhotos.map((photo) => (
                                                                 <div key={photo.id} className="jf-scope-photo">
                                                                     <button
@@ -1294,12 +1294,12 @@ export default function ProgressSubmit({ submitToken }) {
                                                                             row.scope_of_work || photo.caption || 'Scope Photo',
                                                                             formatYmdHmAmPm(photo.created_at, '')
                                                                         )}
-                                                                        style={{ display: 'block', border: 'none', background: 'transparent', padding: 0, cursor: 'pointer' }}
+                                                                        className="jf-scope-photo-preview"
                                                                     >
                                                                         <OptimizedImage
                                                                             src={`/files/${photo.photo_path}`}
                                                                             alt={photo.caption || 'Scope photo'}
-                                                                            style={{ width: '100%', height: 58, objectFit: 'cover', borderRadius: 6, border: '1px solid #d4cec0' }}
+                                                                            style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: 0, border: 'none', backgroundColor: 'transparent' }}
                                                                         />
                                                                     </button>
                                                                 </div>
@@ -1620,7 +1620,9 @@ export default function ProgressSubmit({ submitToken }) {
                     .jf-photo-action:disabled{opacity:.6;cursor:not-allowed}
                     .jf-camera{display:grid;gap:10px}
                     .jf-camera-video{width:100%;max-height:60vh;object-fit:cover;border-radius:10px;border:1px solid #d4cec0;background:#000}
-                    .jf-scope-photo{position:relative}
+                    .jf-scope-photo{position:relative;width:72px;height:58px;border:1px solid #d4cec0;border-radius:8px;background:#efebe3;overflow:hidden}
+                    .jf-scope-photo-preview{width:100%;height:100%;display:block;border:none;background:transparent;padding:0;cursor:pointer}
+                    .jf-scope-photo img{width:100%;height:100%;object-fit:cover;display:block}
                     .jf-scope-photo-delete{position:absolute;top:4px;right:4px;border:1px solid #e7b6b6;background:#fff7f7;color:#b02020;padding:3px;border-radius:6px;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;box-shadow:0 1px 3px rgba(0,0,0,.08);z-index:2}
                     .jf-scope-photo-delete:disabled{opacity:.6;cursor:not-allowed}
                     .jf-small-title{font-size:18px;font-weight:700;margin-bottom:8px}
