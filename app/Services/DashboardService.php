@@ -719,7 +719,7 @@ class DashboardService
             'projects' => $mainProjects
                 ->sortByDesc(fn (Project $project) => optional($project->updated_at)?->timestamp ?? 0)
                 ->values()
-                ->map(fn (Project $project) => $this->projectSummaryRow($project))
+                ->map(fn (Project $project) => $this->projectSummaryRow($project, $weightedByProjectId))
                 ->all(),
         ];
     }
@@ -884,15 +884,16 @@ class DashboardService
             ->first();
     }
 
-    private function projectSummaryRow(Project $project): array
+    private function projectSummaryRow(Project $project, array $weightedByProjectId = []): array
     {
+        $weightedProgress = (float) ($weightedByProjectId[(int) $project->id] ?? 0);
         return [
             'id' => $project->id,
             'name' => $project->name,
             'client' => $project->client,
             'status' => $project->status,
             'phase' => $project->phase,
-            'overall_progress' => (int) ($project->overall_progress ?? 0),
+            'overall_progress' => round(max(0, min(100, $weightedProgress)), 2),
             'contract_amount' => (float) $project->contract_amount,
             'total_client_payment' => (float) $project->total_client_payment,
             'remaining_balance' => (float) $project->remaining_balance,

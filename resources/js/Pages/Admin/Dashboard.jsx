@@ -191,7 +191,7 @@ export default function AdminDashboard({ kpis = {}, projectSnapshotPager = null 
                                     </div>
                                     <div className="grid grid-cols-2 gap-2 md:contents">
                                         <div style={{ fontSize: 12, fontFamily: "'DM Mono', monospace" }}>
-                                            {project.overall_progress}%
+                                            {Number(project.overall_progress || 0).toFixed(2)}%
                                         </div>
                                         <div style={{ fontSize: 12, fontFamily: "'DM Mono', monospace" }}>
                                             {money(project.contract_amount)}
