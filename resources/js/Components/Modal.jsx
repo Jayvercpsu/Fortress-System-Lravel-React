@@ -7,7 +7,7 @@ function resolveMaxHeight(value) {
     return value;
 }
 
-export default function Modal({ open, onClose, title, headerContent, children, maxWidth = 960, maxHeight }) {
+export default function Modal({ open, onClose, title, headerContent, children, maxWidth = 960, maxHeight, showMaximize = true }) {
     const [isMaximized, setIsMaximized] = useState(false);
     const modalRef = useRef(null);
 
@@ -98,32 +98,34 @@ export default function Modal({ open, onClose, title, headerContent, children, m
                 >
                     <div style={{ fontWeight: 700, fontSize: 14 }}>{title}</div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                        <button
-                            type="button"
-                            onClick={handleMaximizeToggle}
-                            title={isMaximized ? 'Minimize' : 'Maximize'}
-                            style={{
-                                border: '1px solid var(--border-color)',
-                                background: 'var(--button-bg)',
-                                color: 'var(--text-main)',
-                                borderRadius: 8,
-                                padding: '6px 10px',
-                                cursor: 'pointer',
-                                fontSize: 12,
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                transition: 'transform 0.25s ease, background 0.2s ease',
-                            }}
-                        >
-                            <span style={{
-                                display: 'flex',
-                                transition: 'transform 0.25s ease',
-                                transform: animateMaximize ? (isMaximized ? 'rotate(0deg)' : 'rotate(-90deg)') : 'rotate(0deg)',
-                            }}>
-                                {isMaximized ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
-                            </span>
-                        </button>
+                        {showMaximize && (
+                            <button
+                                type="button"
+                                onClick={handleMaximizeToggle}
+                                title={isMaximized ? 'Minimize' : 'Maximize'}
+                                style={{
+                                    border: '1px solid var(--border-color)',
+                                    background: 'var(--button-bg)',
+                                    color: 'var(--text-main)',
+                                    borderRadius: 8,
+                                    padding: '6px 10px',
+                                    cursor: 'pointer',
+                                    fontSize: 12,
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    transition: 'transform 0.25s ease, background 0.2s ease',
+                                }}
+                            >
+                                <span style={{
+                                    display: 'flex',
+                                    transition: 'transform 0.25s ease',
+                                    transform: animateMaximize ? (isMaximized ? 'rotate(0deg)' : 'rotate(-90deg)') : 'rotate(0deg)',
+                                }}>
+                                    {isMaximized ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
+                                </span>
+                            </button>
+                        )}
                         <button
                             type="button"
                             onClick={onClose}

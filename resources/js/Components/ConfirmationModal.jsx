@@ -13,7 +13,7 @@ export default function ConfirmationModal({
     danger = false,
 }) {
     return (
-        <Modal open={open} onClose={processing ? undefined : onClose} title={title} maxWidth={520}>
+        <Modal open={open} onClose={processing ? undefined : onClose} title={title} maxWidth={520} showMaximize={false}>
             <div style={{ display: 'grid', gap: 14 }}>
                 <div style={{ fontSize: 13, color: 'var(--text-muted)', lineHeight: 1.5 }}>{message}</div>
                 <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
