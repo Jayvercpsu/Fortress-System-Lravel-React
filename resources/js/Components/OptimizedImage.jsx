@@ -35,6 +35,9 @@ const OptimizedImage = forwardRef(function OptimizedImage(
 ) {
     const [loaded, setLoaded] = useState(false);
 
+    // For priority images, skip shimmer entirely and show immediately
+    const skipShimmer = priority;
+
     useEffect(() => {
         ensureShimmerStyle();
     }, []);
@@ -61,28 +64,29 @@ const OptimizedImage = forwardRef(function OptimizedImage(
     const wrapperClassName = baseClassName ? `${baseClassName} optimized-image-wrapper` : 'optimized-image-wrapper';
     const skeletonAnimation = `optimizedImageShimmer 1.3s linear infinite`;
     const combinedAnimation =
-        !loaded && restStyle.animation
+        !loaded && !skipShimmer && restStyle.animation
             ? `${restStyle.animation}, ${skeletonAnimation}`
-            : !loaded
+            : !loaded && !skipShimmer
                 ? skeletonAnimation
                 : restStyle.animation;
 
+    // Always show with full opacity for priority images, shimmer otherwise
     const combinedStyle = {
         ...restStyle,
         display: restStyle.display ?? 'block',
         ...(width !== undefined ? { width } : {}),
         ...(height !== undefined ? { height } : {}),
-        opacity: loaded ? 1 : 0.01,
-        transition: 'opacity 0.25s ease',
+        opacity: skipShimmer || loaded ? 1 : 0.01,
+        transition: skipShimmer ? 'none' : 'opacity 0.25s ease',
         animation: combinedAnimation,
-        backgroundImage: !loaded && restStyle.backgroundImage
+        backgroundImage: skipShimmer || !loaded
             ? restStyle.backgroundImage
             : !loaded
                 ? 'linear-gradient(90deg, rgba(239, 243, 248, 0.95) 0%, rgba(220, 227, 235, 0.95) 40%, rgba(239, 243, 248, 0.95) 100%)'
                 : restStyle.backgroundImage,
-        backgroundSize: !loaded ? '200% 100%' : restStyle.backgroundSize,
-        backgroundPosition: !loaded ? '0 0' : restStyle.backgroundPosition,
-        backgroundColor: !loaded ? restStyle.backgroundColor ?? 'var(--surface-2, #f5f6fb)' : restStyle.backgroundColor,
+        backgroundSize: !loaded && !skipShimmer ? '200% 100%' : restStyle.backgroundSize,
+        backgroundPosition: !loaded && !skipShimmer ? '0 0' : restStyle.backgroundPosition,
+        backgroundColor: !loaded && !skipShimmer ? restStyle.backgroundColor ?? 'var(--surface-2, #f5f6fb)' : restStyle.backgroundColor,
     };
 
     const skeletonBorderRadius = restStyle.borderRadius ?? 0;
@@ -98,7 +102,7 @@ const OptimizedImage = forwardRef(function OptimizedImage(
                 ...(height !== undefined ? { height } : {}),
             }}
         >
-            {!loaded && (
+            {!loaded && !skipShimmer && (
                 <span
                     aria-hidden
                     style={{
