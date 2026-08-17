@@ -22,6 +22,7 @@
 /test-results
 /blob-report
 /database/playwright.sqlite
+/nul
 /storage/*.key
 /storage/pail
 /vendor
