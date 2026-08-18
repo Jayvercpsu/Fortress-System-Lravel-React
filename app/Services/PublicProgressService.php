@@ -403,8 +403,25 @@ class PublicProgressService
     {
         $submitToken = $this->resolveActiveToken($token);
         $submitToken->load(['project', 'foreman:id,fullname']);
-        $project = $submitToken->project;
 
+        return $this->renderReceiptResponse(
+            $submitToken->project,
+            $submitToken,
+            (bool) ($request->user()?->role === User::ROLE_CLIENT)
+        );
+    }
+
+    /**
+     * Render the client receipt for a project that has no foreman/token yet.
+     * Used by the authenticated client-receipt shortcut so it never 404s.
+     */
+    public function projectReceiptResponse(Project $project)
+    {
+        return $this->renderReceiptResponse($project, null, false);
+    }
+
+    private function renderReceiptResponse(Project $project, ?ProgressSubmitToken $submitToken, bool $isClientPortal)
+    {
         $scopes = $this->applyScopeOrdering(
             $project->scopes()->with(['photos' => fn ($query) => $query->latest('id')->limit(4)])
         )->get();
@@ -486,7 +503,7 @@ class PublicProgressService
         ];
 
         return Inertia::render('Public/ProgressReceipt', [
-            'receipt' => $this->buildReceiptPayload($submitToken),
+            'receipt' => $this->buildReceiptPayload($project, $submitToken),
             'project' => [
                 'id' => $project->id,
                 'name' => $project->name,
@@ -495,16 +512,16 @@ class PublicProgressService
                 'status' => $project->status,
                 'location' => $project->location,
             ],
-            'foreman_name' => $submitToken->foreman->fullname ?? '',
+            'foreman_name' => optional($submitToken?->foreman)->fullname ?? '',
             'scopes' => $scopeRows,
             'totals' => $totals,
             'issue_summary' => [
                 IssueReport::STATUS_OPEN => $issueTotals[IssueReport::STATUS_OPEN] ?? 0,
                 IssueReport::STATUS_RESOLVED => $issueTotals[IssueReport::STATUS_RESOLVED] ?? 0,
             ],
-            'token' => $submitToken->token,
-            'expires_at' => optional($submitToken->expires_at)?->toDateTimeString(),
-            'isClientPortal' => $request->user()?->role === User::ROLE_CLIENT,
+            'token' => $submitToken?->token ?? '',
+            'expires_at' => optional($submitToken?->expires_at)?->toDateTimeString(),
+            'isClientPortal' => $isClientPortal,
         ]);
     }
 
@@ -1622,12 +1639,11 @@ class PublicProgressService
         UploadManager::delete($normalizedPath);
     }
 
-    private function buildReceiptPayload(ProgressSubmitToken $submitToken): array
+    private function buildReceiptPayload(Project $project, ?ProgressSubmitToken $submitToken = null): array
     {
-        $project = $submitToken->project;
         $scopes = $this->applyScopeOrdering(
             $this->foremanProgressRepository->projectScopes()
-                ->where('project_id', $submitToken->project_id)
+                ->where('project_id', $project->id)
                 ->with(['photos' => fn ($query) => $query->latest('id')])
         )->get();
 
@@ -1711,17 +1727,17 @@ class PublicProgressService
         }
 
         return [
-            'token' => $submitToken->token,
+            'token' => $submitToken?->token ?? '',
             'project_name' => $project?->name,
             'project_client' => $project?->client,
             'project_phase' => $project?->phase,
             'project_status' => $project?->status,
             'project_target' => optional($project?->target)?->toDateString(),
-            'foreman_name' => $submitToken->foreman?->fullname,
-            'access_link' => route('public.progress-submit.show', ['token' => $submitToken->token]),
-            'expires_at' => optional($submitToken->expires_at)?->toDateTimeString(),
-            'submitted_at' => optional($submitToken->last_submitted_at)?->toDateTimeString(),
-            'submission_count' => (int) ($submitToken->submission_count ?? 0),
+            'foreman_name' => optional($submitToken?->foreman)->fullname,
+            'access_link' => $submitToken ? route('public.progress-submit.show', ['token' => $submitToken->token]) : null,
+            'expires_at' => optional($submitToken?->expires_at)?->toDateTimeString(),
+            'submitted_at' => optional($submitToken?->last_submitted_at)?->toDateTimeString(),
+            'submission_count' => (int) ($submitToken?->submission_count ?? 0),
             'total_contract_amount' => round($contractAmount, 2),
             'total_weight_percent' => round($totalWeightPercent, 2),
             'weighted_progress_percent' => round($weightedProgressPercent, 2),

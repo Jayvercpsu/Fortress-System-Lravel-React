@@ -54,7 +54,7 @@ class ProjectModuleTest extends TestCase
         ]);
     }
 
-    public function test_admin_can_view_projects_and_edit_page_but_not_create_page(): void
+    public function test_admin_cannot_access_construction_pages_but_head_admin_can(): void
     {
         $project = Project::create([
             'name' => 'P1',
@@ -69,10 +69,16 @@ class ProjectModuleTest extends TestCase
         ]);
 
         $admin = $this->makeUser('admin');
-        $this->actingAs($admin)->get('/projects')->assertOk();
-        $this->actingAs($admin)->get("/projects/{$project->id}")->assertOk();
+        $this->actingAs($admin)->get('/projects')->assertForbidden();
+        $this->actingAs($admin)->get("/projects/{$project->id}")->assertForbidden();
         $this->actingAs($admin)->get('/projects/create')->assertForbidden();
-        $this->actingAs($admin)->get("/projects/{$project->id}/edit")->assertOk();
+        $this->actingAs($admin)->get("/projects/{$project->id}/edit")->assertForbidden();
+
+        $headAdmin = $this->makeUser('head_admin');
+        $this->actingAs($headAdmin)->get('/projects')->assertOk();
+        $this->actingAs($headAdmin)->get("/projects/{$project->id}")->assertOk();
+        $this->actingAs($headAdmin)->get('/projects/create')->assertOk();
+        $this->actingAs($headAdmin)->get("/projects/{$project->id}/edit")->assertOk();
     }
 
     public function test_financial_endpoint_allows_head_admin_admin_and_hr(): void
@@ -139,6 +145,8 @@ class ProjectModuleTest extends TestCase
         $project->update(['phase' => 'FOR_BUILD']);
         $this->assertDatabaseHas('build_projects', ['project_id' => $project->id]);
 
+        config()->set('fortress.auto_complete_project_on_progress', true);
+
         $project->update(['overall_progress' => 100]);
         $project->refresh();
 
@@ -147,9 +155,9 @@ class ProjectModuleTest extends TestCase
         $this->assertGreaterThan(0, $hr->notifications()->count());
     }
 
-    public function test_admin_can_transfer_approved_design_project_to_construction(): void
+    public function test_head_admin_can_transfer_approved_design_project_to_construction(): void
     {
-        $admin = $this->makeUser('admin');
+        $admin = $this->makeUser('head_admin');
 
         $project = Project::create([
             'name' => 'Design Transfer Project',
@@ -185,7 +193,7 @@ class ProjectModuleTest extends TestCase
 
     public function test_design_transfer_to_construction_requires_approved_status(): void
     {
-        $admin = $this->makeUser('admin');
+        $admin = $this->makeUser('head_admin');
 
         $project = Project::create([
             'name' => 'Pending Design Transfer',
@@ -211,9 +219,9 @@ class ProjectModuleTest extends TestCase
         $this->assertDatabaseMissing('projects', ['source_project_id' => $project->id]);
     }
 
-    public function test_admin_can_transfer_construction_project_to_completed(): void
+    public function test_head_admin_can_transfer_construction_project_to_completed(): void
     {
-        $admin = $this->makeUser('admin');
+        $admin = $this->makeUser('head_admin');
 
         $project = Project::create([
             'name' => 'Construction Transfer Project',
@@ -222,7 +230,7 @@ class ProjectModuleTest extends TestCase
             'location' => 'City',
             'assigned' => null,
             'target' => null,
-            'status' => 'ACTIVE',
+            'status' => 'COMPLETED',
             'phase' => 'Construction',
             'overall_progress' => 12,
         ]);
@@ -236,6 +244,39 @@ class ProjectModuleTest extends TestCase
         $this->assertSame('Completed', $project->phase);
         $this->assertSame('COMPLETED', $project->status);
         $this->assertSame(100, (int) $project->overall_progress);
+    }
+
+    public function test_client_receipt_requires_an_assigned_foreman(): void
+    {
+        $headAdmin = $this->makeUser('head_admin');
+        $project = Project::create([
+            'name' => 'Receipt Project',
+            'client' => 'Client',
+            'type' => 'Residential',
+            'location' => 'City',
+            'assigned' => null,
+            'target' => null,
+            'status' => 'PLANNING',
+            'phase' => 'Construction',
+            'overall_progress' => 0,
+        ]);
+
+        // A freshly created project without an assigned foreman still renders the receipt.
+        $this->actingAs($headAdmin)
+            ->get("/projects/{$project->id}/client-receipt")
+            ->assertOk();
+
+        // Once a foreman is assigned, the receipt redirects to the public receipt page.
+        $foreman = $this->makeUser('foreman');
+        \App\Models\ProjectAssignment::create([
+            'project_id' => $project->id,
+            'user_id' => $foreman->id,
+            'role_in_project' => \App\Models\ProjectAssignment::ROLE_FOREMAN,
+        ]);
+
+        $this->actingAs($headAdmin)
+            ->get("/projects/{$project->id}/client-receipt")
+            ->assertRedirect();
     }
 
     private function makeUser(string $role): User

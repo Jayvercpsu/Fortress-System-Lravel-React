@@ -18,11 +18,13 @@ return new class extends Migration {
         });
 
         if (Schema::hasTable('projects') && Schema::hasTable('payrolls')) {
+            // Correlated subqueries keep this portable across MySQL and SQLite
+            // (SQLite cannot resolve joined table columns in an UPDATE ... SET).
             DB::table('payrolls')
-                ->join('projects', 'payrolls.project_id', '=', 'projects.id')
+                ->whereNotNull('project_id')
                 ->update([
-                    'payrolls.project_name' => DB::raw('projects.name'),
-                    'payrolls.project_client' => DB::raw('projects.client'),
+                    'project_name' => DB::raw('(select name from projects where projects.id = payrolls.project_id)'),
+                    'project_client' => DB::raw('(select client from projects where projects.id = payrolls.project_id)'),
                 ]);
         }
     }

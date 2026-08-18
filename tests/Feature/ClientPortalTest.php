@@ -27,6 +27,7 @@ class ClientPortalTest extends TestCase
                 'phone' => '09171234567',
                 'username' => 'client_create',
                 'password' => 'password',
+                'password_confirmation' => 'password',
             ])
             ->assertRedirect('/clients');
 

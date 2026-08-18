@@ -11,6 +11,58 @@ Always use custom input components instead of native HTML elements.
 
 ---
 
+# Code Change Verification
+
+## 🎯 Purpose
+
+Every code change must be syntax-checked before it is considered complete, so errors never
+ship silently to the user.
+
+## ✅ Required Rules
+
+1. **After every change, run a syntax check on the files you touched:**
+   - PHP: `php -l <file>` for each changed `.php` file.
+   - JS/JSX/TS: run the project's build (`npm run build`) or the relevant linter/typecheck.
+   - Blade/React components: rely on the build above; fix any compile errors.
+2. **Run the relevant test suite when the change is non-trivial** (e.g. new logic, changed
+   queries, new migrations). The PHPUnit suite runs against an in-memory SQLite DB and is
+   safe to run.
+3. **Fix any syntax/type/build errors you introduced before finishing** — a change is only
+   done when it passes its own checks.
+
+---
+
+# Migration Console Output
+
+## 🎯 Purpose
+
+Migrations that print progress/summaries must do so without referencing `$this->command`,
+which Laravel never sets on migration classes (the base `Migration` class only declares
+`$connection` and `$withinTransaction`).
+
+## ✅ Required Rules
+
+1. **Never use `$this->command` inside a migration** — it is an undefined property that
+   triggers warnings and (in tests, where warnings become exceptions) failures. Use it only
+   in Seeders, which do receive a `$command` property.
+2. **Write migration output straight to STDOUT**, e.g.:
+   ```php
+   private function write(string $message): void
+   {
+       if (! app()->runningInConsole() || app()->runningUnitTests()) {
+           return;
+       }
+
+       fwrite(STDOUT, $message.PHP_EOL);
+   }
+   ```
+   The `runningUnitTests()` guard keeps the PHPUnit output clean (migrations run via
+   RefreshDatabase on every test class).
+3. **Reuse the helper pattern** (e.g. `info()`, `warn()`, `table()` delegating to `write()`)
+   instead of duplicating raw `fwrite` calls.
+
+---
+
 # Database Safety
 
 ## 🎯 Purpose

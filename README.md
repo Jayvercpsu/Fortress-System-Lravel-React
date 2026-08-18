@@ -124,6 +124,17 @@ UI AUTOMATION (PLAYWRIGHT)
 Install browser runtime:
 `npx playwright install chromium`
 
+PHPUNIT (FEATURE TESTS)
+
+The PHPUnit suite runs against an in-memory SQLite database (see `phpunit.xml`), so it never touches the MySQL `fortress` database.
+
+Run tests:
+`php artisan test`
+
+Photo-upload tests use GD-free fake uploads, so no image extensions (GD/Imagick) are required to run the suite.
+
+---
+
 Run tests:
 `npm run e2e`
 

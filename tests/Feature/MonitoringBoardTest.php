@@ -19,11 +19,13 @@ class MonitoringBoardTest extends TestCase
     {
         $project = $this->makeProject();
         $headAdmin = $this->makeUser('head_admin');
+        $foremanA = $this->makeUser('foreman');
+        $foremanB = $this->makeUser('foreman');
 
         $this->actingAs($headAdmin)
             ->post("/projects/{$project->id}/scopes", [
                 'scope_name' => 'Foundation',
-                'assigned_personnel' => 'Crew A',
+                'assigned_personnel' => $foremanA->fullname,
                 'progress_percent' => 20,
                 'status' => 'IN_PROGRESS',
                 'remarks' => 'Started excavation.',
@@ -40,7 +42,7 @@ class MonitoringBoardTest extends TestCase
         $this->actingAs($headAdmin)
             ->patch("/scopes/{$firstScope->id}", [
                 'scope_name' => 'Foundation',
-                'assigned_personnel' => 'Crew A',
+                'assigned_personnel' => $foremanA->fullname,
                 'progress_percent' => 80,
                 'status' => 'IN_PROGRESS',
                 'remarks' => 'Nearly done.',
@@ -55,7 +57,7 @@ class MonitoringBoardTest extends TestCase
         $this->actingAs($headAdmin)
             ->post("/projects/{$project->id}/scopes", [
                 'scope_name' => 'Roofing',
-                'assigned_personnel' => 'Crew B',
+                'assigned_personnel' => $foremanB->fullname,
                 'progress_percent' => 20,
                 'status' => 'NOT_STARTED',
                 'remarks' => null,
@@ -94,14 +96,17 @@ class MonitoringBoardTest extends TestCase
 
     public function test_scope_recompute_to_100_auto_closes_project_and_notifies_hr_and_head_admin(): void
     {
+        config()->set('fortress.auto_complete_project_on_progress', true);
+
         $project = $this->makeProject();
         $headAdmin = $this->makeUser('head_admin');
         $hr = $this->makeUser('hr');
+        $foreman = $this->makeUser('foreman');
 
         $this->actingAs($headAdmin)
             ->post("/projects/{$project->id}/scopes", [
                 'scope_name' => 'Final Turnover',
-                'assigned_personnel' => 'Crew X',
+                'assigned_personnel' => $foreman->fullname,
                 'progress_percent' => 100,
                 'status' => 'COMPLETED',
                 'remarks' => 'All scope items done.',
@@ -135,7 +140,7 @@ class MonitoringBoardTest extends TestCase
         ]);
 
         $headAdmin = $this->makeUser('head_admin');
-        $photo = UploadedFile::fake()->image('site-photo.jpg');
+        $photo = UploadedFile::fake()->create('site-photo.jpg', 10, 'image/jpeg');
 
         $this->actingAs($headAdmin)
             ->post("/scopes/{$scope->id}/photos", [

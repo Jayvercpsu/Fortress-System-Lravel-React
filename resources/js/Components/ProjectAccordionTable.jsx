@@ -39,6 +39,7 @@ export default function ProjectAccordionTable({
     expandAllGroups = false,
     statusOptions = [],
     showGroupId = true,
+    filters = {},
 }) {
     const [searchDraft, setSearchDraft] = useState(String(table?.search ?? ''));
     const [expandedByGroup, setExpandedByGroup] = useState({});
@@ -55,6 +56,13 @@ export default function ProjectAccordionTable({
         to: table?.to ?? null,
         status: table?.status ?? '',
     };
+
+    // Extra query params (e.g. project/foreman/week/date filters) that must be
+    // preserved across search, status and pagination requests.
+    const filterParams = Object.fromEntries(
+        Object.entries(filters || {})
+            .filter(([, value]) => value !== '' && value !== null && value !== undefined),
+    );
 
     useEffect(() => {
         setSearchDraft(String(tableState.search ?? ''));
@@ -154,6 +162,7 @@ export default function ProjectAccordionTable({
                 per_page: tableState.perPage,
                 status: statusValue || undefined,
                 page: 1,
+                ...filterParams,
             }, {
                 preserveState: true,
                 preserveScroll: true,
@@ -170,6 +179,7 @@ export default function ProjectAccordionTable({
             per_page: tableState.perPage,
             status: value || undefined,
             page: 1,
+            ...filterParams,
         }, {
             preserveState: true,
             preserveScroll: true,
@@ -199,6 +209,7 @@ export default function ProjectAccordionTable({
             per_page: tableState.perPage,
             status: tableState.status || undefined,
             page,
+            ...filterParams,
         }, {
             preserveState: true,
             preserveScroll: true,
@@ -212,6 +223,7 @@ export default function ProjectAccordionTable({
             per_page: perPage,
             status: tableState.status || undefined,
             page: 1,
+            ...filterParams,
         }, {
             preserveState: true,
             preserveScroll: true,

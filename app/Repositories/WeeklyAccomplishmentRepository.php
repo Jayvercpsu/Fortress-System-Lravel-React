@@ -22,10 +22,11 @@ class WeeklyAccomplishmentRepository implements WeeklyAccomplishmentRepositoryIn
             ->withQueryString();
     }
 
-    public function paginateWeeklyProjectIds(string $search, int $perPage): LengthAwarePaginator
+    public function paginateWeeklyProjectIds(string $search, int $perPage, array $filters = []): LengthAwarePaginator
     {
         $query = WeeklyAccomplishment::query();
         $this->applySearch($query, $search);
+        $this->applyFilters($query, $filters);
 
         return (clone $query)
             ->selectRaw('project_id, MAX(updated_at) as last_updated_at')
@@ -35,7 +36,7 @@ class WeeklyAccomplishmentRepository implements WeeklyAccomplishmentRepositoryIn
             ->withQueryString();
     }
 
-    public function listWeeklyAccomplishmentsByProjectIds(array $projectIds, string $search): Collection
+    public function listWeeklyAccomplishmentsByProjectIds(array $projectIds, string $search, array $filters = []): Collection
     {
         if (empty($projectIds)) {
             return collect();
@@ -44,6 +45,7 @@ class WeeklyAccomplishmentRepository implements WeeklyAccomplishmentRepositoryIn
         $query = WeeklyAccomplishment::query()
             ->with('foreman:id,fullname', 'project:id,name');
         $this->applySearch($query, $search);
+        $this->applyFilters($query, $filters);
 
         $nonNullProjectIds = array_values(array_filter($projectIds, fn ($value) => $value !== null));
         $hasNullProject = in_array(null, $projectIds, true);
@@ -97,5 +99,50 @@ class WeeklyAccomplishmentRepository implements WeeklyAccomplishmentRepositoryIn
                 ->orWhereHas('foreman', fn ($q) => $q->where('fullname', 'like', "%{$search}%"))
                 ->orWhereHas('project', fn ($q) => $q->where('name', 'like', "%{$search}%"));
         });
+    }
+
+    private function applyFilters(Builder $builder, array $filters): void
+    {
+        $projectId = trim((string) ($filters['project_id'] ?? ''));
+        $foremanId = trim((string) ($filters['foreman_id'] ?? ''));
+        $weekFrom = trim((string) ($filters['week_from'] ?? ''));
+        $weekTo = trim((string) ($filters['week_to'] ?? ''));
+        $dateFrom = trim((string) ($filters['date_from'] ?? ''));
+        $dateTo = trim((string) ($filters['date_to'] ?? ''));
+
+        if ($projectId !== '') {
+            $builder->where('project_id', (int) $projectId);
+        }
+        if ($foremanId !== '') {
+            $builder->where('foreman_id', (int) $foremanId);
+        }
+        if ($weekFrom !== '') {
+            $builder->whereDate('week_start', '>=', $weekFrom);
+        }
+        if ($weekTo !== '') {
+            $builder->whereDate('week_start', '<=', $weekTo);
+        }
+        if ($dateFrom !== '') {
+            $builder->whereDate('updated_at', '>=', $dateFrom);
+        }
+        if ($dateTo !== '') {
+            $builder->whereDate('updated_at', '<=', $dateTo);
+        }
+    }
+
+    public function filterProjects(): Collection
+    {
+        return Project::query()
+            ->whereRaw('LOWER(TRIM(COALESCE(phase, \'\'))) != ?', [strtolower(Project::PHASE_DESIGN)])
+            ->orderBy('name')
+            ->get(['id', 'name']);
+    }
+
+    public function filterForemen(): Collection
+    {
+        return \App\Models\User::query()
+            ->where('role', \App\Models\User::ROLE_FOREMAN)
+            ->orderBy('fullname')
+            ->get(['id', 'fullname']);
     }
 }

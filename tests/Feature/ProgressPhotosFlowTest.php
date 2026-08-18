@@ -29,7 +29,7 @@ class ProgressPhotosFlowTest extends TestCase
             'status' => 'IN_PROGRESS',
             'remarks' => null,
         ]);
-        $photo = UploadedFile::fake()->image('proof.jpg');
+        $photo = UploadedFile::fake()->create('proof.jpg', 10, 'image/jpeg');
 
         $this->actingAs($foreman)
             ->post('/foreman/progress-photo', [

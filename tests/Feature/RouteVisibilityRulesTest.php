@@ -49,9 +49,10 @@ class RouteVisibilityRulesTest extends TestCase
     {
         $project = $this->makeProject();
 
+        // The Construction (projects) module is restricted to head admin / master admin.
         $this->actingAs($this->makeUser('admin'))
             ->get('/projects')
-            ->assertOk();
+            ->assertForbidden();
 
         $this->actingAs($this->makeUser('admin'))
             ->get('/attendance')
@@ -69,9 +70,10 @@ class RouteVisibilityRulesTest extends TestCase
             ->get('/issues')
             ->assertOk();
 
+        // Reports are restricted to head admin / master admin.
         $this->actingAs($this->makeUser('admin'))
             ->get('/reports')
-            ->assertOk();
+            ->assertForbidden();
 
         $this->actingAs($this->makeUser('admin'))
             ->get('/weekly-accomplishments')

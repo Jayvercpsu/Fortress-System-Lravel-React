@@ -1060,15 +1060,17 @@ export default function ProgressReceipt({
                                 <span>{scopeRows.length} scope row(s)</span>
                             </div>
                             <div className="receipt-footer-actions">
-                                <ActionButton
-                                    href={`/progress-receipt/${token}/export`}
-                                    external
-                                    variant="neutral"
-                                    className="receipt-download"
-                                >
-                                    <Download size={16} />
-                                    Download Excel
-                                </ActionButton>
+                                {token ? (
+                                    <ActionButton
+                                        href={`/progress-receipt/${token}/export`}
+                                        external
+                                        variant="neutral"
+                                        className="receipt-download"
+                                    >
+                                        <Download size={16} />
+                                        Download Excel
+                                    </ActionButton>
+                                ) : null}
                                 <ActionButton
                                     type="button"
                                     variant="neutral"

@@ -34,8 +34,19 @@ class WeeklyAccomplishmentService
             $perPage = 10;
         }
 
+        $filters = [
+            'project_id' => trim((string) $request->query('project_id', '')),
+            'foreman_id' => trim((string) $request->query('foreman_id', '')),
+            'week_from' => trim((string) $request->query('week_from', '')),
+            'week_to' => trim((string) $request->query('week_to', '')),
+            'date_from' => trim((string) $request->query('date_from', '')),
+            'date_to' => trim((string) $request->query('date_to', '')),
+        ];
+
+        $hasActiveFilters = collect($filters)->contains(fn ($value) => $value !== '');
+
         $projects = collect();
-        $showEmptyProjects = $search === '' && $status === '';
+        $showEmptyProjects = $search === '' && $status === '' && !$hasActiveFilters;
 
         if ($showEmptyProjects) {
             $paginator = $this->weeklyAccomplishmentRepository->paginateNonDesignProjects($perPage);
@@ -53,7 +64,7 @@ class WeeklyAccomplishmentService
                 ])
                 ->values();
         } else {
-            $paginator = $this->weeklyAccomplishmentRepository->paginateWeeklyProjectIds($search, $perPage);
+            $paginator = $this->weeklyAccomplishmentRepository->paginateWeeklyProjectIds($search, $perPage, $filters);
 
             $projectIds = collect($paginator->items())
                 ->map(fn ($item) => $item->project_id ?? null)
@@ -63,7 +74,7 @@ class WeeklyAccomplishmentService
         }
 
         $accomplishments = $this->weeklyAccomplishmentRepository
-            ->listWeeklyAccomplishmentsByProjectIds($projectIds, $search);
+            ->listWeeklyAccomplishmentsByProjectIds($projectIds, $search, $filters);
         if (!$accomplishments instanceof Collection) {
             $accomplishments = collect($accomplishments);
         }
@@ -138,15 +149,27 @@ class WeeklyAccomplishmentService
             'props' => [
                 'weeklyAccomplishments' => $accomplishments,
                 'projects' => $projects,
-                'weeklyAccomplishmentTable' => $this->tableMeta($paginator, $search, $status),
+                'weeklyAccomplishmentTable' => $this->tableMeta($paginator, $search, $status, $filters),
                 'weeklyScopePhotoMap' => $weeklyScopePhotoMap,
                 'statusFilters' => [],
                 'selectedStatus' => $status,
+                'filterProjects' => $this->weeklyAccomplishmentRepository->filterProjects()
+                    ->map(fn ($project) => [
+                        'id' => $project->id,
+                        'name' => $project->name,
+                    ])
+                    ->values(),
+                'filterForemen' => $this->weeklyAccomplishmentRepository->filterForemen()
+                    ->map(fn ($foreman) => [
+                        'id' => $foreman->id,
+                        'fullname' => $foreman->fullname,
+                    ])
+                    ->values(),
             ],
         ];
     }
 
-    private function tableMeta($paginator, string $search, string $status = ''): array
+    private function tableMeta($paginator, string $search, string $status = '', array $filters = []): array
     {
         return [
             'search' => $search,
@@ -157,6 +180,12 @@ class WeeklyAccomplishmentService
             'from' => $paginator->firstItem(),
             'to' => $paginator->lastItem(),
             'status' => $status,
+            'project_id' => $filters['project_id'] ?? '',
+            'foreman_id' => $filters['foreman_id'] ?? '',
+            'week_from' => $filters['week_from'] ?? '',
+            'week_to' => $filters['week_to'] ?? '',
+            'date_from' => $filters['date_from'] ?? '',
+            'date_to' => $filters['date_to'] ?? '',
         ];
     }
 
@@ -198,7 +227,7 @@ class WeeklyAccomplishmentService
         $weekProjects = $orderedGroups->map(fn (array $group) => [
             'id' => $group['key'],
             'name' => $group['week_start'] !== ''
-                ? 'Week of ' . Carbon::parse($group['week_start'])->format('M j, Y') . ' — ' . $group['project_name']
+                ? 'Week of ' . Carbon::parse($group['week_start'])->format('M j, Y') . ' - ' . Carbon::parse($group['week_start'])->addDays(6)->format('M j, Y') . ' — ' . $group['project_name']
                 : $group['project_name'],
         ])->values();
 

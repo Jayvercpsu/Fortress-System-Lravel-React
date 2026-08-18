@@ -959,7 +959,7 @@ class ProjectService
             ->delete();
     }
 
-    public function resolveProjectReceiptToken(Project $project): string
+    public function resolveProjectReceiptToken(Project $project): ?string
     {
         $foremanId = $this->projectRepository->latestForemanAssignmentUserId($project);
 
@@ -968,7 +968,9 @@ class ProjectService
         }
 
         if ($foremanId === null) {
-            abort(404, __('messages.projects.no_foreman_assigned'));
+            // No foreman assigned yet (e.g. a freshly created project) — the caller
+            // decides how to surface this instead of hard-failing with a 404.
+            return null;
         }
 
         $token = $this->projectRepository->findActiveProgressToken((int) $project->id, $foremanId);
@@ -1040,6 +1042,18 @@ class ProjectService
         if ($this->projectRepository->hasTransferredProject((int) $project->id)) {
             throw ValidationException::withMessages([
                 'transfer' => __('messages.projects.transfer_to_construction_already_done'),
+            ]);
+        }
+
+        $design = $this->projectRepository->findDesignByProjectId((int) $project->id);
+        $resolvedDesign = $design;
+        if ($project->source_project_id !== null) {
+            $resolvedDesign = $this->projectRepository->findDesignByProjectId((int) $project->source_project_id) ?: $design;
+        }
+
+        if (! $resolvedDesign || $resolvedDesign->client_approval_status !== DesignProject::CLIENT_APPROVAL_APPROVED) {
+            throw ValidationException::withMessages([
+                'transfer' => __('messages.projects.transfer_to_construction_requires_approved'),
             ]);
         }
 

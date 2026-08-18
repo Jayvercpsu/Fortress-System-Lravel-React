@@ -22,13 +22,12 @@ class ClientPortalController extends Controller
         if ($client instanceof User && $client->role === User::ROLE_CLIENT) {
             $project = $this->clientPortalService->latestClientProject($client);
             if ($project) {
-                try {
-                    $token = $this->projectService->resolveProjectReceiptToken($project);
+                $token = $this->projectService->resolveProjectReceiptToken($project);
 
+                if ($token !== null) {
                     return redirect()->route('public.progress-receipt', ['token' => $token]);
-                } catch (\Throwable $e) {
-                    // No foreman/token available yet — fall back to the dashboard below.
                 }
+                // No foreman/token available yet — fall back to the dashboard below.
             }
         }
 

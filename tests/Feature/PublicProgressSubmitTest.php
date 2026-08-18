@@ -30,7 +30,7 @@ class PublicProgressSubmitTest extends TestCase
         Storage::fake('public');
 
         $token = $this->makeToken();
-        $photo = UploadedFile::fake()->image('site-progress.jpg');
+        $photo = UploadedFile::fake()->create('site-progress.jpg', 10, 'image/jpeg');
 
         $this->post("/progress-submit/{$token->token}", [
             'progress_note' => 'Completed slab setup for section A.',
@@ -68,7 +68,7 @@ class PublicProgressSubmitTest extends TestCase
 
         $this->post("/progress-submit/{$token->token}", [
             'progress_note' => 'Should fail',
-            'photo' => UploadedFile::fake()->image('blocked.jpg'),
+            'photo' => UploadedFile::fake()->create('blocked.jpg', 10, 'image/jpeg'),
         ])->assertNotFound();
     }
 
@@ -158,7 +158,7 @@ class PublicProgressSubmitTest extends TestCase
     {
         Storage::fake('public');
         $token = $this->makeToken();
-        $photo = UploadedFile::fake()->image('issue.jpg');
+        $photo = UploadedFile::fake()->create('issue.jpg', 10, 'image/jpeg');
 
         $this->post("/progress-submit/{$token->token}/issue-report", [
             'issue_title' => 'Safety rail missing',
@@ -192,8 +192,13 @@ class PublicProgressSubmitTest extends TestCase
         Storage::fake('public');
         $token = $this->makeToken();
 
+        // Attendance is only editable for the current week.
+        $currentWeekStart = \Illuminate\Support\Carbon::now('Asia/Manila')
+            ->startOfWeek(\Illuminate\Support\Carbon::MONDAY)
+            ->toDateString();
+
         $this->post("/progress-submit/{$token->token}/submit-all", [
-            'attendance_week_start' => '2026-02-23',
+            'attendance_week_start' => $currentWeekStart,
             'attendance_entries' => [
                 [
                     'worker_name' => 'Worker B',
@@ -213,14 +218,14 @@ class PublicProgressSubmitTest extends TestCase
             'material_quantity' => '30',
             'material_unit' => 'bags',
             'material_remarks' => 'For slab work',
-            'weekly_week_start' => '2026-02-23',
+            'weekly_week_start' => $currentWeekStart,
             'weekly_scopes' => [
                 ['scope_of_work' => 'Slab on Fill', 'percent_completed' => 50],
             ],
             'issue_title' => 'Leaking pipe',
             'issue_description' => 'Temporary water line is leaking near footing.',
             'issue_urgency' => 'normal',
-            'issue_photo' => UploadedFile::fake()->image('issue2.jpg'),
+            'issue_photo' => UploadedFile::fake()->create('issue2.jpg', 10, 'image/jpeg'),
         ])->assertRedirect("/progress-submit/{$token->token}");
 
         $this->assertTrue(
@@ -228,7 +233,7 @@ class PublicProgressSubmitTest extends TestCase
                 ->where('foreman_id', $token->foreman_id)
                 ->where('project_id', $token->project_id)
                 ->where('worker_name', 'Worker B')
-                ->whereDate('date', '2026-02-23')
+                ->whereDate('date', $currentWeekStart)
                 ->exists()
         );
 

@@ -2,7 +2,10 @@ import { useEffect, useMemo, useState } from 'react';
 import Layout from './Layout';
 import Modal from './Modal';
 import ProjectAccordionTable from './ProjectAccordionTable';
-import { Head } from '@inertiajs/react';
+import SelectInput from './SelectInput';
+import DatePickerInput from './DatePickerInput';
+import ActionButton from './ActionButton';
+import { Head, router } from '@inertiajs/react';
 import OptimizedImage from './OptimizedImage';
 import { formatYmd, formatYmdHmAmPm } from '../Utils/dateTimeFormat';
 
@@ -30,7 +33,57 @@ export default function WeeklyAccomplishmentsPage({
     weeklyScopePhotoMap = {},
     statusFilters = [],
     projects = [],
+    filterProjects = [],
+    filterForemen = [],
 }) {
+    const routePath = '/weekly-accomplishments';
+
+    const tableFilters = {
+        project_id: String(weeklyAccomplishmentTable?.project_id ?? ''),
+        foreman_id: String(weeklyAccomplishmentTable?.foreman_id ?? ''),
+        week_from: String(weeklyAccomplishmentTable?.week_from ?? ''),
+        week_to: String(weeklyAccomplishmentTable?.week_to ?? ''),
+        date_from: String(weeklyAccomplishmentTable?.date_from ?? ''),
+        date_to: String(weeklyAccomplishmentTable?.date_to ?? ''),
+    };
+
+    const hasActiveFilters = Object.values(tableFilters).some((value) => value !== '');
+
+    const filterControlStyle = {
+        background: 'var(--surface-2)',
+        color: 'var(--text-main)',
+        border: '1px solid var(--border-color)',
+        borderRadius: 8,
+        padding: '8px 10px',
+        fontSize: 13,
+        minWidth: 150,
+    };
+
+    const applyFilter = (key, value) => {
+        const next = { ...tableFilters, [key]: String(value ?? '') };
+        router.get(routePath, {
+            search: weeklyAccomplishmentTable?.search ?? '',
+            per_page: weeklyAccomplishmentTable?.per_page ?? 10,
+            page: 1,
+            ...next,
+        }, {
+            preserveState: true,
+            preserveScroll: true,
+            replace: true,
+        });
+    };
+
+    const clearFilters = () => {
+        router.get(routePath, {
+            search: weeklyAccomplishmentTable?.search ?? '',
+            per_page: weeklyAccomplishmentTable?.per_page ?? 10,
+            page: 1,
+        }, {
+            preserveState: true,
+            preserveScroll: true,
+            replace: true,
+        });
+    };
     // Photo preview modal state: identify which scope list we are browsing + current index.
     const [photoPreview, setPhotoPreview] = useState(null);
 
@@ -81,6 +134,78 @@ export default function WeeklyAccomplishmentsPage({
         window.addEventListener('keydown', onKeyDown);
         return () => window.removeEventListener('keydown', onKeyDown);
     }, [previewPhoto, canPrev, canNext]);
+
+    const filterBar = (
+        <div className="flex flex-wrap items-end gap-3" style={{ marginBottom: 12 }}>
+            <label>
+                <div style={{ fontSize: 12, marginBottom: 6 }}>Project</div>
+                <SelectInput
+                    value={tableFilters.project_id}
+                    onChange={(e) => applyFilter('project_id', e.target.value)}
+                    style={filterControlStyle}
+                >
+                    <option value="">All projects</option>
+                    {filterProjects.map((project) => (
+                        <option key={project.id} value={project.id}>{project.name}</option>
+                    ))}
+                </SelectInput>
+            </label>
+            <label>
+                <div style={{ fontSize: 12, marginBottom: 6 }}>Foreman</div>
+                <SelectInput
+                    value={tableFilters.foreman_id}
+                    onChange={(e) => applyFilter('foreman_id', e.target.value)}
+                    style={filterControlStyle}
+                >
+                    <option value="">All foremen</option>
+                    {filterForemen.map((foreman) => (
+                        <option key={foreman.id} value={foreman.id}>{foreman.fullname}</option>
+                    ))}
+                </SelectInput>
+            </label>
+            <label>
+                <div style={{ fontSize: 12, marginBottom: 6 }}>Week from</div>
+                <DatePickerInput
+                    value={tableFilters.week_from}
+                    onChange={(value) => applyFilter('week_from', value)}
+                    style={filterControlStyle}
+                />
+            </label>
+            <label>
+                <div style={{ fontSize: 12, marginBottom: 6 }}>Week to</div>
+                <DatePickerInput
+                    value={tableFilters.week_to}
+                    onChange={(value) => applyFilter('week_to', value)}
+                    style={filterControlStyle}
+                />
+            </label>
+            <label>
+                <div style={{ fontSize: 12, marginBottom: 6 }}>Submitted from</div>
+                <DatePickerInput
+                    value={tableFilters.date_from}
+                    onChange={(value) => applyFilter('date_from', value)}
+                    style={filterControlStyle}
+                />
+            </label>
+            <label>
+                <div style={{ fontSize: 12, marginBottom: 6 }}>Submitted to</div>
+                <DatePickerInput
+                    value={tableFilters.date_to}
+                    onChange={(value) => applyFilter('date_to', value)}
+                    style={filterControlStyle}
+                />
+            </label>
+            {hasActiveFilters ? (
+                <ActionButton
+                    type="button"
+                    onClick={clearFilters}
+                    style={{ ...filterControlStyle, cursor: 'pointer' }}
+                >
+                    Clear filters
+                </ActionButton>
+            ) : null}
+        </div>
+    );
 
     const columns = [
         {
@@ -178,6 +303,7 @@ export default function WeeklyAccomplishmentsPage({
             <Head title="Weekly Accomplishments" />
             <Layout title="Weekly Accomplishments">
                 <div style={cardStyle}>
+                    {filterBar}
                     <ProjectAccordionTable
                         columns={columns}
                         rows={weeklyAccomplishments}
@@ -186,12 +312,13 @@ export default function WeeklyAccomplishmentsPage({
                         searchPlaceholder="Search weekly accomplishments..."
                         emptyMessage="No weekly accomplishments yet."
                         groupEmptyMessage="No accomplishments for this project."
-                        routePath="/weekly-accomplishments"
+                        routePath={routePath}
                         table={weeklyAccomplishmentTable}
                         groupPageSize={10}
                         expandAllGroups
                         statusOptions={statusFilters}
                         showGroupId={false}
+                        filters={tableFilters}
                     />
                 </div>
 

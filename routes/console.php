@@ -5,7 +5,9 @@ use App\Models\DeliveryConfirmation;
 use App\Models\IssueReport;
 use App\Models\MaterialRequest;
 use App\Models\ProgressPhoto;
+use App\Models\Project;
 use App\Models\WeeklyAccomplishment;
+use App\Services\BuildTrackerSeedService;
 use Illuminate\Foundation\Inspiring;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Carbon;
@@ -681,3 +683,84 @@ Artisan::command('fortress:backfill-issue-material-photos {--apply : Persist pho
         $this->info('Issue/material photo backfill apply mode complete.');
     }
 })->purpose('Backfill issue_reports/material_requests photo_path from matching progress photos');
+
+Artisan::command('fortress:seed-build-tracker {project? : Project id to seed. Omit to seed every Construction project.} {--contract= : Construction Contract amount} {--payment= : Total Client Payment amount} {--reset : Restore pre-seed defaults instead of seeding}', function () {
+    $service = app(BuildTrackerSeedService::class);
+
+    $projectArg = trim((string) $this->argument('project'));
+    $contractRaw = $this->option('contract');
+    $paymentRaw = $this->option('payment');
+    $reset = (bool) $this->option('reset');
+
+    $projectIds = $projectArg !== ''
+        ? [(int) $projectArg]
+        : Project::query()
+            ->where('phase', Project::PHASE_CONSTRUCTION)
+            ->pluck('id')
+            ->map(fn ($id) => (int) $id)
+            ->all();
+
+    if (empty($projectIds)) {
+        $this->error('No projects found to seed.');
+
+        return;
+    }
+
+    foreach ($projectIds as $projectId) {
+        if ($reset) {
+            if ($service->reset($projectId)) {
+                $this->info("Reset Build Tracker for project #{$projectId}.");
+            } else {
+                $this->error("Project #{$projectId} not found — skipping.");
+            }
+
+            continue;
+        }
+
+        $result = $service->seed(
+            $projectId,
+            $contractRaw !== null ? (float) $contractRaw : null,
+            $paymentRaw !== null ? (float) $paymentRaw : null
+        );
+
+        if (! $result['seeded']) {
+            $this->error("Project #{$projectId} not found — skipping.");
+
+            continue;
+        }
+
+        $this->info(sprintf(
+            'Seeded Build Tracker for project #%d (%s).',
+            $result['project_id'],
+            $result['project_name']
+        ));
+        $this->info(sprintf(
+            'Construction Contract: ₱ %s | Total Client Payment: ₱ %s | Payment progress: %.2f%%',
+            number_format($result['contract'], 2),
+            number_format($result['payment'], 2),
+            $result['payment_progress']
+        ));
+        $this->info(sprintf(
+            'Overall weighted progress: %.2f%% (computed from scope weights × progress).',
+            $result['overall_progress']
+        ));
+
+        if ($result['weight_mismatch']) {
+            $this->warn(sprintf(
+                'Scope weights sum to %.2f — expected 100.00.',
+                $result['total_weight']
+            ));
+        }
+
+        if (! empty($result['rows'])) {
+            $this->table(
+                ['Scope', 'Assigned', 'Contract', 'Weight', 'Progress', 'WT %', 'Accomp Amount'],
+                $result['rows']
+            );
+        }
+    }
+
+    if ($projectArg === '' && ! $reset) {
+        $this->comment('All Construction projects seeded. Pass a project id to target a single project.');
+    }
+})->purpose('Seed the Build Tracker (Construction Contract, Total Client Payment, Scope of Works) for one project or all Construction projects');

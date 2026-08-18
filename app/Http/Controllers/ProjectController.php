@@ -11,6 +11,7 @@ use App\Models\Project;
 use App\Models\ProjectWorker;
 use App\Models\User;
 use App\Services\ProjectService;
+use App\Services\PublicProgressService;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
 use Inertia\Inertia;
@@ -18,7 +19,8 @@ use Inertia\Inertia;
 class ProjectController extends Controller
 {
     public function __construct(
-        private readonly ProjectService $projectService
+        private readonly ProjectService $projectService,
+        private readonly PublicProgressService $publicProgressService
     ) {
     }
 
@@ -96,6 +98,11 @@ class ProjectController extends Controller
         $this->ensureConstructionAccess($request);
 
         $token = $this->projectService->resolveProjectReceiptToken($project);
+
+        if ($token === null) {
+            // No foreman assigned yet — render the receipt directly from the project.
+            return $this->publicProgressService->projectReceiptResponse($project);
+        }
 
         return redirect()->route('public.progress-receipt', ['token' => $token]);
     }
