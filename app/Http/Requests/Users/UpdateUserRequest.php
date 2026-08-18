@@ -24,7 +24,7 @@ class UpdateUserRequest extends FormRequest
             'fullname' => ['required', 'string', 'max:255'],
             'email' => ['required', 'email', 'unique:users,email,' . (int) $userId],
             'password' => ['nullable', 'string', 'min:6'],
-            'role' => ['required', Rule::in([User::ROLE_ADMIN, User::ROLE_HR, User::ROLE_FOREMAN, User::ROLE_DESIGNER])],
+            'role' => ['required', Rule::in($this->allowedRoles())],
             'birth_date' => [
                 'nullable',
                 'date',
@@ -51,5 +51,16 @@ class UpdateUserRequest extends FormRequest
             'phone' => ['nullable', 'string', 'max:50'],
             'address' => ['nullable', 'string', 'max:500'],
         ];
+    }
+
+    private function allowedRoles(): array
+    {
+        $roles = [User::ROLE_ADMIN, User::ROLE_HR, User::ROLE_FOREMAN, User::ROLE_DESIGNER];
+
+        if ($this->user()?->role === User::ROLE_MASTER_ADMIN) {
+            $roles[] = User::ROLE_HEAD_ADMIN;
+        }
+
+        return $roles;
     }
 }

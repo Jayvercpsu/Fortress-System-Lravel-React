@@ -20,7 +20,7 @@ class ReportService
 
     public function ensureAuthorized($user): void
     {
-        abort_unless($user instanceof User && $user->role === User::ROLE_HEAD_ADMIN, 403);
+        abort_unless($user instanceof User && in_array($user->role, [User::ROLE_HEAD_ADMIN, User::ROLE_MASTER_ADMIN], true), 403);
     }
 
     public function indexPayload(Request $request): array
@@ -153,7 +153,7 @@ class ReportService
             'unallocated_payroll_total' => round($unallocatedPayrollTotal, 2),
         ];
 
-        $page = $request->user()->role === User::ROLE_HEAD_ADMIN
+        $page = in_array($request->user()->role, [User::ROLE_HEAD_ADMIN, User::ROLE_MASTER_ADMIN], true)
             ? 'HeadAdmin/Reports/Index'
             : 'Admin/Reports/Index';
 

@@ -43,12 +43,12 @@ class KpiService
 
     public function index(Request $request)
     {
-        abort_unless(in_array($request->user()->role, [User::ROLE_HEAD_ADMIN, User::ROLE_ADMIN, User::ROLE_HR], true), 403);
+        abort_unless(in_array($request->user()->role, [User::ROLE_HEAD_ADMIN, User::ROLE_MASTER_ADMIN, User::ROLE_ADMIN, User::ROLE_HR], true), 403);
 
         $payload = $this->buildPayload($request);
 
         $page = match ($request->user()->role) {
-            User::ROLE_HEAD_ADMIN => 'HeadAdmin/Kpi',
+            User::ROLE_HEAD_ADMIN, User::ROLE_MASTER_ADMIN => 'HeadAdmin/Kpi',
             User::ROLE_ADMIN => 'Admin/Kpi',
             default => 'HR/Kpi',
         };
@@ -58,12 +58,12 @@ class KpiService
 
     public function print(Request $request)
     {
-        abort_unless(in_array($request->user()->role, [User::ROLE_HEAD_ADMIN, User::ROLE_ADMIN, User::ROLE_HR], true), 403);
+        abort_unless(in_array($request->user()->role, [User::ROLE_HEAD_ADMIN, User::ROLE_MASTER_ADMIN, User::ROLE_ADMIN, User::ROLE_HR], true), 403);
 
         $payload = $this->buildPayload($request);
 
         $page = match ($request->user()->role) {
-            User::ROLE_HEAD_ADMIN => 'HeadAdmin/KpiPrint',
+            User::ROLE_HEAD_ADMIN, User::ROLE_MASTER_ADMIN => 'HeadAdmin/KpiPrint',
             User::ROLE_ADMIN => 'Admin/KpiPrint',
             default => 'HR/KpiPrint',
         };
@@ -73,7 +73,7 @@ class KpiService
 
     public function export(Request $request)
     {
-        abort_unless(in_array($request->user()->role, [User::ROLE_HEAD_ADMIN, User::ROLE_ADMIN, User::ROLE_HR], true), 403);
+        abort_unless(in_array($request->user()->role, [User::ROLE_HEAD_ADMIN, User::ROLE_MASTER_ADMIN, User::ROLE_ADMIN, User::ROLE_HR], true), 403);
 
         $payload = $this->buildPayload($request);
         $csv = $this->buildCsv($payload);

@@ -38,6 +38,7 @@ export default function ProjectAccordionTable({
     groupPageSize = 5,
     expandAllGroups = false,
     statusOptions = [],
+    showGroupId = true,
 }) {
     const [searchDraft, setSearchDraft] = useState(String(table?.search ?? ''));
     const [expandedByGroup, setExpandedByGroup] = useState({});
@@ -308,7 +309,7 @@ export default function ProjectAccordionTable({
                                     <div style={{ display: 'grid', gap: 2, textAlign: 'left' }}>
                                         <div style={{ fontWeight: 700 }}>
                                             {group.project_name}
-                                            {group.project_id !== null && group.project_id !== undefined ? ` (ID: ${group.project_id})` : ''}
+                                            {showGroupId && group.project_id !== null && group.project_id !== undefined ? ` (ID: ${group.project_id})` : ''}
                                         </div>
                                         <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>
                                             {group.rows.length} record{group.rows.length === 1 ? '' : 's'}

@@ -504,6 +504,7 @@ class PublicProgressService
             ],
             'token' => $submitToken->token,
             'expires_at' => optional($submitToken->expires_at)?->toDateTimeString(),
+            'isClientPortal' => $request->user()?->role === User::ROLE_CLIENT,
         ]);
     }
 

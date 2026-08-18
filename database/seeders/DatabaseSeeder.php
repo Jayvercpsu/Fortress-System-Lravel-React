@@ -8,13 +8,19 @@ use Illuminate\Support\Facades\Hash;
 class DatabaseSeeder extends Seeder {
     public function run(): void {
         User::updateOrCreate([
+            'email'    => 'masteradmin@buildbooks.com',
+        ], [
+            'fullname' => 'Master Administrator',
+            'password' => Hash::make('password'),
+            'role'     => 'master_admin',
+        ]);
+
+        User::updateOrCreate([
             'email'    => 'headadmin@buildbooks.com',
         ], [
             'fullname' => 'Head Administrator',
             'password' => Hash::make('password'),
             'role'     => 'head_admin',
         ]);
-
-        $this->call(FortressBuildingFlowSeeder::class);
     }
 }

@@ -500,7 +500,7 @@ export default function MonitoringBoardIndexPage({
     department_pagination: departmentPagination = {},
 }) {
     const { auth } = usePage().props;
-    const isHeadAdmin = auth?.user?.role === 'head_admin';
+    const isHeadAdmin = ['head_admin', 'master_admin'].includes(auth?.user?.role);
     const resolvedStatusOptions = statusOptions.length > 0 ? statusOptions : ['PROPOSAL', 'IN_REVIEW', 'APPROVED', 'DONE'];
     const resolveOptionLabel = (option) => option?.label ?? option?.name ?? option?.fullname ?? String(option ?? '');
     const resolveOptionValue = (option) => option?.value ?? option?.label ?? option?.fullname ?? option?.name ?? option;

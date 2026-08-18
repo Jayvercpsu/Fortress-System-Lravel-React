@@ -20,7 +20,7 @@ class MonitoringBoardService
 
     public function ensureAuthorized(User $user): void
     {
-        abort_unless(in_array($user->role, [User::ROLE_HEAD_ADMIN, User::ROLE_ADMIN, User::ROLE_DESIGNER], true), 403);
+        abort_unless(in_array($user->role, [User::ROLE_HEAD_ADMIN, User::ROLE_MASTER_ADMIN, User::ROLE_ADMIN, User::ROLE_DESIGNER], true), 403);
     }
 
     public function indexPayload(User $user, array $departmentPages = [], array $departmentSizes = []): array
@@ -167,7 +167,7 @@ class MonitoringBoardService
 
     public function pageByRole(User $user): string
     {
-        return $user->role === User::ROLE_HEAD_ADMIN
+        return in_array($user->role, [User::ROLE_HEAD_ADMIN, User::ROLE_MASTER_ADMIN], true)
             ? 'HeadAdmin/MonitoringBoard/Index'
             : 'Admin/MonitoringBoard/Index';
     }

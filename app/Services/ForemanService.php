@@ -561,7 +561,9 @@ class ForemanService
 
     private function resolveAttendanceHours(array $entry): float
     {
-        $computedHours = isset($entry['hours']) ? (float) $entry['hours'] : 0.0;
+        $computedHours = isset($entry['hours']) && $entry['hours'] !== '' && $entry['hours'] !== null
+            ? (float) $entry['hours']
+            : null;
 
         if (!empty($entry['time_in']) && !empty($entry['time_out'])) {
             try {
@@ -576,7 +578,8 @@ class ForemanService
             }
         }
 
-        return $computedHours;
+        // Workers stay in at the site, so a logged day defaults to a full 8-hour day.
+        return $computedHours ?? 8.0;
     }
 
     private function attendanceTableQueryParams(Request $request): array

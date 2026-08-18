@@ -10,6 +10,7 @@ use App\Models\Expense;
 use App\Models\IssueReport;
 use App\Models\Material;
 use App\Models\MaterialRequest;
+use App\Models\MonitoringBoardDepartment;
 use App\Models\MonitoringBoardFile;
 use App\Models\MonitoringBoardItem;
 use App\Models\Payroll;
@@ -63,6 +64,8 @@ class FortressBuildingFlowSeeder extends Seeder
 
     public function run(): void
     {
+        $this->command?->warn('FortressBuildingFlowSeeder wipes all project data (users and user details are kept) before seeding the demo flow.');
+
         $this->cleanupDatabaseExceptUsersAndUserDetails();
         $this->ensureMaterialCategories();
 
@@ -385,6 +388,8 @@ class FortressBuildingFlowSeeder extends Seeder
             'total_received' => 250000.00,
             'office_payroll_deduction' => 18000.00,
             'design_progress' => 100,
+            'work_started_at' => '2026-02-18',
+            'work_completed_at' => '2026-03-05',
             'client_approval_status' => 'approved',
         ];
     }
@@ -397,6 +402,8 @@ class FortressBuildingFlowSeeder extends Seeder
             'total_received' => 160000.00,
             'office_payroll_deduction' => 12000.00,
             'design_progress' => 62,
+            'work_started_at' => '2026-03-01',
+            'work_completed_at' => null,
             'client_approval_status' => 'pending',
         ];
     }
@@ -431,10 +438,13 @@ class FortressBuildingFlowSeeder extends Seeder
 
     private function seedMonitoringBoardFlow(User $seedAdmin, array $assets, Project $designSourceProject, Project $eligibleDesignProject): void
     {
+        $this->ensureMonitoringBoardDepartments();
+
         $definitions = [
             [
                 'attributes' => [
-                    'department' => 'Autocad',
+                    'department' => 'Completed',
+                    'origin_department' => 'Autocad',
                     'client_name' => 'Fortress Property Holdings, Inc.',
                     'project_name' => self::PROJECT_NAME,
                     'project_type' => 'Commercial',
@@ -448,6 +458,7 @@ class FortressBuildingFlowSeeder extends Seeder
                     'progress_percent' => 100,
                     'remarks' => 'Proposal-stage deliverables are complete. This item already converted into the Design project and has an active transferred Construction duplicate.',
                     'project_id' => $designSourceProject->id,
+                    'completed_at' => '2026-01-28 16:55:00',
                     'converted_at' => '2026-01-28 16:55:00',
                     'created_by' => $seedAdmin->id,
                     'created_at' => '2026-01-05 09:00:00',
@@ -460,7 +471,8 @@ class FortressBuildingFlowSeeder extends Seeder
             ],
             [
                 'attributes' => [
-                    'department' => 'Architecture',
+                    'department' => 'Completed',
+                    'origin_department' => 'Architecture',
                     'client_name' => 'Civic Prime Developments, Inc.',
                     'project_name' => self::ELIGIBLE_DESIGN_PROJECT_NAME,
                     'project_type' => 'Institutional',
@@ -474,6 +486,7 @@ class FortressBuildingFlowSeeder extends Seeder
                     'progress_percent' => 100,
                     'remarks' => 'Converted from Monitoring Board to Design. Client approval is already Approved, but transfer to Construction has not been triggered yet.',
                     'project_id' => $eligibleDesignProject->id,
+                    'completed_at' => '2026-03-05 16:35:00',
                     'converted_at' => '2026-03-05 16:35:00',
                     'created_by' => $seedAdmin->id,
                     'created_at' => '2026-02-18 09:15:00',
@@ -610,6 +623,8 @@ class FortressBuildingFlowSeeder extends Seeder
             'total_received' => 180000.00,
             'office_payroll_deduction' => 15000.00,
             'design_progress' => 100,
+            'work_started_at' => '2026-01-05',
+            'work_completed_at' => '2026-01-28',
             'client_approval_status' => 'approved',
         ];
     }
@@ -1068,6 +1083,18 @@ class FortressBuildingFlowSeeder extends Seeder
         ];
     }
 
+    private function ensureMonitoringBoardDepartments(): void
+    {
+        $departments = ['Autocad', 'Architecture', 'Engineering', 'Planning'];
+
+        foreach ($departments as $department) {
+            MonitoringBoardDepartment::query()->updateOrCreate(
+                ['name' => $department],
+                ['name' => $department]
+            );
+        }
+    }
+
     private function ensureMaterialCategories(): void
     {
         $materials = [
@@ -1340,6 +1367,10 @@ class FortressBuildingFlowSeeder extends Seeder
         string $startDate,
         string $endDate
     ): PayrollCutoff {
+        $project = Project::query()->find($projectId);
+        $projectName = (string) ($project?->name ?? '');
+        $projectClient = (string) ($project?->client ?? '');
+
         $cutoff = PayrollCutoff::query()->firstOrCreate(
             ['start_date' => $startDate, 'end_date' => $endDate],
             ['status' => 'generated']
@@ -1365,6 +1396,9 @@ class FortressBuildingFlowSeeder extends Seeder
             Payroll::query()->create([
                 'user_id' => $payrollUser->id,
                 'cutoff_id' => $cutoff->id,
+                'project_id' => $projectId,
+                'project_name' => $projectName,
+                'project_client' => $projectClient,
                 'worker_name' => $row->worker_name,
                 'role' => $row->worker_role ?: 'Labor',
                 'hours' => $hours,
@@ -1430,13 +1464,14 @@ class FortressBuildingFlowSeeder extends Seeder
             'Fortress system demo flow guide',
             '',
             'Logins:',
+            '- Master Admin: masteradmin@buildbooks.com / password',
             '- Head Admin: headadmin@buildbooks.com / password',
             '- Demo Foreman: ' . self::PRIMARY_FOREMAN_EMAIL . ' / password',
             '- Demo Co-Foreman: ' . self::CO_FOREMAN_EMAIL . ' / password',
             '',
             'Monitoring Board demo records:',
-            '- Fortress Building | DONE | converted into the Design source project and already linked to a Construction duplicate.',
-            '- Fortress Civic Center | DONE | converted into a Design project that is approved and ready for manual transfer.',
+            '- Fortress Building | DONE | moved to the Completed department, converted into the Design source project, and already linked to a Construction duplicate.',
+            '- Fortress Civic Center | DONE | moved to the Completed department, converted into a Design project that is approved and ready for manual transfer.',
             '- Harbor View Dormitory | IN_REVIEW | active proposal-stage example.',
             '- Cebu Retail Arcade | PROPOSAL | early-stage proposal example.',
             '- Northpoint Logistics Hub | APPROVED | near-conversion example.',
@@ -1454,10 +1489,11 @@ class FortressBuildingFlowSeeder extends Seeder
             '3. Design progress is driven from design billing plus approval status, not from construction scopes.',
             '4. Approved Design projects can be manually transferred from the Kanban card into a duplicated Construction project.',
             '5. Construction progress is driven by project scopes, weekly accomplishments, attendance, uploads, expenses, and payments.',
-            '6. Construction projects can be manually transferred to Completed from the Kanban card.',
-            '7. Payroll uses attendance-based cutoffs with worker/foreman rates, deductions, release references, and payout status transitions.',
-            '8. Read-only project filters collapse lifecycle duplicates into one logical project selection.',
-            '9. Write-side project selectors still target the actual project row and now show the phase in the dropdown label.',
+            '6. Monitoring Board items that reach DONE move to the Completed department while keeping their origin department for tracking.',
+            '7. Construction projects can be manually transferred to Completed from the Kanban card.',
+            '8. Payroll is grouped per project: attendance-based cutoffs carry worker/foreman rates, deductions, release references, and payout status transitions.',
+            '9. Read-only project filters collapse lifecycle duplicates into one logical project selection.',
+            '10. Write-side project selectors still target the actual project row and now show the phase in the dropdown label.',
             '',
             'Public links:',
             '- Main Jotform flow: ' . $baseUrl . '/progress-submit/' . self::PRIMARY_TOKEN,

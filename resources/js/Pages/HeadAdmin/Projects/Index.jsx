@@ -4,7 +4,7 @@ import { Head, usePage } from '@inertiajs/react';
 
 export default function HeadAdminProjectsIndex({ projectBoard = {} }) {
     const { auth } = usePage().props;
-    const isHeadAdmin = auth?.user?.role === 'head_admin';
+    const isHeadAdmin = ['head_admin', 'master_admin'].includes(auth?.user?.role);
 
     return (
         <>

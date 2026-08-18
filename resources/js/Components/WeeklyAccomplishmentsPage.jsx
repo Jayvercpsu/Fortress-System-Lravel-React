@@ -191,6 +191,7 @@ export default function WeeklyAccomplishmentsPage({
                         groupPageSize={10}
                         expandAllGroups
                         statusOptions={statusFilters}
+                        showGroupId={false}
                     />
                 </div>
 

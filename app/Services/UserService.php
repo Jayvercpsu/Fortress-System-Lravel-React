@@ -26,7 +26,8 @@ class UserService
             $perPage = 10;
         }
 
-        $paginator = $this->userRepository->paginateForManagement($search, $perPage);
+        $managerRole = $request->user()?->role;
+        $paginator = $this->userRepository->paginateForManagement($search, $perPage, $managerRole);
 
         $users = collect($paginator->items())->map(fn (User $user) => [
             'id' => $user->id,
@@ -47,6 +48,7 @@ class UserService
                 'from' => $paginator->firstItem(),
                 'to' => $paginator->lastItem(),
             ],
+            'canManageHeadAdmins' => $managerRole === User::ROLE_MASTER_ADMIN,
         ];
     }
 

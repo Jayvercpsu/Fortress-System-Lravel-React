@@ -4,7 +4,6 @@ import ActionButton from '../../Components/ActionButton';
 import SearchableDropdown from '../../Components/SearchableDropdown';
 import Modal from '../../Components/Modal';
 import DatePickerInput from '../../Components/DatePickerInput';
-import TimeInput from '../../Components/TimeInput';
 import { Head, router } from '@inertiajs/react';
 import { useEffect, useMemo, useState } from 'react';
 import toast from 'react-hot-toast';
@@ -70,16 +69,6 @@ function getPhTodayLabel(nowValue = Date.now()) {
     }).format(new Date(nowValue));
 }
 
-function timeLabel(time) {
-    if (!time) return '-';
-    const raw = String(time).slice(0, 5);
-    const [hour, minute] = raw.split(':').map(Number);
-    if ([hour, minute].some((n) => Number.isNaN(n))) return raw;
-    const period = hour >= 12 ? 'PM' : 'AM';
-    const hour12 = hour % 12 || 12;
-    return `${String(hour12).padStart(2, '0')}:${String(minute).padStart(2, '0')} ${period}`;
-}
-
 export default function ForemanAttendance({
     projects = [],
     workers = [],
@@ -94,9 +83,7 @@ export default function ForemanAttendance({
         worker_name: '',
         worker_role: defaultRole,
         project_id: '',
-        time_in: '',
-        time_out: '',
-        hours: 0,
+        hours: 8,
     });
 
     const table = useMemo(
@@ -114,7 +101,7 @@ export default function ForemanAttendance({
     );
 
     const [rows, setRows] = useState([
-        { worker_name: '', worker_role: defaultRole, project_id: '', time_in: '', time_out: '', hours: 0 },
+        { worker_name: '', worker_role: defaultRole, project_id: '', hours: 8 },
     ]);
     const [clockTick, setClockTick] = useState(Date.now());
     const phTodayIso = useMemo(() => getPhDateIso(clockTick), [clockTick]);
@@ -167,17 +154,6 @@ export default function ForemanAttendance({
         return uniqueRoles.map((role) => ({ id: role, name: role }));
     }, [workerRoleOptions, workerOptions, attendances]);
 
-    const computeHours = (entry) => {
-        if (!entry?.time_in || !entry?.time_out) return null;
-        const [inHour, inMinute] = String(entry.time_in).split(':').map(Number);
-        const [outHour, outMinute] = String(entry.time_out).split(':').map(Number);
-        if ([inHour, inMinute, outHour, outMinute].some((n) => Number.isNaN(n))) return null;
-        const start = inHour * 60 + inMinute;
-        const end = outHour * 60 + outMinute;
-        if (end <= start) return null;
-        return Math.round(((end - start) / 60) * 10) / 10;
-    };
-
     const updateRow = (idx, field, value, option = null) => {
         setRows((prev) => {
             const next = [...prev];
@@ -195,14 +171,12 @@ export default function ForemanAttendance({
             if (field === 'worker_name' && option?.project_id && !next[idx].project_id) {
                 next[idx].project_id = String(option.project_id);
             }
-            const computed = computeHours(next[idx]);
-            if (computed !== null) next[idx].hours = computed;
             return next;
         });
     };
 
     const addRow = () =>
-        setRows((prev) => [...prev, { worker_name: '', worker_role: defaultRole, project_id: '', time_in: '', time_out: '', hours: 0 }]);
+        setRows((prev) => [...prev, { worker_name: '', worker_role: defaultRole, project_id: '', hours: 8 }]);
 
     const removeRow = (idx) => setRows((prev) => prev.filter((_, i) => i !== idx));
 
@@ -233,7 +207,12 @@ export default function ForemanAttendance({
             toast.error(toastMessages.attendance.addRowRequired);
             return;
         }
-        const payload = payloadRows.map(({ hours, ...row }) => row);
+        const payload = payloadRows.map((row) => ({
+            worker_name: row.worker_name,
+            worker_role: row.worker_role,
+            project_id: row.project_id || null,
+            hours: 8,
+        }));
 
         const params = new URLSearchParams(buildListParams());
         const qs = params.toString();
@@ -245,7 +224,7 @@ export default function ForemanAttendance({
                 preserveScroll: true,
                 onError: () => toast.error(toastMessages.attendance.submitError),
                 onSuccess: () => {
-                    setRows([{ worker_name: '', worker_role: defaultRole, project_id: '', time_in: '', time_out: '', hours: 0 }]);
+                    setRows([{ worker_name: '', worker_role: defaultRole, project_id: '', hours: 8 }]);
                     toast.success(toastMessages.attendance.submitSuccess);
                 },
             }
@@ -258,19 +237,12 @@ export default function ForemanAttendance({
             worker_name: row.worker_name ?? '',
             worker_role: row.worker_role ?? defaultRole,
             project_id: row.project_id ? String(row.project_id) : '',
-            time_in: row.time_in ? String(row.time_in).slice(0, 5) : '',
-            time_out: row.time_out ? String(row.time_out).slice(0, 5) : '',
-            hours: Number(row.hours ?? 0),
+            hours: 8,
         });
     };
 
     const updateEditRow = (field, value) => {
-        setEditRow((prev) => {
-            const next = { ...prev, [field]: value };
-            const computed = computeHours(next);
-            if (computed !== null) next.hours = computed;
-            return next;
-        });
+        setEditRow((prev) => ({ ...prev, [field]: value }));
     };
 
     const saveEdit = (rowId) => {
@@ -283,8 +255,7 @@ export default function ForemanAttendance({
                 worker_name: editRow.worker_name,
                 worker_role: editRow.worker_role,
                 project_id: editRow.project_id || null,
-                time_in: editRow.time_in || null,
-                time_out: editRow.time_out || null,
+                hours: 8,
             },
             {
                 preserveScroll: true,
@@ -345,17 +316,11 @@ export default function ForemanAttendance({
             searchAccessor: (row) => row.project_name,
         },
         {
-            key: 'time',
-            label: 'Time In/Out',
-            width: 190,
-            render: (row) => `${timeLabel(row.time_in)} - ${timeLabel(row.time_out)}`,
-        },
-        {
             key: 'hours',
             label: 'Hours',
             width: 90,
             align: 'right',
-            render: (row) => <div style={{ fontWeight: 700 }}>{Number(row.hours || 0).toFixed(1)}</div>,
+            render: (row) => <div style={{ fontWeight: 700 }}>{Number(row.hours ?? 8).toFixed(1)}</div>,
             searchAccessor: (row) => row.hours,
         },
         {
@@ -368,8 +333,6 @@ export default function ForemanAttendance({
                     <ActionButton type="button" variant="edit" onClick={() => startEdit(row)}>
                         Edit
                     </ActionButton>
-                ) : row.is_foreman_self_log && row.date === phTodayIso && !row.time_out ? (
-                    <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>Use Time Out</span>
                 ) : (
                     <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>Locked</span>
                 ),
@@ -407,7 +370,7 @@ export default function ForemanAttendance({
                         <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: 12 }}>
                             <thead>
                                 <tr>
-                                    {['Company / Project', 'Worker Name', 'Role', 'Time In', 'Time Out', ''].map((h, i) => (
+                                    {['Company / Project', 'Worker Name', 'Role', ''].map((h, i) => (
                                         <th
                                             key={i}
                                             style={{
@@ -476,20 +439,6 @@ export default function ForemanAttendance({
                                             </div>
                                         </td>
                                         <td style={{ padding: '6px 8px' }}>
-                                        <TimeInput
-                                            value={entry.time_in ?? ''}
-                                            onChange={(value) => updateRow(idx, 'time_in', value || '')}
-                                            style={{ ...inputStyle, minWidth: 110 }}
-                                        />
-                                        </td>
-                                        <td style={{ padding: '6px 8px' }}>
-                                        <TimeInput
-                                            value={entry.time_out ?? ''}
-                                            onChange={(value) => updateRow(idx, 'time_out', value || '')}
-                                            style={{ ...inputStyle, minWidth: 110 }}
-                                        />
-                                        </td>
-                                        <td style={{ padding: '6px 8px' }}>
                                             {rows.length > 1 && (
                                                 <ActionButton type="button" variant="danger" onClick={() => removeRow(idx)}>
                                                     Delete
@@ -503,7 +452,7 @@ export default function ForemanAttendance({
 
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
                             <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
-                                Hours are auto-calculated when both Time In and Time Out are provided.
+                                Workers stay in at the site, so each listed worker is counted as a full 8-hour day for payroll.
                                 {workerOptions.length === 0 ? ' Ask HR to add workers for your site to use the worker dropdown.' : ''}
                             </div>
                             <div style={{ display: 'flex', gap: 8 }}>
@@ -638,27 +587,8 @@ export default function ForemanAttendance({
                             />
                         </div>
 
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                            <div>
-                                <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 6 }}>Time In</div>
-                                <TimeInput
-                                    value={editRow.time_in ?? ''}
-                                    onChange={(value) => updateEditRow('time_in', value || '')}
-                                    style={inputStyle}
-                                />
-                            </div>
-                            <div>
-                                <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 6 }}>Time Out</div>
-                                <TimeInput
-                                    value={editRow.time_out ?? ''}
-                                    onChange={(value) => updateEditRow('time_out', value || '')}
-                                    style={inputStyle}
-                                />
-                            </div>
-                        </div>
-
                         <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
-                            Hours are auto-calculated when both Time In and Time Out are provided.
+                            Workers stay in at the site, so this entry is counted as a full 8-hour day for payroll.
                         </div>
 
                         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>

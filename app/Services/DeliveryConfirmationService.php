@@ -93,7 +93,7 @@ class DeliveryConfirmationService
             ])
             ->values();
 
-        $page = $request->user()->role === User::ROLE_HEAD_ADMIN
+        $page = in_array($request->user()->role, [User::ROLE_HEAD_ADMIN, User::ROLE_MASTER_ADMIN], true)
             ? 'HeadAdmin/Delivery/Index'
             : 'Admin/Delivery/Index';
 

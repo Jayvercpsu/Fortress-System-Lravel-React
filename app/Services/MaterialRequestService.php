@@ -93,7 +93,7 @@ class MaterialRequestService
             ])
             ->values();
 
-        $page = $request->user()->role === User::ROLE_HEAD_ADMIN
+        $page = in_array($request->user()->role, [User::ROLE_HEAD_ADMIN, User::ROLE_MASTER_ADMIN], true)
             ? 'HeadAdmin/Materials/Index'
             : 'Admin/Materials/Index';
 

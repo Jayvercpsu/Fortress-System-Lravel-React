@@ -6,9 +6,7 @@ import ActionButton from '../../Components/ActionButton';
 import Modal from '../../Components/Modal';
 import { Head, Link, router } from '@inertiajs/react';
 import { Fragment, useEffect, useMemo, useState } from 'react';
-import toast from 'react-hot-toast';
 import OptimizedImage from '../../Components/OptimizedImage';
-import { toastMessages } from '../../constants/toastMessages';
 import { formatYmd, formatYmdHmAmPm } from '../../Utils/dateTimeFormat';
 
 const cardStyle = {
@@ -31,35 +29,6 @@ const inputStyle = {
 };
 
 const mono = { fontFamily: "'DM Mono', monospace" };
-const PH_TIMEZONE =
-    typeof window !== 'undefined' && window.__APP_TIMEZONE ? window.__APP_TIMEZONE : 'Asia/Manila';
-
-function getPhNowParts(nowValue = Date.now()) {
-    const parts = new Intl.DateTimeFormat('en-US', {
-        timeZone: PH_TIMEZONE,
-        hour: '2-digit',
-        minute: '2-digit',
-        second: '2-digit',
-        hour12: false,
-    }).formatToParts(new Date(nowValue));
-
-    const read = (type) => Number(parts.find((p) => p.type === type)?.value ?? 0);
-
-    return {
-        hour: read('hour'),
-        minute: read('minute'),
-    };
-}
-
-function timeLabel12(time) {
-    if (!time) return '-';
-    const raw = String(time).slice(0, 5);
-    const [hour, minute] = raw.split(':').map(Number);
-    if ([hour, minute].some((n) => Number.isNaN(n))) return raw;
-    const period = hour >= 12 ? 'PM' : 'AM';
-    const hour12 = hour % 12 || 12;
-    return `${String(hour12).padStart(2, '0')}:${String(minute).padStart(2, '0')} ${period}`;
-}
 
 function StatCard({ label, value, color = 'var(--text-main)', subtext }) {
     return (
@@ -92,16 +61,8 @@ export default function ForemanDashboard({
     progressPhotos = [],
     weeklyAccomplishmentsByProjectFilters = null,
 }) {
-    const [foremanProjectId, setForemanProjectId] = useState(
-        foremanAttendanceToday?.project_id ? String(foremanAttendanceToday.project_id) : ''
-    );
-    const [clockTick, setClockTick] = useState(Date.now());
     const [dashboardPreviewPhoto, setDashboardPreviewPhoto] = useState(null);
 
-    const projectOptions = useMemo(
-        () => (Array.isArray(projects) ? projects.map((project) => ({ id: String(project.id), name: project.label || project.name })) : []),
-        [projects]
-    );
     const projectFilterOptions = useMemo(
         () => (Array.isArray(projectFilters) ? projectFilters.map((project) => ({ id: String(project.id), name: project.label || project.name })) : []),
         [projectFilters]
@@ -119,16 +80,6 @@ export default function ForemanDashboard({
     const [weeklyProjectWeek, setWeeklyProjectWeek] = useState(
         String(weeklyAccomplishmentsByProjectFilters?.latest_week_start || '')
     );
-
-    useEffect(() => {
-        setForemanProjectId(foremanAttendanceToday?.project_id ? String(foremanAttendanceToday.project_id) : '');
-    }, [foremanAttendanceToday?.project_id]);
-
-    useEffect(() => {
-        if (!foremanAttendanceToday?.time_in || foremanAttendanceToday?.time_out) return;
-        const timer = window.setInterval(() => setClockTick(Date.now()), 1000);
-        return () => window.clearInterval(timer);
-    }, [foremanAttendanceToday?.time_in, foremanAttendanceToday?.time_out]);
 
     useEffect(() => {
         setWeeklyProjectId(String(weeklyAccomplishmentsByProjectFilters?.project_id || ''));
@@ -187,66 +138,6 @@ export default function ForemanDashboard({
         setDashboardPreviewPhoto(null);
     };
 
-    const foremanLiveHours = useMemo(() => {
-        const timeIn = foremanAttendanceToday?.time_in;
-        if (!timeIn) {
-            return { decimal: Number(foremanAttendanceToday?.hours ?? 0), label: '-', isLive: false };
-        }
-
-        const [inHour, inMinute] = String(timeIn).slice(0, 5).split(':').map(Number);
-        if ([inHour, inMinute].some((n) => Number.isNaN(n))) {
-            return { decimal: Number(foremanAttendanceToday?.hours ?? 0), label: '-', isLive: false };
-        }
-
-        const startTotalMinutes = inHour * 60 + inMinute;
-        let endTotalMinutes = (() => {
-            const phNow = getPhNowParts(clockTick);
-            return phNow.hour * 60 + phNow.minute;
-        })();
-
-        if (foremanAttendanceToday?.time_out) {
-            const [outHour, outMinute] = String(foremanAttendanceToday.time_out).slice(0, 5).split(':').map(Number);
-            if (![outHour, outMinute].some((n) => Number.isNaN(n))) {
-                endTotalMinutes = outHour * 60 + outMinute;
-            }
-        }
-
-        const totalMinutes = Math.max(0, endTotalMinutes - startTotalMinutes);
-        const decimal = Math.round((totalMinutes / 60) * 10) / 10;
-        const hours = Math.floor(totalMinutes / 60);
-        const minutes = totalMinutes % 60;
-
-        return {
-            decimal,
-            label: hours > 0 ? `${hours}h ${String(minutes).padStart(2, '0')}m` : `${minutes}m`,
-            isLive: !foremanAttendanceToday?.time_out,
-        };
-    }, [foremanAttendanceToday?.time_in, foremanAttendanceToday?.time_out, foremanAttendanceToday?.hours, clockTick]);
-
-    const submitForemanTimeIn = () => {
-        if (!foremanProjectId) {
-            toast.error(toastMessages.foremanDashboard.selectProject);
-            return;
-        }
-        router.post(
-            '/foreman/attendance/time-in',
-            { project_id: foremanProjectId },
-            {
-                preserveScroll: true,
-                onSuccess: () => toast.success(toastMessages.foremanDashboard.timeInSuccess),
-                onError: () => toast.error(toastMessages.foremanDashboard.timeInError),
-            }
-        );
-    };
-
-    const submitForemanTimeOut = () => {
-        router.post('/foreman/attendance/time-out', {}, {
-            preserveScroll: true,
-            onSuccess: () => toast.success(toastMessages.foremanDashboard.timeOutSuccess),
-            onError: () => toast.error(toastMessages.foremanDashboard.timeOutError),
-        });
-    };
-
     const pendingMaterials = materialRequests.filter((item) => String(item.status).toLowerCase() === 'pending').length;
     const openIssues = issueReports.filter((item) => String(item.status).toLowerCase() === 'open').length;
 
@@ -258,10 +149,10 @@ export default function ForemanDashboard({
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
                         <StatCard label="Assigned Projects" value={assignedProjects.length} color="#60a5fa" />
                         <StatCard
-                            label="My Attendance"
-                            value={foremanAttendanceToday ? (foremanAttendanceToday.time_out ? 'Timed Out' : 'Timed In') : 'Not Started'}
-                            color={foremanAttendanceToday ? (foremanAttendanceToday.time_out ? '#4ade80' : '#fbbf24') : '#f87171'}
-                            subtext={foremanAttendanceToday ? `Hours: ${Number(foremanLiveHours.decimal || 0).toFixed(1)}` : 'Record your time-in'}
+                            label="Attendance Logs"
+                            value={attendances.length}
+                            color="#fbbf24"
+                            subtext="Mark workers present from the Attendance page"
                         />
                         <StatCard label="Pending Materials (recent)" value={pendingMaterials} color="#fbbf24" />
                         <StatCard label="Open Issues (recent)" value={openIssues} color="#f87171" />
@@ -269,73 +160,31 @@ export default function ForemanDashboard({
 
                     <div className="grid grid-cols-1 lg:[grid-template-columns:1.3fr_1fr] gap-3">
                         <div style={cardStyle}>
-                            <div style={{ fontWeight: 700, marginBottom: 10 }}>Foreman Attendance</div>
+                            <div style={{ fontWeight: 700, marginBottom: 10 }}>Daily Attendance</div>
                             <div
-                                className="grid grid-cols-1 sm:grid-cols-2 lg:[grid-template-columns:minmax(220px,1.4fr)_repeat(3,minmax(90px,auto))_auto_auto] gap-2 lg:items-center"
                                 style={{
                                     border: '1px solid var(--border-color)',
                                     borderRadius: 10,
                                     padding: 12,
                                     background: 'var(--surface-2)',
+                                    display: 'grid',
+                                    gap: 10,
                                 }}
                             >
-                                <div>
-                                    <div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: 4 }}>Project</div>
-                                    {foremanAttendanceToday ? (
-                                        <div style={{ fontWeight: 600 }}>{foremanAttendanceToday.project_name || '-'}</div>
-                                    ) : (
-                                        <SearchableDropdown
-                                            options={projectOptions}
-                                            value={foremanProjectId}
-                                            onChange={(value) => setForemanProjectId(value || '')}
-                                            getOptionLabel={(option) => option.name}
-                                            getOptionValue={(option) => option.id}
-                                            placeholder="Select project"
-                                            searchPlaceholder="Search projects..."
-                                            emptyMessage="No projects found"
-                                            style={{ ...inputStyle, minHeight: 36, padding: '6px 8px' }}
-                                            dropdownWidth={320}
-                                        />
-                                    )}
+                                <div style={{ fontSize: 13, color: 'var(--text-muted)', lineHeight: 1.6 }}>
+                                    Workers stay in at the site, so there is no time in / time out. Just list the workers
+                                    present in the Attendance page each day — each entry counts as a full 8-hour day and
+                                    payroll is generated automatically from the list.
                                 </div>
-
-                                <div>
-                                    <div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Time In</div>
-                                    <div style={mono}>{timeLabel12(foremanAttendanceToday?.time_in)}</div>
+                                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                                    <ActionButton
+                                        href="/foreman/attendance"
+                                        variant="view"
+                                        style={{ padding: '8px 12px', fontSize: 13 }}
+                                    >
+                                        Open Attendance
+                                    </ActionButton>
                                 </div>
-                                <div>
-                                    <div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Time Out</div>
-                                    <div style={mono}>{timeLabel12(foremanAttendanceToday?.time_out)}</div>
-                                </div>
-                                <div>
-                                    <div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Hours</div>
-                                    <div style={{ ...mono, fontWeight: 700 }}>{Number(foremanLiveHours.decimal || 0).toFixed(1)}</div>
-                                    <div style={{ fontSize: 11, color: foremanLiveHours.isLive ? '#4ade80' : 'var(--text-muted)' }}>
-                                        {foremanLiveHours.label}{foremanLiveHours.isLive ? ' (live)' : ''}
-                                    </div>
-                                </div>
-
-                                <ActionButton
-                                    type="button"
-                                    variant="neutral"
-                                    onClick={submitForemanTimeIn}
-                                    disabled={!!foremanAttendanceToday || !foremanProjectId}
-                                    style={{ padding: '8px 12px', fontSize: 13 }}
-                                >
-                                    Time In
-                                </ActionButton>
-                                <ActionButton
-                                    type="button"
-                                    variant="success"
-                                    onClick={submitForemanTimeOut}
-                                    disabled={!foremanAttendanceToday || !!foremanAttendanceToday?.time_out}
-                                    style={{ padding: '8px 12px', fontSize: 13 }}
-                                >
-                                    Time Out
-                                </ActionButton>
-                            </div>
-                            <div style={{ marginTop: 8, fontSize: 12, color: 'var(--text-muted)' }}>
-                                Worker attendance is handled in the Attendance page. Dashboard only tracks your self attendance.
                             </div>
                         </div>
 
@@ -370,7 +219,7 @@ export default function ForemanDashboard({
                             >
                                 <div style={{ fontWeight: 700 }}>Open Worker Attendance</div>
                                 <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
-                                    Record workers&apos; time in/out for payroll computation
+                                    List workers present — payroll is computed automatically
                                 </div>
                             </Link>
                             <Link

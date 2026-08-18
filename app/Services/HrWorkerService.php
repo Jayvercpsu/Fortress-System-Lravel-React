@@ -23,7 +23,7 @@ class HrWorkerService
 
     public function ensureAuthorized(User $user): void
     {
-        abort_unless(in_array($user->role, [User::ROLE_HR, User::ROLE_HEAD_ADMIN], true), 403);
+        abort_unless(in_array($user->role, [User::ROLE_HR, User::ROLE_HEAD_ADMIN, User::ROLE_MASTER_ADMIN], true), 403);
     }
 
     public function indexPayload(Request $request): array

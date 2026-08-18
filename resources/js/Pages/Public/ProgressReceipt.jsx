@@ -1,4 +1,4 @@
-﻿import { Head } from '@inertiajs/react';
+﻿import { Head, router } from '@inertiajs/react';
 import OptimizedImage from '../../Components/OptimizedImage';
 import {
     AlertTriangle,
@@ -8,6 +8,7 @@ import {
     FolderKanban,
     ImageIcon,
     Link2,
+    LogOut,
     Printer,
 } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
@@ -148,6 +149,7 @@ export default function ProgressReceipt({
     issue_summary: issueSummary = { open: 0, resolved: 0 },
     token,
     expires_at: expiresAt,
+    isClientPortal = false,
 }) {
     // Photo preview state is scoped to the clicked scope row so Prev/Next stays within that row.
     const [photoPreview, setPhotoPreview] = useState(null);
@@ -256,6 +258,39 @@ export default function ProgressReceipt({
                         font-family:'DM Sans', sans-serif;
                     }
                     .receipt-shell{max-width:1380px;margin:0 auto}
+                    .receipt-portal-bar{
+                        display:flex;
+                        align-items:center;
+                        justify-content:space-between;
+                        gap:12px;
+                        margin-bottom:16px;
+                        padding:10px 14px;
+                        border:1px solid var(--border-color);
+                        border-radius:14px;
+                        background:rgba(255,252,246,0.92);
+                        box-shadow:0 10px 24px rgba(117,93,54,0.06);
+                    }
+                    .receipt-portal-bar-title{
+                        display:flex;
+                        align-items:center;
+                        gap:8px;
+                        font-size:13px;
+                        font-weight:700;
+                        color:var(--text-main);
+                    }
+                    .receipt-portal-logout{
+                        display:inline-flex;
+                        align-items:center;
+                        gap:6px;
+                        border:1px solid var(--border-color);
+                        background:var(--button-bg);
+                        color:#8a3c3c;
+                        border-radius:999px;
+                        padding:6px 14px;
+                        font-size:12px;
+                        font-weight:700;
+                        cursor:pointer;
+                    }
                     .receipt-screen{display:block}
                     .receipt-print-layout{display:none}
                     .receipt-hero{
@@ -773,6 +808,22 @@ export default function ProgressReceipt({
                     }
                 `}</style>
                 <div className="receipt-shell">
+                    {isClientPortal ? (
+                        <div className="receipt-portal-bar">
+                            <div className="receipt-portal-bar-title">
+                                <FolderKanban size={15} />
+                                Client Portal
+                            </div>
+                            <button
+                                type="button"
+                                className="receipt-portal-logout"
+                                onClick={() => router.post('/logout')}
+                            >
+                                <LogOut size={14} />
+                                Logout
+                            </button>
+                        </div>
+                    ) : null}
                     <div className="receipt-screen">
                     <section className="receipt-hero">
                         <div>

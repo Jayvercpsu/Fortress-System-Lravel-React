@@ -9,9 +9,16 @@ use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 
 class UserRepository implements UserRepositoryInterface
 {
-    public function paginateForManagement(string $search, int $perPage): LengthAwarePaginator
+    public function paginateForManagement(string $search, int $perPage, ?string $managerRole = null): LengthAwarePaginator
     {
-        $query = User::query()->whereNotIn('role', [User::ROLE_HEAD_ADMIN, User::ROLE_CLIENT]);
+        // Master admins are never managed from the Users page. Head admins are
+        // only visible to the master admin, who owns and manages them.
+        $excludedRoles = [User::ROLE_MASTER_ADMIN, User::ROLE_CLIENT];
+        if ($managerRole !== User::ROLE_MASTER_ADMIN) {
+            $excludedRoles[] = User::ROLE_HEAD_ADMIN;
+        }
+
+        $query = User::query()->whereNotIn('role', $excludedRoles);
 
         if ($search !== '') {
             $query->where(function ($builder) use ($search) {

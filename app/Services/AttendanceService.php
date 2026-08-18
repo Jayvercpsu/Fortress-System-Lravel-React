@@ -31,7 +31,7 @@ class AttendanceService
 
     public function pageByRole(User $user, string $suffix): string
     {
-        return $user->role === User::ROLE_HEAD_ADMIN
+        return in_array($user->role, [User::ROLE_HEAD_ADMIN, User::ROLE_MASTER_ADMIN], true)
             ? "HeadAdmin/Attendance/{$suffix}"
             : "Admin/Attendance/{$suffix}";
     }

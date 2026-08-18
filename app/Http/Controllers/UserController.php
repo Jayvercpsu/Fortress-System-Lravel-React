@@ -22,21 +22,23 @@ class UserController extends Controller
         ]);
     }
 
-    public function create()
+    public function create(Request $request)
     {
         return Inertia::render('HeadAdmin/Users/Create', [
             'user' => $this->userService->userFormPayload(new User()),
+            'canManageHeadAdmins' => $this->canManageHeadAdmins($request),
         ]);
     }
 
-    public function edit(User $user)
+    public function edit(Request $request, User $user)
     {
-        if (in_array($user->role, [User::ROLE_HEAD_ADMIN, User::ROLE_CLIENT], true)) abort(403);
+        $this->assertUserManageable($request, $user);
 
         $loadedUser = $this->userService->loadUserForEdit($user);
 
         return Inertia::render('HeadAdmin/Users/Edit', [
             'user' => $this->userService->userFormPayload($loadedUser),
+            'canManageHeadAdmins' => $this->canManageHeadAdmins($request),
         ]);
     }
 
@@ -49,7 +51,7 @@ class UserController extends Controller
 
     public function update(UpdateUserRequest $request, User $user)
     {
-        if (in_array($user->role, [User::ROLE_HEAD_ADMIN, User::ROLE_CLIENT], true)) abort(403);
+        $this->assertUserManageable($request, $user);
 
         $this->userService->updateUser($user, $request->validated());
 
@@ -60,12 +62,35 @@ class UserController extends Controller
 
     public function destroy(Request $request, User $user)
     {
-        if (in_array($user->role, [User::ROLE_HEAD_ADMIN, User::ROLE_CLIENT], true)) abort(403);
+        $this->assertUserManageable($request, $user);
 
         $this->userService->deleteUser($user);
 
         return redirect()
             ->route('users.index', $this->userService->tableQueryParams($request))
             ->with('success', __('messages.users.deleted'));
+    }
+
+    private function canManageHeadAdmins(Request $request): bool
+    {
+        return $request->user()?->role === User::ROLE_MASTER_ADMIN;
+    }
+
+    private function assertUserManageable(Request $request, User $target): void
+    {
+        // Master admins are never editable or deletable by anyone.
+        if ($target->role === User::ROLE_MASTER_ADMIN) {
+            abort(403);
+        }
+
+        // Clients are managed from the Clients page, not here.
+        if ($target->role === User::ROLE_CLIENT) {
+            abort(403);
+        }
+
+        // Only the master admin can manage head admin accounts.
+        if ($target->role === User::ROLE_HEAD_ADMIN && !$this->canManageHeadAdmins($request)) {
+            abort(403);
+        }
     }
 }

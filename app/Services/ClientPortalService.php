@@ -23,6 +23,17 @@ class ClientPortalService
     ) {
     }
 
+    public function latestClientProject(User $client): ?Project
+    {
+        $assignment = $this->clientPortalRepository->latestClientAssignment((int) $client->id);
+        $projectId = (int) ($assignment?->project_id ?? 0);
+        if ($projectId <= 0) {
+            return null;
+        }
+
+        return Project::query()->find($projectId);
+    }
+
     public function dashboardPayload(Request $request): array
     {
         $client = $request->user();

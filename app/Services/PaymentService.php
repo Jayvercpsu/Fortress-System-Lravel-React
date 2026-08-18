@@ -11,7 +11,7 @@ use Illuminate\Http\Request;
 class PaymentService
 {
     private const ALLOWED_PER_PAGE = [5, 10, 25, 50];
-    private const MANAGE_ROLES = [User::ROLE_HEAD_ADMIN, User::ROLE_ADMIN, User::ROLE_HR];
+    private const MANAGE_ROLES = [User::ROLE_HEAD_ADMIN, User::ROLE_MASTER_ADMIN, User::ROLE_ADMIN, User::ROLE_HR];
 
     public function __construct(
         private readonly PaymentRepositoryInterface $paymentRepository
@@ -73,7 +73,7 @@ class PaymentService
 
     public function pageByRole(User $user): string
     {
-        return $user->role === User::ROLE_HEAD_ADMIN
+        return in_array($user->role, [User::ROLE_HEAD_ADMIN, User::ROLE_MASTER_ADMIN], true)
             ? 'HeadAdmin/Projects/Payments'
             : 'HR/ProjectPayments';
     }

@@ -32,7 +32,7 @@ export default function ProjectFinancialsPage({ project }) {
     const { auth } = usePage().props;
     const role = auth?.user?.role;
     const isHr = role === 'hr';
-    const isAdminOrHead = role === 'admin' || role === 'head_admin';
+    const isAdminOrHead = ['admin', 'head_admin', 'master_admin'].includes(role);
     const status = String(project?.status || '').trim().toLowerCase();
     const isLocked = status === 'completed' || status === 'cancelled';
 

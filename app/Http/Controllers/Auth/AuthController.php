@@ -96,7 +96,7 @@ class AuthController extends Controller {
 
     private function redirectByRole(string $role) {
         return match($role) {
-            User::ROLE_HEAD_ADMIN => redirect()->route('head_admin.dashboard'),
+            User::ROLE_MASTER_ADMIN, User::ROLE_HEAD_ADMIN => redirect()->route('head_admin.dashboard'),
             User::ROLE_ADMIN      => redirect()->route('admin.dashboard'),
             User::ROLE_HR         => redirect()->route('hr.dashboard'),
             User::ROLE_FOREMAN    => redirect()->route('foreman.dashboard'),

@@ -149,7 +149,7 @@ export default function HeadAdminProjectsShow({
 }) {
     const { errors: pageErrors, auth } = usePage().props;
     const role = auth?.user?.role;
-    const isHeadAdmin = role === 'head_admin';
+    const isHeadAdmin = ['head_admin', 'master_admin'].includes(role);
     const [tab, setTab] = useState(() => {
         const active = new URLSearchParams(window.location.search).get('tab');
         return ['overview', 'files', 'updates'].includes(active) ? active : 'overview';
@@ -291,7 +291,7 @@ export default function HeadAdminProjectsShow({
     const canTransferToConstructionFlag = project?.can_transfer_to_construction;
     const canTransferToCompletedFlag = project?.can_transfer_to_completed;
     const hasTransferredConstruction = Boolean(project?.transfer_to_construction_used);
-    const canManageTransfers = ['head_admin', 'admin'].includes(role);
+    const canManageTransfers = ['head_admin', 'admin', 'master_admin'].includes(role);
     const canTransferToConstruction =
         canTransferToConstructionFlag ?? (phaseKey === 'design' && statusKey === 'completed' && !hasTransferredConstruction && !project?.source_project_id);
     const canTransferToCompleted = canTransferToCompletedFlag ?? ['design', 'construction'].includes(phaseKey);

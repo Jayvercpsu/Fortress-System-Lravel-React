@@ -37,10 +37,13 @@ function Field({ label, error, children }) {
     );
 }
 
-export default function UserFormPage({ mode = 'create', user = {} }) {
+export default function UserFormPage({ mode = 'create', user = {}, canManageHeadAdmins = false }) {
     const isEdit = mode === 'edit';
     const queryRole = typeof window === 'undefined' ? '' : new URLSearchParams(window.location.search).get('role') || '';
-    const normalizedRole = ['admin', 'hr', 'foreman', 'designer'].includes(String(queryRole).toLowerCase())
+    const allowedQueryRoles = canManageHeadAdmins
+        ? ['admin', 'hr', 'foreman', 'designer', 'head_admin']
+        : ['admin', 'hr', 'foreman', 'designer'];
+    const normalizedRole = allowedQueryRoles.includes(String(queryRole).toLowerCase())
         ? String(queryRole).toLowerCase()
         : '';
 
@@ -107,6 +110,9 @@ export default function UserFormPage({ mode = 'create', user = {} }) {
 
                             <Field label="Role" error={errors.role}>
                                 <SelectInput value={data.role} onChange={(e) => setData('role', e.target.value)} style={inputStyle}>
+                                    {canManageHeadAdmins ? (
+                                        <option value="head_admin">Head Admin</option>
+                                    ) : null}
                                     <option value="admin">Admin</option>
                                     <option value="hr">HR</option>
                                     <option value="foreman">Foreman</option>

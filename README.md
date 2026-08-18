@@ -27,6 +27,11 @@ You are free to use, modify, and distribute this software with proper attributio
  
 🔐 LOGIN CREDENTIALS
 
+Master Admin (owner account — manages head admins)
+Email - masteradmin@buildbooks.com
+Pass - password
+Role - Master Admin 
+
 Email - headadmin@buildbooks.com
 Pass - password
 Role - Head Admin 
@@ -35,7 +40,8 @@ foreman account
 email jayjay@gmail.com
 pass jayjay@gmail.com123
 
-> Head Admin creates all other users from the dashboard.
+> Head Admin creates all other users from the dashboard. Master Admin is the only
+> role that can create/edit/delete Head Admin accounts.
  
 
 🚀 RUNNING THE PROJECT LOCALLY

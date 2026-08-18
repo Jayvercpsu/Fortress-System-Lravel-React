@@ -42,7 +42,7 @@ class ProjectController extends Controller
 
     public function create(Request $request)
     {
-        abort_unless($request->user()->role === User::ROLE_HEAD_ADMIN, 403);
+        abort_unless(in_array($request->user()->role, [User::ROLE_HEAD_ADMIN, User::ROLE_MASTER_ADMIN], true), 403);
 
         return Inertia::render('HeadAdmin/Projects/Create', [
             'foremen' => $this->projectService->foremanOptionsPayload(),
@@ -53,7 +53,7 @@ class ProjectController extends Controller
 
     public function store(StoreProjectRequest $request)
     {
-        abort_unless($request->user()->role === User::ROLE_HEAD_ADMIN, 403);
+        abort_unless(in_array($request->user()->role, [User::ROLE_HEAD_ADMIN, User::ROLE_MASTER_ADMIN], true), 403);
 
         $project = $this->projectService->storeProject($request->validated());
 
@@ -175,7 +175,7 @@ class ProjectController extends Controller
 
     public function destroy(Request $request, Project $project)
     {
-        abort_unless($request->user()->role === User::ROLE_HEAD_ADMIN, 403);
+        abort_unless(in_array($request->user()->role, [User::ROLE_HEAD_ADMIN, User::ROLE_MASTER_ADMIN], true), 403);
 
         $this->projectService->destroyProject($project);
 
@@ -186,7 +186,7 @@ class ProjectController extends Controller
 
     public function editFinancials(Request $request, Project $project)
     {
-        abort_unless(in_array($request->user()->role, [User::ROLE_HEAD_ADMIN, User::ROLE_ADMIN, User::ROLE_HR], true), 403);
+        abort_unless(in_array($request->user()->role, [User::ROLE_HEAD_ADMIN, User::ROLE_MASTER_ADMIN, User::ROLE_ADMIN, User::ROLE_HR], true), 403);
 
         $payload = $this->projectService->editFinancialsPayload($request, $project);
 
@@ -195,7 +195,7 @@ class ProjectController extends Controller
 
     public function updateFinancials(UpdateProjectFinancialsRequest $request, Project $project)
     {
-        abort_unless(in_array($request->user()->role, [User::ROLE_HEAD_ADMIN, User::ROLE_ADMIN, User::ROLE_HR], true), 403);
+        abort_unless(in_array($request->user()->role, [User::ROLE_HEAD_ADMIN, User::ROLE_MASTER_ADMIN, User::ROLE_ADMIN, User::ROLE_HR], true), 403);
 
         $this->projectService->updateFinancials($project, $request->validated());
 
@@ -222,6 +222,6 @@ class ProjectController extends Controller
 
     private function ensureConstructionAccess(Request $request): void
     {
-        abort_unless($request->user()?->role === User::ROLE_HEAD_ADMIN, 403);
+        abort_unless(in_array($request->user()?->role, [User::ROLE_HEAD_ADMIN, User::ROLE_MASTER_ADMIN], true), 403);
     }
 }

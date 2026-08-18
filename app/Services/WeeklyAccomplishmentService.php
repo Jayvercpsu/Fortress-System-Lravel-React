@@ -6,6 +6,7 @@ use App\Models\User;
 use App\Models\WeeklyAccomplishment;
 use App\Repositories\Contracts\WeeklyAccomplishmentRepositoryInterface;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Str;
 
@@ -122,7 +123,13 @@ class WeeklyAccomplishmentService
             ])
             ->values();
 
-        $page = $request->user()->role === User::ROLE_HEAD_ADMIN
+        $isHeadAdminView = in_array($request->user()->role, [User::ROLE_HEAD_ADMIN, User::ROLE_MASTER_ADMIN], true);
+        if ($isHeadAdminView) {
+            // Group by submission (week) so progress can be reviewed week by week.
+            [$projects, $accomplishments] = $this->buildWeekGroupedPayload($accomplishments, $projects);
+        }
+
+        $page = $isHeadAdminView
             ? 'HeadAdmin/WeeklyAccomplishments/Index'
             : 'Admin/WeeklyAccomplishments/Index';
 
@@ -151,5 +158,58 @@ class WeeklyAccomplishmentService
             'to' => $paginator->lastItem(),
             'status' => $status,
         ];
+    }
+
+    /**
+     * Re-group weekly accomplishments into per-submission (week) buckets.
+     * Each bucket becomes an accordion group titled "Week of ... — Project".
+     */
+    private function buildWeekGroupedPayload(Collection $rows, Collection $projects): array
+    {
+        $projectNames = collect($projects)->mapWithKeys(fn ($project) => [
+            (int) ($project['id'] ?? 0) => (string) ($project['name'] ?? ''),
+        ]);
+
+        $groups = [];
+        foreach ($rows as $row) {
+            $projectId = $row['project_id'];
+            $weekStart = (string) ($row['week_start'] ?? '');
+            $weekKey = $projectId !== null && $projectId !== ''
+                ? "w{$projectId}-{$weekStart}"
+                : "w-0-{$weekStart}";
+
+            if (!isset($groups[$weekKey])) {
+                $groups[$weekKey] = [
+                    'key' => $weekKey,
+                    'project_id' => $projectId,
+                    'project_name' => (string) ($row['project_name'] ?? $projectNames->get((int) $projectId, 'Unassigned')),
+                    'week_start' => $weekStart,
+                    'rows' => [],
+                ];
+            }
+
+            $groups[$weekKey]['rows'][] = $row;
+        }
+
+        $orderedGroups = collect($groups)
+            ->sortByDesc(fn (array $group) => $group['week_start'])
+            ->values();
+
+        $weekProjects = $orderedGroups->map(fn (array $group) => [
+            'id' => $group['key'],
+            'name' => $group['week_start'] !== ''
+                ? 'Week of ' . Carbon::parse($group['week_start'])->format('M j, Y') . ' — ' . $group['project_name']
+                : $group['project_name'],
+        ])->values();
+
+        $weekRows = $orderedGroups->flatMap(function (array $group) {
+            return collect($group['rows'])->map(function (array $row) use ($group) {
+                $row['project_id'] = $group['key'];
+
+                return $row;
+            });
+        })->values();
+
+        return [$weekProjects, $weekRows];
     }
 }

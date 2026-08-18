@@ -8,6 +8,7 @@ use Illuminate\Notifications\Notifiable;
 class User extends Authenticatable {
     use HasFactory, Notifiable;
 
+    public const ROLE_MASTER_ADMIN = 'master_admin';
     public const ROLE_HEAD_ADMIN = 'head_admin';
     public const ROLE_ADMIN = 'admin';
     public const ROLE_HR = 'hr';
@@ -16,6 +17,7 @@ class User extends Authenticatable {
     public const ROLE_DESIGNER = 'designer';
 
     public const ROLE_OPTIONS = [
+        self::ROLE_MASTER_ADMIN,
         self::ROLE_HEAD_ADMIN,
         self::ROLE_ADMIN,
         self::ROLE_HR,
@@ -25,6 +27,7 @@ class User extends Authenticatable {
     ];
 
     public const MANAGE_ROLES = [
+        self::ROLE_MASTER_ADMIN,
         self::ROLE_HEAD_ADMIN,
         self::ROLE_ADMIN,
     ];

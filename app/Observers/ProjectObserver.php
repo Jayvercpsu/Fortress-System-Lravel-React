@@ -50,7 +50,7 @@ class ProjectObserver
             $project->status = (string) config('fortress.project_status_completed', ProjectStatus::COMPLETED->value);
             $project->saveQuietly();
 
-            $recipients = User::whereIn('role', [User::ROLE_HR, User::ROLE_HEAD_ADMIN])->get();
+            $recipients = User::whereIn('role', [User::ROLE_HR, User::ROLE_HEAD_ADMIN, User::ROLE_MASTER_ADMIN])->get();
             foreach ($recipients as $user) {
                 $user->notify(new ProjectCompletedNotification($project));
             }

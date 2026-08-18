@@ -24,7 +24,7 @@ class ForemanWorkerController extends Controller
 
     public function store(StoreWorkerRequest $request)
     {
-        abort_unless(in_array($request->user()->role, [User::ROLE_HR, User::ROLE_HEAD_ADMIN], true), 403);
+        abort_unless(in_array($request->user()->role, [User::ROLE_HR, User::ROLE_HEAD_ADMIN, User::ROLE_MASTER_ADMIN], true), 403);
         $this->foremanWorkerService->createWorker($request->user(), $request->validated());
 
         return redirect()
@@ -34,7 +34,7 @@ class ForemanWorkerController extends Controller
 
     public function update(UpdateWorkerRequest $request, Worker $worker)
     {
-        abort_unless(in_array($request->user()->role, [User::ROLE_HR, User::ROLE_HEAD_ADMIN], true), 403);
+        abort_unless(in_array($request->user()->role, [User::ROLE_HR, User::ROLE_HEAD_ADMIN, User::ROLE_MASTER_ADMIN], true), 403);
         $this->foremanWorkerService->updateWorker($request->user(), $worker, $request->validated());
 
         return redirect()
@@ -44,7 +44,7 @@ class ForemanWorkerController extends Controller
 
     public function destroy(Request $request, Worker $worker)
     {
-        abort_unless(in_array($request->user()->role, [User::ROLE_HR, User::ROLE_HEAD_ADMIN], true), 403);
+        abort_unless(in_array($request->user()->role, [User::ROLE_HR, User::ROLE_HEAD_ADMIN, User::ROLE_MASTER_ADMIN], true), 403);
         $this->foremanWorkerService->deleteWorker($request->user(), $worker);
 
         return redirect()

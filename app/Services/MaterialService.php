@@ -57,7 +57,7 @@ class MaterialService
 
     public function pageByRole(User $user): string
     {
-        return $user->role === User::ROLE_HEAD_ADMIN
+        return in_array($user->role, [User::ROLE_HEAD_ADMIN, User::ROLE_MASTER_ADMIN], true)
             ? 'HeadAdmin/Materials/Index'
             : 'Admin/Materials/Index';
     }

@@ -89,7 +89,7 @@ class ProgressPhotoService
             ])
             ->values();
 
-        $page = $request->user()->role === User::ROLE_HEAD_ADMIN
+        $page = in_array($request->user()->role, [User::ROLE_HEAD_ADMIN, User::ROLE_MASTER_ADMIN], true)
             ? 'HeadAdmin/ProgressPhotos/Index'
             : 'Admin/ProgressPhotos/Index';
 

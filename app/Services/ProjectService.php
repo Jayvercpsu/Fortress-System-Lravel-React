@@ -131,7 +131,7 @@ class ProjectService
             ->flatMap(fn (array $column) => $column['projects'])
             ->values();
 
-        $page = $request->user()->role === User::ROLE_HEAD_ADMIN
+        $page = in_array($request->user()->role, [User::ROLE_HEAD_ADMIN, User::ROLE_MASTER_ADMIN], true)
             ? 'HeadAdmin/Projects/Index'
             : 'Admin/Projects/Index';
 
@@ -271,7 +271,7 @@ class ProjectService
             ])
             ->values();
 
-        $page = $request->user()->role === User::ROLE_HEAD_ADMIN
+        $page = in_array($request->user()->role, [User::ROLE_HEAD_ADMIN, User::ROLE_MASTER_ADMIN], true)
             ? 'HeadAdmin/Projects/Show'
             : 'Admin/Projects/Show';
 
@@ -329,7 +329,7 @@ class ProjectService
 
     public function editFinancialsPayload(Request $request, Project $project): array
     {
-        $page = $request->user()->role === User::ROLE_HEAD_ADMIN
+        $page = in_array($request->user()->role, [User::ROLE_HEAD_ADMIN, User::ROLE_MASTER_ADMIN], true)
             ? 'HeadAdmin/Projects/Financials'
             : 'HR/ProjectFinancials';
 

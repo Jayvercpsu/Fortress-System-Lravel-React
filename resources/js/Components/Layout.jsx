@@ -65,6 +65,7 @@ const navByRole = {
 };
 
 const roleLabels = {
+    master_admin: 'Master Admin',
     head_admin: 'Head Admin',
     admin: 'Admin',
     hr: 'HR',
@@ -72,6 +73,9 @@ const roleLabels = {
     designer: 'Designer',
     client: 'Client',
 };
+
+// The master admin outranks every role and inherits the head admin experience.
+navByRole.master_admin = navByRole.head_admin;
 
 const DASHBOARD_PATHS = new Set(['/head-admin', '/admin', '/hr', '/foreman', '/designer', '/client']);
 
@@ -282,7 +286,7 @@ export default function Layout({ children, title }) {
 
             <nav style={{ flex: 1 }}>
                 {navItems
-                    .filter((item) => !item.headAdminOnly || user?.role === 'head_admin')
+                    .filter((item) => !item.headAdminOnly || user?.role === 'head_admin' || user?.role === 'master_admin')
                     .map((item) => {
                         const itemPath = pathFromUrl(item.href);
                         const exactOnlyPaths = new Set(['/head-admin', '/admin', '/hr', '/foreman', '/designer', '/client']);
