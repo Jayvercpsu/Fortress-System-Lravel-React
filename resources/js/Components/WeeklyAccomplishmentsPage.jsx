@@ -261,9 +261,27 @@ export default function WeeklyAccomplishmentsPage({
             width: 220,
             render: (row) => {
                 const scopeKey = String(row.scope_of_work || '').trim().toLowerCase();
-                const photos = scopeKey && Array.isArray(weeklyScopePhotoMap[scopeKey])
+                const rowWeek = String(row.week_start || '').trim();
+                const scopePhotos = scopeKey && Array.isArray(weeklyScopePhotoMap[scopeKey])
                     ? weeklyScopePhotoMap[scopeKey]
                     : [];
+                const photos = rowWeek
+                    ? scopePhotos.filter((photo) => {
+                        const photoWeek = String(photo.week_start || '').trim();
+                        if (photoWeek) {
+                            return photoWeek === rowWeek;
+                        }
+                        const photoDate = String(photo.created_at || '').slice(0, 10);
+                        if (!photoDate) {
+                            return false;
+                        }
+                        const rowDate = new Date(`${rowWeek}T00:00:00`);
+                        const photoTime = new Date(`${photoDate}T00:00:00`);
+                        const weekEnd = new Date(rowDate);
+                        weekEnd.setDate(weekEnd.getDate() + 6);
+                        return photoTime >= rowDate && photoTime <= weekEnd;
+                    })
+                    : scopePhotos;
 
                 if (photos.length === 0) {
                     return <div className="jf-note" style={{ fontSize: 12 }}>No photos uploaded yet.</div>;

@@ -128,7 +128,7 @@ class WeeklyAccomplishmentService
                 $weeklyScopePhotoMap[$scopeKey] = [];
             }
 
-            if (count($weeklyScopePhotoMap[$scopeKey]) >= 8) {
+            if (count($weeklyScopePhotoMap[$scopeKey]) >= 40) {
                 continue;
             }
 
@@ -137,6 +137,7 @@ class WeeklyAccomplishmentService
                 'photo_path' => $scopePhoto->photo_path,
                 'caption' => $scopePhoto->caption,
                 'created_at' => optional($scopePhoto->created_at)?->toDateTimeString(),
+                'week_start' => $this->extractWeekStartFromScopePhoto($scopePhoto->caption),
             ];
         }
 
@@ -146,7 +147,9 @@ class WeeklyAccomplishmentService
                 'foreman_name' => $row->foreman?->fullname ?? 'Unknown',
                 'project_id' => $row->project_id,
                 'project_name' => $row->project?->name ?? 'Unassigned',
-                'week_start' => $row->week_start ? (string) $row->week_start : null,
+                'week_start' => $row->week_start
+                    ? Carbon::parse($row->week_start)->toDateString()
+                    : null,
                 'scope_of_work' => $row->scope_of_work,
                 'percent_completed' => $row->percent_completed,
                 'submitted_at' => optional($row->updated_at)?->toDateTimeString(),
@@ -229,6 +232,20 @@ class WeeklyAccomplishmentService
             'date_from' => $filters['date_from'] ?? '',
             'date_to' => $filters['date_to'] ?? '',
         ];
+    }
+
+    private function extractWeekStartFromScopePhoto(?string $caption): ?string
+    {
+        $text = trim((string) ($caption ?? ''));
+        if ($text === '') {
+            return null;
+        }
+
+        if (preg_match('/Week:\s*(\d{4}-\d{2}-\d{2})/i', $text, $matches) === 1) {
+            return $matches[1];
+        }
+
+        return null;
     }
 
     /**
