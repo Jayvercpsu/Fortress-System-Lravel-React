@@ -43,7 +43,9 @@ class DashboardService
         $companyFinancialSummary = $this->companyFinancialSummary((float) ($projectKpis['financial_totals']['contract_sum'] ?? 0));
 
         $stats = [
-            'total_users' => $this->dashboardRepository->users()->where('role', '!=', User::ROLE_HEAD_ADMIN)->count(),
+            'total_users' => $this->dashboardRepository->users()
+                ->whereNotIn('role', [User::ROLE_MASTER_ADMIN, User::ROLE_CLIENT, User::ROLE_HEAD_ADMIN])
+                ->count(),
             'total_foremen' => $this->dashboardRepository->users()->where('role', User::ROLE_FOREMAN)->count(),
             'total_hr' => $this->dashboardRepository->users()->where('role', User::ROLE_HR)->count(),
             'total_admins' => $this->dashboardRepository->users()->where('role', User::ROLE_ADMIN)->count(),
