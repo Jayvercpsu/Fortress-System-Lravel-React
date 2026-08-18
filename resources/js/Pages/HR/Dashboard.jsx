@@ -1,4 +1,4 @@
-import Layout from '../../Components/Layout';
+import { useLayoutTitle } from '../../Components/Layout';
 import InlinePagination from '../../Components/InlinePagination';
 import ActionButton from '../../Components/ActionButton';
 import { Head, usePage } from '@inertiajs/react';
@@ -86,10 +86,11 @@ export default function HRDashboard({
     const netProfit = Number(companyFinancialSummary.net_profit ?? 0);
     const netMarginPercent = Number(companyFinancialSummary.net_margin_percent ?? 0);
 
+    useLayoutTitle('HR Dashboard');
+
     return (
         <>
             <Head title="HR Dashboard" />
-            <Layout title="HR Dashboard">
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 mb-4">
                     <StatCard label="Payroll Payable" value={money(kpis.payroll_payable ?? totalPayable)} color="#fbbf24" />
                     <StatCard label="Payroll Deductions" value={money(kpis.payroll_deductions_total)} color="#fb7185" />
@@ -180,7 +181,6 @@ export default function HRDashboard({
                     </div>
                 </div>
 
-            </Layout>
         </>
     );
 }

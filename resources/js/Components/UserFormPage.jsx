@@ -1,4 +1,4 @@
-import Layout from './Layout';
+import { useLayoutTitle } from './Layout';
 import DatePickerInput from './DatePickerInput';
 import ActionButton from './ActionButton';
 import TextInput from './TextInput';
@@ -83,10 +83,11 @@ export default function UserFormPage({ mode = 'create', user = {}, canManageHead
     const pageTitle = isEdit ? 'Edit User' : 'Create User';
     const layoutTitle = isEdit ? `Edit User - ${user?.fullname ?? ''}` : 'Create New User';
 
+    useLayoutTitle(layoutTitle);
+
     return (
         <>
             <Head title={pageTitle} />
-            <Layout title={layoutTitle}>
                 <div style={{ maxWidth: 980, display: 'grid', gap: 16 }}>
                     <form onSubmit={submit} style={{ display: 'grid', gap: 16 }}>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5" style={cardStyle}>
@@ -194,7 +195,6 @@ export default function UserFormPage({ mode = 'create', user = {}, canManageHead
                         </div>
                     </form>
                 </div>
-            </Layout>
         </>
     );
 }

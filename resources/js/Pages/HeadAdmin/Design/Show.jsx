@@ -1,4 +1,4 @@
-import Layout from '../../../Components/Layout';
+import { useLayoutTitle } from '../../../Components/Layout';
 import ActionButton from '../../../Components/ActionButton';
 import TextInput from '../../../Components/TextInput';
 import SelectInput from '../../../Components/SelectInput';
@@ -93,10 +93,11 @@ export default function HeadAdminDesignShow({ projectId, design }) {
         });
     };
 
+    useLayoutTitle(`Design Tracker - Project #${projectId}`);
+
     return (
         <>
             <Head title={`Design Tracker #${projectId}`} />
-            <Layout title={`Design Tracker - Project #${projectId}`}>
                 <div style={{ marginBottom: 12 }}>
                     <ActionButton
                         href={`/projects/${projectId}`}
@@ -205,7 +206,6 @@ export default function HeadAdminDesignShow({ projectId, design }) {
                     </div>
                     </fieldset>
                 </form>
-            </Layout>
         </>
     );
 }

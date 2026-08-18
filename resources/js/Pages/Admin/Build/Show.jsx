@@ -1,4 +1,4 @@
-import Layout from '../../../Components/Layout';
+import { useLayoutTitle } from '../../../Components/Layout';
 import ActionButton from '../../../Components/ActionButton';
 import DataTable from '../../../Components/DataTable';
 import DatePickerInput from '../../../Components/DatePickerInput';
@@ -310,10 +310,11 @@ export default function AdminBuildShow({
         },
     ];
 
+    useLayoutTitle(`Build Tracker - Project #${projectId}`);
+
     return (
         <>
             <Head title={`Build Tracker #${projectId}`} />
-            <Layout title={`Build Tracker - Project #${projectId}`}>
                 <div style={{ marginBottom: 12 }}>
                     <ActionButton
                         href={`/projects/${projectId}`}
@@ -597,7 +598,6 @@ export default function AdminBuildShow({
                     processing={deletingExpense}
                     danger
                 />
-            </Layout>
         </>
     );
 }

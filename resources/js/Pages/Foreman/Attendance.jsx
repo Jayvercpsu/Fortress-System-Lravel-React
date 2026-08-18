@@ -1,4 +1,4 @@
-import Layout from '../../Components/Layout';
+import { useLayoutTitle } from '../../Components/Layout';
 import DataTable from '../../Components/DataTable';
 import ActionButton from '../../Components/ActionButton';
 import SearchableDropdown from '../../Components/SearchableDropdown';
@@ -339,10 +339,11 @@ export default function ForemanAttendance({
         },
     ];
 
+    useLayoutTitle('Attendance');
+
     return (
         <>
             <Head title="Foreman Attendance" />
-            <Layout title="Attendance">
                 <div style={{ display: 'grid', gap: 16 }}>
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                         <div style={cardStyle}>
@@ -605,7 +606,6 @@ export default function ForemanAttendance({
                         </div>
                     </div>
                 </Modal>
-            </Layout>
         </>
     );
 }

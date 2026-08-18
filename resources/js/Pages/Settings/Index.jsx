@@ -1,4 +1,4 @@
-﻿import Layout from '../../Components/Layout';
+﻿import { useLayoutTitle } from '../../Components/Layout';
 import DatePickerInput from '../../Components/DatePickerInput';
 import ActionButton from '../../Components/ActionButton';
 import TextInput from '../../Components/TextInput';
@@ -172,10 +172,11 @@ export default function SettingsIndex({ account }) {
 
     const closePhotoPreview = () => setIsPhotoPreviewOpen(false);
 
+    useLayoutTitle('Settings');
+
     return (
         <>
             <Head title="Settings" />
-            <Layout title="Settings">
                 <div style={{ display: 'grid', gap: 16, maxWidth: 980 }}>
                     <form ref={formRef} onSubmit={submit} style={{ display: 'grid', gap: 16 }}>
                         <div className="grid grid-cols-1 md:[grid-template-columns:240px_1fr] gap-4 md:items-start">
@@ -420,7 +421,6 @@ export default function SettingsIndex({ account }) {
                         />
                     ) : null}
                 </Modal>
-            </Layout>
         </>
     );
 }

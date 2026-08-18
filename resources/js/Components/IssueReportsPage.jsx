@@ -1,7 +1,7 @@
 ﻿import { Head, router } from '@inertiajs/react';
 import { useState } from 'react';
 import ActionButton from './ActionButton';
-import Layout from './Layout';
+import { useLayoutTitle } from './Layout';
 import Modal from './Modal';
 import ProjectAccordionTable from './ProjectAccordionTable';
 import OptimizedImage from './OptimizedImage';
@@ -202,10 +202,11 @@ export default function IssueReportsPage({ issues = [], issueTable = {}, statusF
         },
     ];
 
+    useLayoutTitle('Issue Reports');
+
     return (
         <>
             <Head title="Issues" />
-            <Layout title="Issue Reports">
                 <div style={cardStyle}>
                 <ProjectAccordionTable
                     columns={columns}
@@ -250,7 +251,6 @@ export default function IssueReportsPage({ issues = [], issueTable = {}, statusF
                     </div>
                 )}
             </Modal>
-        </Layout>
     </>
 );
 }

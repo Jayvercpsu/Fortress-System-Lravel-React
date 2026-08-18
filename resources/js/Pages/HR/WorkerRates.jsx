@@ -1,4 +1,4 @@
-import Layout from '../../Components/Layout';
+import { useLayoutTitle } from '../../Components/Layout';
 import DataTable from '../../Components/DataTable';
 import ActionButton from '../../Components/ActionButton';
 import Modal from '../../Components/Modal';
@@ -187,10 +187,11 @@ export default function WorkerRates({ workerRates = [], workerRateTable = {}, ra
         return base;
     }, [rateGroup]);
 
+    useLayoutTitle(pageTitle);
+
     return (
         <>
             <Head title={pageTitle} />
-            <Layout title={pageTitle}>
                 <div style={{ marginBottom: 12 }}>
                     <ActionButton
                         href={`/payroll/run${groupQuery}`}
@@ -303,7 +304,6 @@ export default function WorkerRates({ workerRates = [], workerRateTable = {}, ra
                         </form>
                     )}
                 </Modal>
-            </Layout>
         </>
     );
 }

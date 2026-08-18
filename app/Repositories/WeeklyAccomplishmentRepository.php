@@ -22,6 +22,15 @@ class WeeklyAccomplishmentRepository implements WeeklyAccomplishmentRepositoryIn
             ->withQueryString();
     }
 
+    public function listNonDesignProjects(): Collection
+    {
+        return Project::query()
+            ->whereRaw('LOWER(TRIM(COALESCE(phase, \'\'))) != ?', [strtolower(Project::PHASE_DESIGN)])
+            ->orderBy('name')
+            ->orderBy('id')
+            ->get(['id', 'name']);
+    }
+
     public function paginateWeeklyProjectIds(string $search, int $perPage, array $filters = []): LengthAwarePaginator
     {
         $query = WeeklyAccomplishment::query();
@@ -34,6 +43,19 @@ class WeeklyAccomplishmentRepository implements WeeklyAccomplishmentRepositoryIn
             ->orderByDesc('last_updated_at')
             ->paginate($perPage)
             ->withQueryString();
+    }
+
+    public function listWeeklyProjectIds(string $search, array $filters = []): array
+    {
+        $query = WeeklyAccomplishment::query();
+        $this->applySearch($query, $search);
+        $this->applyFilters($query, $filters);
+
+        return (clone $query)
+            ->selectRaw('project_id')
+            ->distinct()
+            ->pluck('project_id')
+            ->all();
     }
 
     public function listWeeklyAccomplishmentsByProjectIds(array $projectIds, string $search, array $filters = []): Collection

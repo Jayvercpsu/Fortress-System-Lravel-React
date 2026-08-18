@@ -1,4 +1,4 @@
-import Layout from './Layout';
+import { useLayoutTitle } from './Layout';
 import ActionButton from './ActionButton';
 import TextInput from './TextInput';
 import { Head, router, useForm, usePage } from '@inertiajs/react';
@@ -82,10 +82,11 @@ export default function ProjectFinancialsPage({ project }) {
         });
     };
 
+    useLayoutTitle(`Project Financials - ${project?.name || 'Project'}`);
+
     return (
         <>
             <Head title={`Financials - ${project?.name || 'Project'}`} />
-            <Layout title={`Project Financials - ${project?.name || 'Project'}`}>
                 <div style={{ display: 'grid', gap: 16 }}>
                 <div
                     style={{
@@ -212,7 +213,6 @@ export default function ProjectFinancialsPage({ project }) {
                         </div>
                     </form>
                 </div>
-            </Layout>
         </>
     );
 }

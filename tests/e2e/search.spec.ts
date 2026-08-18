@@ -8,8 +8,6 @@ const emptySearchValue = 'zzzz';
 
 const headAdminSearchCases: SearchCase[] = [
     { name: 'Projects board', path: '/projects', placeholder: 'Search projects...', queryParam: 'search', value: searchValue, mode: 'submit' },
-    { name: 'Attendance logs', path: '/attendance', placeholder: 'Search attendance logs...', queryParam: 'search', value: searchValue },
-    { name: 'Attendance summary', path: '/attendance/summary', placeholder: 'Search cutoff summary...', queryParam: 'search', value: searchValue },
     { name: 'Materials requests', path: '/materials', placeholder: 'Search material requests...', queryParam: 'search', value: searchValue },
     { name: 'Delivery confirmations', path: '/delivery', placeholder: 'Search deliveries...', queryParam: 'search', value: searchValue },
     { name: 'Issue reports', path: '/issues', placeholder: 'Search issues...', queryParam: 'search', value: searchValue },
@@ -28,8 +26,6 @@ const headAdminSearchCases: SearchCase[] = [
 
 const adminSearchCases: SearchCase[] = [
     { name: 'Projects board', path: '/projects', placeholder: 'Search projects...', queryParam: 'search', value: searchValue, mode: 'submit' },
-    { name: 'Attendance logs', path: '/attendance', placeholder: 'Search attendance logs...', queryParam: 'search', value: searchValue },
-    { name: 'Attendance summary', path: '/attendance/summary', placeholder: 'Search cutoff summary...', queryParam: 'search', value: searchValue },
     { name: 'Materials requests', path: '/materials', placeholder: 'Search material requests...', queryParam: 'search', value: searchValue },
     { name: 'Delivery confirmations', path: '/delivery', placeholder: 'Search deliveries...', queryParam: 'search', value: searchValue },
     { name: 'Issue reports', path: '/issues', placeholder: 'Search issues...', queryParam: 'search', value: searchValue },
@@ -50,7 +46,8 @@ const hrSearchCases: SearchCase[] = [
 
 const foremanSearchCases: SearchCase[] = [
     { name: 'Foreman workers', path: '/foreman/workers', placeholder: 'Search workers...', queryParam: 'search', value: searchValue },
-    { name: 'Foreman attendance', path: '/foreman/attendance', placeholder: 'Search my attendance...', queryParam: 'search', value: searchValue },
+    // Foreman attendance page hidden for now (stay-in policy — HR logs attendance). Kept for future re-enable.
+    // { name: 'Foreman attendance', path: '/foreman/attendance', placeholder: 'Search my attendance...', queryParam: 'search', value: searchValue },
 ];
 
 const searchCoverage: Record<RoleKey, SearchCase[]> = {

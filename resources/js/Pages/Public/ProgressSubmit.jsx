@@ -444,6 +444,11 @@ export default function ProgressSubmit({ submitToken }) {
     const [removedAttendanceWorkerIds, setRemovedAttendanceWorkerIds] = useState([]);
     const attendanceWorkerPool = useMemo(() => {
         const pool = new Map();
+        // The foreman is auto-included in Daily Attendance (labelled as a skilled worker)
+        // because this token is assigned to them — their own days are recorded here too.
+        const foremanName = String(submitToken?.foreman_name || '').trim();
+        const foremanId = foremanName ? workerIdentity(foremanName, 'Skilled Worker') : '';
+        if (foremanId && !pool.has(foremanId)) pool.set(foremanId, { name: foremanName, role: 'Skilled Worker' });
         workers.forEach((worker) => {
             const name = String(worker?.name || '').trim();
             const role = String(worker?.role || 'Worker').trim() || 'Worker';
@@ -473,9 +478,14 @@ export default function ProgressSubmit({ submitToken }) {
             });
         });
         return Array.from(pool.entries())
-            .filter(([id]) => !removedAttendanceWorkerIds.includes(id))
+            // The foreman's auto-row is permanent: it survives any removal attempt.
+            .filter(([id]) => !removedAttendanceWorkerIds.includes(id) || (foremanId !== '' && id === foremanId))
             .map(([, value]) => value);
-    }, [workers, initialAttendanceDrafts, attendanceWeekDrafts, removedAttendanceWorkerIds]);
+    }, [workers, initialAttendanceDrafts, attendanceWeekDrafts, removedAttendanceWorkerIds, submitToken?.foreman_name]);
+    const foremanAttendanceId = useMemo(() => {
+        const foremanName = String(submitToken?.foreman_name || '').trim();
+        return foremanName ? workerIdentity(foremanName, 'Skilled Worker') : '';
+    }, [submitToken?.foreman_name]);
     const defaultAttendanceRows = useMemo(() => buildAttendanceRows(attendanceWorkerPool), [attendanceWorkerPool]);
 
     const [deliveryKey, setDeliveryKey] = useState(0);
@@ -516,10 +526,15 @@ export default function ProgressSubmit({ submitToken }) {
         currentDate <= weeklyWeekEndDate
     ) || projectLocked;
     const defaultWeeklyRowsForWeek = useMemo(() => buildWeeklyRows(resolveWeeklyScopeList(weeklyWeekKey)), [resolveWeeklyScopeList, weeklyWeekKey]);
-    const attendanceRows = useMemo(
-        () => mergeAttendanceRowsWithWorkerPool(attendanceWeekDrafts[attendanceWeekKey] ?? defaultAttendanceRows, attendanceWorkerPool),
-        [attendanceWeekDrafts, attendanceWeekKey, defaultAttendanceRows, attendanceWorkerPool]
-    );
+    const attendanceRows = useMemo(() => {
+        const merged = mergeAttendanceRowsWithWorkerPool(attendanceWeekDrafts[attendanceWeekKey] ?? defaultAttendanceRows, attendanceWorkerPool);
+        // The foreman's auto-row is always pinned to the very beginning of the table.
+        if (!foremanAttendanceId) return merged;
+        return [
+            ...merged.filter((row) => workerIdentity(row.worker_name, row.worker_role) === foremanAttendanceId),
+            ...merged.filter((row) => workerIdentity(row.worker_name, row.worker_role) !== foremanAttendanceId),
+        ];
+    }, [attendanceWeekDrafts, attendanceWeekKey, defaultAttendanceRows, attendanceWorkerPool, foremanAttendanceId]);
     const weeklyRows = weeklyWeekDrafts[weeklyWeekKey] ?? defaultWeeklyRowsForWeek;
 
     const firstError = useMemo(() => {
@@ -755,6 +770,8 @@ export default function ProgressSubmit({ submitToken }) {
     };
     const removeAttendanceWorker = (row, rowIndex) => {
         const workerId = workerIdentity(row?.worker_name, row?.worker_role);
+        // The foreman's auto-row is always included and cannot be removed.
+        if (foremanAttendanceId && workerId === foremanAttendanceId) return;
         if (workerId) {
             setRemovedAttendanceWorkerIds((prev) => (prev.includes(workerId) ? prev : [...prev, workerId]));
             setAttendanceWeekDrafts((prev) => {

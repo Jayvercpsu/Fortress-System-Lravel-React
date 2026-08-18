@@ -1,4 +1,4 @@
-import Layout from '../../../Components/Layout';
+import { useLayoutTitle } from '../../../Components/Layout';
 import DataTable from '../../../Components/DataTable';
 import ActionButton from '../../../Components/ActionButton';
 import CheckboxInput from '../../../Components/CheckboxInput';
@@ -237,10 +237,11 @@ export default function HrForemenIndex({
             .filter(Boolean)
             .join(', ');
 
+    useLayoutTitle('Foremen');
+
     return (
         <>
             <Head title="Foremen" />
-            <Layout title="Foremen">
                 <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 12 }}>
                     <ActionButton
                         type="button"
@@ -462,7 +463,6 @@ export default function HrForemenIndex({
                     processing={deleting}
                     danger
                 />
-            </Layout>
         </>
     );
 }

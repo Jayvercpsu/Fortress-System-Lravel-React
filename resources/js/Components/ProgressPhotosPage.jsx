@@ -1,4 +1,4 @@
-﻿import Layout from './Layout';
+﻿import { useLayoutTitle } from './Layout';
 import Modal from './Modal';
 import ProjectAccordionTable from './ProjectAccordionTable';
 import { Head } from '@inertiajs/react';
@@ -71,10 +71,11 @@ export default function ProgressPhotosPage({ photos = [], photoTable = {}, statu
         },
     ];
 
+    useLayoutTitle('Progress Photos');
+
     return (
         <>
             <Head title="Progress Photos" />
-            <Layout title="Progress Photos">
                 <div style={cardStyle}>
                     <ProjectAccordionTable
                         columns={columns}
@@ -118,7 +119,6 @@ export default function ProgressPhotosPage({ photos = [], photoTable = {}, statu
                         </div>
                     )}
                 </Modal>
-            </Layout>
         </>
     );
 }

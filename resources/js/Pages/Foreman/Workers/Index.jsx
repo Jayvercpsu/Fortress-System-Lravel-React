@@ -1,4 +1,4 @@
-import Layout from '../../../Components/Layout';
+import { useLayoutTitle } from '../../../Components/Layout';
 import DataTable from '../../../Components/DataTable';
 import DatePickerInput from '../../../Components/DatePickerInput';
 import ActionButton from '../../../Components/ActionButton';
@@ -269,10 +269,11 @@ export default function ForemanWorkersIndex({ workers = [], workerTable = {}, as
         });
     }
 
+    useLayoutTitle('My Workers');
+
     return (
         <>
             <Head title="Workers" />
-            <Layout title="My Workers">
                 <div style={{ display: 'grid', gap: 16 }}>
                     {canManageWorkers ? (
                         <form onSubmit={submitCreate} style={{ ...cardStyle, display: 'grid', gap: 14 }}>
@@ -504,7 +505,6 @@ export default function ForemanWorkersIndex({ workers = [], workerTable = {}, as
                         />
                     </>
                 ) : null}
-            </Layout>
         </>
     );
 }

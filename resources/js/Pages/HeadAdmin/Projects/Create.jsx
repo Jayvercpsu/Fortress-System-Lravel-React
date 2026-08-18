@@ -1,4 +1,4 @@
-import Layout from '../../../Components/Layout';
+import { useLayoutTitle } from '../../../Components/Layout';
 import DatePickerInput from '../../../Components/DatePickerInput';
 import SearchableDropdown from '../../../Components/SearchableDropdown';
 import ActionButton from '../../../Components/ActionButton';
@@ -194,10 +194,11 @@ export default function HeadAdminProjectsCreate({ foremen = [], designers = [], 
         });
     };
 
+    useLayoutTitle('Create Project');
+
     return (
         <>
             <Head title="Create Project" />
-            <Layout title="Create Project">
                 <div style={{ marginBottom: 12 }}>
                     <ActionButton href="/projects" style={{ padding: '8px 12px', fontSize: 13 }}>
                         <ArrowLeft size={16} />
@@ -507,7 +508,6 @@ export default function HeadAdminProjectsCreate({ foremen = [], designers = [], 
                         </ActionButton>
                     </div>
                 </form>
-            </Layout>
         </>
     );
 }

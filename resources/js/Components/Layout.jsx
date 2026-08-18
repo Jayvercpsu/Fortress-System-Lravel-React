@@ -1,5 +1,5 @@
 ﻿import { Link, router, usePage } from '@inertiajs/react';
-import { useEffect, useRef, useState } from 'react';
+import { createContext, useContext, useEffect, useRef, useState } from 'react';
 import { LoaderCircle, Menu, Moon, Sun, X } from 'lucide-react';
 import toast from 'react-hot-toast';
 import BrandIcon from './BrandIcon';
@@ -14,7 +14,6 @@ const navByRole = {
         { label: 'Design', href: '/monitoring-board', icon: 'fi fi-rr-apps' },
         { label: 'Construction', href: '/projects', icon: 'fi fi-rr-diagram-project', headAdminOnly: true },
         // Builders navigation temporarily hidden
-        { label: 'Attendance', href: '/attendance', icon: 'fi fi-rr-calendar-check' },
         { label: 'Payroll', href: '/payroll/run', icon: 'fi fi-rr-money-bill-wave' },
         { label: 'Materials', href: '/materials', icon: 'fi fi-rr-shopping-cart' },
         { label: 'Delivery', href: '/delivery', icon: 'fi fi-rr-truck-side' },
@@ -31,7 +30,6 @@ const navByRole = {
         { label: 'KPI', href: '/kpi', icon: 'fi fi-rr-chart-pie', headAdminOnly: true },
         { label: 'Design', href: '/monitoring-board', icon: 'fi fi-rr-apps' },
         { label: 'Construction', href: '/projects', icon: 'fi fi-rr-diagram-project', headAdminOnly: true },
-        { label: 'Attendance', href: '/attendance', icon: 'fi fi-rr-calendar-check' },
         { label: 'Materials', href: '/materials', icon: 'fi fi-rr-shopping-cart' },
         { label: 'Delivery', href: '/delivery', icon: 'fi fi-rr-truck-side' },
         { label: 'Issues', href: '/issues', icon: 'fi fi-rr-exclamation' },
@@ -51,7 +49,8 @@ const navByRole = {
         { label: 'Dashboard', href: '/foreman', icon: 'fi fi-rr-dashboard' },
         { label: 'Submissions', href: '/foreman/submissions', icon: 'fi fi-rr-apps' },
         { label: 'Workers', href: '/foreman/workers', icon: 'fi fi-rr-users' },
-        { label: 'Attendance', href: '/foreman/attendance', icon: 'fi fi-rr-calendar-check' },
+        // Foreman attendance page hidden for now (stay-in policy — HR logs attendance). Kept for future re-enable.
+        // { label: 'Attendance', href: '/foreman/attendance', icon: 'fi fi-rr-calendar-check' },
         { label: 'Settings', href: '/settings', icon: 'fi fi-rr-settings' },
     ],
     designer: [
@@ -92,7 +91,18 @@ const pathFromUrl = (rawUrl) => {
     }
 };
 
-export default function Layout({ children, title }) {
+export const LayoutTitleContext = createContext(() => {});
+
+// Pages set the header title through this hook (Layout is persistent across navigations,
+// so the title must flow up from the page instead of via a prop).
+export function useLayoutTitle(title) {
+    const setTitle = useContext(LayoutTitleContext);
+    useEffect(() => {
+        setTitle(typeof title === 'string' ? title : '');
+    }, [title, setTitle]);
+}
+
+export default function Layout({ children }) {
     const { auth } = usePage().props;
     const user = auth?.user;
     const profilePhotoUrl = user?.profile_photo_path ? `/files/${user.profile_photo_path}` : null;
@@ -104,6 +114,7 @@ export default function Layout({ children, title }) {
     const isHrSpecialProjectPage =
         user?.role === 'hr' && /^\/projects\/\d+\/(payments|financials)$/.test(currentPath);
 
+    const [headerTitle, setHeaderTitle] = useState('');
     const [showLogoutModal, setShowLogoutModal] = useState(false);
     const [isLoggingOut, setIsLoggingOut] = useState(false);
     const [isPageLoading, setIsPageLoading] = useState(false);
@@ -229,7 +240,9 @@ export default function Layout({ children, title }) {
 
     const closeMobileSidebar = () => setIsMobileSidebarOpen(false);
 
-    const SidebarContent = ({ showClose = false } = {}) => (
+    // Rendered as a plain function (not a nested component) so the sidebar DOM — including
+    // the profile photo — is preserved across page navigations instead of being remounted.
+    const renderSidebarContent = (showClose = false) => (
         <>
             <div
                 style={{
@@ -417,7 +430,7 @@ export default function Layout({ children, title }) {
                         top: 0,
                     }}
                 >
-                    <SidebarContent />
+                    {renderSidebarContent()}
                 </aside>
 
                 <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', minWidth: 0 }}>
@@ -467,7 +480,7 @@ export default function Layout({ children, title }) {
                                         textOverflow: 'ellipsis',
                                     }}
                                 >
-                                    {title}
+                                    {headerTitle}
                                 </div>
                             </div>
 
@@ -495,7 +508,9 @@ export default function Layout({ children, title }) {
                     </div>
 
                     <div className="p-4 md:p-6" style={{ flex: 1, overflowY: 'auto' }}>
-                        {isPageLoading ? <PageShimmerSkeleton variant={skeletonVariant} /> : children}
+                        <LayoutTitleContext.Provider value={setHeaderTitle}>
+                            {isPageLoading ? <PageShimmerSkeleton variant={skeletonVariant} /> : children}
+                        </LayoutTitleContext.Provider>
                     </div>
                 </div>
             </div>
@@ -522,7 +537,7 @@ export default function Layout({ children, title }) {
                         overflowY: 'auto',
                     }}
                 >
-                    <SidebarContent showClose />
+                    {renderSidebarContent(true)}
                 </aside>
             </div>
 

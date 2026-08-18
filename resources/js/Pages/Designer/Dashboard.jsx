@@ -1,4 +1,4 @@
-import Layout from '../../Components/Layout';
+import { useLayoutTitle } from '../../Components/Layout';
 import ActionButton from '../../Components/ActionButton';
 import DatePickerInput from '../../Components/DatePickerInput';
 import TextInput from '../../Components/TextInput';
@@ -119,10 +119,11 @@ export default function DesignerDashboard({ projects = [], filters = {} }) {
         );
     };
 
+    useLayoutTitle('Designer Dashboard');
+
     return (
         <>
             <Head title="Designer Dashboard" />
-            <Layout title="Designer Dashboard">
                 <div style={{ display: 'grid', gap: 14 }}>
                     <form onSubmit={applySearch} style={{ ...cardStyle, display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
                         <TextInput
@@ -219,7 +220,6 @@ export default function DesignerDashboard({ projects = [], filters = {} }) {
                         </div>
                     )}
                 </div>
-            </Layout>
         </>
     );
 }

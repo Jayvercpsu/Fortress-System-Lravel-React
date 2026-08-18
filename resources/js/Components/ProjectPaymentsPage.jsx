@@ -1,4 +1,4 @@
-import Layout from './Layout';
+import { useLayoutTitle } from './Layout';
 import ActionButton from './ActionButton';
 import DataTable from './DataTable';
 import Modal from './Modal';
@@ -174,10 +174,11 @@ export default function ProjectPaymentsPage({ project, payments = [], paymentTab
 
     const backHref = `/projects/${project.id}`;
 
+    useLayoutTitle(`Payments - ${project.name}`);
+
     return (
         <>
             <Head title={`Payments - Project #${project.id}`} />
-            <Layout title={`Payments - ${project.name}`}>
                 <div style={{ marginBottom: 12 }}>
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap' }}>
                         {!isHr && (
@@ -336,7 +337,6 @@ export default function ProjectPaymentsPage({ project, payments = [], paymentTab
                         </div>
                     </div>
                 </Modal>
-            </Layout>
         </>
     );
 }

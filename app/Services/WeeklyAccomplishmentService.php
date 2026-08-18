@@ -6,6 +6,7 @@ use App\Models\User;
 use App\Models\WeeklyAccomplishment;
 use App\Repositories\Contracts\WeeklyAccomplishmentRepositoryInterface;
 use Illuminate\Http\Request;
+use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Str;
@@ -27,11 +28,11 @@ class WeeklyAccomplishmentService
     public function indexPayload(Request $request): array
     {
         $search = trim((string) $request->query('search', ''));
-        $perPage = (int) $request->query('per_page', 10);
+        $perPage = (int) $request->query('per_page', 5);
         $status = trim((string) $request->query('status', ''));
 
         if (!in_array($perPage, self::ALLOWED_PER_PAGE, true)) {
-            $perPage = 10;
+            $perPage = 5;
         }
 
         $filters = [
@@ -46,9 +47,28 @@ class WeeklyAccomplishmentService
         $hasActiveFilters = collect($filters)->contains(fn ($value) => $value !== '');
 
         $projects = collect();
+        $paginator = null;
         $showEmptyProjects = $search === '' && $status === '' && !$hasActiveFilters;
 
-        if ($showEmptyProjects) {
+        $isHeadAdminView = in_array($request->user()->role, [User::ROLE_HEAD_ADMIN, User::ROLE_MASTER_ADMIN], true);
+
+        if ($isHeadAdminView) {
+            // The head-admin view groups submissions into week buckets, so gather every
+            // matching project first and paginate the week buckets afterwards.
+            if ($showEmptyProjects) {
+                $allProjects = $this->weeklyAccomplishmentRepository->listNonDesignProjects();
+
+                $projectIds = $allProjects->pluck('id')->values()->all();
+                $projects = $allProjects
+                    ->map(fn ($project) => [
+                        'id' => $project->id,
+                        'name' => $project->name,
+                    ])
+                    ->values();
+            } else {
+                $projectIds = $this->weeklyAccomplishmentRepository->listWeeklyProjectIds($search, $filters);
+            }
+        } elseif ($showEmptyProjects) {
             $paginator = $this->weeklyAccomplishmentRepository->paginateNonDesignProjects($perPage);
 
             $projectIds = collect($paginator->items())
@@ -134,10 +154,32 @@ class WeeklyAccomplishmentService
             ])
             ->values();
 
-        $isHeadAdminView = in_array($request->user()->role, [User::ROLE_HEAD_ADMIN, User::ROLE_MASTER_ADMIN], true);
         if ($isHeadAdminView) {
-            // Group by submission (week) so progress can be reviewed week by week.
-            [$projects, $accomplishments] = $this->buildWeekGroupedPayload($accomplishments, $projects);
+            // Group by submission (week) so progress can be reviewed week by week, then
+            // paginate the week buckets server-side (5 weeks per page by default).
+            [$weekProjects, $weekRows] = $this->buildWeekGroupedPayload($accomplishments, $projects);
+
+            $totalWeeks = $weekProjects->count();
+            $lastPage = max(1, (int) ceil($totalWeeks / $perPage));
+            $page = min(max(1, (int) $request->query('page', 1)), $lastPage);
+            $offset = ($page - 1) * $perPage;
+
+            $weekProjects = $weekProjects->slice($offset, $perPage)->values();
+            $pageKeys = $weekProjects->pluck('id')->map(fn ($id) => (string) $id)->all();
+            $weekRows = $weekRows
+                ->filter(fn ($row) => in_array((string) ($row['project_id'] ?? ''), $pageKeys, true))
+                ->values();
+
+            $projects = $weekProjects;
+            $accomplishments = $weekRows;
+
+            $paginator = new LengthAwarePaginator(
+                $weekProjects->all(),
+                $totalWeeks,
+                $perPage,
+                $page,
+                ['path' => LengthAwarePaginator::resolveCurrentPath(), 'query' => $request->query()]
+            );
         }
 
         $page = $isHeadAdminView

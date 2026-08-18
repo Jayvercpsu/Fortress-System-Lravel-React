@@ -1,4 +1,4 @@
-﻿import Layout from '../../../Components/Layout';
+﻿import { useLayoutTitle } from '../../../Components/Layout';
 import ActionButton from '../../../Components/ActionButton';
 import DataTable from '../../../Components/DataTable';
 import Modal from '../../../Components/Modal';
@@ -692,10 +692,11 @@ export default function HeadAdminProjectsShow({
         },
     ];
 
+    useLayoutTitle(`Project - ${project.name}`);
+
     return (
         <>
             <Head title={`Project #${project.id}`} />
-            <Layout title={`Project - ${project.name}`}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 14 }}>
                     <div style={{ display: 'flex', gap: 8 }}>
                         {['overview', 'files', 'updates'].map((t) => (
@@ -1215,7 +1216,6 @@ export default function HeadAdminProjectsShow({
                     processing={deletingUpdate}
                     danger
                 />
-            </Layout>
         </>
     );
 }

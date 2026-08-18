@@ -24,17 +24,19 @@ class RouteVisibilityRulesTest extends TestCase
             ->get('/settings')
             ->assertOk();
 
+        // Foreman attendance page is hidden (stay-in policy — HR logs attendance instead).
         $this->actingAs($foreman)
             ->get('/foreman/attendance')
-            ->assertOk();
+            ->assertRedirect('/foreman');
 
         $this->actingAs($foreman)
             ->get('/foreman/workers')
             ->assertOk();
 
+        // The standalone /attendance module was removed (attendance is captured via Jotform submissions).
         $this->actingAs($foreman)
             ->get('/attendance')
-            ->assertForbidden();
+            ->assertNotFound();
 
         $this->actingAs($foreman)
             ->get('/projects')
@@ -54,9 +56,10 @@ class RouteVisibilityRulesTest extends TestCase
             ->get('/projects')
             ->assertForbidden();
 
+        // The standalone /attendance module was removed (attendance is captured via Jotform submissions).
         $this->actingAs($this->makeUser('admin'))
             ->get('/attendance')
-            ->assertOk();
+            ->assertNotFound();
 
         $this->actingAs($this->makeUser('admin'))
             ->get('/materials')

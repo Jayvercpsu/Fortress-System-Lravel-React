@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import Layout from './Layout';
+import { useLayoutTitle } from './Layout';
 import Modal from './Modal';
 import ProjectAccordionTable from './ProjectAccordionTable';
 import SelectInput from './SelectInput';
@@ -298,10 +298,11 @@ export default function WeeklyAccomplishmentsPage({
         },
     ];
 
+    useLayoutTitle('Weekly Accomplishments');
+
     return (
         <>
             <Head title="Weekly Accomplishments" />
-            <Layout title="Weekly Accomplishments">
                 <div style={cardStyle}>
                     {filterBar}
                     <ProjectAccordionTable
@@ -370,7 +371,6 @@ export default function WeeklyAccomplishmentsPage({
                         </div>
                     )}
                 </Modal>
-            </Layout>
         </>
     );
 }

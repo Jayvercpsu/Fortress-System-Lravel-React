@@ -1,4 +1,4 @@
-import Layout from '../../../Components/Layout';
+import { useLayoutTitle } from '../../../Components/Layout';
 import ActionButton from '../../../Components/ActionButton';
 import { Head } from '@inertiajs/react';
 
@@ -61,10 +61,11 @@ function StatCard({ label, value, color = 'var(--text-main)' }) {
 }
 
 export default function ReportsIndex({ summary = {}, projectProfitability = [] }) {
+    useLayoutTitle('Reports / Project Profitability');
+
     return (
         <>
             <Head title="Reports" />
-            <Layout title="Reports / Project Profitability">
                 <div style={descriptionStyle}>
                     This report surfaces the construction projects that are currently active (filtered by phase) and aggregates
                     contract value, progress, expenses, and payroll so you can compare cash collected versus earned revenue,
@@ -195,7 +196,6 @@ export default function ReportsIndex({ summary = {}, projectProfitability = [] }
                         </table>
                     </div>
                 </div>
-            </Layout>
         </>
     );
 }

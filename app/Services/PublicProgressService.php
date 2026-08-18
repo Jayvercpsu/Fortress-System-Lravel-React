@@ -1835,9 +1835,16 @@ class PublicProgressService
 
     private function syncWorkersFromAttendanceEntries(ProgressSubmitToken $submitToken, iterable $attendanceEntries): void
     {
+        // The foreman's own attendance is logged as a skilled-worker row (auto-included on the
+        // public form), so never create a managed Worker record for them.
+        $foremanNameKey = Str::lower(trim((string) ($submitToken->foreman->fullname ?? '')));
         $normalizedNames = collect($attendanceEntries)
             ->filter(fn ($entry) => !$this->isForemanRole($entry['worker_role'] ?? ''))
-            ->map(fn ($entry) => trim((string) (($entry['worker_name'] ?? ''))))
+            ->map(function ($entry) use ($foremanNameKey) {
+                $name = trim((string) (($entry['worker_name'] ?? '')));
+
+                return ($foremanNameKey !== '' && Str::lower($name) === $foremanNameKey) ? '' : $name;
+            })
             ->filter(fn (string $name) => $name !== '')
             ->unique(fn (string $name) => Str::lower($name))
             ->values();

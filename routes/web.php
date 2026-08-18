@@ -1,6 +1,5 @@
 <?php
 use App\Http\Controllers\Auth\AuthController;
-use App\Http\Controllers\AttendanceController;
 use App\Http\Controllers\BuildController;
 use App\Http\Controllers\ClientController;
 use App\Http\Controllers\ClientPortalController;
@@ -94,6 +93,7 @@ Route::middleware(['auth', 'role:admin'])->group(function () {
 Route::middleware(['auth', 'role:head_admin,admin,hr'])->group(function () {
     Route::get('/hr', [DashboardController::class, 'hr'])->name('hr.dashboard');
     Route::get('/payroll/run', [PayrollController::class, 'run'])->name('payroll.run');
+    Route::get('/payroll/run/existing', [PayrollController::class, 'existingPayrolls'])->name('payroll.run.existing');
     Route::post('/payroll/run/generate', [PayrollController::class, 'generateFromAttendance'])->name('payroll.run.generate');
     Route::post('/payroll/run/mark-paid', [PayrollController::class, 'markPaid'])->name('payroll.run.mark_paid');
     Route::get('/payroll/export', [PayrollController::class, 'export'])->name('payroll.export');
@@ -162,9 +162,6 @@ Route::middleware(['auth', 'role:head_admin,admin,designer'])->group(function ()
     Route::post('/monitoring-board/{item}/files', [MonitoringBoardController::class, 'storeFile'])->name('monitoring-board.files.store');
     Route::delete('/monitoring-board-files/{file}', [MonitoringBoardController::class, 'destroyFile'])->name('monitoring-board.files.destroy');
 
-    Route::get('/attendance/summary', [AttendanceController::class, 'summary'])->name('attendance.summary');
-    Route::get('/attendance', [AttendanceController::class, 'index'])->name('attendance.index');
-    Route::post('/attendance', [AttendanceController::class, 'store'])->name('attendance.store');
     Route::get('/reports', [ReportsController::class, 'index'])->name('reports.index');
     Route::get('/weekly-accomplishments', [WeeklyAccomplishmentController::class, 'index'])->name('weekly-accomplishments.index');
     Route::get('/materials', [MaterialRequestController::class, 'index'])->name('materials.index');

@@ -1,4 +1,4 @@
-﻿import Layout from './Layout';
+﻿import { useLayoutTitle } from './Layout';
 import Modal from './Modal';
 import ProjectAccordionTable from './ProjectAccordionTable';
 import ActionButton from './ActionButton';
@@ -171,10 +171,11 @@ export default function MaterialRequestsPage({
         },
     ];
 
+    useLayoutTitle('Materials / Requests');
+
     return (
         <>
             <Head title="Materials" />
-            <Layout title="Materials / Requests">
                 <div style={cardStyle}>
                 <ProjectAccordionTable
                     columns={columns}
@@ -219,7 +220,6 @@ export default function MaterialRequestsPage({
                     </div>
                 )}
             </Modal>
-        </Layout>
     </>
 );
 }

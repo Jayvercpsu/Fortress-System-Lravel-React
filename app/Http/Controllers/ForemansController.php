@@ -15,6 +15,10 @@ class ForemansController extends Controller
 
     public function attendanceIndex(Request $request)
     {
+        // Foreman attendance page is hidden for now (stay-in policy — HR logs attendance on their side).
+        // Kept for future re-enable: remove this redirect to show the page again.
+        return redirect()->route('foreman.dashboard');
+
         return $this->foremanService->attendanceIndex($request);
     }
 

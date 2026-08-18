@@ -119,7 +119,8 @@ test('settings updates persist for profile fields and profile photo uploads', as
     }
 });
 
-test('foreman self attendance, add-row attendance submission, and attendance editing work', async ({ page }) => {
+// Foreman attendance page hidden for now (stay-in policy — HR logs attendance). Test kept for future re-enable.
+test.skip('foreman self attendance, add-row attendance submission, and attendance editing work', async ({ page }) => {
     await loginAs(page, 'foreman');
 
     await page.goto('/foreman');

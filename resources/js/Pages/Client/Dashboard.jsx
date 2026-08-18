@@ -1,5 +1,5 @@
 ﻿import { useState } from 'react';
-import Layout from '../../Components/Layout';
+import { useLayoutTitle } from '../../Components/Layout';
 import DataTable from '../../Components/DataTable';
 import Modal from '../../Components/Modal';
 import OptimizedImage from '../../Components/OptimizedImage';
@@ -242,10 +242,11 @@ export default function ClientDashboard({
         },
     ];
 
+    useLayoutTitle('Client Dashboard');
+
     return (
         <>
             <Head title="Client Dashboard" />
-            <Layout title="Client Dashboard">
                 <div style={{ display: 'grid', gap: 16 }}>
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 12 }}>
                         <StatCard
@@ -324,7 +325,6 @@ export default function ClientDashboard({
                         />
                     </div>
                 </div>
-            </Layout>
             <Modal
                 open={Boolean(previewPhoto)}
                 onClose={() => setPreviewPhoto(null)}

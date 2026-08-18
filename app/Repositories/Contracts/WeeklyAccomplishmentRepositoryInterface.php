@@ -9,7 +9,11 @@ interface WeeklyAccomplishmentRepositoryInterface
 {
     public function paginateNonDesignProjects(int $perPage): LengthAwarePaginator;
 
+    public function listNonDesignProjects(): Collection;
+
     public function paginateWeeklyProjectIds(string $search, int $perPage, array $filters = []): LengthAwarePaginator;
+
+    public function listWeeklyProjectIds(string $search, array $filters = []): array;
 
     public function listWeeklyAccomplishmentsByProjectIds(array $projectIds, string $search, array $filters = []): Collection;
 

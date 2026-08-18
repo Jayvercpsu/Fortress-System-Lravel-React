@@ -1,4 +1,4 @@
-import Layout from '../../../Components/Layout';
+import { useLayoutTitle } from '../../../Components/Layout';
 import DataTable from '../../../Components/DataTable';
 import ActionButton from '../../../Components/ActionButton';
 import ConfirmationModal from '../../../Components/ConfirmationModal';
@@ -139,10 +139,11 @@ export default function UsersIndex({ users = [], userTable = {} }) {
         },
     ];
 
+    useLayoutTitle('User Management');
+
     return (
         <>
             <Head title="Users" />
-            <Layout title="User Management">
                 <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 20 }}>
                     <ActionButton
                         href="/users/create"
@@ -190,7 +191,6 @@ export default function UsersIndex({ users = [], userTable = {} }) {
                     processing={deleting}
                     danger
                 />
-            </Layout>
         </>
     );
 }

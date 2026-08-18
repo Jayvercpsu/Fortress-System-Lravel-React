@@ -1,4 +1,4 @@
-﻿import Layout from '../../Components/Layout';
+﻿import { useLayoutTitle } from '../../Components/Layout';
 import InlinePagination from '../../Components/InlinePagination';
 import SearchableDropdown from '../../Components/SearchableDropdown';
 import DatePickerInput from '../../Components/DatePickerInput';
@@ -141,10 +141,11 @@ export default function ForemanDashboard({
     const pendingMaterials = materialRequests.filter((item) => String(item.status).toLowerCase() === 'pending').length;
     const openIssues = issueReports.filter((item) => String(item.status).toLowerCase() === 'open').length;
 
+    useLayoutTitle(`Foreman - ${user?.fullname || 'Dashboard'}`);
+
     return (
         <>
             <Head title="Foreman Dashboard" />
-            <Layout title={`Foreman - ${user?.fullname || 'Dashboard'}`}>
                 <div style={{ display: 'grid', gap: 16 }}>
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
                         <StatCard label="Assigned Projects" value={assignedProjects.length} color="#60a5fa" />
@@ -152,14 +153,15 @@ export default function ForemanDashboard({
                             label="Attendance Logs"
                             value={attendances.length}
                             color="#fbbf24"
-                            subtext="Mark workers present from the Attendance page"
+                            subtext="Logged by HR for payroll"
                         />
                         <StatCard label="Pending Materials (recent)" value={pendingMaterials} color="#fbbf24" />
                         <StatCard label="Open Issues (recent)" value={openIssues} color="#f87171" />
                     </div>
 
                     <div className="grid grid-cols-1 lg:[grid-template-columns:1.3fr_1fr] gap-3">
-                        <div style={cardStyle}>
+                        {/* Foreman attendance page hidden for now (stay-in policy — HR logs attendance). Kept for future re-enable. */}
+                        {/* <div style={cardStyle}>
                             <div style={{ fontWeight: 700, marginBottom: 10 }}>Daily Attendance</div>
                             <div
                                 style={{
@@ -186,7 +188,7 @@ export default function ForemanDashboard({
                                     </ActionButton>
                                 </div>
                             </div>
-                        </div>
+                        </div> */}
 
                         <div style={{ ...cardStyle, display: 'grid', gap: 10, alignContent: 'start' }}>
                             <div style={{ fontWeight: 700 }}>Quick Actions</div>
@@ -206,7 +208,8 @@ export default function ForemanDashboard({
                                     Weekly accomplishment, materials, issues, delivery, proof photos
                                 </div>
                             </Link>
-                            <Link
+                            {/* Foreman attendance page hidden for now — kept for future re-enable. */}
+                            {/* <Link
                                 href="/foreman/attendance"
                                 style={{
                                     textDecoration: 'none',
@@ -221,7 +224,7 @@ export default function ForemanDashboard({
                                 <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
                                     List workers present — payroll is computed automatically
                                 </div>
-                            </Link>
+                            </Link> */}
                             <Link
                                 href="/foreman/workers"
                                 style={{
@@ -274,9 +277,10 @@ export default function ForemanDashboard({
                                                 </div>
                                             </div>
                                             <div style={{ fontSize: 12, ...mono }}>{project.overall_progress}%</div>
-                                            <ActionButton href="/foreman/attendance" style={{ padding: '6px 10px' }}>
+                                            {/* Foreman attendance page hidden for now — kept for future re-enable. */}
+                                            {/* <ActionButton href="/foreman/attendance" style={{ padding: '6px 10px' }}>
                                                 Attendance
-                                            </ActionButton>
+                                            </ActionButton> */}
                                             <ActionButton
                                                 href={project.public_submit_url}
                                                 external
@@ -638,7 +642,6 @@ export default function ForemanDashboard({
                         </div>
                     )}
                 </Modal>
-            </Layout>
         </>
     );
 }

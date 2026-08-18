@@ -1,4 +1,4 @@
-﻿import Layout from '../../Components/Layout';
+﻿import { useLayoutTitle } from '../../Components/Layout';
 import ActionButton from '../../Components/ActionButton';
 import InlinePagination from '../../Components/InlinePagination';
 import Modal from '../../Components/Modal';
@@ -218,27 +218,12 @@ export default function ForemanSubmissions({
         });
     };
 
+    useLayoutTitle('Foreman Submissions');
+
     return (
         <>
             <Head title="Foreman Submissions" />
-            <Layout title="Foreman Submissions">
                 <div style={{ display: 'grid', gap: 16 }}>
-                    <div style={card}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
-                            <div>
-                                <div style={{ fontWeight: 700 }}>Submission Access</div>
-                                <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
-                                    View project submit links and photo submission history.
-                                </div>
-                            </div>
-                            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                                <ActionButton href="/foreman" style={{ padding: '8px 12px' }}>Dashboard</ActionButton>
-                                <ActionButton href="/foreman/attendance" style={{ padding: '8px 12px' }}>Attendance</ActionButton>
-                                <ActionButton href="/foreman/workers" style={{ padding: '8px 12px' }}>Workers</ActionButton>
-                            </div>
-                        </div>
-                    </div>
-
                     <div style={card}>
                         <div style={{ fontWeight: 700, marginBottom: 10 }}>Assigned Projects</div>
                         {assignedProjects.length === 0 ? (
@@ -682,7 +667,6 @@ export default function ForemanSubmissions({
                         </div>
                     )}
                 </Modal>
-            </Layout>
         </>
     );
 }

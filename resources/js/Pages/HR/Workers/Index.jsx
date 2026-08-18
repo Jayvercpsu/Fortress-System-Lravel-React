@@ -1,4 +1,4 @@
-import Layout from '../../../Components/Layout';
+import { useLayoutTitle } from '../../../Components/Layout';
 import DataTable from '../../../Components/DataTable';
 import DatePickerInput from '../../../Components/DatePickerInput';
 import ActionButton from '../../../Components/ActionButton';
@@ -452,10 +452,11 @@ export default function HrWorkersIndex({
         setShowCreateModal(true);
     };
 
+    useLayoutTitle('Workers');
+
     return (
         <>
             <Head title="Workers" />
-            <Layout title="Workers">
                 <div style={{ display: 'grid', gap: 16 }}>
                     <div style={cardStyle}>
                         <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 12 }}>
@@ -746,7 +747,6 @@ export default function HrWorkersIndex({
                     processing={deleting}
                     danger
                 />
-            </Layout>
         </>
     );
 }

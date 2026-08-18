@@ -1,4 +1,4 @@
-import Layout from '../../../Components/Layout';
+import { useLayoutTitle } from '../../../Components/Layout';
 import DatePickerInput from '../../../Components/DatePickerInput';
 import SearchableDropdown from '../../../Components/SearchableDropdown';
 import ActionButton from '../../../Components/ActionButton';
@@ -234,10 +234,11 @@ export default function HeadAdminProjectsEdit({ project, foremen = [], designers
         setData('type', value);
     };
 
+    useLayoutTitle(`Edit Project - ${project.name}`);
+
     return (
         <>
             <Head title={`Edit Project #${project.id}`} />
-            <Layout title={`Edit Project - ${project.name}`}>
                 <div style={{ marginBottom: 12 }}>
                     <ActionButton
                         href={`/projects/${project.id}`}
@@ -531,7 +532,6 @@ export default function HeadAdminProjectsEdit({ project, foremen = [], designers
                     </fieldset>
                 </form>
 
-            </Layout>
         </>
     );
 }

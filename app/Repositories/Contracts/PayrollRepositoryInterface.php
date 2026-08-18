@@ -55,6 +55,8 @@ interface PayrollRepositoryInterface
 
     public function findCutoffByRange(string $startDate, string $endDate): ?PayrollCutoff;
 
+    public function existingPayrollsForRange(string $startDate, string $endDate, ?string $group = null, ?int $projectId = null): EloquentCollection;
+
     public function firstOrCreateCutoff(string $startDate, string $endDate, string $status = PayrollCutoff::STATUS_GENERATED): PayrollCutoff;
 
     public function deletePayrollsByCutoffId(int $cutoffId, ?string $group = null, ?int $projectId = null): void;

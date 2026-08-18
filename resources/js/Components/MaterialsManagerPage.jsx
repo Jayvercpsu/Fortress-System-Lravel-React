@@ -1,4 +1,4 @@
-import Layout from './Layout';
+import { useLayoutTitle } from './Layout';
 import ActionButton from './ActionButton';
 import DataTable from './DataTable';
 import EditModal from './EditModal';
@@ -174,10 +174,11 @@ export default function MaterialsManagerPage({ materials = [], materialTable = {
         },
     ];
 
+    useLayoutTitle('Materials');
+
     return (
         <>
             <Head title="Materials" />
-            <Layout title="Materials">
                 <div style={{ display: 'grid', gap: 16 }}>
                     <form onSubmit={submitCreate} className="grid grid-cols-1 md:grid-cols-2 gap-3.5" style={cardStyle}>
                         <label>
@@ -242,7 +243,6 @@ export default function MaterialsManagerPage({ materials = [], materialTable = {
                         </label>
                     </div>
                 </EditModal>
-            </Layout>
         </>
     );
 }

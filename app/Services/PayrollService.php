@@ -382,11 +382,65 @@ class PayrollService
         ]);
     }
 
+    public function existingPayrollsPayload(array $validated, ?string $group = null): array
+    {
+        $startDate = $validated['start_date'];
+        $endDate = $validated['end_date'];
+        $projectId = (int) ($validated['project_id'] ?? 0);
+        $normalizedGroup = $this->normalizePayrollGroup((string) $group);
+
+        if ($normalizedGroup !== 'staff' && $projectId <= 0) {
+            throw ValidationException::withMessages([
+                'project_id' => 'Please select a project.',
+            ]);
+        }
+        if ($normalizedGroup === 'staff') {
+            $projectId = null;
+        }
+
+        $candidates = $this->buildPayrollCandidates($startDate, $endDate, $normalizedGroup, $projectId);
+
+        $rows = $candidates->map(function ($row) {
+            $hours = round((float) ($row->total_hours ?? 0), 2);
+            $rate = $this->resolveRateForWorker((string) $row->worker_name, $row->worker_role ? (string) $row->worker_role : null);
+            $gross = round($hours * $rate, 2);
+
+            return [
+                'worker_name' => $row->worker_name,
+                'role' => $row->worker_role ?: 'Labor',
+                'hours' => $hours,
+                'rate_per_hour' => $rate,
+                'net' => $gross,
+            ];
+        })->values()->all();
+
+        $existingRows = $this->payrollRepository->existingPayrollsForRange($startDate, $endDate, $normalizedGroup, $projectId);
+
+        return [
+            'exists' => $existingRows->isNotEmpty(),
+            'existing_count' => $existingRows->count(),
+            'existing' => $existingRows->map(function (Payroll $payroll) {
+                return [
+                    'id' => $payroll->id,
+                    'worker_name' => $payroll->worker_name,
+                    'role' => $payroll->role,
+                    'hours' => (float) $payroll->hours,
+                    'net' => (float) $payroll->net,
+                    'status' => $payroll->status,
+                ];
+            })->values()->all(),
+            'count' => count($rows),
+            'rows' => $rows,
+        ];
+    }
+
     public function generateFromAttendance(array $validated, int $authId, ?string $group = null): PayrollCutoff
     {
         $startDate = $validated['start_date'];
         $endDate = $validated['end_date'];
         $projectId = (int) ($validated['project_id'] ?? 0);
+        $paymentReference = trim((string) ($validated['payment_reference'] ?? ''));
+        $bankExportRef = trim((string) ($validated['bank_export_ref'] ?? ''));
         $normalizedGroup = $this->normalizePayrollGroup((string) $group);
         if ($normalizedGroup !== 'staff' && $projectId <= 0) {
             throw ValidationException::withMessages([
@@ -397,90 +451,7 @@ class PayrollService
             $projectId = null;
         }
 
-        $attendanceSummary = $this->payrollRepository->attendanceSummaryBetween($startDate, $endDate, $normalizedGroup, $projectId);
-
-        $attendanceSummary = collect($attendanceSummary);
-        $summaryByName = $attendanceSummary
-            ->mapWithKeys(function ($row) {
-                $name = Str::lower(trim((string) ($row->worker_name ?? '')));
-                return $name !== '' ? [$name => true] : [];
-            });
-
-        if ($normalizedGroup === 'staff') {
-            $days = max(1, Carbon::parse($startDate)->diffInDays(Carbon::parse($endDate)) + 1);
-            $defaultHours = $days * 8;
-            $staffUsers = $this->payrollRepository->staffUsersForRates();
-
-            $extras = $staffUsers
-                ->map(function (User $user) use ($defaultHours, $summaryByName) {
-                    $name = trim((string) ($user->fullname ?? ''));
-                    if ($name === '') {
-                        return null;
-                    }
-
-                    $key = Str::lower($name);
-                    if ($summaryByName->has($key)) {
-                        return null;
-                    }
-
-                    return (object) [
-                        'worker_name' => $name,
-                        'worker_role' => $this->formatStaffRoleLabel($user->role),
-                        'total_hours' => $defaultHours,
-                    ];
-                })
-                ->filter()
-                ->values();
-
-            $attendanceSummary = $attendanceSummary->concat($extras)->values();
-        }
-
-        if ($normalizedGroup === 'workers') {
-            $extras = collect();
-
-            foreach ($this->payrollRepository->workersWithForeman($projectId) as $worker) {
-                $name = trim((string) ($worker->name ?? ''));
-                if ($name === '') {
-                    continue;
-                }
-
-                $key = Str::lower($name);
-                if ($summaryByName->has($key)) {
-                    continue;
-                }
-
-                $role = trim((string) ($worker->job_type ?? Worker::JOB_TYPE_WORKER));
-                $role = $role !== '' ? $role : Worker::JOB_TYPE_WORKER;
-
-                $extras->push((object) [
-                    'worker_name' => $name,
-                    'worker_role' => $role,
-                    'total_hours' => 0,
-                ]);
-                $summaryByName->put($key, true);
-            }
-
-            foreach ($this->payrollRepository->foremenForProject($projectId) as $foreman) {
-                $name = trim((string) ($foreman->fullname ?? ''));
-                if ($name === '') {
-                    continue;
-                }
-
-                $key = Str::lower($name);
-                if ($summaryByName->has($key)) {
-                    continue;
-                }
-
-                $extras->push((object) [
-                    'worker_name' => $name,
-                    'worker_role' => 'Foreman',
-                    'total_hours' => 0,
-                ]);
-                $summaryByName->put($key, true);
-            }
-
-            $attendanceSummary = $attendanceSummary->concat($extras)->values();
-        }
+        $attendanceSummary = $this->buildPayrollCandidates($startDate, $endDate, $normalizedGroup, $projectId);
 
         if ($attendanceSummary->isEmpty()) {
             throw ValidationException::withMessages([
@@ -502,7 +473,7 @@ class PayrollService
             }
         }
 
-        return DB::transaction(function () use ($startDate, $endDate, $attendanceSummary, $authId, $normalizedGroup, $projectId) {
+        return DB::transaction(function () use ($startDate, $endDate, $attendanceSummary, $authId, $normalizedGroup, $projectId, $paymentReference, $bankExportRef) {
             $cutoff = $this->payrollRepository->firstOrCreateCutoff($startDate, $endDate);
             $this->payrollRepository->deletePayrollsByCutoffId((int) $cutoff->id, $normalizedGroup, $projectId);
             $projectSnapshot = $this->resolveProjectSnapshot($projectId);
@@ -527,6 +498,8 @@ class PayrollService
                     'net' => $gross,
                     'status' => Payroll::STATUS_READY,
                     'week_start' => $startDate,
+                    'payment_reference' => $paymentReference ?: null,
+                    'bank_export_ref' => $bankExportRef ?: null,
                 ]);
             }
 
@@ -736,6 +709,93 @@ class PayrollService
         }
 
         return [$search, $perPage];
+    }
+
+    private function buildPayrollCandidates(string $startDate, string $endDate, string $normalizedGroup, ?int $projectId = null): Collection
+    {
+        $attendanceSummary = collect(
+            $this->payrollRepository->attendanceSummaryBetween($startDate, $endDate, $normalizedGroup, $projectId)
+        );
+
+        $summaryByName = $attendanceSummary
+            ->mapWithKeys(function ($row) {
+                $name = Str::lower(trim((string) ($row->worker_name ?? '')));
+                return $name !== '' ? [$name => true] : [];
+            });
+
+        if ($normalizedGroup === 'staff') {
+            $days = max(1, Carbon::parse($startDate)->diffInDays(Carbon::parse($endDate)) + 1);
+            $defaultHours = $days * 8;
+            $staffUsers = $this->payrollRepository->staffUsersForRates();
+
+            $extras = $staffUsers
+                ->map(function (User $user) use ($defaultHours, $summaryByName) {
+                    $name = trim((string) ($user->fullname ?? ''));
+                    if ($name === '') {
+                        return null;
+                    }
+
+                    $key = Str::lower($name);
+                    if ($summaryByName->has($key)) {
+                        return null;
+                    }
+
+                    return (object) [
+                        'worker_name' => $name,
+                        'worker_role' => $this->formatStaffRoleLabel($user->role),
+                        'total_hours' => $defaultHours,
+                    ];
+                })
+                ->filter()
+                ->values();
+
+            return $attendanceSummary->concat($extras)->values();
+        }
+
+        $extras = collect();
+
+        foreach ($this->payrollRepository->workersWithForeman($projectId) as $worker) {
+            $name = trim((string) ($worker->name ?? ''));
+            if ($name === '') {
+                continue;
+            }
+
+            $key = Str::lower($name);
+            if ($summaryByName->has($key)) {
+                continue;
+            }
+
+            $role = trim((string) ($worker->job_type ?? Worker::JOB_TYPE_WORKER));
+            $role = $role !== '' ? $role : Worker::JOB_TYPE_WORKER;
+
+            $extras->push((object) [
+                'worker_name' => $name,
+                'worker_role' => $role,
+                'total_hours' => 0,
+            ]);
+            $summaryByName->put($key, true);
+        }
+
+        foreach ($this->payrollRepository->foremenForProject((int) $projectId) as $foreman) {
+            $name = trim((string) ($foreman->fullname ?? ''));
+            if ($name === '') {
+                continue;
+            }
+
+            $key = Str::lower($name);
+            if ($summaryByName->has($key)) {
+                continue;
+            }
+
+            $extras->push((object) [
+                'worker_name' => $name,
+                'worker_role' => 'Foreman',
+                'total_hours' => 0,
+            ]);
+            $summaryByName->put($key, true);
+        }
+
+        return $attendanceSummary->concat($extras)->values();
     }
 
     private function normalizePayrollGroup(?string $group): string

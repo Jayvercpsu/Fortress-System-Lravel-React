@@ -110,6 +110,16 @@ class PayrollController extends Controller
         return redirect()->route('payroll.run', $this->payrollService->runGenerateQueryParams($request, $cutoff));
     }
 
+    public function existingPayrolls(GeneratePayrollFromAttendanceRequest $request)
+    {
+        return response()->json(
+            $this->payrollService->existingPayrollsPayload(
+                $request->validated(),
+                (string) $request->query('group', 'workers')
+            )
+        );
+    }
+
     public function addDeduction(StorePayrollDeductionRequest $request, Payroll $payroll)
     {
         $this->payrollService->addDeduction($payroll, $request->validated());

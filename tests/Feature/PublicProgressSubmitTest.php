@@ -121,6 +121,51 @@ class PublicProgressSubmitTest extends TestCase
         $this->assertSame(1, (int) $token->submission_count);
     }
 
+    public function test_public_attendance_submit_auto_includes_foreman_without_creating_worker_record(): void
+    {
+        $token = $this->makeToken();
+        $foremanName = $token->foreman->fullname;
+
+        // The foreman is auto-included in the daily attendance as a skilled-worker row.
+        $this->post("/progress-submit/{$token->token}/attendance", [
+            'week_start' => '2026-02-23',
+            'entries' => [
+                [
+                    'worker_name' => $foremanName,
+                    'worker_role' => 'Skilled Worker',
+                    'days' => [
+                        'mon' => 'P',
+                        'tue' => 'P',
+                        'wed' => '',
+                        'thu' => '',
+                        'fri' => '',
+                        'sat' => '',
+                        'sun' => '',
+                    ],
+                ],
+            ],
+        ])->assertRedirect("/progress-submit/{$token->token}");
+
+        $this->assertTrue(
+            Attendance::query()
+                ->where('foreman_id', $token->foreman_id)
+                ->where('project_id', $token->project_id)
+                ->where('worker_name', $foremanName)
+                ->where('worker_role', 'Skilled Worker')
+                ->whereDate('date', '2026-02-23')
+                ->where('hours', 8.0)
+                ->exists()
+        );
+
+        // The foreman's auto-row must not spawn a managed Worker record for their own name.
+        $this->assertFalse(
+            \App\Models\Worker::query()
+                ->where('foreman_id', $token->foreman_id)
+                ->whereRaw('LOWER(name) = ?', [\Illuminate\Support\Str::lower($foremanName)])
+                ->exists()
+        );
+    }
+
     public function test_public_weekly_progress_submit_stores_weekly_accomplishment_rows(): void
     {
         $token = $this->makeToken();

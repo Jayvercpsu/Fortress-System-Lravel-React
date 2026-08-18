@@ -1,6 +1,6 @@
 import { Head, router } from '@inertiajs/react';
 import { useEffect, useMemo, useState } from 'react';
-import Layout from './Layout';
+import { useLayoutTitle } from './Layout';
 import ActionButton from './ActionButton';
 import DatePickerInput from './DatePickerInput';
 import SearchableDropdown from './SearchableDropdown';
@@ -289,10 +289,11 @@ export default function KpiPage({
     const appliedQuery = new URLSearchParams(appliedParams).toString();
     const exportHref = appliedQuery ? `/kpi/export?${appliedQuery}` : '/kpi/export';
     const printHref = appliedQuery ? `/kpi/print?${appliedQuery}` : '/kpi/print';
+    useLayoutTitle('KPI (Key Performance Indicator)');
+
     return (
         <>
             <Head title="KPI" />
-            <Layout title="KPI (Key Performance Indicator)">
                 <div style={{ display: 'grid', gap: 16, minWidth: 0, overflowX: 'hidden' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
                         <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
@@ -646,7 +647,6 @@ export default function KpiPage({
                         </div>
                     </div>
                 </div>
-            </Layout>
         </>
     );
 }

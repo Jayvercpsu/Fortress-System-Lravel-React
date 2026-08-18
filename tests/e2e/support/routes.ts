@@ -22,8 +22,6 @@ export const routeCoverage: Record<RoleKey, RouteExpectation[]> = {
         { name: 'Monitoring board', path: `/projects/${DEMO_PROJECT_ID}/monitoring`, bodyText: `Monitoring Board - Project #${DEMO_PROJECT_ID}` },
         { name: 'Payments page', path: `/projects/${DEMO_PROJECT_ID}/payments`, bodyText: 'Payments - Fortress Building' },
         { name: 'Financials page', path: `/projects/${DEMO_PROJECT_ID}/financials`, bodyText: 'Project Financials - Fortress Building' },
-        { name: 'Attendance logs', path: '/attendance', bodyText: 'Attendance Logs' },
-        { name: 'Attendance summary', path: '/attendance/summary', bodyText: 'Attendance Cutoff Summary' },
         { name: 'Payroll run', path: '/payroll/run', bodyText: 'Payroll Run' },
         { name: 'Materials page', path: '/materials', bodyText: 'Materials / Requests' },
         { name: 'Delivery page', path: '/delivery', bodyText: 'Delivery Confirmations' },
@@ -43,8 +41,6 @@ export const routeCoverage: Record<RoleKey, RouteExpectation[]> = {
         { name: 'Build tracker', path: `/projects/${DEMO_PROJECT_ID}/build`, bodyText: `Build Tracker - Project #${DEMO_PROJECT_ID}` },
         { name: 'Expenses tab', path: `/projects/${DEMO_PROJECT_ID}/build?tab=expenses`, bodyText: 'Add Expense' },
         { name: 'Monitoring board', path: `/projects/${DEMO_PROJECT_ID}/monitoring`, bodyText: `Monitoring Board - Project #${DEMO_PROJECT_ID}` },
-        { name: 'Attendance logs', path: '/attendance', bodyText: 'Attendance Logs' },
-        { name: 'Attendance summary', path: '/attendance/summary', bodyText: 'Attendance Cutoff Summary' },
         { name: 'Materials page', path: '/materials', bodyText: 'Materials / Requests' },
         { name: 'Delivery page', path: '/delivery', bodyText: 'Delivery Confirmations' },
         { name: 'Issues page', path: '/issues', bodyText: 'Issue Reports' },
@@ -67,7 +63,8 @@ export const routeCoverage: Record<RoleKey, RouteExpectation[]> = {
         { name: 'Foreman dashboard', path: '/foreman', bodyText: 'Open Submissions' },
         { name: 'Foreman submissions page', path: '/foreman/submissions', bodyText: 'Foreman Submissions' },
         { name: 'Foreman workers page', path: '/foreman/workers', bodyText: 'Add Worker' },
-        { name: 'Foreman attendance page', path: '/foreman/attendance', bodyText: 'Daily Attendance' },
+        // Foreman attendance page hidden for now (stay-in policy — HR logs attendance). Kept for future re-enable.
+        // { name: 'Foreman attendance page', path: '/foreman/attendance', bodyText: 'Daily Attendance' },
         { name: 'Settings page', path: '/settings', bodyText: 'Account Settings' },
     ],
 };
@@ -80,13 +77,11 @@ export const forbiddenCoverage: Record<RoleKey, string[]> = {
     ],
     hr: [
         '/projects',
-        '/attendance',
         '/reports',
         '/weekly-accomplishments',
     ],
     foreman: [
         '/projects',
-        '/attendance',
         '/payroll/run',
         '/users',
         '/kpi',

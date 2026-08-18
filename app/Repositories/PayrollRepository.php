@@ -243,6 +243,18 @@ class PayrollRepository implements PayrollRepositoryInterface
             ->first();
     }
 
+    public function existingPayrollsForRange(string $startDate, string $endDate, ?string $group = null, ?int $projectId = null): EloquentCollection
+    {
+        $cutoff = $this->findCutoffByRange($startDate, $endDate);
+        if (!$cutoff instanceof PayrollCutoff) {
+            return new EloquentCollection();
+        }
+
+        return $this->payrollsByCutoffId((int) $cutoff->id, $group, $projectId)
+            ->sortBy('worker_name')
+            ->values();
+    }
+
     public function firstOrCreateCutoff(string $startDate, string $endDate, string $status = PayrollCutoff::STATUS_GENERATED): PayrollCutoff
     {
         return PayrollCutoff::query()->firstOrCreate(

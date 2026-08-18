@@ -1,4 +1,4 @@
-import Layout from '../../Components/Layout';
+import { useLayoutTitle } from '../../Components/Layout';
 import DataTable from '../../Components/DataTable';
 import DatePickerInput from '../../Components/DatePickerInput';
 import SearchableDropdown from '../../Components/SearchableDropdown';
@@ -79,6 +79,9 @@ export default function PayrollRun({
     const [deletingDeduction, setDeletingDeduction] = useState(false);
     const [historyDetailRow, setHistoryDetailRow] = useState(null);
     const [historyToDelete, setHistoryToDelete] = useState(null);
+    const [existingPayrollData, setExistingPayrollData] = useState(null);
+    const [checkingExisting, setCheckingExisting] = useState(false);
+    const [showExistingPayrollModal, setShowExistingPayrollModal] = useState(false);
     const isStaff = payrollGroup === 'staff';
     const selectedProjectId = !isStaff && selectedProject?.id ? String(selectedProject.id) : '';
     const groupQueryParams = new URLSearchParams();
@@ -109,6 +112,8 @@ export default function PayrollRun({
         project_id: selectedProjectId,
         start_date: selectedCutoff?.start_date ?? '',
         end_date: selectedCutoff?.end_date ?? '',
+        payment_reference: '',
+        bank_export_ref: '',
     });
     const generateProjectOptionsList = Array.isArray(generateProjectOptions) ? generateProjectOptions : [];
 
@@ -202,12 +207,61 @@ export default function PayrollRun({
     };
 
     const submitGenerate = (e) => {
-        e.preventDefault();
+        if (e?.preventDefault) {
+            e.preventDefault();
+        }
         generateForm.post(`/payroll/run/generate${queryString({ page: 1 })}`, {
             preserveScroll: true,
             onSuccess: () => toast.success(toastMessages.payrollRun.generateSuccess),
             onError: () => toast.error(toastMessages.payrollRun.generateError),
         });
+    };
+
+    const checkExistingPayrolls = async (e) => {
+        e.preventDefault();
+        if (checkingExisting || generateForm.processing) return;
+
+        const params = new URLSearchParams();
+        params.set('start_date', generateForm.data.start_date);
+        params.set('end_date', generateForm.data.end_date);
+        params.set('group', payrollGroup);
+        if (!isStaff && generateForm.data.project_id) {
+            params.set('project_id', generateForm.data.project_id);
+        }
+
+        setCheckingExisting(true);
+        try {
+            const response = await fetch(`/payroll/run/existing?${params.toString()}`, {
+                headers: { 'X-Requested-With': 'XMLHttpRequest' },
+            });
+            if (!response.ok) {
+                throw new Error('Unable to check existing payroll.');
+            }
+            const data = await response.json();
+            const rows = Array.isArray(data?.rows) ? data.rows : [];
+            const existingRows = Array.isArray(data?.existing) ? data.existing : [];
+            setExistingPayrollData({
+                ...(data || {}),
+                exists: existingRows.length > 0,
+                existing_count: existingRows.length,
+                existing: existingRows,
+                count: rows.length,
+                rows,
+            });
+            generateForm.setData('payment_reference', '');
+            generateForm.setData('bank_export_ref', '');
+            setShowExistingPayrollModal(true);
+        } catch (error) {
+            toast.error('Unable to check existing payroll. Proceeding to generate.');
+            submitGenerate();
+        } finally {
+            setCheckingExisting(false);
+        }
+    };
+
+    const confirmGenerate = () => {
+        setShowExistingPayrollModal(false);
+        submitGenerate();
     };
 
     const openEdit = (row) => {
@@ -313,9 +367,9 @@ export default function PayrollRun({
             onSuccess: () => {
                 setHistoryToDelete(null);
                 setHistoryDetailRow(null);
-                toast.success('Payroll history deleted.');
+                toast.success('Payroll list deleted.');
             },
-            onError: () => toast.error('Unable to delete payroll history.'),
+            onError: () => toast.error('Unable to delete payroll list.'),
         });
     };
 
@@ -620,13 +674,14 @@ export default function PayrollRun({
         : Boolean(generateForm.data.project_id);
     const showPayrollRun = isStaff || !!selectedProject;
 
+    useLayoutTitle('Payroll Run');
+
     return (
         <>
             <Head title="Payroll Run" />
-            <Layout title="Payroll Run">
                 <div style={{ display: 'grid', gap: 16 }}>
                     {groupTabs}
-                    <form onSubmit={submitGenerate} style={{ ...cardStyle, display: 'grid', gap: 12 }}>
+                    <form onSubmit={checkExistingPayrolls} style={{ ...cardStyle, display: 'grid', gap: 12 }}>
                         <div
                             style={{
                                 display: 'flex',
@@ -694,7 +749,12 @@ export default function PayrollRun({
                                     <div style={{ fontSize: 12, marginBottom: 6 }}>Cutoff Start</div>
                                     <DatePickerInput
                                         value={generateForm.data.start_date}
-                                        onChange={(value) => generateForm.setData('start_date', value)}
+                                        onChange={(value) => {
+                                            generateForm.setData('start_date', value);
+                                            if (value) {
+                                                generateForm.clearErrors('start_date');
+                                            }
+                                        }}
                                         style={inputStyle}
                                         maxDate={today || undefined}
                                     />
@@ -709,7 +769,12 @@ export default function PayrollRun({
                                     <div style={{ fontSize: 12, marginBottom: 6 }}>Cutoff End</div>
                                     <DatePickerInput
                                         value={generateForm.data.end_date}
-                                        onChange={(value) => generateForm.setData('end_date', value)}
+                                        onChange={(value) => {
+                                            generateForm.setData('end_date', value);
+                                            if (value) {
+                                                generateForm.clearErrors('end_date');
+                                            }
+                                        }}
                                         style={inputStyle}
                                         minDate={generateForm.data.start_date || undefined}
                                         maxDate={today || undefined}
@@ -722,8 +787,12 @@ export default function PayrollRun({
                                 </label>
 
                                 <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'start', paddingTop: 16 }}>
-                                    <ActionButton type="submit" variant="success" disabled={generateForm.processing || !canGenerate} style={{ padding: '10px 16px', fontSize: 13 }}>
-                                        {generateForm.processing ? 'Generating...' : 'Generate Payroll'}
+                                    <ActionButton type="submit" variant="success" disabled={generateForm.processing || checkingExisting || !canGenerate} style={{ padding: '10px 16px', fontSize: 13 }}>
+                                        {checkingExisting
+                                            ? 'Checking...'
+                                            : generateForm.processing
+                                                ? 'Generating...'
+                                                : 'Generate Payroll'}
                                     </ActionButton>
                                 </div>
                             </div>
@@ -813,6 +882,7 @@ export default function PayrollRun({
                                 </div>
                             ) : null}
 
+                            {/*
                             <div style={{ ...cardStyle, display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
                                 <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
                                     {isStaff
@@ -864,14 +934,15 @@ export default function PayrollRun({
                                     onServerPageChange={(value) => navigateTable({ page: value })}
                                 />
                             </div>
+                            */}
 
                             <div style={{ ...cardStyle, display: 'grid', gap: 10 }}>
                                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
-                                    <div style={{ fontWeight: 700 }}>Payroll History</div>
+                                    <div style={{ fontWeight: 700 }}>Payroll List</div>
                                     <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>Recent tagged cutoffs across all projects</div>
                                 </div>
                                 {projectHistoryRows.length === 0 ? (
-                                    <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>No payroll history yet.</div>
+                                    <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>No payroll list yet.</div>
                                 ) : (
                                     <div style={{ overflowX: 'auto' }}>
                                         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
@@ -1242,7 +1313,7 @@ export default function PayrollRun({
                 <Modal
                     open={!!historyDetailRow}
                     onClose={() => setHistoryDetailRow(null)}
-                    title="Payroll History Transactions"
+                    title="Payroll List Transactions"
                     maxWidth={1100}
                 >
                     {historyDetailRow && (
@@ -1371,16 +1442,106 @@ export default function PayrollRun({
                     open={!!historyToDelete}
                     onClose={() => setHistoryToDelete(null)}
                     onConfirm={submitHistoryDelete}
-                    title="Delete Payroll History"
+                    title="Delete Payroll List"
                     message={
                         historyToDelete
-                            ? `Delete payroll history for cutoff ${historyToDelete.cutoff_start || historyToDelete.cutoff_id} ${historyToDelete.project_name ? `(${historyToDelete.project_name})` : ''}?`
-                            : 'Delete payroll history?'
+                            ? `Delete payroll list for cutoff ${historyToDelete.cutoff_start || historyToDelete.cutoff_id} ${historyToDelete.project_name ? `(${historyToDelete.project_name})` : ''}?`
+                            : 'Delete payroll list?'
                     }
                     confirmLabel="Delete"
                     danger
                 />
-            </Layout>
+
+                <Modal
+                    open={showExistingPayrollModal}
+                    onClose={() => setShowExistingPayrollModal(false)}
+                    title="Confirm Payroll Generation"
+                    maxWidth={1200}
+                >
+                    {existingPayrollData && (
+                        <div style={{ display: 'grid', gap: 14 }}>
+                            <div style={{ ...cardStyle, display: 'grid', gap: 4 }}>
+                                <div style={{ fontWeight: 700 }}>
+                                    Cutoff: {generateForm.data.start_date} to {generateForm.data.end_date}
+                                </div>
+                                <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+                                    {existingPayrollData.count} {personLabel.toLowerCase()}(s) can avail payroll for this cutoff
+                                    {!isStaff && generateForm.data.project_id ? ' for the selected project' : ''}.
+                                </div>
+                                {existingPayrollData.exists ? (
+                                    <div style={{ fontSize: 12, color: '#f59e0b' }}>
+                                        {existingPayrollData.existing_count} of them already have generated payroll and will be overwritten.
+                                    </div>
+                                ) : null}
+                            </div>
+
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                <label>
+                                    <div style={{ fontSize: 12, marginBottom: 6 }}>Payment Reference (optional)</div>
+                                    <TextInput
+                                        value={generateForm.data.payment_reference}
+                                        onChange={(e) => generateForm.setData('payment_reference', e.target.value)}
+                                        style={inputStyle}
+                                    />
+                                </label>
+                                <label>
+                                    <div style={{ fontSize: 12, marginBottom: 6 }}>Bank Export Ref (optional)</div>
+                                    <TextInput
+                                        value={generateForm.data.bank_export_ref}
+                                        onChange={(e) => generateForm.setData('bank_export_ref', e.target.value)}
+                                        style={inputStyle}
+                                    />
+                                </label>
+                            </div>
+
+                            {existingPayrollData.rows.length > 0 ? (
+                                <div style={{ ...cardStyle, overflowX: 'auto' }}>
+                                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+                                        <thead>
+                                            <tr>
+                                                <th style={{ textAlign: 'left', padding: 8, borderBottom: '1px solid var(--border-color)' }}>{personLabel}</th>
+                                                <th style={{ textAlign: 'left', padding: 8, borderBottom: '1px solid var(--border-color)' }}>Role</th>
+                                                <th style={{ textAlign: 'right', padding: 8, borderBottom: '1px solid var(--border-color)' }}>Hours</th>
+                                                <th style={{ textAlign: 'right', padding: 8, borderBottom: '1px solid var(--border-color)' }}>Rate</th>
+                                                <th style={{ textAlign: 'right', padding: 8, borderBottom: '1px solid var(--border-color)' }}>Net</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {existingPayrollData.rows.map((row, index) => (
+                                                <tr key={row.worker_name || index}>
+                                                    <td style={{ padding: 8, borderBottom: '1px solid var(--border-color)', fontWeight: 700 }}>{row.worker_name}</td>
+                                                    <td style={{ padding: 8, borderBottom: '1px solid var(--border-color)' }}>{row.role || '-'}</td>
+                                                    <td style={{ padding: 8, borderBottom: '1px solid var(--border-color)', textAlign: 'right', fontFamily: "'DM Mono', monospace" }}>{num(row.hours)}</td>
+                                                    <td style={{ padding: 8, borderBottom: '1px solid var(--border-color)', textAlign: 'right', fontFamily: "'DM Mono', monospace" }}>{money(row.rate_per_hour)}</td>
+                                                    <td style={{ padding: 8, borderBottom: '1px solid var(--border-color)', textAlign: 'right', fontFamily: "'DM Mono', monospace", color: '#4ade80' }}>{money(row.net)}</td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            ) : (
+                                <div style={{ ...cardStyle, fontSize: 13, color: 'var(--text-muted)' }}>
+                                    No {personLabel.toLowerCase()} can avail payroll for this cutoff.
+                                </div>
+                            )}
+
+                            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, flexWrap: 'wrap' }}>
+                                <ActionButton type="button" variant="neutral" onClick={() => setShowExistingPayrollModal(false)} disabled={generateForm.processing}>
+                                    Cancel
+                                </ActionButton>
+                                <ActionButton
+                                    type="button"
+                                    variant="success"
+                                    onClick={confirmGenerate}
+                                    disabled={generateForm.processing || existingPayrollData.rows.length === 0}
+                                    loading={generateForm.processing}
+                                >
+                                    {generateForm.processing ? 'Generating...' : existingPayrollData.exists ? 'Proceed & Overwrite' : 'Generate Payroll'}
+                                </ActionButton>
+                            </div>
+                        </div>
+                    )}
+                </Modal>
         </>
     );
 }

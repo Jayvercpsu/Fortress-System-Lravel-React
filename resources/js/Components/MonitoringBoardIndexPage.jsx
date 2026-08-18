@@ -7,7 +7,7 @@ import SelectInput from './SelectInput';
 import TextareaInput from './TextareaInput';
 import DatePickerInput from './DatePickerInput';
 import SearchableDropdown from './SearchableDropdown';
-import Layout from './Layout';
+import { useLayoutTitle } from './Layout';
 import { Head, router, useForm, usePage } from '@inertiajs/react';
 import { useEffect, useMemo, useState } from 'react';
 import toast from 'react-hot-toast';
@@ -1384,10 +1384,11 @@ export default function MonitoringBoardIndexPage({
         });
     };
 
+    useLayoutTitle('Monitoring Board');
+
     return (
         <>
             <Head title="Monitoring Board" />
-            <Layout title="Monitoring Board">
                 <style>{`
                     .monitoring-board-table .mb-row{
                         --mb-row-bg: transparent;
@@ -3108,7 +3109,6 @@ export default function MonitoringBoardIndexPage({
                     onClose={() => (deletingFileId ? null : setFileToDelete(null))}
                     onConfirm={confirmDeleteFile}
                 />
-            </Layout>
         </>
     );
 }

@@ -1,4 +1,4 @@
-﻿import Layout from './Layout';
+﻿import { useLayoutTitle } from './Layout';
 import ActionButton from './ActionButton';
 import Modal from './Modal';
 import EditModal from './EditModal';
@@ -1710,14 +1710,12 @@ export default function MonitoringBoardPage({
         </>
     );
 
+    useLayoutTitle(`Monitoring Board - Project #${project.id}`);
+
     return (
         <>
             {!embedded && <Head title={`Monitoring Board #${project.id}`} />}
-            {embedded ? (
-                <div>{content}</div>
-            ) : (
-                <Layout title={`Monitoring Board - Project #${project.id}`}>{content}</Layout>
-            )}
+            {content}
             <style>{`
                 .bb-photo-tile .bb-photo-delete{
                     opacity:0;

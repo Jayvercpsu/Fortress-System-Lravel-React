@@ -1,4 +1,4 @@
-import Layout from '../../Components/Layout';
+import { useLayoutTitle } from '../../Components/Layout';
 import InlinePagination from '../../Components/InlinePagination';
 import ActionButton from '../../Components/ActionButton';
 import { Head, usePage } from '@inertiajs/react';
@@ -112,10 +112,11 @@ export default function AdminDashboard({ kpis = {}, projectSnapshotPager = null 
     const netProfit = Number(companyFinancialSummary.net_profit ?? 0);
     const netMarginPercent = Number(companyFinancialSummary.net_margin_percent ?? 0);
 
+    useLayoutTitle('Admin Dashboard');
+
     return (
         <>
             <Head title="Dashboard" />
-            <Layout title="Admin Dashboard">
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
                     <StatCard label="Total Projects" value={projectCounts.total ?? 0} />
                     <StatCard label="Company Progress" value={`${Number(kpis.company_progress_percent || 0).toFixed(1)}%`} color="#60a5fa" />
@@ -215,7 +216,6 @@ export default function AdminDashboard({ kpis = {}, projectSnapshotPager = null 
                     <InlinePagination pager={projectSnapshotPager} />
                 </div>
                 )}
-            </Layout>
         </>
     );
 }

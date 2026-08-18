@@ -1,4 +1,4 @@
-import Layout from '../../Components/Layout';
+import { useLayoutTitle } from '../../Components/Layout';
 import DataTable from '../../Components/DataTable';
 import SearchableDropdown from '../../Components/SearchableDropdown';
 import ActionButton from '../../Components/ActionButton';
@@ -349,10 +349,11 @@ export default function Payroll({
         [payrolls, personLabel, isStaff]
     );
 
+    useLayoutTitle('Payroll Management');
+
     return (
         <>
             <Head title="Payroll" />
-            <Layout title="Payroll Management">
                 <div style={{ marginBottom: 12 }}>
                     <ActionButton
                         href={`/payroll/run${groupQuery}`}
@@ -686,7 +687,6 @@ export default function Payroll({
                         </form>
                     )}
                 </Modal>
-            </Layout>
         </>
     );
 }

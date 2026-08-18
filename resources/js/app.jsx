@@ -2,9 +2,20 @@ import './bootstrap';
 import 'react-datepicker/dist/react-datepicker.css';
 import '../css/app.css';
 import { createInertiaApp } from '@inertiajs/react';
-import { resolvePageComponent } from 'laravel-vite-plugin/inertia-helpers';
 import { createRoot } from 'react-dom/client';
 import { Toaster } from 'react-hot-toast';
+import Layout from './Components/Layout';
+
+// Pages rendered without the app shell (login, public Jotform pages, error page).
+const STANDALONE_PAGES = new Set([
+    'Auth/Login',
+    'Auth/ClientLogin',
+    'Public/ProgressSubmit',
+    'Public/ProgressReceipt',
+    'Errors/NotFound',
+]);
+
+const pageModules = import.meta.glob('./Pages/**/*.jsx', { eager: true });
 
 if (typeof window !== 'undefined') {
     const savedTheme = window.localStorage.getItem('bb_theme') || 'light';
@@ -13,7 +24,16 @@ if (typeof window !== 'undefined') {
 
 createInertiaApp({
     title: (title) => `${title} - BuildBooks`,
-    resolve: (name) => resolvePageComponent(`./Pages/${name}.jsx`, import.meta.glob('./Pages/**/*.jsx')),
+    resolve: (name) => {
+        const page = pageModules[`./Pages/${name}.jsx`];
+        const Page = page?.default;
+        // Persistent layout: Layout stays mounted across navigations so the sidebar
+        // (logo, profile photo) is never recreated and never flickers.
+        if (Page && !STANDALONE_PAGES.has(name) && !Page.layout) {
+            Page.layout = (pageNode) => <Layout>{pageNode}</Layout>;
+        }
+        return page;
+    },
     setup({ el, App, props }) {
         if (typeof window !== 'undefined') {
             const timezone = props?.initialPage?.props?.app?.timezone;

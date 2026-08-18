@@ -1,4 +1,4 @@
-import Layout from '../../../Components/Layout';
+import { useLayoutTitle } from '../../../Components/Layout';
 import DataTable from '../../../Components/DataTable';
 import ActionButton from '../../../Components/ActionButton';
 import ConfirmationModal from '../../../Components/ConfirmationModal';
@@ -257,10 +257,11 @@ export default function ClientsIndex({ clients = [], clientTable = {}, projectOp
         },
     ];
 
+    useLayoutTitle('Client Management');
+
     return (
         <>
             <Head title="Clients" />
-            <Layout title="Client Management">
                 <div style={{ display: 'grid', gap: 16 }}>
                     <form onSubmit={submit} style={cardStyle}>
                         <div style={{ fontWeight: 700, marginBottom: 12 }}>Create Client</div>
@@ -479,7 +480,6 @@ export default function ClientsIndex({ clients = [], clientTable = {}, projectOp
                         </Field>
                     </div>
                 </EditModal>
-            </Layout>
         </>
     );
 }

@@ -6,8 +6,6 @@ test('head admin server-side data tables honor per-page controls and page params
     await loginAs(page, 'head_admin');
 
     const cases = [
-        { name: 'Attendance logs', path: '/attendance', perPageParam: 'per_page', pageParam: 'page', perPageValue: '5', paginate: true },
-        { name: 'Attendance summary', path: '/attendance/summary', perPageParam: 'per_page', pageParam: 'page', perPageValue: '5', paginate: true },
         { name: 'Users', path: '/users', perPageParam: 'per_page', pageParam: 'page', perPageValue: '25', paginate: false },
         { name: 'Project payments', path: `/projects/${DEMO_PROJECT_ID}/payments`, perPageParam: 'per_page', pageParam: 'page', perPageValue: '5', paginate: false },
         { name: 'Project expenses', path: `/projects/${DEMO_PROJECT_ID}/build?tab=expenses`, perPageParam: 'expense_per_page', pageParam: 'expense_page', perPageValue: '10', paginate: false },
@@ -131,7 +129,8 @@ test('foreman tables honor per-page controls and pagination', async ({ page }) =
 
     const cases = [
         { name: 'Workers', path: '/foreman/workers', perPageValue: '5', paginate: false },
-        { name: 'Attendance logs', path: '/foreman/attendance?date=2026-03-07', perPageValue: '5', paginate: true },
+        // Foreman attendance page hidden for now (stay-in policy — HR logs attendance). Kept for future re-enable.
+        // { name: 'Attendance logs', path: '/foreman/attendance?date=2026-03-07', perPageValue: '5', paginate: true },
     ] as const;
 
     for (const tableCase of cases) {

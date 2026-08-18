@@ -63,6 +63,44 @@ class WeeklyAccomplishmentsFiltersTest extends TestCase
                 ->has('weeklyAccomplishments', 2));
     }
 
+    public function test_head_admin_week_buckets_are_paginated_five_per_page(): void
+    {
+        $headAdmin = $this->makeUser('head_admin');
+        $foreman = $this->makeUser('foreman');
+        $project = $this->makeProject('Paginated Project');
+
+        $weeks = ['2026-06-01', '2026-06-08', '2026-06-15', '2026-06-22', '2026-06-29', '2026-07-06', '2026-07-13'];
+        foreach ($weeks as $index => $weekStart) {
+            WeeklyAccomplishment::create([
+                'foreman_id' => $foreman->id,
+                'project_id' => $project->id,
+                'scope_of_work' => 'Scope ' . ($index + 1),
+                'percent_completed' => 10 * ($index + 1),
+                'week_start' => $weekStart,
+            ]);
+        }
+
+        // 7 week buckets -> page 1 shows 5, page 2 shows the remaining 2.
+        $this->actingAs($headAdmin)
+            ->get('/weekly-accomplishments?per_page=5')
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page
+                ->component('HeadAdmin/WeeklyAccomplishments/Index')
+                ->has('weeklyAccomplishments', 5)
+                ->where('weeklyAccomplishmentTable.per_page', 5)
+                ->where('weeklyAccomplishmentTable.current_page', 1)
+                ->where('weeklyAccomplishmentTable.last_page', 2)
+                ->where('weeklyAccomplishmentTable.total', 7));
+
+        $this->actingAs($headAdmin)
+            ->get('/weekly-accomplishments?per_page=5&page=2')
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page
+                ->component('HeadAdmin/WeeklyAccomplishments/Index')
+                ->has('weeklyAccomplishments', 2)
+                ->where('weeklyAccomplishmentTable.current_page', 2));
+    }
+
     public function test_combined_filters_narrow_results_further(): void
     {
         [$headAdmin, $projectA, $foremanA] = $this->seedData();
