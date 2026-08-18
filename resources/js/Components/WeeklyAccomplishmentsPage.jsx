@@ -257,7 +257,7 @@ export default function WeeklyAccomplishmentsPage({
         },
         {
             key: 'scope_photos',
-            label: 'Photos',
+            label: 'Uploaded Photos',
             width: 220,
             render: (row) => {
                 const scopeKey = String(row.scope_of_work || '').trim().toLowerCase();
@@ -266,11 +266,11 @@ export default function WeeklyAccomplishmentsPage({
                     : [];
 
                 if (photos.length === 0) {
-                    return <div className="jf-note" style={{ fontSize: 12 }}>No scope photos yet.</div>;
+                    return <div className="jf-note" style={{ fontSize: 12 }}>No photos uploaded yet.</div>;
                 }
 
                 return (
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(60px, 1fr))', gap: 6 }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 60px)', gap: 6 }}>
                         {photos.slice(0, 4).map((photo) => (
                             <button
                                 key={`scope-photo-${photo.id}`}
