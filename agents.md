@@ -16,7 +16,7 @@ Always use custom input components instead of native HTML elements.
 Every code change must be syntax-checked before it is considered complete, so errors never
 ship silently to the user.
 
-## ✅ Database Safety Rules
+## ✅ Required Rules
 
 1. **After every change, run a syntax check on the files you touched:**
    - PHP: `php -l <file>` for each changed `.php` file.
@@ -27,6 +27,18 @@ ship silently to the user.
    safe to run.
 3. **Fix any syntax/type/build errors you introduced before finishing** — a change is only
    done when it passes its own checks.
+4. **Every code change that touches a layer must be covered by a test in that layer — before
+   finishing, add or update tests for the files you changed:**
+   - **Backend (`.php` files — controllers, services, repositories, models, migrations,
+     routes):** add or update a PHPUnit feature test in `tests/Feature/` (or `tests/Unit/` for
+     pure logic). Assert the behavior: page loads, payload props, role access, mutation flows.
+   - **Frontend (`.jsx`/`.ts`/`.tsx`/`resources/js` files — pages, components, behavior):**
+     add or update a Playwright e2e spec in `tests/e2e/`. Assert the user-visible behavior and
+     content the change affects.
+   - **Both layers changed:** add both the backend and frontend test.
+   - If the change fixes a bug, write/update a test that reproduces the bug first (red), then
+     make it green with the fix.
+   - A change is only done when its new/updated tests pass alongside the full relevant suite.
 
 ---
 
