@@ -242,7 +242,7 @@ class WeeklyAccomplishmentsFiltersTest extends TestCase
                 ->where('projects.1.name', 'Week of Oct 19, 2026 - Oct 25, 2026 — Gap Scenario Project'));
     }
 
-    public function test_admin_view_adds_empty_week_placeholder_rows(): void
+    public function test_admin_shows_auto_generated_empty_week_tabs(): void
     {
         [$admin] = $this->seedGapScenario('admin');
 
@@ -250,13 +250,11 @@ class WeeklyAccomplishmentsFiltersTest extends TestCase
             ->get('/weekly-accomplishments')
             ->assertOk()
             ->assertInertia(fn ($page) => $page
-                ->component('Admin/WeeklyAccomplishments/Index')
-                ->has('weeklyAccomplishments', 3)
-                ->where('weeklyAccomplishments.0.week_start', '2026-10-26')
-                ->where('weeklyAccomplishments.1.empty_week', true)
-                ->where('weeklyAccomplishments.1.week_start', '2026-10-19')
-                ->where('weeklyAccomplishments.1.scope_of_work', null)
-                ->where('weeklyAccomplishments.2.week_start', '2026-10-12'));
+                ->component('HeadAdmin/WeeklyAccomplishments/Index')
+                ->has('projects', 3)
+                ->has('weeklyAccomplishments', 2)
+                ->where('weeklyAccomplishmentTable.total', 3)
+                ->where('projects.1.name', 'Week of Oct 19, 2026 - Oct 25, 2026 — Gap Scenario Project'));
     }
 
     public function test_browsing_weekly_accomplishments_generates_skipped_weeks_to_current(): void

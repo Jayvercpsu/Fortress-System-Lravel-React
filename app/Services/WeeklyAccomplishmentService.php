@@ -52,7 +52,7 @@ class WeeklyAccomplishmentService
         $paginator = null;
         $showEmptyProjects = $search === '' && $status === '' && !$hasActiveFilters;
 
-        $isHeadAdminView = in_array($request->user()->role, [User::ROLE_HEAD_ADMIN, User::ROLE_MASTER_ADMIN], true);
+        $isHeadAdminView = in_array($request->user()->role, [User::ROLE_HEAD_ADMIN, User::ROLE_MASTER_ADMIN, User::ROLE_ADMIN], true);
 
         if ($isHeadAdminView) {
             // The head-admin view groups submissions into week buckets, so gather every
