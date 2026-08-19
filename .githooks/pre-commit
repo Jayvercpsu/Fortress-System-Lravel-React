@@ -7,10 +7,4 @@ fi
 
 echo "Tests failed — commit aborted."
 
-# Show a VS Code toast when the commit runs from the VS Code integrated terminal.
-# Requires the "Terminal Notification" extension (wenbopan.vscode-terminal-osc-notifier).
-if [ -n "$TERM_PROGRAM" ] && [ "$TERM_PROGRAM" = "vscode" ]; then
-    printf '\033]777;notify;Commit blocked;PHP tests failed. Fix them and commit again.\007'
-fi
-
 exit 1
