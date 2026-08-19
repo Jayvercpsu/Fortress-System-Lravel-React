@@ -1,6 +1,6 @@
 # Form Input Standards
 
-## 🎯 Purpose
+## 🎯 Migration Output Purpose
 
 To maintain consistency, validation control, and reusable UI behavior across the system,
 all form input elements must use shared custom components.
@@ -11,14 +11,12 @@ Always use custom input components instead of native HTML elements.
 
 ---
 
-# Code Change Verification
-
-## 🎯 Purpose
+## Code Change Verification
 
 Every code change must be syntax-checked before it is considered complete, so errors never
 ship silently to the user.
 
-## ✅ Required Rules
+## ✅ Database Safety Rules
 
 1. **After every change, run a syntax check on the files you touched:**
    - PHP: `php -l <file>` for each changed `.php` file.
@@ -32,20 +30,21 @@ ship silently to the user.
 
 ---
 
-# Migration Console Output
+## Migration Console Output
 
-## 🎯 Purpose
+## 🎯 Database Safety Purpose
 
 Migrations that print progress/summaries must do so without referencing `$this->command`,
 which Laravel never sets on migration classes (the base `Migration` class only declares
 `$connection` and `$withinTransaction`).
 
-## ✅ Required Rules
+## ✅ Migration Output Rules
 
 1. **Never use `$this->command` inside a migration** — it is an undefined property that
    triggers warnings and (in tests, where warnings become exceptions) failures. Use it only
    in Seeders, which do receive a `$command` property.
 2. **Write migration output straight to STDOUT**, e.g.:
+
    ```php
    private function write(string $message): void
    {
@@ -56,6 +55,7 @@ which Laravel never sets on migration classes (the base `Migration` class only d
        fwrite(STDOUT, $message.PHP_EOL);
    }
    ```
+
    The `runningUnitTests()` guard keeps the PHPUnit output clean (migrations run via
    RefreshDatabase on every test class).
 3. **Reuse the helper pattern** (e.g. `info()`, `warn()`, `table()` delegating to `write()`)
@@ -63,7 +63,7 @@ which Laravel never sets on migration classes (the base `Migration` class only d
 
 ---
 
-# Database Safety
+## Database Safety
 
 ## 🎯 Purpose
 
