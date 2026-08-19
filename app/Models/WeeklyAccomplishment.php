@@ -38,11 +38,12 @@ class WeeklyAccomplishment extends Model {
         'Outdoor Fluted Panel',
     ];
 
-    protected $fillable = ['foreman_id','project_id','scope_of_work','percent_completed','week_start'];
+    protected $fillable = ['foreman_id','project_id','scope_of_work','percent_completed','week_start','is_placeholder'];
 
     protected $casts = [
         'week_start' => 'date',
         'percent_completed' => 'decimal:2',
+        'is_placeholder' => 'boolean',
     ];
 
     public static function defaultScopeOfWorks(): array

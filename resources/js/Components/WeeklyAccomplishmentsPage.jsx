@@ -35,6 +35,7 @@ export default function WeeklyAccomplishmentsPage({
     projects = [],
     filterProjects = [],
     filterForemen = [],
+    groupEmptyMessage = 'No accomplishments for this project.',
 }) {
     const routePath = '/weekly-accomplishments';
 
@@ -243,7 +244,13 @@ export default function WeeklyAccomplishmentsPage({
         {
             key: 'scope_of_work',
             label: 'Scope of Work',
-            render: (row) => <div style={{ fontWeight: 600, whiteSpace: 'normal' }}>{row.scope_of_work || '-'}</div>,
+            render: (row) => row.empty_week
+                ? (
+                    <div style={{ fontWeight: 600, whiteSpace: 'normal', color: 'var(--text-muted)' }}>
+                        No accomplishments created this week.
+                    </div>
+                )
+                : <div style={{ fontWeight: 600, whiteSpace: 'normal' }}>{row.scope_of_work || '-'}</div>,
         },
         {
             key: 'percent_completed',
@@ -260,6 +267,10 @@ export default function WeeklyAccomplishmentsPage({
             label: 'Uploaded Photos',
             width: 220,
             render: (row) => {
+                if (row.empty_week) {
+                    return '-';
+                }
+
                 const scopeKey = String(row.scope_of_work || '').trim().toLowerCase();
                 const rowWeek = String(row.week_start || '').trim();
                 const scopePhotos = scopeKey && Array.isArray(weeklyScopePhotoMap[scopeKey])
@@ -330,7 +341,7 @@ export default function WeeklyAccomplishmentsPage({
                         rowKey="id"
                         searchPlaceholder="Search weekly accomplishments..."
                         emptyMessage="No weekly accomplishments yet."
-                        groupEmptyMessage="No accomplishments for this project."
+                        groupEmptyMessage={groupEmptyMessage}
                         routePath={routePath}
                         table={weeklyAccomplishmentTable}
                         groupPageSize={10}

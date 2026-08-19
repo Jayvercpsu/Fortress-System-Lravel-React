@@ -3,11 +3,13 @@
 namespace App\Repositories;
 
 use App\Models\Project;
+use App\Models\ProjectScope;
 use App\Models\ScopePhoto;
 use App\Models\WeeklyAccomplishment;
 use App\Repositories\Contracts\WeeklyAccomplishmentRepositoryInterface;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 
 class WeeklyAccomplishmentRepository implements WeeklyAccomplishmentRepositoryInterface
@@ -108,6 +110,121 @@ class WeeklyAccomplishmentRepository implements WeeklyAccomplishmentRepositoryIn
             ->get();
     }
 
+    public function listScopeNamesByProjectIds(array $projectIds): array
+    {
+        $nonNullProjectIds = array_values(array_filter($projectIds, fn ($value) => $value !== null));
+        if (empty($nonNullProjectIds)) {
+            return [];
+        }
+
+        $scopesByProject = ProjectScope::query()
+            ->whereIn('project_id', $nonNullProjectIds)
+            ->whereRaw("TRIM(COALESCE(scope_name, '')) != ?", [''])
+            ->orderBy('project_id')
+            ->orderBy('id')
+            ->get(['project_id', 'scope_name'])
+            ->groupBy('project_id');
+
+        $map = [];
+        foreach ($nonNullProjectIds as $projectId) {
+            $names = $scopesByProject->get((int) $projectId)?->pluck('scope_name')->filter()->values()->all();
+            $map[$projectId] = $names !== null && count($names) > 0
+                ? $names
+                : WeeklyAccomplishment::defaultScopeOfWorks();
+        }
+
+        return $map;
+    }
+
+    public function generateSkippedWeeksToCurrent(): void
+    {
+        $currentWeek = Carbon::now('Asia/Manila')
+            ->startOfWeek(Carbon::MONDAY)
+            ->toDateString();
+
+        $combos = WeeklyAccomplishment::query()
+            ->select('foreman_id', 'project_id')
+            ->whereNotNull('foreman_id')
+            ->whereNotNull('project_id')
+            ->distinct()
+            ->get();
+
+        foreach ($combos as $combo) {
+            $this->backfillComboToCurrent(
+                (int) $combo->foreman_id,
+                (int) $combo->project_id,
+                $currentWeek
+            );
+        }
+    }
+
+    private function backfillComboToCurrent(int $foremanId, int $projectId, string $currentWeek): void
+    {
+        $recordedWeeks = WeeklyAccomplishment::query()
+            ->where('foreman_id', $foremanId)
+            ->where('project_id', $projectId)
+            ->whereNotNull('week_start')
+            ->orderBy('week_start')
+            ->pluck('week_start')
+            ->map(fn ($week) => Carbon::parse($week)
+                ->startOfWeek(Carbon::MONDAY)
+                ->toDateString())
+            ->unique()
+            ->values();
+
+        if ($recordedWeeks->isEmpty()) {
+            return;
+        }
+
+        $firstWeek = (string) $recordedWeeks->first();
+        if ($firstWeek > $currentWeek) {
+            return;
+        }
+
+        $knownWeeks = $recordedWeeks->flip();
+
+        $cursor = Carbon::parse($firstWeek);
+        $end = Carbon::parse($currentWeek);
+        $sourceRows = [];
+
+        while (!$cursor->gt($end)) {
+            $week = $cursor->toDateString();
+
+            if ($knownWeeks->has($week)) {
+                $sourceRows = WeeklyAccomplishment::query()
+                    ->where('foreman_id', $foremanId)
+                    ->where('project_id', $projectId)
+                    ->whereDate('week_start', $week)
+                    ->orderBy('id')
+                    ->get(['scope_of_work', 'percent_completed'])
+                    ->map(fn (WeeklyAccomplishment $row) => [
+                        'scope_of_work' => trim((string) $row->scope_of_work),
+                        'percent_completed' => (float) ($row->percent_completed ?? 0),
+                    ])
+                    ->filter(fn (array $row) => $row['scope_of_work'] !== '')
+                    ->values()
+                    ->all();
+            } elseif ($sourceRows !== []) {
+                foreach ($sourceRows as $row) {
+                    WeeklyAccomplishment::query()->updateOrCreate(
+                        [
+                            'foreman_id' => $foremanId,
+                            'project_id' => $projectId,
+                            'week_start' => $week,
+                            'scope_of_work' => $row['scope_of_work'],
+                        ],
+                        [
+                            'percent_completed' => $row['percent_completed'],
+                            'is_placeholder' => true,
+                        ]
+                    );
+                }
+            }
+
+            $cursor->addDay(7);
+        }
+    }
+
     private function applySearch(Builder $builder, string $search): void
     {
         if ($search === '') {
@@ -121,6 +238,16 @@ class WeeklyAccomplishmentRepository implements WeeklyAccomplishmentRepositoryIn
                 ->orWhereHas('foreman', fn ($q) => $q->where('fullname', 'like', "%{$search}%"))
                 ->orWhereHas('project', fn ($q) => $q->where('name', 'like', "%{$search}%"));
         });
+    }
+
+    private function weekBoundaryStart(string $date): string
+    {
+        return Carbon::parse($date)->startOfWeek(Carbon::MONDAY)->toDateString();
+    }
+
+    private function weekBoundaryEnd(string $date): string
+    {
+        return Carbon::parse($date)->endOfWeek(Carbon::SUNDAY)->toDateString();
     }
 
     private function applyFilters(Builder $builder, array $filters): void
@@ -139,10 +266,12 @@ class WeeklyAccomplishmentRepository implements WeeklyAccomplishmentRepositoryIn
             $builder->where('foreman_id', (int) $foremanId);
         }
         if ($weekFrom !== '') {
-            $builder->whereDate('week_start', '>=', $weekFrom);
+            // Treat the picked date as the week that contains it, so a mid-week
+            // date like 2026-09-01 still matches the 2026-08-31 week bucket.
+            $builder->whereDate('week_start', '>=', $this->weekBoundaryStart($weekFrom));
         }
         if ($weekTo !== '') {
-            $builder->whereDate('week_start', '<=', $weekTo);
+            $builder->whereDate('week_start', '<=', $this->weekBoundaryEnd($weekTo));
         }
         if ($dateFrom !== '') {
             $builder->whereDate('updated_at', '>=', $dateFrom);

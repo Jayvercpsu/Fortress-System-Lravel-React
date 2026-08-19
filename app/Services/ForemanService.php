@@ -426,6 +426,7 @@ class ForemanService
                         ],
                         [
                             'percent_completed' => $percentCompleted,
+                            'is_placeholder' => false,
                         ]
                     );
                 }

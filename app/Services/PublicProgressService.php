@@ -1012,6 +1012,7 @@ class PublicProgressService
                     ],
                     [
                         'percent_completed' => (float) $scope['percent_completed'],
+                        'is_placeholder' => false,
                     ]
                 );
             }
@@ -1414,6 +1415,7 @@ class PublicProgressService
                 ],
                 [
                     'percent_completed' => $this->normalizePercentCompleted($scope['percent_completed'] ?? null),
+                    'is_placeholder' => false,
                 ]
             );
         }
@@ -2019,6 +2021,7 @@ class PublicProgressService
                 ],
                 [
                     'percent_completed' => (float) ($row->percent_completed ?? 0),
+                    'is_placeholder' => true,
                 ]
             );
         }
