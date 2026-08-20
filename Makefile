@@ -2,7 +2,7 @@ PROD_ENV=.env.lightsail
 PROD_COMPOSE=docker-compose.prod.yml
 BACKUP_DIR=backups
 
-.PHONY: prod-build prod-up prod-migrate prod-backup local-backup prod-deploy
+.PHONY: prod-build prod-up prod-migrate prod-tinker prod-backup local-backup prod-deploy
 
 prod-build:
 	docker compose --env-file $(PROD_ENV) -f $(PROD_COMPOSE) build
@@ -12,6 +12,9 @@ prod-up:
 
 prod-migrate:
 	docker compose --env-file $(PROD_ENV) -f $(PROD_COMPOSE) run --rm app php artisan migrate --force
+
+prod-tinker:
+	docker compose --env-file $(PROD_ENV) -f $(PROD_COMPOSE) run --rm app php artisan tinker
 
 prod-backup:
 	@mkdir -p $(BACKUP_DIR); \
