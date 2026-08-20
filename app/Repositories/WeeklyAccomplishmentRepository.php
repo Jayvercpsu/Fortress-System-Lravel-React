@@ -17,6 +17,7 @@ class WeeklyAccomplishmentRepository implements WeeklyAccomplishmentRepositoryIn
     public function paginateNonDesignProjects(int $perPage): LengthAwarePaginator
     {
         return Project::query()
+            ->visibleTo(auth()->user())
             ->whereRaw('LOWER(TRIM(COALESCE(phase, \'\'))) != ?', [strtolower(Project::PHASE_DESIGN)])
             ->orderBy('name')
             ->orderBy('id')
@@ -27,6 +28,7 @@ class WeeklyAccomplishmentRepository implements WeeklyAccomplishmentRepositoryIn
     public function listNonDesignProjects(): Collection
     {
         return Project::query()
+            ->visibleTo(auth()->user())
             ->whereRaw('LOWER(TRIM(COALESCE(phase, \'\'))) != ?', [strtolower(Project::PHASE_DESIGN)])
             ->orderBy('name')
             ->orderBy('id')
@@ -36,6 +38,7 @@ class WeeklyAccomplishmentRepository implements WeeklyAccomplishmentRepositoryIn
     public function paginateWeeklyProjectIds(string $search, int $perPage, array $filters = []): LengthAwarePaginator
     {
         $query = WeeklyAccomplishment::query();
+        $this->applyVisibleProjectsConstraint($query);
         $this->applySearch($query, $search);
         $this->applyFilters($query, $filters);
 
@@ -50,6 +53,7 @@ class WeeklyAccomplishmentRepository implements WeeklyAccomplishmentRepositoryIn
     public function listWeeklyProjectIds(string $search, array $filters = []): array
     {
         $query = WeeklyAccomplishment::query();
+        $this->applyVisibleProjectsConstraint($query);
         $this->applySearch($query, $search);
         $this->applyFilters($query, $filters);
 
@@ -240,6 +244,20 @@ class WeeklyAccomplishmentRepository implements WeeklyAccomplishmentRepositoryIn
         });
     }
 
+    private function applyVisibleProjectsConstraint(Builder $builder): void
+    {
+        $user = auth()->user();
+        if (!$user) {
+            return;
+        }
+
+        $builder->where(function (Builder $query) use ($user) {
+            $query
+                ->whereNull('project_id')
+                ->orWhereIn('project_id', Project::query()->select('id')->visibleTo($user));
+        });
+    }
+
     private function weekBoundaryStart(string $date): string
     {
         return Carbon::parse($date)->startOfWeek(Carbon::MONDAY)->toDateString();
@@ -284,6 +302,7 @@ class WeeklyAccomplishmentRepository implements WeeklyAccomplishmentRepositoryIn
     public function filterProjects(): Collection
     {
         return Project::query()
+            ->visibleTo(auth()->user())
             ->whereRaw('LOWER(TRIM(COALESCE(phase, \'\'))) != ?', [strtolower(Project::PHASE_DESIGN)])
             ->orderBy('name')
             ->get(['id', 'name']);

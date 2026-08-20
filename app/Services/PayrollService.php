@@ -35,6 +35,10 @@ class PayrollService
         $selectedProject = $this->resolveSelectedProject($request, $group);
         $selectedProjectId = $selectedProject?->id;
 
+        if ($group === 'workers' && $selectedProjectId === null) {
+            return $this->emptyIndexPayload($request, $group);
+        }
+
         $payrolls = $this->payrollRepository->latestPayrollsWithUser($group, $selectedProjectId);
         $totalPayable = $this->payrollRepository->totalPayableByStatuses(Payroll::payableStatuses(), $group, $selectedProjectId);
         $workerOptions = $this->manualPayrollWorkerOptions($group, $selectedProjectId);
@@ -137,6 +141,10 @@ class PayrollService
         $selectedProjectId = $selectedProject?->id;
         $historyPage = max(1, (int) $request->query('history_page', 1));
         $historyPerPage = 20;
+
+        if ($group === 'workers' && $selectedProjectId === null) {
+            return $this->emptyRunPayload($request, $search, $perPage, $group, $historyPage);
+        }
 
         $selectedCutoff = $this->resolveSelectedCutoff($request, $group, $selectedProjectId);
         $payrollPaginator = $this->payrollRepository->runPayrollPaginator(
@@ -711,6 +719,53 @@ class PayrollService
         return [$search, $perPage];
     }
 
+    private function emptyIndexPayload(Request $request, string $group): array
+    {
+        return [
+            'payrolls' => collect(),
+            'totalPayable' => 0.0,
+            'workerOptions' => collect(),
+            'payrollGroup' => $group,
+            'projectOptions' => $this->projectOptionsPayload(null, $group),
+            'selectedProject' => null,
+        ];
+    }
+
+    private function emptyRunPayload(Request $request, string $search, int $perPage, string $group, int $historyPage): array
+    {
+        return [
+            'projectOptions' => $this->projectOptionsPayload(null, $group),
+            'selectedProject' => null,
+            'cutoffs' => collect(),
+            'selectedCutoff' => null,
+            'payrollRows' => collect(),
+            'projectFinancialSummary' => null,
+            'generateProjectOptions' => $this->generateProjectOptionsPayload(null, $group),
+            'payrollHistory' => collect(),
+            'projectPayrollHistory' => collect(),
+            'payrollHistoryTable' => [
+                'current_page' => $historyPage,
+                'per_page' => 20,
+                'last_page' => 1,
+                'total' => 0,
+                'from' => null,
+                'to' => null,
+            ],
+            'payrollGroup' => $group,
+            'payrollTable' => [
+                'search' => $search,
+                'project_id' => null,
+                'per_page' => $perPage,
+                'current_page' => 1,
+                'last_page' => 1,
+                'total' => 0,
+                'from' => null,
+                'to' => null,
+            ],
+            'today' => now()->toDateString(),
+        ];
+    }
+
     private function buildPayrollCandidates(string $startDate, string $endDate, string $normalizedGroup, ?int $projectId = null): Collection
     {
         $attendanceSummary = collect(
@@ -1150,10 +1205,11 @@ class PayrollService
         if ($this->normalizePayrollGroup($group) === 'staff') {
             return null;
         }
+        $user = auth()->user();
         $requestedProjectId = (int) $request->query('project_id', 0);
         if ($requestedProjectId > 0) {
             $requested = $this->payrollRepository->projectById($requestedProjectId);
-            if ($requested instanceof Project) {
+            if ($requested instanceof Project && $requested->isVisibleTo($user)) {
                 return $requested;
             }
         }
@@ -1164,12 +1220,12 @@ class PayrollService
             ->value('project_id') ?? 0);
         if ($latestTaggedProjectId > 0) {
             $latestTaggedProject = $this->payrollRepository->projectById($latestTaggedProjectId);
-            if ($latestTaggedProject instanceof Project) {
+            if ($latestTaggedProject instanceof Project && $latestTaggedProject->isVisibleTo($user)) {
                 return $latestTaggedProject;
             }
         }
 
-        return $this->payrollRepository->projectOptionsRows()->first();
+        return $this->payrollRepository->projectOptionsRows($user)->first();
     }
 
     private function projectOptionsPayload(?Project $selectedProject = null, ?string $group = null): Collection
@@ -1177,7 +1233,7 @@ class PayrollService
         if ($this->normalizePayrollGroup((string) $group) === 'staff') {
             return collect();
         }
-        $options = $this->payrollRepository->projectOptionsRows()->values();
+        $options = $this->payrollRepository->projectOptionsRows(auth()->user())->values();
         $selectedId = $selectedProject?->id;
 
         if ($selectedProject && !$options->contains(fn (Project $project) => (int) $project->id === (int) $selectedId)) {
@@ -1199,6 +1255,7 @@ class PayrollService
         $statusExclusions = ['completed', 'complete', 'done', 'cancelled', 'canceled'];
 
         return Project::query()
+            ->visibleTo(auth()->user())
             ->whereRaw("{$phaseExpr} = ?", [$phaseKey])
             ->whereRaw("{$statusExpr} not in (?, ?, ?, ?, ?)", $statusExclusions)
             ->orderBy('name')
@@ -1373,6 +1430,7 @@ class PayrollService
 
         $historyRows
             ->whereNotNull('project_id')
+            ->whereIn('project_id', Project::query()->visibleTo(auth()->user())->select('id'))
             ->selectRaw('
                 cutoff_id,
                 project_id,

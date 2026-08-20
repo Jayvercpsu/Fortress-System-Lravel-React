@@ -2,6 +2,7 @@
 
 namespace App\Repositories;
 
+use App\Models\Project;
 use App\Models\ProjectAssignment;
 use App\Models\User;
 use App\Repositories\Contracts\ClientRepositoryInterface;
@@ -11,11 +12,13 @@ use Illuminate\Support\Collection;
 
 class ClientRepository implements ClientRepositoryInterface
 {
-    public function paginateClients(string $search, int $perPage): LengthAwarePaginator
+    public function paginateClients(string $search, int $perPage, ?User $user = null): LengthAwarePaginator
     {
         $query = User::query()
             ->where('role', User::ROLE_CLIENT)
             ->with('detail');
+
+        $this->applyVisibilityConstraint($query, $user);
 
         if ($search !== '') {
             $query->where(function ($builder) use ($search) {
@@ -40,6 +43,28 @@ class ClientRepository implements ClientRepositoryInterface
             ->latest()
             ->paginate($perPage)
             ->withQueryString();
+    }
+
+    private function applyVisibilityConstraint($query, ?User $user): void
+    {
+        if (!$user || $user->role === User::ROLE_MASTER_ADMIN || $user->role !== User::ROLE_HEAD_ADMIN) {
+            return;
+        }
+
+        $visibleProjectIds = Project::query()->visibleTo($user)->select('id');
+        $canSeeOrphans = $user->email === User::LEGACY_PROJECT_ACCESS_EMAIL;
+
+        $query->where(function ($builder) use ($visibleProjectIds, $canSeeOrphans) {
+            $builder->whereHas('projectAssignments', function ($assignmentQuery) use ($visibleProjectIds) {
+                $assignmentQuery
+                    ->where('role_in_project', ProjectAssignment::ROLE_CLIENT)
+                    ->whereIn('project_id', $visibleProjectIds);
+            });
+
+            if ($canSeeOrphans) {
+                $builder->orDoesntHave('projectAssignments');
+            }
+        });
     }
 
     public function latestAssignmentsByUserIds(array $userIds): Collection

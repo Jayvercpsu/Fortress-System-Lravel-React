@@ -14,6 +14,7 @@ class ProgressPhotoRepository implements ProgressPhotoRepositoryInterface
     public function paginateNonDesignProjects(int $perPage): LengthAwarePaginator
     {
         return Project::query()
+            ->visibleTo(auth()->user())
             ->whereRaw('LOWER(TRIM(COALESCE(phase, \'\'))) != ?', [strtolower(Project::PHASE_DESIGN)])
             ->orderBy('name')
             ->orderBy('id')
@@ -24,6 +25,7 @@ class ProgressPhotoRepository implements ProgressPhotoRepositoryInterface
     public function paginatePhotoProjectIds(string $search, int $perPage): LengthAwarePaginator
     {
         $query = ProgressPhoto::query();
+        $this->applyVisibleProjectsConstraint($query);
         $this->applyExcludeMaterialPhotos($query);
         $this->applySearch($query, $search);
 
@@ -87,6 +89,20 @@ class ProgressPhotoRepository implements ProgressPhotoRepositoryInterface
                         ->where('caption', 'not like', '[Delivery]%')
                         ->where('caption', 'not like', '[Issue]%');
                 });
+        });
+    }
+
+    private function applyVisibleProjectsConstraint(Builder $builder): void
+    {
+        $user = auth()->user();
+        if (!$user) {
+            return;
+        }
+
+        $builder->where(function (Builder $query) use ($user) {
+            $query
+                ->whereNull('project_id')
+                ->orWhereIn('project_id', Project::query()->select('id')->visibleTo($user));
         });
     }
 }

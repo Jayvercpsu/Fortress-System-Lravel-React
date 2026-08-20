@@ -53,6 +53,7 @@ class ProjectRepository implements ProjectRepositoryInterface
         return DB::transaction(function () use ($source) {
             $duplicate = Project::query()->create([
                 'source_project_id' => $source->id,
+                'user_id' => $source->user_id,
                 'name' => $source->name,
                 'client' => $source->client,
                 'type' => $source->type,

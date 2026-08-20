@@ -3,13 +3,14 @@
 namespace App\Support;
 
 use App\Models\Project;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
 
 class ProjectSelection
 {
-    public static function familyFilterOptions(): Collection
+    public static function familyFilterOptions(?Builder $baseQuery = null): Collection
     {
-        $projects = Project::query()
+        $projects = ($baseQuery ?? Project::query())
             ->orderBy('name')
             ->orderBy('id')
             ->get(['id', 'source_project_id', 'name', 'client', 'phase', 'status']);

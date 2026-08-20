@@ -20,6 +20,15 @@ class BrowserAutomationSeeder extends Seeder
         );
 
         User::query()->updateOrCreate(
+            ['email' => 'headadmin2@buildbooks.com'],
+            [
+                'fullname' => 'Second Head Administrator',
+                'password' => 'password',
+                'role' => 'head_admin',
+            ]
+        );
+
+        User::query()->updateOrCreate(
             ['email' => 'admin@buildbooks.com'],
             [
                 'fullname' => 'Fortress Demo Admin',

@@ -15,6 +15,7 @@ class ReportRepository implements ReportRepositoryInterface
     public function nonDesignProjects(): Collection
     {
         return Project::query()
+            ->visibleTo(auth()->user())
             ->whereRaw('LOWER(TRIM(COALESCE(phase, \'\'))) != ?', [strtolower(Project::PHASE_DESIGN)])
             ->orderBy('name')
             ->get([

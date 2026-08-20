@@ -27,12 +27,13 @@ class ProjectService
     ) {
     }
 
-    public function storeProject(array $validated): Project
+    public function storeProject(array $validated, ?int $userId = null): Project
     {
         $validated['assigned_role'] = ProjectFlow::normalizeAssignedRoleList($validated['assigned_role'] ?? null);
         $validated['status'] = ProjectFlow::normalizeStatus($validated['status'] ?? null);
         $validated['phase'] = ProjectFlow::normalizePhase($validated['phase'] ?? null);
         $validated['overall_progress'] = 0;
+        $validated['user_id'] = $userId;
 
         $project = $this->projectRepository->createProject($validated);
         $this->projectRepository->syncLegacyForemanAssignments($project);
@@ -114,7 +115,7 @@ class ProjectService
         $search = trim((string) $request->query('search', ''));
         $batchSize = 5;
 
-        $searchQuery = Project::query();
+        $searchQuery = Project::query()->visibleTo($request->user());
         $this->applyProjectSearchFilter($searchQuery, $search);
         $totalMatching = (clone $searchQuery)->count();
 
@@ -124,7 +125,7 @@ class ProjectService
             $pageParam = $this->projectPhasePageParam($phase);
             $loadedPages = max(1, (int) $request->query($pageParam, 1));
 
-            return $this->projectBoardColumnPayload($phase, $search, $loadedPages, $batchSize);
+            return $this->projectBoardColumnPayload($phase, $search, $loadedPages, $batchSize, $request->user());
         })->values();
 
         $projects = $boardColumns
@@ -173,7 +174,7 @@ class ProjectService
 
         $page = max(1, (int) $request->query('page', 1));
 
-        return $this->projectBoardColumnPayload($phase, $search, $page, $batchSize);
+        return $this->projectBoardColumnPayload($phase, $search, $page, $batchSize, $request->user());
     }
 
     public function showPayload(Request $request, Project $project): array
@@ -849,12 +850,12 @@ class ProjectService
         return strtolower((string) preg_replace('/[^a-z0-9]+/i', '', $phase)) . '_page';
     }
 
-    private function projectBoardColumnPayload(string $phase, string $search, int $loadedPages, int $batchSize): array
+    private function projectBoardColumnPayload(string $phase, string $search, int $loadedPages, int $batchSize, ?User $user = null): array
     {
         $pageParam = $this->projectPhasePageParam($phase);
         $visibleLimit = $loadedPages * $batchSize;
 
-        $phaseQuery = Project::query();
+        $phaseQuery = Project::query()->visibleTo($user);
         $this->applyProjectSearchFilter($phaseQuery, $search);
         $this->applyProjectPhaseFilter($phaseQuery, $phase);
         $this->applyProjectBoardVisibilityFilter($phaseQuery, $phase);

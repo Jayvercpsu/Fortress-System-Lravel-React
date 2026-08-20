@@ -43,7 +43,7 @@ class DashboardRepository implements DashboardRepositoryInterface
 
     public function projects(): Builder
     {
-        return Project::query();
+        return Project::query()->visibleTo(auth()->user());
     }
 
     public function attendances(): Builder

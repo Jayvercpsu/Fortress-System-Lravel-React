@@ -326,9 +326,10 @@ class PayrollRepository implements PayrollRepositoryInterface
         return $query->orderBy('worker_name')->get();
     }
 
-    public function projectOptionsRows(): EloquentCollection
+    public function projectOptionsRows(?User $user = null): EloquentCollection
     {
         return Project::query()
+            ->visibleTo($user)
             ->whereRaw('LOWER(COALESCE(status, \'\')) not in (?, ?)', ['cancelled', 'canceled'])
             ->orderBy('name')
             ->get(['id', 'name', 'client', 'phase', 'status', 'contract_amount']);

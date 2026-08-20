@@ -7,6 +7,7 @@ use App\Models\DeliveryConfirmation;
 use App\Models\IssueReport;
 use App\Models\MaterialRequest;
 use App\Models\ProgressPhoto;
+use App\Models\Project;
 use App\Models\User;
 use App\Models\Worker;
 use App\Repositories\Contracts\KpiRepositoryInterface;
@@ -108,7 +109,10 @@ class KpiService
         }
         $filters['delivery_date_basis'] = $deliveryDateBasis;
 
-        $attendanceQuery = $this->kpiRepository->attendances();
+        $user = $request->user();
+        $visibleProjectIds = Project::query()->visibleTo($user)->select('id');
+
+        $attendanceQuery = $this->kpiRepository->attendances()->whereIn('project_id', $visibleProjectIds);
         if (!empty($projectFamilyIds)) {
             $attendanceQuery->whereIn('project_id', $projectFamilyIds);
         }
@@ -125,7 +129,7 @@ class KpiService
                 'attendance_code',
             ]);
 
-        $weeklyQuery = $this->kpiRepository->weeklyAccomplishments();
+        $weeklyQuery = $this->kpiRepository->weeklyAccomplishments()->whereIn('project_id', $visibleProjectIds);
         if (!empty($projectFamilyIds)) {
             $weeklyQuery->whereIn('project_id', $projectFamilyIds);
         }
@@ -139,7 +143,7 @@ class KpiService
                 'percent_completed',
             ]);
 
-        $issueQuery = $this->kpiRepository->issueReports();
+        $issueQuery = $this->kpiRepository->issueReports()->whereIn('project_id', $visibleProjectIds);
         if (!empty($projectFamilyIds)) {
             $issueQuery->whereIn('project_id', $projectFamilyIds);
         }
@@ -152,7 +156,7 @@ class KpiService
                 'created_at',
             ]);
 
-        $materialQuery = $this->kpiRepository->materialRequests();
+        $materialQuery = $this->kpiRepository->materialRequests()->whereIn('project_id', $visibleProjectIds);
         if (!empty($projectFamilyIds)) {
             $materialQuery->whereIn('project_id', $projectFamilyIds);
         }
@@ -166,7 +170,7 @@ class KpiService
             ]);
 
         $deliveryDateColumn = $deliveryDateBasis === 'delivery_date' ? 'delivery_date' : 'created_at';
-        $deliveryQuery = $this->kpiRepository->deliveries();
+        $deliveryQuery = $this->kpiRepository->deliveries()->whereIn('project_id', $visibleProjectIds);
         if (!empty($projectFamilyIds)) {
             $deliveryQuery->whereIn('project_id', $projectFamilyIds);
         }
@@ -179,7 +183,7 @@ class KpiService
                 'created_at',
             ]);
 
-        $progressPhotoQuery = $this->kpiRepository->progressPhotos();
+        $progressPhotoQuery = $this->kpiRepository->progressPhotos()->whereIn('project_id', $visibleProjectIds);
         if (!empty($projectFamilyIds)) {
             $progressPhotoQuery->whereIn('project_id', $projectFamilyIds);
         }
@@ -231,7 +235,7 @@ class KpiService
         );
         $summary = $this->buildSummary($workerKpis, $foremanKpis);
 
-        $projects = ProjectSelection::familyFilterOptions()
+        $projects = ProjectSelection::familyFilterOptions(Project::query()->visibleTo($user))
             ->values()
             ->all();
 
