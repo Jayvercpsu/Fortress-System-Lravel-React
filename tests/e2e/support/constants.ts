@@ -7,6 +7,12 @@ export const PRIMARY_PUBLIC_TOKEN = 'fortress-building-main-demo-token';
 export const CO_FOREMAN_PUBLIC_TOKEN = 'fortress-building-co-demo-token';
 
 export const ACCOUNTS = {
+    master_admin: {
+        email: 'masteradmin@buildbooks.com',
+        password: 'password',
+        landingPath: '/head-admin',
+        label: 'master admin',
+    },
     head_admin: {
         email: 'headadmin@buildbooks.com',
         password: 'password',
