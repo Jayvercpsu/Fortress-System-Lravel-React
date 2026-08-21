@@ -65,6 +65,18 @@ const inputStyle = {
     boxSizing: 'border-box',
 };
 
+const ROLE_LABELS = {
+    master_admin: 'Master Admin',
+    head_admin: 'Head Admin',
+    admin: 'Admin',
+    hr: 'HR',
+    foreman: 'Foreman',
+    designer: 'Designer',
+    client: 'Client',
+};
+
+const roleLabel = (role) => ROLE_LABELS[role] ?? String(role || '').replace('_', ' ');
+
 function Field({ label, error, children }) {
     return (
         <label style={{ display: 'grid', gap: 6 }}>
@@ -290,7 +302,7 @@ export default function SettingsIndex({ account }) {
                                         <TextInput
                                             name="role"
                                             type="text"
-                                            value={String(data.role || '').replace('_', ' ')}
+                                            value={roleLabel(data.role)}
                                             readOnly
                                             style={inputStyle}
                                         />

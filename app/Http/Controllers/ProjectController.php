@@ -57,7 +57,7 @@ class ProjectController extends Controller
     {
         abort_unless(in_array($request->user()->role, [User::ROLE_HEAD_ADMIN, User::ROLE_MASTER_ADMIN], true), 403);
 
-        $project = $this->projectService->storeProject($request->validated());
+        $project = $this->projectService->storeProject($request->validated(), $request->user()->id);
 
         return redirect()
             ->route('projects.index')

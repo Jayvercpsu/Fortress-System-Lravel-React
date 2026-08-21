@@ -141,6 +141,7 @@ class ProjectFinancialRestrictionsTest extends TestCase
             'construction_cost' => 80000,
             'total_client_payment' => 0,
             'remaining_balance' => 100000,
+            'user_id' => $admin->id,
         ]);
 
         $this->actingAs($admin)

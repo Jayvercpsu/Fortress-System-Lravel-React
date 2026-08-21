@@ -30,11 +30,11 @@ class WeeklyAccomplishmentService
         $this->weeklyAccomplishmentRepository->generateSkippedWeeksToCurrent();
 
         $search = trim((string) $request->query('search', ''));
-        $perPage = (int) $request->query('per_page', 5);
+        $perPage = (int) $request->query('per_page', 50);
         $status = trim((string) $request->query('status', ''));
 
         if (!in_array($perPage, self::ALLOWED_PER_PAGE, true)) {
-            $perPage = 5;
+            $perPage = 50;
         }
 
         $filters = [

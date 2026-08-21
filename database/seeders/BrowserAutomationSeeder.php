@@ -11,9 +11,27 @@ class BrowserAutomationSeeder extends Seeder
     public function run(): void
     {
         User::query()->updateOrCreate(
+            ['email' => 'masteradmin@buildbooks.com'],
+            [
+                'fullname' => 'Master Administrator',
+                'password' => 'password',
+                'role' => 'master_admin',
+            ]
+        );
+
+        User::query()->updateOrCreate(
             ['email' => 'headadmin@buildbooks.com'],
             [
                 'fullname' => 'Head Administrator',
+                'password' => 'password',
+                'role' => 'head_admin',
+            ]
+        );
+
+        User::query()->updateOrCreate(
+            ['email' => 'headadmin2@buildbooks.com'],
+            [
+                'fullname' => 'Second Head Administrator',
                 'password' => 'password',
                 'role' => 'head_admin',
             ]

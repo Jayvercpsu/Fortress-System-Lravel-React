@@ -59,8 +59,9 @@ class ProgressPhotosFlowTest extends TestCase
 
     public function test_admin_and_head_admin_can_view_all_foreman_progress_photos_page(): void
     {
+        $headAdmin = $this->makeUser('head_admin');
         $foreman = $this->makeUser('foreman');
-        $project = $this->makeProject();
+        $project = $this->makeProject($headAdmin->id);
         \DB::table('progress_photos')->insert([
             'foreman_id' => $foreman->id,
             'project_id' => $project->id,
@@ -74,7 +75,7 @@ class ProgressPhotosFlowTest extends TestCase
             ->get('/progress-photos')
             ->assertOk();
 
-        $this->actingAs($this->makeUser('head_admin'))
+        $this->actingAs($headAdmin)
             ->get('/progress-photos')
             ->assertOk();
     }
@@ -100,7 +101,7 @@ class ProgressPhotosFlowTest extends TestCase
         ]);
     }
 
-    private function makeProject(): Project
+    private function makeProject(?int $userId = null): Project
     {
         return Project::create([
             'name' => 'Proof Project',
@@ -112,6 +113,7 @@ class ProgressPhotosFlowTest extends TestCase
             'status' => 'PLANNING',
             'phase' => 'DESIGN',
             'overall_progress' => 0,
+            'user_id' => $userId,
         ]);
     }
 }

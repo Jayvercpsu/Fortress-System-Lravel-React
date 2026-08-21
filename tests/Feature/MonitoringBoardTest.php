@@ -17,8 +17,8 @@ class MonitoringBoardTest extends TestCase
 
     public function test_head_admin_can_manage_scopes_and_overall_progress_recomputes(): void
     {
-        $project = $this->makeProject();
         $headAdmin = $this->makeUser('head_admin');
+        $project = $this->makeProject($headAdmin->id);
         $foremanA = $this->makeUser('foreman');
         $foremanB = $this->makeUser('foreman');
 
@@ -98,8 +98,8 @@ class MonitoringBoardTest extends TestCase
     {
         config()->set('fortress.auto_complete_project_on_progress', true);
 
-        $project = $this->makeProject();
         $headAdmin = $this->makeUser('head_admin');
+        $project = $this->makeProject($headAdmin->id);
         $hr = $this->makeUser('hr');
         $foreman = $this->makeUser('foreman');
 
@@ -161,7 +161,7 @@ class MonitoringBoardTest extends TestCase
         Storage::disk('public')->assertExists($storedPath);
     }
 
-    private function makeProject(): Project
+    private function makeProject(?int $userId = null): Project
     {
         return Project::create([
             'name' => 'Monitoring Project',
@@ -173,6 +173,7 @@ class MonitoringBoardTest extends TestCase
             'status' => 'PLANNING',
             'phase' => 'DESIGN',
             'overall_progress' => 0,
+            'user_id' => $userId,
         ]);
     }
 

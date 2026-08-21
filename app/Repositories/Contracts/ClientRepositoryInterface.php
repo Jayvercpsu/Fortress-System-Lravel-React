@@ -8,7 +8,7 @@ use Illuminate\Support\Collection;
 
 interface ClientRepositoryInterface
 {
-    public function paginateClients(string $search, int $perPage): LengthAwarePaginator;
+    public function paginateClients(string $search, int $perPage, ?User $user = null): LengthAwarePaginator;
 
     public function latestAssignmentsByUserIds(array $userIds): Collection;
 

@@ -119,6 +119,14 @@ test('settings updates persist for profile fields and profile photo uploads', as
     }
 });
 
+test('settings shows Master Admin as the role for the master admin', async ({ page }) => {
+    await loginAs(page, 'master_admin');
+
+    await page.goto('/settings');
+
+    await expect(page.locator('input[name="role"]')).toHaveValue('Master Admin');
+});
+
 // Foreman attendance page hidden for now (stay-in policy — HR logs attendance). Test kept for future re-enable.
 test.skip('foreman self attendance, add-row attendance submission, and attendance editing work', async ({ page }) => {
     await loginAs(page, 'foreman');

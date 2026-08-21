@@ -56,6 +56,9 @@ class ProjectModuleTest extends TestCase
 
     public function test_admin_cannot_access_construction_pages_but_head_admin_can(): void
     {
+        $headAdmin = $this->makeUser('head_admin');
+        $admin = $this->makeUser('admin');
+
         $project = Project::create([
             'name' => 'P1',
             'client' => 'C1',
@@ -66,15 +69,14 @@ class ProjectModuleTest extends TestCase
             'status' => 'PLANNING',
             'phase' => 'DESIGN',
             'overall_progress' => 0,
+            'user_id' => $headAdmin->id,
         ]);
 
-        $admin = $this->makeUser('admin');
         $this->actingAs($admin)->get('/projects')->assertForbidden();
         $this->actingAs($admin)->get("/projects/{$project->id}")->assertForbidden();
         $this->actingAs($admin)->get('/projects/create')->assertForbidden();
         $this->actingAs($admin)->get("/projects/{$project->id}/edit")->assertForbidden();
 
-        $headAdmin = $this->makeUser('head_admin');
         $this->actingAs($headAdmin)->get('/projects')->assertOk();
         $this->actingAs($headAdmin)->get("/projects/{$project->id}")->assertOk();
         $this->actingAs($headAdmin)->get('/projects/create')->assertOk();
@@ -83,6 +85,8 @@ class ProjectModuleTest extends TestCase
 
     public function test_financial_endpoint_allows_head_admin_admin_and_hr(): void
     {
+        $headAdmin = $this->makeUser('head_admin');
+
         $project = Project::create([
             'name' => 'P2',
             'client' => 'C2',
@@ -93,6 +97,7 @@ class ProjectModuleTest extends TestCase
             'status' => 'PLANNING',
             'phase' => 'DESIGN',
             'overall_progress' => 0,
+            'user_id' => $headAdmin->id,
         ]);
 
         $payload = [
@@ -102,7 +107,7 @@ class ProjectModuleTest extends TestCase
             'total_client_payment' => 200000,
         ];
 
-        $this->actingAs($this->makeUser('head_admin'))
+        $this->actingAs($headAdmin)
             ->patch("/projects/{$project->id}/financials", $payload)
             ->assertRedirect("/projects/{$project->id}");
 
@@ -169,6 +174,7 @@ class ProjectModuleTest extends TestCase
             'status' => 'PLANNING',
             'phase' => 'Design',
             'overall_progress' => 0,
+            'user_id' => $admin->id,
         ]);
 
         DesignProject::query()
@@ -205,6 +211,7 @@ class ProjectModuleTest extends TestCase
             'status' => 'PLANNING',
             'phase' => 'Design',
             'overall_progress' => 0,
+            'user_id' => $admin->id,
         ]);
 
         DesignProject::query()
@@ -233,6 +240,7 @@ class ProjectModuleTest extends TestCase
             'status' => 'COMPLETED',
             'phase' => 'Construction',
             'overall_progress' => 12,
+            'user_id' => $admin->id,
         ]);
 
         $this->actingAs($admin)
@@ -259,6 +267,7 @@ class ProjectModuleTest extends TestCase
             'status' => 'PLANNING',
             'phase' => 'Construction',
             'overall_progress' => 0,
+            'user_id' => $headAdmin->id,
         ]);
 
         // A freshly created project without an assigned foreman still renders the receipt.

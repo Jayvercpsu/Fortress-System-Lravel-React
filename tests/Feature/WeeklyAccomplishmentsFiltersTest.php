@@ -75,7 +75,7 @@ class WeeklyAccomplishmentsFiltersTest extends TestCase
         try {
             $headAdmin = $this->makeUser('head_admin');
             $foreman = $this->makeUser('foreman');
-            $project = $this->makeProject('Paginated Project');
+            $project = $this->makeProject('Paginated Project', $headAdmin->id);
 
             $weeks = ['2026-06-01', '2026-06-08', '2026-06-15', '2026-06-22', '2026-06-29', '2026-07-06', '2026-07-13'];
             foreach ($weeks as $index => $weekStart) {
@@ -123,11 +123,45 @@ class WeeklyAccomplishmentsFiltersTest extends TestCase
         }
     }
 
+    public function test_head_admin_week_buckets_default_to_fifty_per_page(): void
+    {
+        Carbon::setTestNow('2026-07-13 12:00:00');
+
+        try {
+            $headAdmin = $this->makeUser('head_admin');
+            $foreman = $this->makeUser('foreman');
+            $project = $this->makeProject('Default Page Project', $headAdmin->id);
+
+            foreach (['2026-06-01', '2026-06-08', '2026-06-15', '2026-06-22', '2026-06-29', '2026-07-06', '2026-07-13'] as $weekStart) {
+                WeeklyAccomplishment::create([
+                    'foreman_id' => $foreman->id,
+                    'project_id' => $project->id,
+                    'scope_of_work' => 'Scope ' . $weekStart,
+                    'percent_completed' => 10,
+                    'week_start' => $weekStart,
+                ]);
+            }
+
+            $this->actingAs($headAdmin)
+                ->get('/weekly-accomplishments')
+                ->assertOk()
+                ->assertInertia(fn ($page) => $page
+                    ->component('HeadAdmin/WeeklyAccomplishments/Index')
+                    ->has('weeklyAccomplishments', 7)
+                    ->where('weeklyAccomplishmentTable.per_page', 50)
+                    ->where('weeklyAccomplishmentTable.current_page', 1)
+                    ->where('weeklyAccomplishmentTable.last_page', 1)
+                    ->where('weeklyAccomplishmentTable.total', 7));
+        } finally {
+            Carbon::setTestNow();
+        }
+    }
+
     public function test_only_edited_scopes_are_shown_for_a_week(): void
     {
         $headAdmin = $this->makeUser('head_admin');
         $foreman = $this->makeUser('foreman');
-        $project = $this->makeProject('Edited Scopes Project');
+        $project = $this->makeProject('Edited Scopes Project', $headAdmin->id);
 
         $weekStart = '2026-10-12';
 
@@ -264,7 +298,7 @@ class WeeklyAccomplishmentsFiltersTest extends TestCase
         try {
             $headAdmin = $this->makeUser('head_admin');
             $foreman = $this->makeUser('foreman');
-            $project = $this->makeProject('Skipped Weeks Project');
+            $project = $this->makeProject('Skipped Weeks Project', $headAdmin->id);
 
             WeeklyAccomplishment::create([
                 'foreman_id' => $foreman->id,
@@ -324,7 +358,7 @@ class WeeklyAccomplishmentsFiltersTest extends TestCase
     {
         $headAdmin = $this->makeUser('head_admin');
         $foreman = $this->makeUser('foreman');
-        $project = $this->makeProject('Fresh Submission Project');
+        $project = $this->makeProject('Fresh Submission Project', $headAdmin->id);
 
         $row = WeeklyAccomplishment::create([
             'foreman_id' => $foreman->id,
@@ -382,7 +416,7 @@ class WeeklyAccomplishmentsFiltersTest extends TestCase
         try {
             $headAdmin = $this->makeUser('head_admin');
             $foreman = $this->makeUser('foreman');
-            $project = $this->makeProject('Timeline Project');
+            $project = $this->makeProject('Timeline Project', $headAdmin->id);
 
             $row = WeeklyAccomplishment::create([
                 'foreman_id' => $foreman->id,
@@ -418,7 +452,7 @@ class WeeklyAccomplishmentsFiltersTest extends TestCase
         try {
             $headAdmin = $this->makeUser('head_admin');
             $foreman = $this->makeUser('foreman');
-            $project = $this->makeProject('Timeline Project');
+            $project = $this->makeProject('Timeline Project', $headAdmin->id);
 
             WeeklyAccomplishment::create([
                 'foreman_id' => $foreman->id,
@@ -442,14 +476,80 @@ class WeeklyAccomplishmentsFiltersTest extends TestCase
         }
     }
 
+    public function test_regular_head_admin_does_not_see_another_head_admins_weekly_accomplishments(): void
+    {
+        Carbon::setTestNow('2026-08-17 12:00:00');
+
+        try {
+            $owner = $this->makeUser('head_admin');
+            $viewer = $this->makeUser('head_admin');
+            $foreman = $this->makeUser('foreman');
+
+            $ownerProject = $this->makeProject('Owner Secret Project', $owner->id);
+
+            WeeklyAccomplishment::create([
+                'foreman_id' => $foreman->id,
+                'project_id' => $ownerProject->id,
+                'scope_of_work' => 'Excavation',
+                'percent_completed' => 40,
+                'week_start' => '2026-08-17',
+            ]);
+
+            $this->actingAs($viewer)
+                ->get('/weekly-accomplishments')
+                ->assertOk()
+                ->assertDontSee('Owner Secret Project')
+                ->assertInertia(fn ($page) => $page
+                    ->component('HeadAdmin/WeeklyAccomplishments/Index')
+                    ->has('weeklyAccomplishments', 0));
+        } finally {
+            Carbon::setTestNow();
+        }
+    }
+
+    public function test_special_head_admin_sees_legacy_project_weekly_accomplishments(): void
+    {
+        Carbon::setTestNow('2026-08-17 12:00:00');
+
+        try {
+            $special = User::create([
+                'fullname' => 'Head Admin',
+                'email' => User::LEGACY_PROJECT_ACCESS_EMAIL,
+                'password' => Hash::make('password'),
+                'role' => 'head_admin',
+            ]);
+            $foreman = $this->makeUser('foreman');
+
+            $legacyProject = $this->makeProject('Legacy Shared Project');
+
+            WeeklyAccomplishment::create([
+                'foreman_id' => $foreman->id,
+                'project_id' => $legacyProject->id,
+                'scope_of_work' => 'Excavation',
+                'percent_completed' => 40,
+                'week_start' => '2026-08-17',
+            ]);
+
+            $this->actingAs($special)
+                ->get('/weekly-accomplishments')
+                ->assertOk()
+                ->assertSee('Legacy Shared Project')
+                ->assertInertia(fn ($page) => $page
+                    ->component('HeadAdmin/WeeklyAccomplishments/Index')
+                    ->has('weeklyAccomplishments', 1));
+        } finally {
+            Carbon::setTestNow();
+        }
+    }
+
     private function seedData(): array
     {
         $headAdmin = $this->makeUser('head_admin');
         $foremanA = $this->makeUser('foreman');
         $foremanB = $this->makeUser('foreman');
 
-        $projectA = $this->makeProject('Filter Project A');
-        $projectB = $this->makeProject('Filter Project B');
+        $projectA = $this->makeProject('Filter Project A', $headAdmin->id);
+        $projectB = $this->makeProject('Filter Project B', $headAdmin->id);
 
         $first = WeeklyAccomplishment::create([
             'foreman_id' => $foremanA->id,
@@ -522,7 +622,7 @@ class WeeklyAccomplishmentsFiltersTest extends TestCase
     {
         $user = $this->makeUser($role);
         $foreman = $this->makeUser('foreman');
-        $project = $this->makeProject('Gap Scenario Project');
+        $project = $this->makeProject('Gap Scenario Project', $user->id);
 
         foreach (['2026-10-12' => 40, '2026-10-26' => 60] as $weekStart => $percent) {
             $row = WeeklyAccomplishment::create([
@@ -551,7 +651,7 @@ class WeeklyAccomplishmentsFiltersTest extends TestCase
         ]);
     }
 
-    private function makeProject(string $name): Project
+    private function makeProject(string $name, ?int $userId = null): Project
     {
         return Project::create([
             'name' => $name,
@@ -563,6 +663,7 @@ class WeeklyAccomplishmentsFiltersTest extends TestCase
             'status' => 'PLANNING',
             'phase' => 'Construction',
             'overall_progress' => 0,
+            'user_id' => $userId,
         ]);
     }
 }

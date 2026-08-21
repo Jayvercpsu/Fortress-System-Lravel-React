@@ -15,9 +15,10 @@ class ProjectPaymentsTest extends TestCase
 
     public function test_head_admin_admin_and_hr_can_open_payments_page(): void
     {
-        $project = $this->makeProject(1000);
+        $headAdmin = $this->makeUser('head_admin');
+        $project = $this->makeProject(1000, $headAdmin->id);
 
-        $this->actingAs($this->makeUser('head_admin'))
+        $this->actingAs($headAdmin)
             ->get("/projects/{$project->id}/payments")
             ->assertOk();
 
@@ -32,8 +33,8 @@ class ProjectPaymentsTest extends TestCase
 
     public function test_insert_and_delete_payments_update_the_derived_financial_overview(): void
     {
-        $project = $this->makeProject(1000);
         $headAdmin = $this->makeUser('head_admin');
+        $project = $this->makeProject(1000, $headAdmin->id);
         $hr = $this->makeUser('hr');
 
         $this->actingAs($headAdmin)
@@ -89,7 +90,7 @@ class ProjectPaymentsTest extends TestCase
         $this->assertNull($project->refresh()->last_paid_date);
     }
 
-    private function makeProject(float $contractAmount): Project
+    private function makeProject(float $contractAmount, ?int $userId = null): Project
     {
         return Project::create([
             'name' => 'Payments Project',
@@ -102,6 +103,7 @@ class ProjectPaymentsTest extends TestCase
             'phase' => 'DESIGN',
             'overall_progress' => 0,
             'contract_amount' => $contractAmount,
+            'user_id' => $userId,
         ]);
     }
 

@@ -14,6 +14,7 @@ class IssueReportRepository implements IssueReportRepositoryInterface
     public function paginateNonDesignProjects(int $perPage): LengthAwarePaginator
     {
         return Project::query()
+            ->visibleTo(auth()->user())
             ->whereRaw('LOWER(TRIM(COALESCE(phase, \'\'))) != ?', [strtolower(Project::PHASE_DESIGN)])
             ->orderBy('name')
             ->orderBy('id')
@@ -24,6 +25,7 @@ class IssueReportRepository implements IssueReportRepositoryInterface
     public function paginateIssueProjectIds(string $search, string $status, int $perPage): LengthAwarePaginator
     {
         $query = IssueReport::query();
+        $this->applyVisibleProjectsConstraint($query);
         $this->applySearch($query, $search);
         if ($status !== '') {
             $query->where('status', $status);
@@ -90,6 +92,20 @@ class IssueReportRepository implements IssueReportRepositoryInterface
                 ->orWhere('status', 'like', "%{$search}%")
                 ->orWhereHas('project', fn ($q) => $q->where('name', 'like', "%{$search}%"))
                 ->orWhereHas('foreman', fn ($q) => $q->where('fullname', 'like', "%{$search}%"));
+        });
+    }
+
+    private function applyVisibleProjectsConstraint(Builder $builder): void
+    {
+        $user = auth()->user();
+        if (!$user) {
+            return;
+        }
+
+        $builder->where(function (Builder $query) use ($user) {
+            $query
+                ->whereNull('project_id')
+                ->orWhereIn('project_id', Project::query()->select('id')->visibleTo($user));
         });
     }
 }

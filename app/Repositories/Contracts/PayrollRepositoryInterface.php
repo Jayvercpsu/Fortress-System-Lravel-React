@@ -77,7 +77,7 @@ interface PayrollRepositoryInterface
 
     public function payrollsForExportByCutoffId(int $cutoffId, ?string $group = null, ?int $projectId = null): EloquentCollection;
 
-    public function projectOptionsRows(): EloquentCollection;
+    public function projectOptionsRows(?User $user = null): EloquentCollection;
 
     public function projectById(int $id): ?Project;
 

@@ -27,7 +27,7 @@ class ClientService
             $perPage = 10;
         }
 
-        $paginator = $this->clientRepository->paginateClients($search, $perPage);
+        $paginator = $this->clientRepository->paginateClients($search, $perPage, auth()->user());
 
         $users = collect($paginator->items());
         $clientIds = $users->pluck('id')
@@ -157,7 +157,7 @@ class ClientService
 
     private function projectOptionsPayload(): array
     {
-        return ProjectSelection::familyFilterOptions()
+        return ProjectSelection::familyFilterOptions(Project::query()->visibleTo(auth()->user()))
             ->map(function (array $option) {
                 $projectIds = collect($option['project_ids'] ?? [])
                     ->map(fn ($projectId) => (int) $projectId)
