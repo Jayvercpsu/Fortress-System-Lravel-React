@@ -412,12 +412,22 @@ class PublicProgressService
     }
 
     /**
-     * Render the client receipt for a project that has no foreman/token yet.
-     * Used by the authenticated client-receipt shortcut so it never 404s.
+     * Render the client receipt for a project.
+     * Used by the authenticated client portal so the client always stays on
+     * /client/portal and sees the same in-progress receipt content, whether or
+     * not a foreman/token exists yet.
+     *
+     * @param string|null $token optional active submit token to attach foreman/token context.
      */
-    public function projectReceiptResponse(Project $project)
+    public function projectReceiptResponse(Project $project, ?string $token = null, bool $isClientPortal = false)
     {
-        return $this->renderReceiptResponse($project, null, false);
+        $submitToken = null;
+        if ($token !== null) {
+            $submitToken = $this->resolveActiveToken($token);
+            $submitToken->load(['project', 'foreman:id,fullname']);
+        }
+
+        return $this->renderReceiptResponse($project, $submitToken, $isClientPortal);
     }
 
     private function renderReceiptResponse(Project $project, ?ProgressSubmitToken $submitToken, bool $isClientPortal)

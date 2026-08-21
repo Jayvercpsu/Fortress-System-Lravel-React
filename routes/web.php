@@ -149,7 +149,8 @@ Route::middleware(['auth', 'role:designer'])->group(function () {
 });
 
 Route::middleware(['auth', 'role:client'])->group(function () {
-    Route::get('/client', [ClientPortalController::class, 'index'])->name('client.dashboard');
+    Route::get('/client/portal', [ClientPortalController::class, 'index'])->name('client.portal');
+    Route::get('/client', fn () => redirect()->route('client.portal'))->name('client.dashboard');
 });
 
 Route::middleware(['auth', 'role:head_admin,admin,designer'])->group(function () {
