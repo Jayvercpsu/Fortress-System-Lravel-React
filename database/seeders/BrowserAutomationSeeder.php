@@ -3,6 +3,8 @@
 namespace Database\Seeders;
 
 use App\Models\PayrollCutoff;
+use App\Models\Project;
+use App\Models\ProjectAssignment;
 use App\Models\User;
 use Illuminate\Database\Seeder;
 
@@ -57,6 +59,30 @@ class BrowserAutomationSeeder extends Seeder
 
         $this->call(FortressBuildingFlowSeeder::class);
         $this->seedHistoricalCutoffs();
+        $this->seedClientPortalAccount();
+    }
+
+    private function seedClientPortalAccount(): void
+    {
+        $client = User::query()->updateOrCreate(
+            ['username' => 'portal_client'],
+            [
+                'fullname' => 'Fortress Portal Client',
+                'email' => 'portal.client@buildbooks.com',
+                'password' => 'password',
+                'role' => 'client',
+            ]
+        );
+
+        // Assign the portal client to the active construction demo project so
+        // /client/portal renders the progress receipt and exposes the logout toast.
+        $constructionProject = Project::query()->find(4);
+        if ($constructionProject) {
+            ProjectAssignment::query()->updateOrCreate(
+                ['project_id' => $constructionProject->id, 'user_id' => $client->id],
+                ['role_in_project' => ProjectAssignment::ROLE_CLIENT]
+            );
+        }
     }
 
     private function seedHistoricalCutoffs(): void

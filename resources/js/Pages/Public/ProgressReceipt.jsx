@@ -11,9 +11,11 @@ import {
     LogOut,
     Printer,
 } from 'lucide-react';
+import toast from 'react-hot-toast';
 import { useEffect, useMemo, useState } from 'react';
 import ActionButton from '../../Components/ActionButton';
 import Modal from '../../Components/Modal';
+import { toastMessages } from '../../constants/toastMessages';
 
 const formatMoney = (value) =>
     `P ${Number(value || 0).toLocaleString(undefined, {
@@ -817,7 +819,11 @@ export default function ProgressReceipt({
                             <button
                                 type="button"
                                 className="receipt-portal-logout"
-                                onClick={() => router.post('/logout')}
+                                onClick={() =>
+                                    router.post('/logout', {}, {
+                                        onSuccess: () => toast.success(toastMessages.auth.logoutSuccess, { id: 'client-portal-logout-success' }),
+                                    })
+                                }
                             >
                                 <LogOut size={14} />
                                 Logout
