@@ -150,6 +150,7 @@ export default function HeadAdminProjectsShow({
     const { errors: pageErrors, auth } = usePage().props;
     const role = auth?.user?.role;
     const isHeadAdmin = ['head_admin', 'master_admin'].includes(role);
+    const canManageJotform = ['head_admin', 'admin', 'master_admin'].includes(role);
     const [tab, setTab] = useState(() => {
         const active = new URLSearchParams(window.location.search).get('tab');
         return ['overview', 'files', 'updates'].includes(active) ? active : 'overview';
@@ -919,7 +920,7 @@ export default function HeadAdminProjectsShow({
                             </div>
                         </div>
 
-                        {['head_admin', 'admin'].includes(role) && !isDesignPhase && (
+                        {canManageJotform && !isDesignPhase && (
                             <div style={{ ...cardStyle, display: 'grid', gap: 10 }}>
                                 <div style={{ fontWeight: 700 }}>Jotform Access</div>
                                 <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
