@@ -288,6 +288,41 @@ class ProjectModuleTest extends TestCase
             ->assertRedirect();
     }
 
+    public function test_master_admin_sees_jotform_section_on_project_show(): void
+    {
+        $masterAdmin = $this->makeUser('master_admin');
+        $foreman = $this->makeUser('foreman');
+
+        $project = Project::create([
+            'name' => 'Jotform Test Project',
+            'client' => 'Client',
+            'type' => 'Residential',
+            'location' => 'QC',
+            'assigned' => $foreman->fullname,
+            'target' => null,
+            'status' => 'ACTIVE',
+            'phase' => 'Construction',
+            'overall_progress' => 0,
+            'user_id' => $masterAdmin->id,
+        ]);
+
+        $response = $this->actingAs($masterAdmin)
+            ->get("/projects/{$project->id}")
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page
+                ->component('HeadAdmin/Projects/Show')
+                ->has('project')
+                ->has('foremen')
+                ->where('project.assigned', $foreman->fullname)
+            );
+
+        $foremenProps = collect($response->inertiaProps('foremen'));
+        $this->assertTrue(
+            $foremenProps->contains('fullname', $foreman->fullname),
+            'Assigned foreman should be in foremen props for Jotform section'
+        );
+    }
+
     private function makeUser(string $role): User
     {
         return User::create([
