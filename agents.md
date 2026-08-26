@@ -114,3 +114,26 @@ project data files — without the user's explicit, case-by-case approval.
   It is destructive and not idempotent — it will destroy existing project data.
 - `DatabaseSeeder` only creates the master admin and head admin accounts; all demo users, foremen,
   workers, and project data come from `FortressBuildingFlowSeeder`.
+
+---
+
+## Code Quality: No Unused Code
+
+## 🎯 Purpose
+
+Prevent dead code, unused variables, imports, and functions from accumulating in the codebase,
+which increases bundle size, reduces readability, and creates maintenance burden.
+
+## ✅ Required Rules
+
+1. **No unused variables** — Every declared variable must be used. Remove or prefix with `_` if intentionally unused (e.g., `_` in destructuring).
+
+2. **No unused imports** — Every import must be referenced. Remove unused imports immediately.
+
+3. **No dead functions/components** — If a function, component, or class is no longer called/rendered, delete it. Do not leave it "for future use."
+
+4. **No commented-out code** — Delete instead of commenting. Use version control for history.
+
+5. **Verify during changes** — When editing a file, scan for and remove any unused code you encounter in the modified scope.
+
+6. **Lint/typecheck catches this** — The build/lint step (Rule 1 in Code Change Verification) should surface unused code. Fix warnings before finishing.
