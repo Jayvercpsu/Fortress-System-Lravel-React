@@ -1,7 +1,7 @@
 import { useLayoutTitle } from '../../Components/Layout';
 import InlinePagination from '../../Components/InlinePagination';
 import ActionButton from '../../Components/ActionButton';
-import { Head } from '@inertiajs/react';
+import { Head, usePage } from '@inertiajs/react';
 
 const cardStyle = {
     background: 'var(--surface-1)',
@@ -99,6 +99,11 @@ export default function HeadAdminDashboard({
     recentProjectsPager = null,
     recentPayrollsPager = null,
 }) {
+    const { auth } = usePage().props;
+    const isMasterAdmin = auth?.user?.role === 'master_admin';
+    const isHeadAdmin = auth?.user?.role === 'head_admin';
+    useLayoutTitle(isMasterAdmin ? 'Master Admin Dashboard' : 'Head Admin Dashboard');
+
     const projectCounts = kpis.project_counts || {};
     const phaseCounts = (projectCounts.by_phase || []).reduce((acc, row) => {
         acc[String(row.label || '').toLowerCase()] = Number(row.count || 0);
@@ -123,8 +128,6 @@ export default function HeadAdminDashboard({
     const totalExpenses = Number(companyFinancialSummary.total_expenses ?? 0);
     const netProfit = Number(companyFinancialSummary.net_profit ?? 0);
     const netMarginPercent = Number(companyFinancialSummary.net_margin_percent ?? 0);
-
-    useLayoutTitle('Head Admin Dashboard');
 
     return (
         <>

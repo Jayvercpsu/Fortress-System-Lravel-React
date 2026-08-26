@@ -7,6 +7,9 @@ export type RouteExpectation = {
 };
 
 export const routeCoverage: Record<RoleKey, RouteExpectation[]> = {
+    master_admin: [
+        { name: 'Master admin dashboard', path: '/head-admin', bodyText: 'Master Admin Dashboard' },
+    ],
     head_admin: [
         { name: 'Head admin dashboard', path: '/head-admin', bodyText: 'Head Admin Dashboard' },
         { name: 'KPI page', path: '/kpi', bodyText: 'KPI (Key Performance Indicator)' },
