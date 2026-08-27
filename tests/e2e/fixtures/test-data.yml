@@ -1,0 +1,1288 @@
+# E2E Test Data Fixtures
+# ---------------------------------------------------------------------------
+# This file is the SINGLE SOURCE OF TRUTH for all Playwright test data.
+# It mirrors the data previously produced by FortressBuildingFlowSeeder and
+# BrowserAutomationSeeder. It is loaded by tests/e2e/fixtures/load-test-data.php
+# after `php artisan migrate:fresh` (no migration changes, no seeder class).
+# When the project seeders change, update this file to stay synchronized.
+
+accounts:
+  master_admin:
+    email: "masteradmin@buildbooks.com"
+    password: "password"
+    role: "master_admin"
+    fullname: "Master Administrator"
+    landingPath: "/head-admin"
+    label: "master admin"
+
+  head_admin:
+    email: "headadmin@buildbooks.com"
+    password: "password"
+    role: "head_admin"
+    fullname: "Head Administrator"
+    landingPath: "/head-admin"
+    label: "head admin"
+
+  head_admin_2:
+    email: "headadmin2@buildbooks.com"
+    password: "password"
+    role: "head_admin"
+    fullname: "Second Head Administrator"
+    landingPath: "/head-admin"
+    label: "second head admin"
+
+  admin:
+    email: "admin@buildbooks.com"
+    password: "password"
+    role: "admin"
+    fullname: "Fortress Demo Admin"
+    landingPath: "/admin"
+    label: "admin"
+
+  hr:
+    email: "hr@buildbooks.com"
+    password: "password"
+    role: "hr"
+    fullname: "Fortress Demo HR"
+    landingPath: "/hr"
+    label: "hr"
+
+  foreman:
+    email: "fortress.foreman@buildbooks.com"
+    password: "password"
+    role: "foreman"
+    fullname: "Fortress Demo Foreman"
+    landingPath: "/foreman"
+    label: "foreman"
+    default_rate_per_hour: 135.00
+    detail:
+      age: 33
+      birth_date: "1992-06-18"
+      place_of_birth: "Cebu City"
+      sex: "male"
+      civil_status: "Married"
+      phone: "09171234567"
+      address: "Basak, Mandaue City, Cebu"
+      profile_photo_path: "demo/fortress-building/primary-profile.jpg"
+
+  co_foreman:
+    email: "fortress.coforeman@buildbooks.com"
+    password: "password"
+    role: "foreman"
+    fullname: "Fortress Demo Co-Foreman"
+    landingPath: "/foreman"
+    label: "co-foreman"
+    default_rate_per_hour: 128.00
+    detail:
+      age: 31
+      birth_date: "1994-01-12"
+      place_of_birth: "Lapu-Lapu City"
+      sex: "male"
+      civil_status: "Single"
+      phone: "09179876543"
+      address: "Gun-ob, Lapu-Lapu City, Cebu"
+      profile_photo_path: "demo/fortress-building/co-profile.jpg"
+
+  portal_client:
+    email: "portal.client@buildbooks.com"
+    password: "password"
+    role: "client"
+    username: "portal_client"
+    fullname: "Fortress Portal Client"
+    landingPath: "/client/login"
+    label: "portal client"
+projects:
+  fortress_building:
+    id: 1
+    name: "Fortress Building"
+    client: "Fortress Property Holdings, Inc."
+    type: "Commercial"
+    location: "Cebu City"
+    assigned_role: "Architect: Maria Santos; Engineer: Carlo Dizon; PM: Luis Mendoza"
+    assigned: "Fortress Demo Foreman, Fortress Demo Co-Foreman"
+    target: "2026-06-30"
+    status: "ONGOING"
+    phase: "Construction"
+    overall_progress: 62
+    contract_amount: 1520000.00
+    design_fee: 0.00
+    construction_cost: 435500.00
+    total_client_payment: 440000.00
+    remaining_balance: 1080000.00
+    last_paid_date: "2026-03-04"
+    created_at: "2026-01-29 08:00:00"
+    updated_at: "2026-03-08 18:30:00"
+
+  fortress_civic_center:
+    id: 2
+    name: "Fortress Civic Center"
+    client: "Civic Prime Developments, Inc."
+    type: "Institutional"
+    location: "Mandaue City"
+    assigned_role: "Architect: Maria Santos; Engineer: Carlo Dizon; PM: Luis Mendoza"
+    assigned: "Fortress Demo Foreman, Fortress Demo Co-Foreman"
+    target: "2026-08-15"
+    status: "PLANNING"
+    phase: "Design"
+    overall_progress: 0
+    contract_amount: 320000.00
+    design_fee: 320000.00
+    construction_cost: 0.00
+    total_client_payment: 250000.00
+    remaining_balance: 70000.00
+    last_paid_date: "2026-03-05"
+    created_at: "2026-02-20 10:00:00"
+    updated_at: "2026-03-05 16:40:00"
+
+  fortress_experience_hub:
+    id: 3
+    name: "Fortress Experience Hub"
+    client: "Experience Ventures Group"
+    type: "Retail Interior"
+    location: "Lapu-Lapu City"
+    assigned_role: "Architect: Maria Santos; Engineer: Carlo Dizon; PM: Luis Mendoza"
+    assigned: "Fortress Demo Foreman, Fortress Demo Co-Foreman"
+    target: "2026-09-30"
+    status: "PLANNING"
+    phase: "Design"
+    overall_progress: 0
+    contract_amount: 260000.00
+    design_fee: 260000.00
+    construction_cost: 0.00
+    total_client_payment: 160000.00
+    remaining_balance: 100000.00
+    last_paid_date: "2026-03-01"
+    created_at: "2026-03-01 09:45:00"
+    updated_at: "2026-03-09 18:15:00"
+
+  fortress_warehouse_annex:
+    id: 4
+    name: "Fortress Warehouse Annex"
+    client: "Warehouse Holdings Cebu"
+    type: "Warehouse Fit-Out"
+    location: "Talisay City"
+    assigned_role: "Architect: Maria Santos; Engineer: Carlo Dizon; PM: Luis Mendoza"
+    assigned: "Fortress Demo Foreman, Fortress Demo Co-Foreman"
+    target: "2026-02-14"
+    status: "COMPLETED"
+    phase: "Completed"
+    overall_progress: 100
+    contract_amount: 980000.00
+    design_fee: 150000.00
+    construction_cost: 720000.00
+    total_client_payment: 980000.00
+    remaining_balance: 0.00
+    last_paid_date: "2026-02-14"
+    created_at: "2025-11-10 08:00:00"
+    updated_at: "2026-02-14 17:30:00"
+design_projects:
+  - project: "Fortress Building"
+    design_contract_amount: 280000.00
+    downpayment: 80000.00
+    total_received: 180000.00
+    office_payroll_deduction: 15000.00
+    design_progress: 100
+    work_started_at: "2026-01-05"
+    work_completed_at: "2026-01-28"
+    client_approval_status: "approved"
+
+  - project: "Fortress Civic Center"
+    design_contract_amount: 320000.00
+    downpayment: 120000.00
+    total_received: 250000.00
+    office_payroll_deduction: 18000.00
+    design_progress: 100
+    work_started_at: "2026-02-18"
+    work_completed_at: "2026-03-05"
+    client_approval_status: "approved"
+
+  - project: "Fortress Experience Hub"
+    design_contract_amount: 260000.00
+    downpayment: 100000.00
+    total_received: 160000.00
+    office_payroll_deduction: 12000.00
+    design_progress: 62
+    work_started_at: "2026-03-01"
+    work_completed_at: null
+    client_approval_status: "pending"
+
+build_projects:
+  - project: "Fortress Building"
+    construction_contract: 1520000.00
+    total_client_payment: 440000.00
+    materials_cost: 298000.00
+    labor_cost: 102500.00
+    equipment_cost: 35000.00
+
+  - project: "Fortress Warehouse Annex"
+    construction_contract: 830000.00
+    total_client_payment: 830000.00
+    materials_cost: 470000.00
+    labor_cost: 185000.00
+    equipment_cost: 65000.00
+
+project_assignments:
+  - project: "Fortress Building"
+    user_fullname: "Fortress Demo Co-Foreman"
+    role_in_project: "foreman"
+    created_at: "2026-03-01 08:00:00"
+  - project: "Fortress Building"
+    user_fullname: "Fortress Demo Foreman"
+    role_in_project: "foreman"
+    created_at: "2026-03-01 08:05:00"
+  - project: "Fortress Civic Center"
+    user_fullname: "Fortress Demo Co-Foreman"
+    role_in_project: "foreman"
+    created_at: "2026-03-01 08:00:00"
+  - project: "Fortress Civic Center"
+    user_fullname: "Fortress Demo Foreman"
+    role_in_project: "foreman"
+    created_at: "2026-03-01 08:05:00"
+  - project: "Fortress Experience Hub"
+    user_fullname: "Fortress Demo Co-Foreman"
+    role_in_project: "foreman"
+    created_at: "2026-03-01 08:00:00"
+  - project: "Fortress Experience Hub"
+    user_fullname: "Fortress Demo Foreman"
+    role_in_project: "foreman"
+    created_at: "2026-03-01 08:05:00"
+  - project: "Fortress Warehouse Annex"
+    user_fullname: "Fortress Demo Co-Foreman"
+    role_in_project: "foreman"
+    created_at: "2026-03-01 08:00:00"
+  - project: "Fortress Warehouse Annex"
+    user_fullname: "Fortress Demo Foreman"
+    role_in_project: "foreman"
+    created_at: "2026-03-01 08:05:00"
+  - project: "Fortress Warehouse Annex"
+    user_email: "portal.client@buildbooks.com"
+    role_in_project: "client"
+    created_at: "2026-02-14 17:30:00"
+workers:
+  - foreman_email: "fortress.foreman@buildbooks.com"
+    project: "Fortress Building"
+    name: "Ramon Castillo"
+    job_type: "Skilled Worker"
+    default_rate_per_hour: 95.00
+    birth_date: "1988-04-11"
+    place_of_birth: "Toledo City"
+    sex: "male"
+    civil_status: "Married"
+    phone: "09170000001"
+    address: "Poblacion, Toledo City"
+
+  - foreman_email: "fortress.foreman@buildbooks.com"
+    project: "Fortress Building"
+    name: "Leo Navarro"
+    job_type: "Laborer"
+    default_rate_per_hour: 92.00
+    birth_date: "1990-07-18"
+    place_of_birth: "Talisay City"
+    sex: "male"
+    civil_status: "Single"
+    phone: "09170000002"
+    address: "Tabunok, Talisay City"
+
+  - foreman_email: "fortress.foreman@buildbooks.com"
+    project: "Fortress Building"
+    name: "Joel Santos"
+    job_type: "Skilled Worker"
+    default_rate_per_hour: 98.00
+    birth_date: "1987-02-06"
+    place_of_birth: "Mandaue City"
+    sex: "male"
+    civil_status: "Married"
+    phone: "09170000003"
+    address: "Subangdaku, Mandaue City"
+
+  - foreman_email: "fortress.foreman@buildbooks.com"
+    project: "Fortress Building"
+    name: "Carlo Belen"
+    job_type: "Worker"
+    default_rate_per_hour: 88.00
+    birth_date: "1993-10-30"
+    place_of_birth: "Naga City"
+    sex: "male"
+    civil_status: "Single"
+    phone: "09170000004"
+    address: "Colon, Naga City"
+
+  - foreman_email: "fortress.foreman@buildbooks.com"
+    project: "Fortress Building"
+    name: "Alex Manuel"
+    job_type: "Skilled Worker"
+    default_rate_per_hour: 100.00
+    birth_date: "1991-12-21"
+    place_of_birth: "Carcar City"
+    sex: "male"
+    civil_status: "Married"
+    phone: "09170000005"
+    address: "Poblacion, Carcar City"
+
+  - foreman_email: "fortress.coforeman@buildbooks.com"
+    project: "Fortress Building"
+    name: "Mark Rivera"
+    job_type: "Laborer"
+    default_rate_per_hour: 110.00
+    birth_date: "1994-08-15"
+    place_of_birth: "Lapu-Lapu City"
+    sex: "male"
+    civil_status: "Single"
+    phone: "09170000006"
+    address: "Pajo, Lapu-Lapu City"
+
+  - foreman_email: "fortress.coforeman@buildbooks.com"
+    project: "Fortress Building"
+    name: "Nestor Cabral"
+    job_type: "Skilled Worker"
+    default_rate_per_hour: 103.00
+    birth_date: "1989-09-22"
+    place_of_birth: "Bogo City"
+    sex: "male"
+    civil_status: "Married"
+    phone: "09170000007"
+    address: "Sillon, Bogo City"
+
+  - foreman_email: "fortress.foreman@buildbooks.com"
+    project: "Fortress Building"
+    name: "Bryan Lim"
+    job_type: "Skilled Worker"
+    default_rate_per_hour: 96.00
+    birth_date: "1992-11-14"
+    place_of_birth: "Cebu City"
+    sex: "male"
+    civil_status: "Single"
+    phone: "09170000008"
+    address: "Labangon, Cebu City"
+
+  - foreman_email: "fortress.foreman@buildbooks.com"
+    project: "Fortress Building"
+    name: "Arnel Pangan"
+    job_type: "Skilled Worker"
+    default_rate_per_hour: 112.00
+    birth_date: "1986-03-29"
+    place_of_birth: "Danao City"
+    sex: "male"
+    civil_status: "Married"
+    phone: "09170000009"
+    address: "Guinsay, Danao City"
+
+  - foreman_email: "fortress.coforeman@buildbooks.com"
+    project: "Fortress Building"
+    name: "Josephine Abarca"
+    job_type: "Worker"
+    default_rate_per_hour: 89.00
+    birth_date: "1995-05-17"
+    place_of_birth: "Mandaue City"
+    sex: "female"
+    civil_status: "Single"
+    phone: "09170000010"
+    address: "Canduman, Mandaue City"
+
+  - foreman_email: "fortress.coforeman@buildbooks.com"
+    project: "Fortress Building"
+    name: "Daryl Ocampo"
+    job_type: "Skilled Worker"
+    default_rate_per_hour: 108.00
+    birth_date: "1991-01-08"
+    place_of_birth: "Lapu-Lapu City"
+    sex: "male"
+    civil_status: "Married"
+    phone: "09170000011"
+    address: "Maribago, Lapu-Lapu City"
+
+  - foreman_email: "fortress.foreman@buildbooks.com"
+    project: "Fortress Building"
+    name: "Peter Salonga"
+    job_type: "Skilled Worker"
+    default_rate_per_hour: 106.00
+    birth_date: "1990-06-03"
+    place_of_birth: "Carcar City"
+    sex: "male"
+    civil_status: "Married"
+    phone: "09170000012"
+    address: "Ocana, Carcar City"
+project_scopes:
+  - project: "Fortress Building"
+    scope_name: "Site Preparation and Layout"
+    assigned_personnel: "Fortress Demo Foreman"
+    progress_percent: 100
+    status: "COMPLETED"
+    remarks: "Temporary facilities, fencing, and layout lines are complete."
+    contract_amount: 150000.00
+    weight_percent: 8.00
+    start_date: "2026-01-05"
+    target_completion: "2026-01-18"
+
+  - project: "Fortress Building"
+    scope_name: "Foundation and Footings"
+    assigned_personnel: "Fortress Demo Co-Foreman"
+    progress_percent: 100
+    status: "COMPLETED"
+    remarks: "Excavation, footing rebar, and concrete pour completed."
+    contract_amount: 280000.00
+    weight_percent: 18.00
+    start_date: "2026-01-12"
+    target_completion: "2026-02-02"
+
+  - project: "Fortress Building"
+    scope_name: "Structural Columns and Beams"
+    assigned_personnel: "Fortress Demo Foreman"
+    progress_percent: 72
+    status: "IN_PROGRESS"
+    remarks: "Level 2 beam forms are ready for the next concrete schedule."
+    contract_amount: 360000.00
+    weight_percent: 22.00
+    start_date: "2026-02-01"
+    target_completion: "2026-03-22"
+
+  - project: "Fortress Building"
+    scope_name: "CHB Walling and Plastering"
+    assigned_personnel: "Fortress Demo Foreman"
+    progress_percent: 48
+    status: "IN_PROGRESS"
+    remarks: "Ground floor walling is complete, second floor walling is ongoing."
+    contract_amount: 260000.00
+    weight_percent: 16.00
+    start_date: "2026-02-16"
+    target_completion: "2026-04-10"
+
+  - project: "Fortress Building"
+    scope_name: "Roofing and Waterproofing"
+    assigned_personnel: "Fortress Demo Co-Foreman"
+    progress_percent: 28
+    status: "IN_PROGRESS"
+    remarks: "Roof framing is underway. Waterproofing crew is queued next."
+    contract_amount: 310000.00
+    weight_percent: 20.00
+    start_date: "2026-03-01"
+    target_completion: "2026-05-02"
+
+  - project: "Fortress Building"
+    scope_name: "Electrical and Plumbing Rough-In"
+    assigned_personnel: "Fortress Demo Foreman"
+    progress_percent: 24
+    status: "IN_PROGRESS"
+    remarks: "Primary conduits and vertical plumbing stacks are partially installed."
+    contract_amount: 180000.00
+    weight_percent: 16.00
+    start_date: "2026-03-03"
+    target_completion: "2026-05-18"
+
+scope_photos:
+  - scope: "Site Preparation and Layout"
+    photo: "demo/fortress-building/scope_site_1.jpg"
+    caption: "[Jotform Weekly] | Week: 2026-03-02 | Scope: Site Preparation and Layout | Mobilization area and layout points"
+  - scope: "Foundation and Footings"
+    photo: "demo/fortress-building/scope_foundation_1.jpg"
+    caption: "[Jotform Weekly] | Week: 2026-03-02 | Scope: Foundation and Footings | Footing rebar inspection before pour"
+  - scope: "Foundation and Footings"
+    photo: "demo/fortress-building/scope_foundation_2.jpg"
+    caption: "[Jotform Weekly] | Week: 2026-03-02 | Scope: Foundation and Footings | Completed footing concrete"
+  - scope: "Structural Columns and Beams"
+    photo: "demo/fortress-building/scope_structure_1.jpg"
+    caption: "[Jotform Weekly] | Week: 2026-03-02 | Scope: Structural Columns and Beams | Level 2 beam formworks"
+  - scope: "CHB Walling and Plastering"
+    photo: "demo/fortress-building/scope_walling_1.jpg"
+    caption: "[Jotform Weekly] | Week: 2026-03-02 | Scope: CHB Walling and Plastering | Ongoing wall alignment and plaster preparation"
+  - scope: "Roofing and Waterproofing"
+    photo: "demo/fortress-building/scope_roofing_1.jpg"
+    caption: "[Jotform Weekly] | Week: 2026-03-02 | Scope: Roofing and Waterproofing | Roofing members ready for sheet installation"
+  - scope: "Electrical and Plumbing Rough-In"
+    photo: "demo/fortress-building/scope_mep_1.jpg"
+    caption: "[Jotform Weekly] | Week: 2026-03-02 | Scope: Electrical and Plumbing Rough-In | Conduit and PVC lines installed"
+
+project_workers:
+  - project: "Fortress Building"
+    worker_name: "Rodel Crane Operator"
+    rate: 150.00
+    created_at: "2026-03-01 09:00:00"
+  - project: "Fortress Building"
+    worker_name: "Safety Officer Consultant"
+    rate: 140.00
+    created_at: "2026-03-01 09:05:00"
+
+materials:
+  - name: "Cement"
+    description: "Bulk cement for concrete and masonry works."
+  - name: "Rebar"
+    description: "Steel reinforcement for structural concrete members."
+  - name: "Electrical Wire"
+    description: "Wire and cable used for rough-in and fit-out."
+  - name: "PVC Pipe"
+    description: "PVC piping for sanitary and water line installation."
+  - name: "Labor"
+    description: "Labor cost bucket for payroll and site manpower."
+  - name: "Equipment Rental"
+    description: "Rented equipment and temporary tools used on site."
+  - name: "Miscellaneous"
+    description: "Site consumables, hauling, and support purchases."
+  - name: "Waterproofing Membrane"
+    description: "Roofing and wet area waterproofing system material."
+payments:
+  - project: "Fortress Building"
+    amount: 120000.00
+    date_paid: "2026-01-31"
+    reference: "FPH-CON-260131"
+    note: "Construction mobilization for footing excavation, fencing, and temporary facilities."
+    created_at: "2026-01-31 10:45:00"
+    updated_at: "2026-01-31 10:45:00"
+  - project: "Fortress Building"
+    amount: 140000.00
+    date_paid: "2026-02-18"
+    reference: "FPH-CON-260218"
+    note: "Progress billing tied to footing completion and initial framing accomplishments."
+    created_at: "2026-02-18 15:00:00"
+    updated_at: "2026-02-18 15:00:00"
+  - project: "Fortress Building"
+    amount: 180000.00
+    date_paid: "2026-03-04"
+    reference: "FPH-CON-260304"
+    note: "March progress billing covering structural works, masonry, and roofing preparation."
+    created_at: "2026-03-04 16:20:00"
+    updated_at: "2026-03-04 16:20:00"
+  - project: "Fortress Warehouse Annex"
+    amount: 250000.00
+    date_paid: "2025-12-05"
+    reference: "WHA-DEP-251205"
+    note: "Design approval and mobilization billing."
+    created_at: "2025-12-05 11:20:00"
+    updated_at: "2025-12-05 11:20:00"
+  - project: "Fortress Warehouse Annex"
+    amount: 330000.00
+    date_paid: "2026-01-09"
+    reference: "WHA-PROG-260109"
+    note: "Structural and envelope progress billing."
+    created_at: "2026-01-09 14:15:00"
+    updated_at: "2026-01-09 14:15:00"
+  - project: "Fortress Warehouse Annex"
+    amount: 400000.00
+    date_paid: "2026-02-14"
+    reference: "WHA-FIN-260214"
+    note: "Final billing after turnover, punch-list closure, and handover documents."
+    created_at: "2026-02-14 16:50:00"
+    updated_at: "2026-02-14 16:50:00"
+  - project: "Fortress Building"
+    amount: 80000.00
+    date_paid: "2026-01-10"
+    reference: "FPH-DES-260110"
+    note: "Design mobilization downpayment for schematic package work."
+    created_at: "2026-01-10 11:00:00"
+    updated_at: "2026-01-10 11:00:00"
+  - project: "Fortress Building"
+    amount: 100000.00
+    date_paid: "2026-01-27"
+    reference: "FPH-DES-260127"
+    note: "Additional design billing after approved proposal and coordinated drawing issuance."
+    created_at: "2026-01-27 15:30:00"
+    updated_at: "2026-01-27 15:30:00"
+  - project: "Fortress Civic Center"
+    amount: 120000.00
+    date_paid: "2026-02-22"
+    reference: "CIV-DES-260222"
+    note: "Approved concept retainer and planning package release."
+    created_at: "2026-02-22 13:20:00"
+    updated_at: "2026-02-22 13:20:00"
+  - project: "Fortress Civic Center"
+    amount: 130000.00
+    date_paid: "2026-03-05"
+    reference: "CIV-DES-260305"
+    note: "Second design billing after client approval of the final scheme."
+    created_at: "2026-03-05 15:50:00"
+    updated_at: "2026-03-05 15:50:00"
+  - project: "Fortress Experience Hub"
+    amount: 100000.00
+    date_paid: "2026-03-01"
+    reference: "EXP-DES-260301"
+    note: "Initial design retainer for mood boards, space planning, and MEP coordination."
+    created_at: "2026-03-01 14:00:00"
+    updated_at: "2026-03-01 14:00:00"
+  - project: "Fortress Experience Hub"
+    amount: 60000.00
+    date_paid: "2026-03-08"
+    reference: "EXP-DES-260308"
+    note: "Interim design billing while waiting for final client approval."
+    created_at: "2026-03-08 16:30:00"
+    updated_at: "2026-03-08 16:30:00"
+
+expenses:
+  - project: "Fortress Building"
+    category: "Cement"
+    amount: 98000.00
+    note: "Footing and masonry batch releases."
+    date: "2026-02-05"
+    created_at: "2026-02-05 10:00:00"
+    updated_at: "2026-02-05 10:00:00"
+  - project: "Fortress Building"
+    category: "Rebar"
+    amount: 124500.00
+    note: "Column and beam reinforcement packages."
+    date: "2026-02-24"
+    created_at: "2026-02-24 14:00:00"
+    updated_at: "2026-02-24 14:00:00"
+  - project: "Fortress Building"
+    category: "Labor"
+    amount: 102500.00
+    note: "March 2-8 payroll accrual for the active site team."
+    date: "2026-03-08"
+    created_at: "2026-03-08 18:00:00"
+    updated_at: "2026-03-08 18:00:00"
+  - project: "Fortress Building"
+    category: "Equipment Rental"
+    amount: 35000.00
+    note: "Mixer, vibrators, and scaffolding rental cycle."
+    date: "2026-03-01"
+    created_at: "2026-03-01 08:30:00"
+    updated_at: "2026-03-01 08:30:00"
+  - project: "Fortress Building"
+    category: "Electrical Wire"
+    amount: 27000.00
+    note: "Initial rough-in feeder and branch wire purchase."
+    date: "2026-03-04"
+    created_at: "2026-03-04 13:00:00"
+    updated_at: "2026-03-04 13:00:00"
+  - project: "Fortress Building"
+    category: "PVC Pipe"
+    amount: 18500.00
+    note: "Sanitary and water line rough-in materials."
+    date: "2026-03-06"
+    created_at: "2026-03-06 11:10:00"
+    updated_at: "2026-03-06 11:10:00"
+  - project: "Fortress Building"
+    category: "Miscellaneous"
+    amount: 30000.00
+    note: "Fasteners, safety stock, hauling, and site consumables."
+    date: "2026-03-07"
+    created_at: "2026-03-07 17:10:00"
+    updated_at: "2026-03-07 17:10:00"
+  - project: "Fortress Warehouse Annex"
+    category: "Steel and Roofing"
+    amount: 290000.00
+    note: "Main structure and roofing package."
+    date: "2025-12-22"
+    created_at: "2025-12-22 09:30:00"
+    updated_at: "2025-12-22 09:30:00"
+  - project: "Fortress Warehouse Annex"
+    category: "Concrete and Masonry"
+    amount: 180000.00
+    note: "Footings, slab-on-grade, and masonry walls."
+    date: "2026-01-05"
+    created_at: "2026-01-05 11:15:00"
+    updated_at: "2026-01-05 11:15:00"
+  - project: "Fortress Warehouse Annex"
+    category: "Labor"
+    amount: 185000.00
+    note: "Average manpower cost across the fit-out period."
+    date: "2026-02-01"
+    created_at: "2026-02-01 17:30:00"
+    updated_at: "2026-02-01 17:30:00"
+  - project: "Fortress Warehouse Annex"
+    category: "Equipment Rental"
+    amount: 65000.00
+    note: "Scaffolding, welding set, and lifting equipment."
+    date: "2026-01-20"
+    created_at: "2026-01-20 10:45:00"
+    updated_at: "2026-01-20 10:45:00"
+
+progress_submit_tokens:
+  - project: "Fortress Building"
+    foreman: "Fortress Demo Foreman"
+    token: "fortress-building-main-demo-token"
+    expires_at: "2031-02-24 04:02:00"
+    revoked_at: null
+    last_submitted_at: "2026-03-07 18:05:00"
+    submission_count: 4
+    created_at: "2026-03-01 08:00:00"
+    updated_at: "2026-03-07 18:05:00"
+  - project: "Fortress Building"
+    foreman: "Fortress Demo Co-Foreman"
+    token: "fortress-building-co-demo-token"
+    expires_at: "2031-03-10 04:02:00"
+    revoked_at: null
+    last_submitted_at: "2026-03-07 18:15:00"
+    submission_count: 2
+    created_at: "2026-03-01 08:10:00"
+    updated_at: "2026-03-07 18:15:00"
+
+project_updates:
+  - project: "Fortress Building"
+    note: "Project kickoff completed with approved design package, survey references, and manpower deployment plan."
+    created_by: "Head Administrator"
+    created_at: "2026-01-05 09:00:00"
+    updated_at: "2026-01-05 09:00:00"
+  - project: "Fortress Building"
+    note: "Foundation and footing activities reached 100% completion after concrete cure inspection."
+    created_by: "Fortress Demo Foreman"
+    created_at: "2026-02-02 17:10:00"
+    updated_at: "2026-02-02 17:10:00"
+  - project: "Fortress Building"
+    note: "Structural columns and beams reached 72%. Rebar and formworks for the remaining frames are staged."
+    created_by: "Fortress Demo Foreman"
+    created_at: "2026-03-05 18:10:00"
+    updated_at: "2026-03-05 18:10:00"
+  - project: "Fortress Building"
+    note: "Electrical and plumbing rough-in is now active in parallel with roofing preparation for the next billing cycle."
+    created_by: "Fortress Demo Co-Foreman"
+    created_at: "2026-03-07 18:00:00"
+    updated_at: "2026-03-07 18:00:00"
+  - project: "Fortress Building"
+    note: "Monitoring Board entry reached 100%, client approved the design package, and the design record is now retained as the source for the transferred construction duplicate."
+    created_by: "Head Administrator"
+    created_at: "2026-01-28 17:00:00"
+    updated_at: "2026-01-28 17:00:00"
+  - project: "Fortress Civic Center"
+    note: "Client already approved the concept package. This design card stays in the Design column so the Transfer to Construction button can be tested manually."
+    created_by: "Head Administrator"
+    created_at: "2026-03-05 16:40:00"
+    updated_at: "2026-03-05 16:40:00"
+  - project: "Fortress Experience Hub"
+    note: "Design works are being finalized with a pending client approval status, so the transfer action is intentionally unavailable."
+    created_by: "Head Administrator"
+    created_at: "2026-03-09 18:15:00"
+    updated_at: "2026-03-09 18:15:00"
+attendance:
+  foreman_self_logs:
+    - foreman_email: "fortress.foreman@buildbooks.com"
+      project: "Fortress Building"
+      worker_name: "Fortress Demo Foreman"
+      entries:
+        - { date: "2026-02-23", time_in: "07:15", time_out: "17:05" }
+        - { date: "2026-02-24", time_in: "07:18", time_out: "17:10" }
+        - { date: "2026-02-25", time_in: "07:12", time_out: "17:03" }
+        - { date: "2026-02-26", time_in: "07:20", time_out: "17:18" }
+        - { date: "2026-02-27", time_in: "07:10", time_out: "16:58" }
+        - { date: "2026-02-28", time_in: "07:25", time_out: "15:35" }
+        - { date: "2026-03-02", time_in: "07:08", time_out: "17:02" }
+        - { date: "2026-03-03", time_in: "07:15", time_out: "17:12" }
+        - { date: "2026-03-04", time_in: "07:10", time_out: "17:00" }
+        - { date: "2026-03-05", time_in: "07:05", time_out: "17:18" }
+        - { date: "2026-03-06", time_in: "07:18", time_out: "17:09" }
+        - { date: "2026-03-07", time_in: "07:22", time_out: "15:48" }
+
+    - foreman_email: "fortress.coforeman@buildbooks.com"
+      project: "Fortress Building"
+      worker_name: "Fortress Demo Co-Foreman"
+      entries:
+        - { date: "2026-02-23", time_in: "07:32", time_out: "16:48" }
+        - { date: "2026-02-24", time_in: "07:28", time_out: "17:00" }
+        - { date: "2026-02-25", time_in: "07:35", time_out: "16:55" }
+        - { date: "2026-02-26", time_in: "07:30", time_out: "17:08" }
+        - { date: "2026-02-27", time_in: "07:40", time_out: "16:45" }
+        - { date: "2026-02-28", time_in: "07:42", time_out: "15:18" }
+        - { date: "2026-03-02", time_in: "07:30", time_out: "16:54" }
+        - { date: "2026-03-03", time_in: "07:26", time_out: "16:58" }
+        - { date: "2026-03-04", time_in: "07:38", time_out: "17:04" }
+        - { date: "2026-03-05", time_in: "07:40", time_out: "17:16" }
+        - { date: "2026-03-06", time_in: "07:28", time_out: "17:10" }
+        - { date: "2026-03-07", time_in: "07:36", time_out: "15:20" }
+  worker_weekly_codes:
+    - foreman_email: "fortress.foreman@buildbooks.com"
+      project: "Fortress Building"
+      worker_name: "Ramon Castillo"
+      weeks:
+        "2026-02-23": ["P", "P", "P", "P", "P", "P", "R"]
+        "2026-03-02": ["P", "P", "P", "P", "P", "P", "R"]
+    - foreman_email: "fortress.foreman@buildbooks.com"
+      project: "Fortress Building"
+      worker_name: "Leo Navarro"
+      weeks:
+        "2026-02-23": ["P", "P", "P", "P", "H", "P", "R"]
+        "2026-03-02": ["P", "P", "H", "P", "P", "A", "R"]
+    - foreman_email: "fortress.foreman@buildbooks.com"
+      project: "Fortress Building"
+      worker_name: "Joel Santos"
+      weeks:
+        "2026-02-23": ["P", "P", "P", "P", "P", "P", "R"]
+        "2026-03-02": ["P", "P", "P", "P", "P", "P", "R"]
+    - foreman_email: "fortress.foreman@buildbooks.com"
+      project: "Fortress Building"
+      worker_name: "Carlo Belen"
+      weeks:
+        "2026-02-23": ["P", "P", "P", "H", "P", "P", "R"]
+        "2026-03-02": ["P", "P", "P", "H", "P", "P", "R"]
+    - foreman_email: "fortress.foreman@buildbooks.com"
+      project: "Fortress Building"
+      worker_name: "Alex Manuel"
+      weeks:
+        "2026-02-23": ["P", "A", "P", "P", "P", "P", "R"]
+        "2026-03-02": ["P", "A", "P", "P", "P", "P", "R"]
+    - foreman_email: "fortress.coforeman@buildbooks.com"
+      project: "Fortress Building"
+      worker_name: "Mark Rivera"
+      weeks:
+        "2026-02-23": ["P", "P", "P", "P", "P", "H", "R"]
+        "2026-03-02": ["P", "P", "P", "P", "P", "H", "R"]
+    - foreman_email: "fortress.coforeman@buildbooks.com"
+      project: "Fortress Building"
+      worker_name: "Nestor Cabral"
+      weeks:
+        "2026-02-23": ["P", "P", "P", "P", "P", "P", "R"]
+        "2026-03-02": ["P", "P", "P", "P", "P", "P", "R"]
+    - foreman_email: "fortress.foreman@buildbooks.com"
+      project: "Fortress Building"
+      worker_name: "Bryan Lim"
+      weeks:
+        "2026-02-23": ["P", "P", "P", "H", "P", "P", "R"]
+        "2026-03-02": ["P", "P", "P", "P", "H", "P", "R"]
+    - foreman_email: "fortress.foreman@buildbooks.com"
+      project: "Fortress Building"
+      worker_name: "Arnel Pangan"
+      weeks:
+        "2026-02-23": ["P", "P", "H", "P", "P", "P", "R"]
+        "2026-03-02": ["P", "P", "H", "P", "P", "P", "R"]
+    - foreman_email: "fortress.coforeman@buildbooks.com"
+      project: "Fortress Building"
+      worker_name: "Josephine Abarca"
+      weeks:
+        "2026-02-23": ["P", "P", "P", "P", "P", "A", "R"]
+        "2026-03-02": ["P", "P", "P", "P", "P", "P", "R"]
+    - foreman_email: "fortress.coforeman@buildbooks.com"
+      project: "Fortress Building"
+      worker_name: "Daryl Ocampo"
+      weeks:
+        "2026-02-23": ["P", "P", "P", "P", "P", "P", "R"]
+        "2026-03-02": ["P", "P", "P", "P", "H", "P", "R"]
+    - foreman_email: "fortress.foreman@buildbooks.com"
+      project: "Fortress Building"
+      worker_name: "Peter Salonga"
+      weeks:
+        "2026-02-23": ["P", "P", "P", "P", "P", "H", "R"]
+        "2026-03-02": ["P", "P", "P", "P", "P", "P", "R"]
+weekly_accomplishments:
+  - project: "Fortress Building"
+    foreman: "Fortress Demo Foreman"
+    scope_of_work: "Site Preparation and Layout"
+    percent_completed: 100
+    week_start: "2026-02-23"
+    created_at: "2026-02-28 18:00:00"
+  - project: "Fortress Building"
+    foreman: "Fortress Demo Foreman"
+    scope_of_work: "Foundation and Footings"
+    percent_completed: 85
+    week_start: "2026-02-23"
+    created_at: "2026-02-28 18:00:00"
+  - project: "Fortress Building"
+    foreman: "Fortress Demo Foreman"
+    scope_of_work: "Structural Columns and Beams"
+    percent_completed: 54
+    week_start: "2026-02-23"
+    created_at: "2026-02-28 18:00:00"
+  - project: "Fortress Building"
+    foreman: "Fortress Demo Foreman"
+    scope_of_work: "CHB Walling and Plastering"
+    percent_completed: 26
+    week_start: "2026-02-23"
+    created_at: "2026-02-28 18:00:00"
+  - project: "Fortress Building"
+    foreman: "Fortress Demo Foreman"
+    scope_of_work: "Roofing and Waterproofing"
+    percent_completed: 12
+    week_start: "2026-02-23"
+    created_at: "2026-02-28 18:00:00"
+  - project: "Fortress Building"
+    foreman: "Fortress Demo Foreman"
+    scope_of_work: "Electrical and Plumbing Rough-In"
+    percent_completed: 8
+    week_start: "2026-02-23"
+    created_at: "2026-02-28 18:00:00"
+  - project: "Fortress Building"
+    foreman: "Fortress Demo Foreman"
+    scope_of_work: "Site Preparation and Layout"
+    percent_completed: 100
+    week_start: "2026-03-02"
+    created_at: "2026-03-07 18:05:00"
+  - project: "Fortress Building"
+    foreman: "Fortress Demo Foreman"
+    scope_of_work: "Foundation and Footings"
+    percent_completed: 100
+    week_start: "2026-03-02"
+    created_at: "2026-03-07 18:05:00"
+  - project: "Fortress Building"
+    foreman: "Fortress Demo Foreman"
+    scope_of_work: "Structural Columns and Beams"
+    percent_completed: 72
+    week_start: "2026-03-02"
+    created_at: "2026-03-07 18:05:00"
+  - project: "Fortress Building"
+    foreman: "Fortress Demo Foreman"
+    scope_of_work: "CHB Walling and Plastering"
+    percent_completed: 48
+    week_start: "2026-03-02"
+    created_at: "2026-03-07 18:05:00"
+  - project: "Fortress Building"
+    foreman: "Fortress Demo Foreman"
+    scope_of_work: "Roofing and Waterproofing"
+    percent_completed: 28
+    week_start: "2026-03-02"
+    created_at: "2026-03-07 18:05:00"
+  - project: "Fortress Building"
+    foreman: "Fortress Demo Foreman"
+    scope_of_work: "Electrical and Plumbing Rough-In"
+    percent_completed: 24
+    week_start: "2026-03-02"
+    created_at: "2026-03-07 18:05:00"
+  - project: "Fortress Building"
+    foreman: "Fortress Demo Co-Foreman"
+    scope_of_work: "Structural Columns and Beams"
+    percent_completed: 68
+    week_start: "2026-02-23"
+    created_at: "2026-02-28 18:20:00"
+  - project: "Fortress Building"
+    foreman: "Fortress Demo Co-Foreman"
+    scope_of_work: "Roofing and Waterproofing"
+    percent_completed: 10
+    week_start: "2026-02-23"
+    created_at: "2026-02-28 18:20:00"
+  - project: "Fortress Building"
+    foreman: "Fortress Demo Co-Foreman"
+    scope_of_work: "Structural Columns and Beams"
+    percent_completed: 72
+    week_start: "2026-03-02"
+    created_at: "2026-03-07 18:15:00"
+  - project: "Fortress Building"
+    foreman: "Fortress Demo Co-Foreman"
+    scope_of_work: "Roofing and Waterproofing"
+    percent_completed: 28
+    week_start: "2026-03-02"
+    created_at: "2026-03-07 18:15:00"
+  - project: "Fortress Building"
+    foreman: "Fortress Demo Co-Foreman"
+    scope_of_work: "Electrical and Plumbing Rough-In"
+    percent_completed: 24
+    week_start: "2026-03-02"
+    created_at: "2026-03-07 18:15:00"
+payroll_user: "headadmin@buildbooks.com"
+payroll_project_name: "Fortress Building"
+
+payroll_cutoffs:
+  - start_date: "2026-01-05"
+    end_date: "2026-01-11"
+    status: "generated"
+  - start_date: "2026-01-12"
+    end_date: "2026-01-18"
+    status: "generated"
+  - start_date: "2026-01-19"
+    end_date: "2026-01-25"
+    status: "generated"
+  - start_date: "2026-01-26"
+    end_date: "2026-02-01"
+    status: "generated"
+  - start_date: "2026-02-02"
+    end_date: "2026-02-08"
+    status: "generated"
+  - start_date: "2026-02-09"
+    end_date: "2026-02-15"
+    status: "generated"
+  - start_date: "2026-02-16"
+    end_date: "2026-02-22"
+    status: "generated"
+
+payroll_weeks:
+  - start_date: "2026-02-23"
+    end_date: "2026-03-01"
+  - start_date: "2026-03-02"
+    end_date: "2026-03-08"
+
+payroll_deductions:
+  "2026-02-23":
+    "Ramon Castillo":
+      - { type: "cash_advance", amount: 500.00, note: "Prior-week emergency cash advance." }
+    "Mark Rivera":
+      - { type: "loan", amount: 700.00, note: "Safety shoes installment deduction." }
+    "Josephine Abarca":
+      - { type: "other", amount: 180.00, note: "Site communication allowance offset." }
+  "2026-03-02":
+    "Ramon Castillo":
+      - { type: "cash_advance", amount: 750.00, note: "Cash advance for family medical support." }
+    "Alex Manuel":
+      - { type: "loan", amount: 1200.00, note: "Tools payment installment." }
+      - { type: "other", amount: 250.00, note: "Safety PPE replacement charge." }
+    "Fortress Demo Co-Foreman":
+      - { type: "other", amount: 500.00, note: "Site communication allowance offset." }
+    "Daryl Ocampo":
+      - { type: "loan", amount: 650.00, note: "Multimeter and testing tools installment." }
+    "Peter Salonga":
+      - { type: "cash_advance", amount: 300.00, note: "Transport support for emergency call-out." }
+
+payroll_status_overrides:
+  "Fortress Demo Foreman": "approved"
+  "Fortress Demo Co-Foreman": "approved"
+  "Alex Manuel": "pending"
+  "Josephine Abarca": "pending"
+  "Ramon Castillo": "approved"
+
+payroll_releases:
+  - start_date: "2026-02-23"
+    end_date: "2026-03-01"
+    released_at: "2026-03-01 20:30:00"
+    released_by_email: "headadmin@buildbooks.com"
+    payment_reference: "PAY-CUTOFF-260223"
+    bank_export_ref: "BPI-BATCH-260301"
+
+demo_tokens:
+  primary: "fortress-building-main-demo-token"
+  co_foreman: "fortress-building-co-demo-token"
+material_requests:
+  - project: "Fortress Building"
+    foreman: "Fortress Demo Foreman"
+    material_name: "Cement"
+    quantity: "250"
+    unit: "bags"
+    remarks: "Needed for column pours and CHB laying for the next 5 working days."
+    status: "pending"
+    photo_path: "demo/fortress-building/material_request_1.jpg"
+    created_at: "2026-03-05 09:20:00"
+    updated_at: "2026-03-05 09:20:00"
+  - project: "Fortress Building"
+    foreman: "Fortress Demo Foreman"
+    material_name: "Rebar"
+    quantity: "130"
+    unit: "pcs"
+    remarks: "16mm bars for level 2 beam reinforcement."
+    status: "approved"
+    photo_path: "demo/fortress-building/material_request_2.jpg"
+    created_at: "2026-03-03 14:10:00"
+    updated_at: "2026-03-03 16:45:00"
+  - project: "Fortress Building"
+    foreman: "Fortress Demo Co-Foreman"
+    material_name: "PVC Pipe"
+    quantity: "40"
+    unit: "lengths"
+    remarks: "Sanitary line rough-in for service core and restroom block."
+    status: "pending"
+    photo_path: "demo/fortress-building/material_request_3.jpg"
+    created_at: "2026-03-06 08:35:00"
+    updated_at: "2026-03-06 08:35:00"
+  - project: "Fortress Building"
+    foreman: "Fortress Demo Co-Foreman"
+    material_name: "Electrical Wire"
+    quantity: "6"
+    unit: "rolls"
+    remarks: "Feeder and branch circuits for the admin office segment."
+    status: "approved"
+    photo_path: "demo/fortress-building/material_request_4.jpg"
+    created_at: "2026-03-04 10:05:00"
+    updated_at: "2026-03-04 13:40:00"
+
+issue_reports:
+  - project: "Fortress Building"
+    foreman: "Fortress Demo Foreman"
+    issue_title: "Formwork alignment at stair core"
+    description: "Stair core beam formwork needs minor realignment before the next concrete schedule."
+    severity: "high"
+    status: "open"
+    photo_path: "demo/fortress-building/issue_1.jpg"
+    created_at: "2026-03-06 11:15:00"
+    updated_at: "2026-03-06 11:15:00"
+  - project: "Fortress Building"
+    foreman: "Fortress Demo Foreman"
+    issue_title: "Rainwater ponding near stockpile"
+    description: "Drainage channel was blocked after heavy rain. Temporary diversion was installed and issue is resolved."
+    severity: "medium"
+    status: "resolved"
+    photo_path: "demo/fortress-building/issue_2.jpg"
+    created_at: "2026-03-04 15:35:00"
+    updated_at: "2026-03-05 08:05:00"
+  - project: "Fortress Building"
+    foreman: "Fortress Demo Co-Foreman"
+    issue_title: "Temporary power panel grounding"
+    description: "Grounding wire and rod inspection is required before energizing the temporary power extension."
+    severity: "medium"
+    status: "open"
+    photo_path: "demo/fortress-building/issue_3.jpg"
+    created_at: "2026-03-07 08:40:00"
+    updated_at: "2026-03-07 08:40:00"
+delivery_confirmations:
+  - project: "Fortress Building"
+    foreman: "Fortress Demo Foreman"
+    item_delivered: "Cement"
+    quantity: "150 bags"
+    delivery_date: "2026-03-03"
+    supplier: "Cebu Prime Construction Supply"
+    status: "received"
+    photo_path: "demo/fortress-building/delivery_1.jpg"
+    created_at: "2026-03-03 10:20:00"
+    updated_at: "2026-03-03 10:20:00"
+  - project: "Fortress Building"
+    foreman: "Fortress Demo Foreman"
+    item_delivered: "Rebar 16mm"
+    quantity: "130 pcs"
+    delivery_date: "2026-03-04"
+    supplier: "Metro Steel Cebu"
+    status: "received"
+    photo_path: "demo/fortress-building/delivery_2.jpg"
+    created_at: "2026-03-04 16:00:00"
+    updated_at: "2026-03-04 16:00:00"
+  - project: "Fortress Building"
+    foreman: "Fortress Demo Co-Foreman"
+    item_delivered: "PVC Pipe"
+    quantity: "28 lengths"
+    delivery_date: "2026-03-06"
+    supplier: "Lapu-Lapu Industrial Depot"
+    status: "incomplete"
+    photo_path: "demo/fortress-building/delivery_3.jpg"
+    created_at: "2026-03-06 14:25:00"
+    updated_at: "2026-03-06 14:25:00"
+
+progress_photos:
+  - project: "Fortress Building"
+    foreman: "Fortress Demo Foreman"
+    photo_path: "demo/fortress-building/progress_1.jpg"
+    caption: "[General Progress] Beam and slab formworks staged for next week concrete pour."
+    created_at: "2026-03-05 17:30:00"
+    updated_at: "2026-03-05 17:30:00"
+  - project: "Fortress Building"
+    foreman: "Fortress Demo Foreman"
+    photo_path: "demo/fortress-building/progress_2.jpg"
+    caption: "[Masonry] CHB walling on the ground floor west wing."
+    created_at: "2026-03-06 17:45:00"
+    updated_at: "2026-03-06 17:45:00"
+  - project: "Fortress Building"
+    foreman: "Fortress Demo Co-Foreman"
+    photo_path: "demo/fortress-building/progress_3.jpg"
+    caption: "[Plumbing Rough-in] PVC and clean-out runs ready for inspection."
+    created_at: "2026-03-06 16:20:00"
+    updated_at: "2026-03-06 16:20:00"
+  - project: "Fortress Building"
+    foreman: "Fortress Demo Co-Foreman"
+    photo_path: "demo/fortress-building/progress_4.jpg"
+    caption: "[Roofing] Truss and purlin installation continuing above the service area."
+    created_at: "2026-03-07 15:55:00"
+    updated_at: "2026-03-07 15:55:00"
+
+project_files:
+  - project: "Fortress Building"
+    file_path: "demo/fortress-building/guide.txt"
+    original_name: "Fortress-System-Flow-Guide.txt"
+    uploaded_by: "Head Administrator"
+    created_at: "2026-03-07 18:30:00"
+    updated_at: "2026-03-07 18:30:00"
+  - project: "Fortress Building"
+    file_path: "demo/fortress-building/scope_structure_1.jpg"
+    original_name: "Fortress-Building-Structural-Progress.jpg"
+    uploaded_by: "Head Administrator"
+    created_at: "2026-03-07 18:30:00"
+    updated_at: "2026-03-07 18:30:00"
+  - project: "Fortress Building"
+    file_path: "demo/fortress-building/scope_roofing_1.jpg"
+    original_name: "Fortress-Building-Roofing-Progress.jpg"
+    uploaded_by: "Head Administrator"
+    created_at: "2026-03-07 18:30:00"
+    updated_at: "2026-03-07 18:30:00"
+  - project: "Fortress Building"
+    file_path: "demo/fortress-building/scope_mep_1.jpg"
+    original_name: "Fortress-Building-MEP-Progress.jpg"
+    uploaded_by: "Head Administrator"
+    created_at: "2026-03-07 18:30:00"
+    updated_at: "2026-03-07 18:30:00"
+
+monitoring_board_departments:
+  - "Autocad"
+  - "Architecture"
+  - "Engineering"
+  - "Planning"
+
+monitoring_board_items:
+  - project_name: "Fortress Building (Design)"
+    project: "Fortress Building"
+    department: "Completed"
+    origin_department: "Autocad"
+    client_name: "Fortress Property Holdings, Inc."
+    project_type: "Commercial"
+    location: "Cebu City"
+    assigned_to: "Maria Santos, Carlo Dizon"
+    status: "DONE"
+    start_date: "2026-01-05"
+    timeline: "4 weeks"
+    due_date: "2026-01-28"
+    date_paid: "2026-01-27"
+    progress_percent: 100
+    remarks: "Proposal-stage deliverables are complete. This item already converted into the Design project and has an active transferred Construction duplicate."
+    completed_at: "2026-01-28 16:55:00"
+    converted_at: "2026-01-28 16:55:00"
+    created_by: "Head Administrator"
+    created_at: "2026-01-05 09:00:00"
+    updated_at: "2026-01-28 16:55:00"
+    files:
+      - { file_path: "demo/fortress-building/guide.txt", original_name: "Fortress-System-Flow-Guide.txt", mime_type: "text/plain" }
+      - { file_path: "demo/fortress-building/scope_site_1.jpg", original_name: "Fortress-Building-Site-Layout.jpg", mime_type: "image/jpeg" }
+
+  - project_name: "Fortress Civic Center (Design)"
+    project: "Fortress Civic Center"
+    department: "Completed"
+    origin_department: "Architecture"
+    client_name: "Civic Prime Developments, Inc."
+    project_type: "Institutional"
+    location: "Mandaue City"
+    assigned_to: "Maria Santos, Carlo Dizon"
+    status: "DONE"
+    start_date: "2026-02-18"
+    timeline: "3 weeks"
+    due_date: "2026-03-05"
+    date_paid: "2026-03-05"
+    progress_percent: 100
+    remarks: "Converted from Monitoring Board to Design. Client approval is already Approved, but transfer to Construction has not been triggered yet."
+    completed_at: "2026-03-05 16:35:00"
+    converted_at: "2026-03-05 16:35:00"
+    created_by: "Head Administrator"
+    created_at: "2026-02-18 09:15:00"
+    updated_at: "2026-03-05 16:35:00"
+    files:
+      - { file_path: "demo/fortress-building/scope_structure_1.jpg", original_name: "Fortress-Civic-Center-Concept.jpg", mime_type: "image/jpeg" }
+
+  - project_name: "Harbor View Dormitory"
+    department: "Architecture"
+    client_name: "Harbor View Holdings"
+    project_type: "Residential"
+    location: "Lapu-Lapu City"
+    assigned_to: "Maria Santos"
+    status: "IN_REVIEW"
+    start_date: "2026-03-01"
+    timeline: "2 weeks"
+    due_date: "2026-03-16"
+    date_paid: null
+    progress_percent: 65
+    remarks: "Client comments on room mix, fire exit alignment, and facade options are under review."
+    created_by: "Head Administrator"
+    created_at: "2026-03-01 10:40:00"
+    updated_at: "2026-03-07 14:10:00"
+    files:
+      - { file_path: "demo/fortress-building/progress_2.jpg", original_name: "Harbor-View-Dormitory-Elevation.jpg", mime_type: "image/jpeg" }
+
+  - project_name: "Cebu Retail Arcade"
+    department: "Engineering"
+    client_name: "Cebu Retail Group"
+    project_type: "Commercial"
+    location: "Cebu City"
+    assigned_to: "Carlo Dizon"
+    status: "PROPOSAL"
+    start_date: "2026-03-08"
+    timeline: "10 days"
+    due_date: "2026-03-18"
+    date_paid: null
+    progress_percent: 25
+    remarks: "Initial site data and concept zoning have been collected, but the proposal package is still being assembled."
+    created_by: "Head Administrator"
+    created_at: "2026-03-08 11:20:00"
+    updated_at: "2026-03-08 11:20:00"
+    files:
+      - { file_path: "demo/fortress-building/scope_foundation_1.jpg", original_name: "Cebu-Retail-Arcade-Site-Reference.jpg", mime_type: "image/jpeg" }
+
+  - project_name: "Northpoint Logistics Hub"
+    department: "Planning"
+    client_name: "Northpoint Logistics Corp."
+    project_type: "Industrial"
+    location: "Minglanilla"
+    assigned_to: "Luis Mendoza"
+    status: "APPROVED"
+    start_date: "2026-02-25"
+    timeline: "18 days"
+    due_date: "2026-03-20"
+    date_paid: "2026-03-03"
+    progress_percent: 90
+    remarks: "Commercial approval is already in place and the board record is close to conversion, but final mobilization details are still pending."
+    created_by: "Head Administrator"
+    created_at: "2026-02-25 13:00:00"
+    updated_at: "2026-03-06 15:20:00"
+    files:
+      - { file_path: "demo/fortress-building/scope_roofing_1.jpg", original_name: "Northpoint-Logistics-Hub-Reference.jpg", mime_type: "image/jpeg" }

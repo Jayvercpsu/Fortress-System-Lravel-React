@@ -62,7 +62,7 @@ test('head admin grouped tables honor per-page controls and status filters', asy
         },
         {
             name: 'Weekly accomplishments',
-            path: '/weekly-accomplishments',
+            path: '/weekly-accomplishments?week_from=2026-02-23&week_to=2026-03-08',
             statusValue: '',
             includeText: 'Structural Columns and Beams',
             excludeText: '',
@@ -92,7 +92,7 @@ test('hr tables update server-side filters and local payroll pagination', async 
 
     const serverCases = [
         { name: 'Worker rates', path: '/payroll/worker-rates', perPageValue: '5', paginate: true },
-        { name: 'Payroll run', path: '/payroll/run', perPageValue: '5', paginate: true },
+        // Payroll run no longer renders a DataTable with a Per page control (cutoff buckets + history list now).
     ] as const;
 
     for (const tableCase of serverCases) {

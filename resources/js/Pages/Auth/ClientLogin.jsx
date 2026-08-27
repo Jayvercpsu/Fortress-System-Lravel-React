@@ -133,6 +133,7 @@ export default function ClientLogin() {
 
                                 <TextInput
                                     type="text"
+                                    name="username"
                                     value={data.username}
                                     onChange={(e) => setData('username', e.target.value)}
                                     style={inputStyle}
@@ -164,6 +165,7 @@ export default function ClientLogin() {
 
                                 <TextInput
                                     type="password"
+                                    name="password"
                                     value={data.password}
                                     onChange={(e) => setData('password', e.target.value)}
                                     disabled={processing || cooldownActive}

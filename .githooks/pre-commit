@@ -2,9 +2,19 @@
 
 echo "Running php artisan test..."
 if php artisan test; then
-    exit 0
+    echo "✅ Backend tests passed."
+else
+    echo "❌ Backend tests failed — commit aborted."
+    exit 1
 fi
 
-echo "Tests failed — commit aborted."
+echo ""
+echo "Running frontend e2e tests..."
+if npm run e2e; then
+    echo "✅ Frontend e2e tests passed."
+else
+    echo "❌ Frontend e2e tests failed — commit aborted."
+    exit 1
+fi
 
-exit 1
+exit 0

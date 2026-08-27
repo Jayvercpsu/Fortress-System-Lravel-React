@@ -94,7 +94,7 @@ test('settings updates persist for profile fields and profile photo uploads', as
         await expect(page.locator('select[name="civil_status"]')).toHaveValue(updatedValues.civil_status);
         await expect(page.locator('input[name="phone"]')).toHaveValue(updatedValues.phone);
         await expect(page.locator('textarea[name="address"]')).toHaveValue(updatedValues.address);
-        await expect(page.locator('form img[alt="Profile"]')).toHaveAttribute('src', /\/storage\/profile-photos\//);
+        await expect(page.locator('form img[alt="Profile"]')).toHaveAttribute('src', /\/files\/profile-photos\//);
     } finally {
         await page.goto('/settings');
         await page.locator('input[name="fullname"]').fill(originalValues.fullname);
