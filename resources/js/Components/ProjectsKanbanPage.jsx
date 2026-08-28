@@ -1,10 +1,13 @@
 import ActionButton from './ActionButton';
 import Modal from './Modal';
 import TextInput from './TextInput';
+import AiUploadModal from './AiUploadModal';
+
 import { router } from '@inertiajs/react';
 import { useEffect, useMemo, useState } from 'react';
 import toast from 'react-hot-toast';
 import { toastMessages } from '../constants/toastMessages';
+import { Brain } from 'lucide-react';
 
 const phaseAccent = {
     Design: '#60a5fa',
@@ -69,7 +72,9 @@ export default function ProjectsKanbanPage({
     projectBoard = {},
     canCreate = false,
     canDelete = false,
+    canUploadAi = false,
 }) {
+    const [showAiUpload, setShowAiUpload] = useState(false);
     const initialColumns = Array.isArray(projectBoard.columns) ? projectBoard.columns : [];
 
     const [search, setSearch] = useState(projectBoard.search ?? '');
@@ -252,7 +257,7 @@ export default function ProjectsKanbanPage({
     };
 
     return (
-        <div style={{ display: 'grid', gridTemplateRows: 'auto auto minmax(0, 1fr)', gap: 14, height: '100%', minHeight: 0 }}>
+        <div style={{ display: 'grid', gridTemplateRows: 'auto minmax(0, 1fr)', gap: 14, height: '100%', minHeight: 0 }}>
                 <div style={{ ...panel, padding: 14, display: 'flex', gap: 12, justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap' }}>
                     <form onSubmit={onSearchSubmit} style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', flex: '1 1 640px' }}>
                         <TextInput
@@ -285,6 +290,16 @@ export default function ProjectsKanbanPage({
                             style={{ padding: '9px 14px', fontSize: 13 }}
                         >
                             + Create Project
+                        </ActionButton>
+                    )}
+                    {canUploadAi && (
+                        <ActionButton
+                            type="button"
+                            variant="success"
+                            onClick={() => setShowAiUpload(true)}
+                            style={{ padding: '9px 14px', fontSize: 13, display: 'flex', alignItems: 'center', gap: 4 }}
+                        >
+                            <Brain size={14} /> AI Upload
                         </ActionButton>
                     )}
                 </div>
@@ -530,18 +545,19 @@ export default function ProjectsKanbanPage({
                                                 >
                                                     Manage
                                                 </ActionButton>
-                                                {canDelete && (
-                                                    <ActionButton
-                                                        type="button"
-                                                        variant="danger"
-                                                        onClick={() => setProjectToDelete({ id: project.id, name: project.name })}
-                                                        disabled={deletingProject}
-                                                        loading={deletingProject && projectToDelete?.id === project.id}
-                                                        style={{ padding: '6px 10px', minHeight: 30, width: '100%' }}
-                                                    >
-                                                        Delete
-                                                    </ActionButton>
-                                                )}
+                                    {canDelete && (
+                                        <ActionButton
+                                            type="button"
+                                            variant="danger"
+                                            onClick={() => setProjectToDelete({ id: project.id, name: project.name })}
+                                            disabled={deletingProject}
+                                            loading={deletingProject && projectToDelete?.id === project.id}
+                                            style={{ padding: '6px 10px', minHeight: 30, width: '100%' }}
+                                        >
+                                            Delete
+                                        </ActionButton>
+                                    )}
+
                                                 {project.phase === 'Design' && (
                                                     <ActionButton
                                                         type="button"
@@ -623,6 +639,16 @@ export default function ProjectsKanbanPage({
                     </div>
                 </Modal>
             )}
+
+            {/* AI Upload Modal */}
+            {showAiUpload && (
+                <AiUploadModal
+                    projects={columns.flatMap(col => col.projects || [])}
+                    onClose={() => setShowAiUpload(false)}
+                />
+            )}
+
+
         </div>
     );
 }

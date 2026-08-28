@@ -7,7 +7,7 @@ function resolveMaxHeight(value) {
     return value;
 }
 
-export default function Modal({ open, onClose, title, headerContent, children, maxWidth = 960, maxHeight, showMaximize = true }) {
+export default function Modal({ open, onClose, title, headerContent, children, width, height, maxWidth = 960, maxHeight, showMaximize = true, disableClose = false }) {
     const [isMaximized, setIsMaximized] = useState(false);
     const modalRef = useRef(null);
 
@@ -28,7 +28,7 @@ export default function Modal({ open, onClose, title, headerContent, children, m
 
         const previousOverflow = document.body.style.overflow;
         const onKeyDown = (e) => {
-            if (e.key === 'Escape') onClose?.();
+            if (e.key === 'Escape' && !disableClose) onClose?.();
         };
 
         document.body.style.overflow = 'hidden';
@@ -38,7 +38,7 @@ export default function Modal({ open, onClose, title, headerContent, children, m
             document.body.style.overflow = previousOverflow;
             window.removeEventListener('keydown', onKeyDown);
         };
-    }, [open, onClose]);
+    }, [open, onClose, disableClose]);
 
     if (!open) return null;
 
@@ -49,7 +49,7 @@ export default function Modal({ open, onClose, title, headerContent, children, m
 
     return (
         <div
-            onClick={onClose}
+            onClick={disableClose ? undefined : onClose}
             style={{
                 position: 'fixed',
                 inset: 0,
@@ -67,9 +67,10 @@ export default function Modal({ open, onClose, title, headerContent, children, m
                 ref={modalRef}
                 onClick={(e) => e.stopPropagation()}
                 style={{
-                    width: isMaximized ? '100%' : '100%',
-                    maxWidth: isMaximized ? '100%' : maxWidth,
-                    maxHeight: isMaximized ? '100vh' : resolveMaxHeight(maxHeight),
+                    width: isMaximized ? '100%' : (width || '100%'),
+                    maxWidth: isMaximized ? '100%' : (width ? width : maxWidth),
+                    height: isMaximized ? '100%' : (height || undefined),
+                    maxHeight: isMaximized ? '100vh' : (height ? height : resolveMaxHeight(maxHeight)),
                     background: 'var(--surface-1)',
                     border: '1px solid var(--border-color)',
                     borderRadius: isMaximized ? 0 : 12,
@@ -129,13 +130,14 @@ export default function Modal({ open, onClose, title, headerContent, children, m
                         <button
                             type="button"
                             onClick={onClose}
+                            disabled={disableClose}
                             style={{
                                 border: '1px solid var(--border-color)',
-                                background: 'var(--button-bg)',
-                                color: 'var(--text-main)',
+                                background: disableClose ? 'var(--disabled-bg, #e5e7eb)' : 'var(--button-bg)',
+                                color: disableClose ? 'var(--disabled-text, #9ca3af)' : 'var(--text-main)',
                                 borderRadius: 8,
                                 padding: '6px 10px',
-                                cursor: 'pointer',
+                                cursor: disableClose ? 'not-allowed' : 'pointer',
                                 fontSize: 12,
                             }}
                         >

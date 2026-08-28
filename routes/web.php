@@ -30,6 +30,7 @@ use App\Http\Controllers\MonitoringController;
 use App\Http\Controllers\MonitoringBoardController;
 use App\Http\Controllers\ProjectUpdateController;
 use App\Http\Controllers\SettingsController;
+use App\Http\Controllers\ProcessedRecordController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', fn() => redirect()->route('login'));
@@ -210,6 +211,18 @@ Route::middleware(['auth', 'role:head_admin,admin,designer'])->group(function ()
     Route::get('/projects/{project}/client-receipt', [ProjectController::class, 'projectReceipt'])->name('projects.client_receipt');
     Route::get('/projects/{project}/jotform', [ProjectController::class, 'generateJotform'])->name('projects.jotform.generate');
     Route::get('/projects/{project}', [ProjectController::class, 'show'])->name('projects.show');
+
+    // AI Processed Records (upload + AI processing)
+    Route::post('/processed-records', [ProcessedRecordController::class, 'storeAutoDetect'])->name('processed-records.store');
+    Route::post('/processed-records/{record}/confirm', [ProcessedRecordController::class, 'confirm'])->name('processed-records.confirm');
+    Route::post('/processed-records/{record}/reject', [ProcessedRecordController::class, 'reject'])->name('processed-records.reject');
+    Route::put('/processed-records/{record}/edit', [ProcessedRecordController::class, 'edit'])->name('processed-records.edit');
+    Route::post('/processed-records/{record}/assign-project', [ProcessedRecordController::class, 'assignProject'])->name('processed-records.assign-project');
+    Route::post('/projects/quick-create', [ProcessedRecordController::class, 'quickCreateProject'])->name('projects.quick-create');
+    Route::get('/projects/{project}/processed-records', [ProcessedRecordController::class, 'index'])->name('processed-records.index');
+    Route::post('/projects/{project}/processed-records', [ProcessedRecordController::class, 'store'])->name('processed-records.store.project');
+    Route::patch('/projects/{project}/processed-records/{record}', [ProcessedRecordController::class, 'update'])->name('processed-records.update');
+    Route::delete('/projects/{project}/processed-records/{record}', [ProcessedRecordController::class, 'destroy'])->name('processed-records.destroy');
 });
 
 Route::middleware(['auth', 'role:head_admin'])->group(function () {

@@ -16,6 +16,7 @@ export default function HeadAdminProjectsIndex({ projectBoard = {} }) {
                     canCreate
                     canEdit={isHeadAdmin}
                     canDelete={isHeadAdmin}
+                    canUploadAi={isHeadAdmin}
                 />
         </>
     );
