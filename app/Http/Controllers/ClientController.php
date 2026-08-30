@@ -23,6 +23,13 @@ class ClientController extends Controller
         ]);
     }
 
+    public function create()
+    {
+        return Inertia::render('HeadAdmin/Clients/Create', [
+            'projectOptions' => $this->clientService->projectOptionsForCreate(),
+        ]);
+    }
+
     public function store(StoreClientRequest $request)
     {
         $this->clientService->createClient($request->validated());

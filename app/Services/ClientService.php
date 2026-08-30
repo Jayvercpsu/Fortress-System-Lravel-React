@@ -146,6 +146,11 @@ class ClientService
         $this->clientRepository->deleteClient($user);
     }
 
+    public function projectOptionsForCreate(): array
+    {
+        return $this->projectOptionsPayload();
+    }
+
     public function tableQueryParams(Request $request): array
     {
         return array_filter([

@@ -83,6 +83,7 @@ Route::middleware(['auth', 'role:head_admin'])->group(function () {
     Route::patch('/users/{user}', [UserController::class, 'update'])->name('users.update');
     Route::delete('/users/{user}', [UserController::class, 'destroy'])->name('users.destroy');
     Route::get('/clients', [ClientController::class, 'index'])->name('clients.index');
+    Route::get('/clients/create', [ClientController::class, 'create'])->name('clients.create');
     Route::post('/clients', [ClientController::class, 'store'])->name('clients.store');
     Route::patch('/clients/{user}', [ClientController::class, 'update'])->name('clients.update');
     Route::delete('/clients/{user}', [ClientController::class, 'destroy'])->name('clients.destroy');

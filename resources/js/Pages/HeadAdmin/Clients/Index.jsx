@@ -57,17 +57,6 @@ export default function ClientsIndex({ clients = [], clientTable = {}, projectOp
         to: clientTable?.to ?? null,
     };
 
-    const { data, setData, post, reset, errors, processing } = useForm({
-        client_name: '',
-        project_id: '',
-        location: '',
-        email: '',
-        phone: '',
-        username: '',
-        password: '',
-        password_confirmation: '',
-    });
-
     const {
         data: editData,
         setData: setEditData,
@@ -118,21 +107,6 @@ export default function ClientsIndex({ clients = [], clientTable = {}, projectOp
             preserveState: true,
             preserveScroll: true,
             replace: true,
-        });
-    };
-
-    const submit = (e) => {
-        e.preventDefault();
-
-        post('/clients', {
-            preserveScroll: true,
-            onSuccess: () => {
-                toast.success(toastMessages.clients.createSuccess);
-                reset('client_name', 'project_id', 'location', 'email', 'phone', 'username', 'password', 'password_confirmation');
-            },
-            onError: () => {
-                toast.error(toastMessages.clients.createError);
-            },
         });
     };
 
@@ -262,109 +236,24 @@ export default function ClientsIndex({ clients = [], clientTable = {}, projectOp
     return (
         <>
             <Head title="Clients" />
+                <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 20 }}>
+                    <ActionButton
+                        href="/clients/create"
+                        variant="success"
+                        style={{ padding: '9px 20px', fontSize: 13 }}
+                    >
+                        + Create Client
+                    </ActionButton>
+                </div>
+
                 <div style={{ display: 'grid', gap: 16 }}>
-                    <form onSubmit={submit} style={cardStyle}>
-                        <div style={{ fontWeight: 700, marginBottom: 12 }}>Create Client</div>
-                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 14 }}>
-                            <Field label="Client Name" required error={errors.client_name}>
-                                <TextInput
-                                    type="text"
-                                    value={data.client_name}
-                                    onChange={(e) => setData('client_name', e.target.value)}
-                                    style={inputStyle}
-                                />
-                            </Field>
-
-                            <Field label="Assigned Project (optional)" error={errors.project_id}>
-                                <SearchableDropdown
-                                    options={projectDropdownOptions}
-                                    value={data.project_id}
-                                    onChange={(value) => setData('project_id', value || '')}
-                                    getOptionLabel={(option) => option.name}
-                                    getOptionValue={(option) => option.id}
-                                    placeholder={projectDropdownOptions.length > 0 ? 'Select project (optional)' : 'No projects available'}
-                                    searchPlaceholder="Search project..."
-                                    emptyMessage="No projects found"
-                                    clearable
-                                    style={{ ...inputStyle, padding: '8px 10px', minHeight: 40 }}
-                                    dropdownWidth={320}
-                                />
-                            </Field>
-
-                            <Field label="Location (optional)" error={errors.location}>
-                                <TextInput
-                                    type="text"
-                                    value={data.location}
-                                    onChange={(e) => setData('location', e.target.value)}
-                                    style={inputStyle}
-                                />
-                            </Field>
-
-                            <Field label="Email (optional)" error={errors.email}>
-                                <TextInput
-                                    type="email"
-                                    value={data.email}
-                                    onChange={(e) => setData('email', e.target.value)}
-                                    style={inputStyle}
-                                />
-                            </Field>
-
-                            <Field label="Phone (optional)" error={errors.phone}>
-                                <TextInput
-                                    type="text"
-                                    value={data.phone}
-                                    onChange={(e) => setData('phone', e.target.value)}
-                                    style={inputStyle}
-                                />
-                            </Field>
-
-                            <Field label="Username" required error={errors.username}>
-                                <TextInput
-                                    type="text"
-                                    value={data.username}
-                                    onChange={(e) => setData('username', e.target.value)}
-                                    style={inputStyle}
-                                />
-                            </Field>
-
-                            <Field label="Password" required error={errors.password}>
-                                <TextInput
-                                    type="password"
-                                    value={data.password}
-                                    onChange={(e) => setData('password', e.target.value)}
-                                    style={inputStyle}
-                                />
-                            </Field>
-
-                            <Field label="Confirm Password" required error={errors.password_confirmation}>
-                                <TextInput
-                                    type="password"
-                                    value={data.password_confirmation}
-                                    onChange={(e) => setData('password_confirmation', e.target.value)}
-                                    style={inputStyle}
-                                />
-                            </Field>
-                        </div>
-
-                        <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 16 }}>
-                            <ActionButton
-                                type="submit"
-                                variant="success"
-                                disabled={processing}
-                                style={{ padding: '10px 16px', fontSize: 13 }}
-                            >
-                                {processing ? 'Saving...' : 'Create Client'}
-                            </ActionButton>
-                        </div>
-                    </form>
-
                     <div style={cardStyle}>
                         <DataTable
                             columns={columns}
                             rows={clients}
                             rowKey="id"
                             searchPlaceholder="Search clients..."
-                            emptyMessage="No clients yet."
+                            emptyMessage="No clients yet. Create one to get started."
                             serverSide
                             serverSearchValue={table.search}
                             serverPage={table.page}
