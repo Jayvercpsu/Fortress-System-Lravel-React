@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\Attendance;
+use App\Models\ProcessedRecord;
 use App\Models\ProgressSubmitToken;
 use App\Models\ProgressPhoto;
 use App\Models\Project;
@@ -304,6 +305,38 @@ class PublicProgressSubmitTest extends TestCase
 
         $token->refresh();
         $this->assertSame(1, (int) $token->submission_count);
+    }
+
+    public function test_confirm_persists_worker_from_dateless_ai_attendance_sheet(): void
+    {
+        $token = $this->makeToken();
+
+        // Simulate an AI attendance record scanned from a sheet WITH NO DATES:
+        // the attendance map is empty and the worker only reports days_present.
+        $record = ProcessedRecord::create([
+            'project_id' => $token->project_id,
+            'user_id' => $token->foreman_id,
+            'record_type' => 'attendance',
+            'status' => 'pending',
+            'ai_parsed_data' => [
+                'workers' => [
+                    ['name' => 'Juan Cruz', 'position' => 'Laborer', 'days_present' => 4],
+                ],
+            ],
+        ]);
+
+        $this->post("/processed-records/{$record->id}/confirm")->assertOk();
+
+        // The detected worker must be persisted so it appears in the daily
+        // attendance grid after Submit All + refresh, instead of silently dropping out.
+        $this->assertTrue(
+            Attendance::query()
+                ->where('foreman_id', $token->foreman_id)
+                ->where('project_id', $token->project_id)
+                ->where('worker_name', 'Juan Cruz')
+                ->where('worker_role', 'Laborer')
+                ->exists()
+        );
     }
 
     private function makeToken($expiresAt = null): ProgressSubmitToken

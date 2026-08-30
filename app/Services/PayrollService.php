@@ -39,17 +39,44 @@ class PayrollService
             return $this->emptyIndexPayload($request, $group);
         }
 
-        $payrolls = $this->payrollRepository->latestPayrollsWithUser($group, $selectedProjectId);
+        $search = trim((string) $request->query('search', ''));
+        $perPage = (int) $request->query('per_page', 50);
+        if (!in_array($perPage, self::ALLOWED_PER_PAGE, true)) {
+            $perPage = 50;
+        }
+        $page = max(1, (int) $request->query('page', 1));
+
+        $query = $this->payrollRepository->latestPayrollsWithUserQuery($group, $selectedProjectId);
+
+        if ($search !== '') {
+            $query->where(function ($builder) use ($search) {
+                $builder
+                    ->where('worker_name', 'like', "%{$search}%")
+                    ->orWhere('role', 'like', "%{$search}%")
+                    ->orWhere('status', 'like', "%{$search}%");
+            });
+        }
+
+        $paginator = $query->paginate($perPage, ['*'], 'page', $page)->withQueryString();
         $totalPayable = $this->payrollRepository->totalPayableByStatuses(Payroll::payableStatuses(), $group, $selectedProjectId);
         $workerOptions = $this->manualPayrollWorkerOptions($group, $selectedProjectId);
 
         return [
-            'payrolls' => $payrolls,
+            'payrolls' => $paginator->items(),
             'totalPayable' => $totalPayable,
             'workerOptions' => $workerOptions,
             'payrollGroup' => $group,
             'projectOptions' => $this->projectOptionsPayload($selectedProject, $group),
             'selectedProject' => $selectedProject ? $this->projectPayload($selectedProject) : null,
+            'payrollTable' => [
+                'search' => $search,
+                'per_page' => $paginator->perPage(),
+                'current_page' => $paginator->currentPage(),
+                'last_page' => max(1, $paginator->lastPage()),
+                'total' => $paginator->total(),
+                'from' => $paginator->firstItem(),
+                'to' => $paginator->lastItem(),
+            ],
         ];
     }
 
@@ -722,12 +749,21 @@ class PayrollService
     private function emptyIndexPayload(Request $request, string $group): array
     {
         return [
-            'payrolls' => collect(),
+            'payrolls' => [],
             'totalPayable' => 0.0,
             'workerOptions' => collect(),
             'payrollGroup' => $group,
             'projectOptions' => $this->projectOptionsPayload(null, $group),
             'selectedProject' => null,
+            'payrollTable' => [
+                'search' => '',
+                'per_page' => 50,
+                'current_page' => 1,
+                'last_page' => 1,
+                'total' => 0,
+                'from' => null,
+                'to' => null,
+            ],
         ];
     }
 

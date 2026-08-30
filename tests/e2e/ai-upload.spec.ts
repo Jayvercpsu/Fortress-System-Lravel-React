@@ -2,6 +2,84 @@ import { test, expect } from '@playwright/test';
 import { Buffer } from 'node:buffer';
 import { loginAs } from './support/auth';
 
+test.describe('AI Accuracy Disclaimer', () => {
+    test('disclaimer is NOT visible before processing', async ({ page }) => {
+        await loginAs(page, 'head_admin');
+        await page.goto('/projects');
+        await page.waitForLoadState('networkidle');
+
+        await page.getByRole('button', { name: /AI Upload/i }).click();
+
+        await expect(page.locator('text=AI Accuracy Notice')).not.toBeVisible();
+    });
+
+    test('disclaimer is visible during processing', async ({ page }) => {
+        await loginAs(page, 'head_admin');
+        await page.goto('/projects');
+        await page.waitForLoadState('networkidle');
+
+        await page.getByRole('button', { name: /AI Upload/i }).click();
+
+        const fileInput = page.locator('input[type="file"]');
+        await fileInput.setInputFiles({
+            name: 'test.jpg',
+            mimeType: 'image/jpeg',
+            buffer: Buffer.from('fake-image-data'),
+        });
+
+        await page.getByRole('button', { name: /Process/i }).click();
+        await expect(page.locator('text=AI is analyzing')).toBeVisible();
+        await expect(page.locator('text=AI Accuracy Notice')).toBeVisible();
+    });
+
+    test('disclaimer is NOT visible after processing fails', async ({ page }) => {
+        await loginAs(page, 'head_admin');
+        await page.goto('/projects');
+        await page.waitForLoadState('networkidle');
+
+        await page.getByRole('button', { name: /AI Upload/i }).click();
+
+        const fileInput = page.locator('input[type="file"]');
+        await fileInput.setInputFiles({
+            name: 'test.jpg',
+            mimeType: 'image/jpeg',
+            buffer: Buffer.from('fake-image-data'),
+        });
+
+        await page.getByRole('button', { name: /Process/i }).click();
+
+        // Wait for processing to finish (error)
+        await expect(page.locator('text=Processing Failed')).toBeVisible({ timeout: 30000 });
+        await expect(page.locator('text=AI Accuracy Notice')).not.toBeVisible();
+    });
+
+    test('disclaimer is hidden when cancel terminates processing', async ({ page }) => {
+        await loginAs(page, 'head_admin');
+        await page.goto('/projects');
+        await page.waitForLoadState('networkidle');
+
+        await page.getByRole('button', { name: /AI Upload/i }).click();
+
+        const fileInput = page.locator('input[type="file"]');
+        await fileInput.setInputFiles({
+            name: 'test.jpg',
+            mimeType: 'image/jpeg',
+            buffer: Buffer.from('fake-image-data'),
+        });
+
+        await page.getByRole('button', { name: /Process/i }).click();
+        await expect(page.locator('text=AI is analyzing')).toBeVisible();
+        await expect(page.locator('text=AI Accuracy Notice')).toBeVisible();
+
+        // Cancel processing
+        await page.getByRole('button', { name: /^Cancel$/ }).click();
+        await page.getByRole('button', { name: /Yes, Cancel/ }).click();
+
+        // Disclaimer should disappear after cancellation
+        await expect(page.locator('text=AI Accuracy Notice')).not.toBeVisible();
+    });
+});
+
 test.describe('AI Upload Processing State', () => {
     test('cancel button changes to terminate during processing', async ({ page }) => {
         await loginAs(page, 'head_admin');

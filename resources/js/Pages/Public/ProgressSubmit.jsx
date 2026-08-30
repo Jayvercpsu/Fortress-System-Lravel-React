@@ -2,6 +2,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Camera, Check, ChevronDown, Image, Plus, Trash2 } from 'lucide-react';
 import toast from 'react-hot-toast';
+import AiAttendanceUpload from '../../Components/AiAttendanceUpload';
 import ConfirmationModal from '../../Components/ConfirmationModal';
 import DatePickerInput from '../../Components/DatePickerInput';
 import Modal from '../../Components/Modal';
@@ -430,6 +431,7 @@ export default function ProgressSubmit({ submitToken }) {
     const [photoForm, setPhotoForm] = useState({ category: '', description: '', photo: null });
     const [issue, setIssue] = useState({ issue_title: '', description: '', urgency: 'normal', photo: null });
     const [previewPhoto, setPreviewPhoto] = useState(null);
+    const [showAiAttendanceUpload, setShowAiAttendanceUpload] = useState(false);
     const [submitting, setSubmitting] = useState(false);
     const [deletingMaterialId, setDeletingMaterialId] = useState(null);
     const [materialDeleteTarget, setMaterialDeleteTarget] = useState(null);
@@ -536,6 +538,188 @@ export default function ProgressSubmit({ submitToken }) {
         ];
     }, [attendanceWeekDrafts, attendanceWeekKey, defaultAttendanceRows, attendanceWorkerPool, foremanAttendanceId]);
     const weeklyRows = weeklyWeekDrafts[weeklyWeekKey] ?? defaultWeeklyRowsForWeek;
+
+    // Convert AI-detected attendance records to the JotForm grid format
+    const mergeAiAttendanceToGrid = useCallback((savedRecords) => {
+        if (!savedRecords || savedRecords.length === 0) return;
+
+        const DAY_MAP = { 0: 'sun', 1: 'mon', 2: 'tue', 3: 'wed', 4: 'thu', 5: 'fri', 6: 'sat' };
+
+        // Helper: infer year from attendance date keys or fall back to current year
+        const inferYearFromAttendance = (workers) => {
+            for (const worker of workers || []) {
+                if (worker.attendance && typeof worker.attendance === 'object') {
+                    for (const dateKey of Object.keys(worker.attendance)) {
+                        const cleaned = String(dateKey).replace(/^[A-Za-z]+\s+/, '').trim();
+                        // Try MM/DD/YYYY
+                        const fullMatch = cleaned.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+                        if (fullMatch) return Number(fullMatch[3]);
+                        // Try YYYY-MM-DD
+                        const isoMatch = cleaned.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+                        if (isoMatch) return Number(isoMatch[1]);
+                    }
+                }
+            }
+            return new Date().getFullYear();
+        };
+
+        // Helper: try to find a valid weekKey from the record data
+        const resolveWeekKey = (data) => {
+            // First try date_range_start / date in YYYY-MM-DD format
+            const rangeStart = data.date_range_start || data.date;
+            if (rangeStart) {
+                const parsed = normalizeToMonday(rangeStart);
+                // Only use if it looks like a valid YYYY-MM-DD date
+                if (parsed && /^\d{4}-\d{2}-\d{2}$/.test(parsed)) return parsed;
+            }
+            // Fallback: try to parse from date_range (e.g. "2026-08-25 to 2026-08-30")
+            const dateRange = data.date_range || '';
+            if (dateRange) {
+                const rangeMatch = String(dateRange).match(/(\d{4}-\d{2}-\d{2})/);
+                if (rangeMatch) {
+                    const parsed = normalizeToMonday(rangeMatch[1]);
+                    if (parsed && /^\d{4}-\d{2}-\d{2}$/.test(parsed)) return parsed;
+                }
+            }
+            // Fallback: infer from attendance date keys
+            const year = inferYearFromAttendance(data.workers);
+            for (const worker of data.workers || []) {
+                if (worker.attendance && typeof worker.attendance === 'object') {
+                    for (const dateKey of Object.keys(worker.attendance)) {
+                        const cleaned = String(dateKey).replace(/^[A-Za-z]+\s+/, '').trim();
+                        const match = cleaned.match(/^(\d{1,2})\/(\d{1,2})$/);
+                        if (match) {
+                            const d = new Date(year, Number(match[1]) - 1, Number(match[2]));
+                            if (!Number.isNaN(d.getTime())) {
+                                return normalizeToMonday(formatLocalDate(d));
+                            }
+                        }
+                        // Try YYYY-MM-DD or MM/DD/YYYY
+                        const fullDateMatch = cleaned.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/)
+                            || cleaned.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+                        if (fullDateMatch) {
+                            const y = Number(fullDateMatch[1]);
+                            const m = Number(fullDateMatch[2]);
+                            const dy = Number(fullDateMatch[3]);
+                            // If MM/DD/YYYY, swap month and day
+                            if (cleaned.match(/^\d{1,2}\/\d{1,2}\/\d{4}$/)) {
+                                const d = new Date(Number(fullDateMatch[3]), Number(fullDateMatch[1]) - 1, Number(fullDateMatch[2]));
+                                if (!Number.isNaN(d.getTime())) return normalizeToMonday(formatLocalDate(d));
+                            } else {
+                                const d = new Date(y, m - 1, dy);
+                                if (!Number.isNaN(d.getTime())) return normalizeToMonday(formatLocalDate(d));
+                            }
+                        }
+                    }
+                }
+            }
+            // Last resort: use current week
+            return normalizeToMonday(monday());
+        };
+
+        let detectedWeekKey = null;
+
+        savedRecords.forEach((record) => {
+            const data = record.ai_parsed_data;
+            if (!data || !data.workers || data.workers.length === 0) return;
+
+            const weekKey = resolveWeekKey(data);
+            if (!weekKey) return;
+
+            if (!detectedWeekKey) detectedWeekKey = weekKey;
+
+            const year = inferYearFromAttendance(data.workers);
+
+            setAttendanceWeekDrafts((prev) => {
+                const existingRows = Array.isArray(prev[weekKey]) ? prev[weekKey] : [];
+                const nextRows = cloneAttendanceRows(existingRows);
+
+                data.workers.forEach((worker) => {
+                    const name = String(worker?.name || '').trim();
+                    const role = String(worker?.position || 'Worker').trim() || 'Worker';
+                    if (!name) return;
+
+                    const identity = workerIdentity(name, role);
+
+                    // Find existing row for this worker
+                    let existingRow = nextRows.find((r) => workerIdentity(r.worker_name, r.worker_role) === identity);
+
+                    if (!existingRow) {
+                        // Add new row
+                        existingRow = {
+                            row_key: nextAttendanceRowKey(),
+                            worker_name: name,
+                            worker_role: role,
+                            days: blankDays(),
+                        };
+                        nextRows.push(existingRow);
+                    }
+
+                    // Merge attendance marks from AI detection
+                    let attendanceMarked = false;
+                    if (worker.attendance && typeof worker.attendance === 'object') {
+                        Object.entries(worker.attendance).forEach(([dateKey, status]) => {
+                            // Parse dateKey like "8/25", "Mon 8/25", "2026-08-25", "08/25/2026"
+                            const cleaned = String(dateKey).replace(/^[A-Za-z]+\s+/, '').trim();
+
+                            let dateObj = null;
+                            // Try MM/DD format
+                            const mdMatch = cleaned.match(/^(\d{1,2})\/(\d{1,2})$/);
+                            if (mdMatch) {
+                                dateObj = new Date(year, Number(mdMatch[1]) - 1, Number(mdMatch[2]));
+                            }
+                            // Try YYYY-MM-DD format
+                            const isoMatch = cleaned.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+                            if (isoMatch) {
+                                dateObj = new Date(Number(isoMatch[1]), Number(isoMatch[2]) - 1, Number(isoMatch[3]));
+                            }
+                            // Try MM/DD/YYYY format
+                            const fullMatch = cleaned.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+                            if (fullMatch) {
+                                dateObj = new Date(Number(fullMatch[3]), Number(fullMatch[1]) - 1, Number(fullMatch[2]));
+                            }
+
+                            if (!dateObj || Number.isNaN(dateObj.getTime())) return;
+
+                            const dayOfWeek = DAY_MAP[dateObj.getDay()];
+
+                            if (dayOfWeek && existingRow.days) {
+                                const code = String(status || '').trim().toUpperCase();
+                                if (code) attendanceMarked = true;
+                                // Only set if currently empty or different
+                                if (!existingRow.days[dayOfWeek] || existingRow.days[dayOfWeek] !== code) {
+                                    existingRow.days[dayOfWeek] = code;
+                                }
+                            }
+                        });
+                    }
+                    // Fallback for dateless sheets: when the attendance map carried no usable
+                    // marks (e.g. it was empty because the sheet had no dates), mark the present
+                    // days based on days_present so the worker is submitted and persists on
+                    // refresh instead of being dropped as an all-blank row.
+                    if (!attendanceMarked && worker.days_present) {
+                        // Fallback: mark present days based on days_present count
+                        const presentCount = Number(worker.days_present) || 0;
+                        const workDays = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
+                        let marked = 0;
+                        workDays.forEach((dayKey) => {
+                            if (!existingRow.days[dayKey] && marked < presentCount) {
+                                existingRow.days[dayKey] = 'P';
+                                marked++;
+                            }
+                        });
+                    }
+                });
+
+                return { ...prev, [weekKey]: nextRows };
+            });
+        });
+
+        // Always switch to the detected week
+        if (detectedWeekKey) {
+            setAttendanceWeek(detectedWeekKey);
+        }
+    }, []);
 
     const firstError = useMemo(() => {
         const values = Object.values(errors || {});
@@ -958,6 +1142,31 @@ export default function ProgressSubmit({ submitToken }) {
 
     const attendanceContent = (
         <>
+            {/* AI Attendance Upload Button — centered above week start */}
+            <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 12 }}>
+                <button
+                    type="button"
+                    onClick={() => setShowAiAttendanceUpload(true)}
+                    disabled={projectLocked}
+                    style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 8,
+                        padding: '10px 20px',
+                        background: '#2f70d4',
+                        color: '#fff',
+                        border: 'none',
+                        borderRadius: 10,
+                        fontSize: 13,
+                        fontWeight: 600,
+                        cursor: projectLocked ? 'not-allowed' : 'pointer',
+                        opacity: projectLocked ? 0.5 : 1,
+                    }}
+                >
+                    📷 AI Scan Attendance
+                </button>
+            </div>
+
             <label className="jf-label">
                 Week Start
                 <DatePickerInput
@@ -1817,6 +2026,16 @@ export default function ProgressSubmit({ submitToken }) {
                 processing={!!deletingIssueId}
                 onClose={() => setIssueDeleteTarget(null)}
                 onConfirm={() => deleteIssueReport(issueDeleteTarget?.id)}
+            />
+            <AiAttendanceUpload
+                open={showAiAttendanceUpload}
+                onClose={() => setShowAiAttendanceUpload(false)}
+                projectId={submitToken?.project_id}
+                projectName={submitToken?.project_name}
+                onRecordsSaved={(savedRecords) => {
+                    // Merge AI-detected attendance into the grid
+                    mergeAiAttendanceToGrid(savedRecords);
+                }}
             />
         </>
     );

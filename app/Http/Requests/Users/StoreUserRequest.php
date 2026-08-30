@@ -52,7 +52,7 @@ class StoreUserRequest extends FormRequest
 
     private function allowedRoles(): array
     {
-        $roles = [User::ROLE_ADMIN, User::ROLE_HR, User::ROLE_FOREMAN, User::ROLE_DESIGNER];
+        $roles = [User::ROLE_ADMIN, User::ROLE_HR, User::ROLE_FOREMAN, User::ROLE_DESIGNER, User::ROLE_PROJECT_MANAGER];
 
         if ($this->user()?->role === User::ROLE_MASTER_ADMIN) {
             $roles[] = User::ROLE_HEAD_ADMIN;

@@ -54,5 +54,13 @@ class UserSeeder extends Seeder {
             'password' => Hash::make('password'),
             'role'     => 'designer',
         ]);
+
+        User::updateOrCreate([
+            'email'    => 'pm@buildbooks.com',
+        ], [
+            'fullname' => 'Project Manager',
+            'password' => Hash::make('password'),
+            'role'     => 'project_manager',
+        ]);
     }
 }

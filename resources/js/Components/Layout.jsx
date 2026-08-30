@@ -61,6 +61,12 @@ const navByRole = {
     client: [
         { label: 'Dashboard', href: '/client', icon: 'fi fi-rr-dashboard' },
     ],
+    project_manager: [
+        { label: 'Dashboard', href: '/project-manager', icon: 'fi fi-rr-dashboard' },
+        { label: 'Attendance', href: '/project-manager/attendance', icon: 'fi fi-rr-calendar-check' },
+        { label: 'Payroll', href: '/project-manager/payroll', icon: 'fi fi-rr-money-bill-wave' },
+        { label: 'Settings', href: '/project-manager/settings', icon: 'fi fi-rr-settings' },
+    ],
 };
 
 const roleLabels = {
@@ -71,12 +77,13 @@ const roleLabels = {
     foreman: 'Foreman',
     designer: 'Designer',
     client: 'Client',
+    project_manager: 'Project Manager',
 };
 
 // The master admin outranks every role and inherits the head admin experience.
 navByRole.master_admin = navByRole.head_admin;
 
-const DASHBOARD_PATHS = new Set(['/head-admin', '/admin', '/hr', '/foreman', '/designer', '/client']);
+const DASHBOARD_PATHS = new Set(['/head-admin', '/admin', '/hr', '/foreman', '/designer', '/client', '/project-manager']);
 
 const normalizePath = (path) => {
     const clean = String(path || '').replace(/\/+$/, '');
@@ -302,7 +309,7 @@ export default function Layout({ children }) {
                     .filter((item) => !item.headAdminOnly || user?.role === 'head_admin' || user?.role === 'master_admin')
                     .map((item) => {
                         const itemPath = pathFromUrl(item.href);
-                        const exactOnlyPaths = new Set(['/head-admin', '/admin', '/hr', '/foreman', '/designer', '/client']);
+                        const exactOnlyPaths = new Set(['/head-admin', '/admin', '/hr', '/foreman', '/designer', '/client', '/project-manager']);
                         const exactOnly = exactOnlyPaths.has(itemPath);
                         const aliasPathsByHref = {
                             '/payroll/run': ['/payroll', '/payroll/worker-rates'],

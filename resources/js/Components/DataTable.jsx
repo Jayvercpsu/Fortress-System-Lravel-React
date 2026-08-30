@@ -150,7 +150,7 @@ export default function DataTable({
 
                 <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8, flexWrap: 'wrap' }}>
                     {topRightExtra}
-                    <span style={{ fontSize: 12, color: 'var(--text-muted)', ...(perPageLabelStyle || {}) }}>Per page</span>
+                    <span style={{ fontSize: 12, color: 'var(--text-muted)', alignSelf: 'center', ...(perPageLabelStyle || {}) }}>Per page</span>
                     <SelectInput
                         value={serverSide ? serverPerPage : perPage}
                         onChange={(e) =>

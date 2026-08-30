@@ -7,7 +7,7 @@ function resolveMaxHeight(value) {
     return value;
 }
 
-export default function Modal({ open, onClose, title, headerContent, children, width, height, maxWidth = 960, maxHeight, showMaximize = true, disableClose = false }) {
+export default function Modal({ open, onClose, title, headerContent, children, width, height, maxWidth = 960, maxHeight, showMaximize = true, disableClose = false, forceLightTheme = false }) {
     const [isMaximized, setIsMaximized] = useState(false);
     const modalRef = useRef(null);
 
@@ -47,6 +47,20 @@ export default function Modal({ open, onClose, title, headerContent, children, w
         transition: 'all 0.25s cubic-bezier(0.4, 0, 0.2, 1)',
     };
 
+    // When forceLightTheme is true, hardcode light-theme values so the modal
+    // always renders in light mode regardless of the global data-theme.
+    const lightOverrides = forceLightTheme ? {
+        '--surface-1': '#ffffff',
+        '--surface-2': '#f6f8fa',
+        '--border-color': '#d0d7de',
+        '--text-main': '#24292f',
+        '--text-muted': '#57606a',
+        '--text-muted-2': '#6e7781',
+        '--button-bg': '#f3f4f6',
+        '--active-text': '#1f883d',
+        '--active-bg': '#dafbe1',
+    } : undefined;
+
     return (
         <div
             onClick={disableClose ? undefined : onClose}
@@ -67,6 +81,7 @@ export default function Modal({ open, onClose, title, headerContent, children, w
                 ref={modalRef}
                 onClick={(e) => e.stopPropagation()}
                 style={{
+                    ...(forceLightTheme ? lightOverrides : undefined),
                     width: isMaximized ? '100%' : (width || '100%'),
                     maxWidth: isMaximized ? '100%' : (width ? width : maxWidth),
                     height: isMaximized ? '100%' : (height || undefined),
@@ -85,19 +100,19 @@ export default function Modal({ open, onClose, title, headerContent, children, w
                     transform: isMaximized ? 'scale(1)' : 'scale(1)',
                     opacity: 1,
                 }}
-            >
-                <div
-                    style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'space-between',
-                        gap: 12,
-                        padding: '12px 14px',
-                        borderBottom: '1px solid var(--border-color)',
-                        ...transitionStyle,
-                    }}
+            >            <div
+                style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    gap: 12,
+                    padding: '12px 14px',
+                    borderBottom: '1px solid var(--border-color)',
+                    background: 'var(--surface-1)',
+                    ...transitionStyle,
+                }}
                 >
-                    <div style={{ fontWeight: 700, fontSize: 14 }}>{title}</div>
+                    <div style={{ fontWeight: 700, fontSize: 14, color: 'var(--text-main)' }}>{title}</div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                         {showMaximize && (
                             <button

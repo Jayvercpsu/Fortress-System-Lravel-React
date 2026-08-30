@@ -41,8 +41,8 @@ export default function UserFormPage({ mode = 'create', user = {}, canManageHead
     const isEdit = mode === 'edit';
     const queryRole = typeof window === 'undefined' ? '' : new URLSearchParams(window.location.search).get('role') || '';
     const allowedQueryRoles = canManageHeadAdmins
-        ? ['admin', 'hr', 'foreman', 'designer', 'head_admin']
-        : ['admin', 'hr', 'foreman', 'designer'];
+        ? ['admin', 'hr', 'foreman', 'designer', 'head_admin', 'project_manager']
+        : ['admin', 'hr', 'foreman', 'designer', 'project_manager'];
     const normalizedRole = allowedQueryRoles.includes(String(queryRole).toLowerCase())
         ? String(queryRole).toLowerCase()
         : '';
@@ -118,6 +118,7 @@ export default function UserFormPage({ mode = 'create', user = {}, canManageHead
                                     <option value="hr">HR</option>
                                     <option value="foreman">Foreman</option>
                                     <option value="designer">Designer</option>
+                                    <option value="project_manager">Project Manager</option>
                                 </SelectInput>
                             </Field>
                         </div>

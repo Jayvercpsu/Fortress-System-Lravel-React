@@ -69,12 +69,17 @@ return new class extends Migration
 
         $existingColumns = Schema::getColumnListing('users');
         $hasUsernameColumn = in_array('username', $existingColumns, true);
+        $hasDefaultRateColumn = in_array('default_rate_per_hour', $existingColumns, true);
 
         DB::beginTransaction();
         DB::statement('PRAGMA foreign_keys = OFF');
 
         try {
             if ($includeUsername) {
+                $rateColumnSql = $hasDefaultRateColumn ? ",\n                        default_rate_per_hour numeric null" : '';
+                $rateInsertSql = $hasDefaultRateColumn ? ', default_rate_per_hour' : '';
+                $rateSelectSql = $hasDefaultRateColumn ? ', default_rate_per_hour' : '';
+
                 DB::statement("
                     CREATE TABLE users_temp_rebuild (
                         id integer primary key autoincrement not null,
@@ -82,7 +87,7 @@ return new class extends Migration
                         username varchar(80) null unique,
                         email varchar not null unique,
                         password varchar not null,
-                        role varchar not null check (role in ({$roleList})),
+                        role varchar not null check (role in ({$roleList})){$rateColumnSql},
                         created_at datetime null,
                         updated_at datetime null
                     )
@@ -91,26 +96,30 @@ return new class extends Migration
                 $usernameSelect = $hasUsernameColumn ? 'username' : 'NULL';
 
                 DB::statement("
-                    INSERT INTO users_temp_rebuild (id, fullname, username, email, password, role, created_at, updated_at)
-                    SELECT id, fullname, {$usernameSelect}, email, password, role, created_at, updated_at
+                    INSERT INTO users_temp_rebuild (id, fullname, username, email, password, role{$rateInsertSql}, created_at, updated_at)
+                    SELECT id, fullname, {$usernameSelect}, email, password, role{$rateSelectSql}, created_at, updated_at
                     FROM users
                 ");
             } else {
+                $rateColumnSql = $hasDefaultRateColumn ? ",\n                        default_rate_per_hour numeric null" : '';
+                $rateInsertSql = $hasDefaultRateColumn ? ', default_rate_per_hour' : '';
+                $rateSelectSql = $hasDefaultRateColumn ? ', default_rate_per_hour' : '';
+
                 DB::statement("
                     CREATE TABLE users_temp_rebuild (
                         id integer primary key autoincrement not null,
                         fullname varchar not null,
                         email varchar not null unique,
                         password varchar not null,
-                        role varchar not null check (role in ({$roleList})),
+                        role varchar not null check (role in ({$roleList})){$rateColumnSql},
                         created_at datetime null,
                         updated_at datetime null
                     )
                 ");
 
                 DB::statement("
-                    INSERT INTO users_temp_rebuild (id, fullname, email, password, role, created_at, updated_at)
-                    SELECT id, fullname, email, password, role, created_at, updated_at
+                    INSERT INTO users_temp_rebuild (id, fullname, email, password, role{$rateInsertSql}, created_at, updated_at)
+                    SELECT id, fullname, email, password, role{$rateSelectSql}, created_at, updated_at
                     FROM users
                 ");
             }

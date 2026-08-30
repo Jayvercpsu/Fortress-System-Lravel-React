@@ -6,6 +6,7 @@ use App\Models\ProcessedRecord;
 use App\Models\Project;
 use App\Models\Attendance;
 use App\Models\Expense;
+use App\Models\Worker;
 use App\Services\OpenRouterService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -40,6 +41,57 @@ class ProcessedRecordController extends Controller
     }
 
     /**
+     * Prepare an image for AI processing by resizing and compressing.
+     * This improves OCR accuracy for handwritten documents.
+     * Falls back to raw image if GD extension is not available.
+     */
+    protected function prepareImageForAI($file, ?\Intervention\Image\ImageManager $manager): array
+    {
+        // If GD is not available, send raw image
+        if (!$manager) {
+            return [
+                'base64' => base64_encode(file_get_contents($file->getRealPath())),
+                'mime'   => $file->getMimeType(),
+            ];
+        }
+
+        $maxWidth = 2048;
+        $maxHeight = 2048;
+        $quality = 100;
+
+        try {
+            $img = $manager->read($file->getRealPath());
+
+            // Resize if larger than max dimensions, maintaining aspect ratio
+            $width = $img->width();
+            $height = $img->height();
+
+            if ($width > $maxWidth || $height > $maxHeight) {
+                $img->scaleDown($maxWidth, $maxHeight);
+            }
+
+            // Convert to JPEG for consistent processing
+            $encoded = $img->toJpeg($quality);
+            $mime = 'image/jpeg';
+
+            return [
+                'base64' => base64_encode((string) $encoded),
+                'mime'   => $mime,
+            ];
+        } catch (\Exception $e) {
+            // Fallback to raw image if processing fails
+            Log::warning('Image preprocessing failed, using raw image', [
+                'error' => $e->getMessage(),
+            ]);
+
+            return [
+                'base64' => base64_encode(file_get_contents($file->getRealPath())),
+                'mime'   => $file->getMimeType(),
+            ];
+        }
+    }
+
+    /**
      * Upload multiple images and process them with AI.
      */
     public function store(Request $request, Project $project): JsonResponse
@@ -56,9 +108,11 @@ class ProcessedRecordController extends Controller
     protected function processUpload(Request $request, ?Project $project = null): JsonResponse
     {
         $request->validate([
-            'images'   => 'required|array|min:1|max:5',
-            'images.*' => 'required|image|max:10240',
-            'notes'    => 'nullable|string|max:500',
+            'images'    => 'required|array|min:1|max:5',
+            'images.*'  => 'required|image|max:10240',
+            'notes'     => 'nullable|string|max:500',
+            'mode'      => 'nullable|string|in:general,attendance',
+            'project_id' => 'nullable|integer|exists:projects,id',
         ], [
             'images.required'   => 'Please select at least one image to upload.',
             'images.min'        => 'Please select at least one image to upload.',
@@ -83,16 +137,21 @@ class ProcessedRecordController extends Controller
 
         $images = $request->file('images');
         $user = $request->user();
-        $storageProjectId = $project?->id;
+        $storageProjectId = $project?->id ?? $request->input('project_id');
 
         // Allow more time for AI processing of multiple images (5 images can be slow)
         set_time_limit(300);
 
         // 0. Clean up old stale pending/rejected records from previous uploads
         // This ensures only the current batch is included in confirm/submit
-        ProcessedRecord::whereIn('status', ['pending', 'pending_project'])
-            ->where('user_id', $user->id)
-            ->each(fn($oldRecord) => $oldRecord->delete());
+        $cleanupQuery = ProcessedRecord::whereIn('status', ['pending', 'pending_project']);
+        if ($user) {
+            $cleanupQuery->where('user_id', $user->id);
+        } else {
+            // Public mode: clean up records without a project and without user (orphaned)
+            $cleanupQuery->whereNull('user_id');
+        }
+        $cleanupQuery->each(fn($oldRecord) => $oldRecord->delete());
 
         // 1. Get all existing projects for AI to match against (only active projects)
         $existingProjects = Project::select('id', 'name', 'client', 'phase', 'status')
@@ -102,103 +161,170 @@ class ProcessedRecordController extends Controller
             ->implode("\n");
 
         $systemPrompt = OpenRouterService::getSystemPrompt();
-        $prompt = $this->buildUserPrompt($existingProjects, $request->notes);
+        $mode = $request->input('mode', 'general');
+        $prompt = $this->buildUserPrompt($existingProjects, $request->notes, $mode);
 
         // 2. Prepare all images for AI processing (NOT saved to disk)
+        // Resize and optimize images for better AI detection accuracy
         $imagePayloads = [];
+        $useGd = extension_loaded('gd');
+        $manager = $useGd ? new \Intervention\Image\ImageManager(new \Intervention\Image\Drivers\Gd\Driver()) : null;
 
         foreach ($images as $file) {
-            $imagePayloads[] = [
-                'base64' => base64_encode(file_get_contents($file->getRealPath())),
-                'mime'   => $file->getMimeType(),
-            ];
+            $imagePayloads[] = $this->prepareImageForAI($file, $manager);
         }
 
         // 3. Call OpenRouter with system prompt (with retry on rate limit)
         $model = config('services.openrouter.model', 'openrouter/free');
-        $response = $this->openRouter->chat($model, $prompt, $imagePayloads, $systemPrompt);
 
-        // Retry once on 429 rate limit
-        if (isset($response['status']) && $response['status'] == 429) {
-            sleep(5);
-            $response = $this->openRouter->chat($model, $prompt, $imagePayloads, $systemPrompt);
+        // 3. Process each image separately so records map to the correct image preview.
+        // When 1 image produces multiple records (e.g. attendance + expense),
+        // all those records share the same image_index.
+        $records = [];
+        $skippedCount = 0;
+        $irrelevantCount = 0;
+        $lastApiError = null;
+
+        foreach ($imagePayloads as $imageIndex => $imagePayload) {
+            $singlePrompt = $this->buildUserPrompt($existingProjects, $request->notes, $mode);
+            $singleResponse = $this->openRouter->chat($model, $singlePrompt, [$imagePayload], $systemPrompt);
+
+            // Retry once on 429 rate limit
+            if (isset($singleResponse['status']) && $singleResponse['status'] == 429) {
+                sleep(5);
+                $singleResponse = $this->openRouter->chat($model, $singlePrompt, [$imagePayload], $systemPrompt);
+            }
+
+            // Skip failed images
+            if (isset($singleResponse['error']) && $singleResponse['error']) {
+                Log::warning('AI failed for image', ['index' => $imageIndex, 'error' => $singleResponse['message'] ?? 'unknown']);
+                $lastApiError = $singleResponse;
+                $skippedCount++;
+                continue;
+            }
+
+            $content = OpenRouterService::extractContent($singleResponse);
+            if (empty($content)) {
+                $skippedCount++;
+                continue;
+            }
+
+            $parsedResults = $this->parseMultiRecordResponse($content);
+            if (empty($parsedResults)) {
+                $skippedCount++;
+                continue;
+            }
+
+            // All records from this image share the same image_index
+            foreach ($parsedResults as $imageResult) {
+                if (!$imageResult) {
+                    $skippedCount++;
+                    continue;
+                }
+
+                // The AI explicitly classified the image as not a construction/attendance
+                // document. Track this separately so we can show a clear "not related to
+                // attendance" message instead of the generic processing-failed one.
+                if ($imageResult['type'] === 'irrelevant') {
+                    $irrelevantCount++;
+                    $skippedCount++;
+                    continue;
+                }
+
+                $suggestedProjectId = $this->resolveProjectId($imageResult['project'] ?? null, $storageProjectId);
+
+                $records[] = ProcessedRecord::create([
+                    'project_id'     => $suggestedProjectId,
+                    'user_id'        => $user?->id,
+                    'record_type'    => $imageResult['type'],
+                    'image_index'    => $imageIndex,
+                    'ocr_raw_text'   => $imageResult['raw_text'] ?? $content,
+                    'ai_parsed_data' => $imageResult['data'] ?? null,
+                    'ai_summary'     => $imageResult['summary'] ?? $content,
+                    'ai_model'       => $model,
+                    'status'         => $suggestedProjectId ? 'pending' : 'pending_project',
+                    'notes'          => $request->notes,
+                ])->load(['user:id,fullname', 'project:id,name']);
+            }
         }
 
-        // 4. Check for API error
-        if (isset($response['error']) && $response['error']) {
+        // If ALL images failed or produced nothing relevant
+        if (empty($records) && $skippedCount > 0 && $skippedCount === count($images)) {
+            // When every image was explicitly classified as "irrelevant" (i.e. the AI
+            // recognized the image but it is NOT an attendance/construction document),
+            // tell the user directly that their image isn't related to attendance instead
+            // of the generic "could not process" error.
+            if ($irrelevantCount > 0 && $irrelevantCount === count($images)) {
+                $errorMessage = $mode === 'attendance'
+                    ? 'The uploaded image is not related to attendance. Please upload a clear photo of an attendance sheet (names and attendance marks).'
+                    : 'The uploaded image does not appear to be a construction record. Please upload a clearer image of an attendance sheet or expense receipt.';
+            } else {
+                // Use specific error message if available (e.g. insufficient credits)
+                $errorMessage = 'AI could not process any of the uploaded images. Please try again with clearer images.';
+                if ($lastApiError && isset($lastApiError['code']) && $lastApiError['code'] === 'insufficient_credits') {
+                    $errorMessage = $lastApiError['message'];
+                } elseif ($lastApiError && isset($lastApiError['message'])) {
+                    $errorMessage = $lastApiError['message'];
+                }
+            }
+
             return response()->json([
                 'error' => true,
-                'message' => $this->getUserFriendlyError($response['message'] ?? 'AI processing failed'),
+                'message' => $errorMessage,
                 'saved' => 0,
-                'failed' => count($images),
+                'failed' => $skippedCount,
             ], 422);
         }
 
-        // 5. Parse response
-        $content = OpenRouterService::extractContent($response);
-
-        if (empty($content)) {
-            return response()->json([
-                'error' => true,
-                'message' => 'AI returned an empty response. Please try again with clearer images.',
-                'saved' => 0,
-                'failed' => count($images),
-            ], 422);
-        }
-
-        $parsedResults = $this->parseMultiRecordResponse($content);
-
-        if (empty($parsedResults)) {
-            return response()->json([
-                'error' => true,
-                'message' => 'AI response could not be parsed. Please try again.',
-                'saved' => 0,
-                'failed' => count($images),
-            ], 422);
-        }
-
-        // 6. Separate relevant from irrelevant
-        $relevantResults = array_filter($parsedResults, fn($r) => $r['type'] !== 'irrelevant');
-        $irrelevantResults = array_filter($parsedResults, fn($r) => $r['type'] === 'irrelevant');
-
-        // If ALL images are irrelevant — nothing to save
-        if (empty($relevantResults)) {
+        if (empty($records)) {
             return response()->json([
                 'message' => 'No construction records found in the uploaded images.',
                 'records' => [],
-                'skipped' => count($irrelevantResults),
+                'skipped' => $skippedCount,
                 'saved' => 0,
             ]);
         }
 
-        // 7. Save ALL relevant records (staging — pending confirmation)
-        $records = [];
+        // Mode-based filtering
+        if ($mode === 'attendance') {
+            // Filter to only attendance records
+            $nonAttendance = array_filter($records, fn($r) => $r->record_type !== 'attendance');
+            $attendanceRecords = array_filter($records, fn($r) => $r->record_type === 'attendance');
 
-        foreach ($parsedResults as $index => $imageResult) {
-            // Skip irrelevant
-            if (!$imageResult || $imageResult['type'] === 'irrelevant') {
-                continue;
+            // Delete non-attendance records that were created
+            foreach ($nonAttendance as $record) {
+                $record->delete();
             }
 
-            $suggestedProjectId = $this->resolveProjectId($imageResult['project'] ?? null, $storageProjectId);
+            $records = array_values($attendanceRecords);
 
-            $records[] = ProcessedRecord::create([
-                'project_id'     => $suggestedProjectId,
-                'user_id'        => $user->id,
-                'record_type'    => $imageResult['type'],
-                'image_index'    => $index,
-                'ocr_raw_text'   => $imageResult['raw_text'] ?? $content,
-                'ai_parsed_data' => $imageResult['data'] ?? null,
-                'ai_summary'     => $imageResult['summary'] ?? $content,
-                'ai_model'       => $model,
-                'status'         => $suggestedProjectId ? 'pending' : 'pending_project',
-                'notes'          => $request->notes,
-            ])->load(['user:id,fullname', 'project:id,name']);
+            // If non-attendance records were found, include a message
+            $nonAttendanceMessage = null;
+            if (count($nonAttendance) > 0) {
+                $nonAttendanceMessage = 'Only attendance records are supported in this mode. ' . count($nonAttendance) . ' non-attendance record(s) were skipped.';
+            }
+
+            if (empty($records)) {
+                return response()->json([
+                    'message' => $nonAttendanceMessage ?? 'No attendance records found in the uploaded images.',
+                    'records' => [],
+                    'skipped' => $skippedCount + count($nonAttendance),
+                    'saved' => 0,
+                ]);
+            }
+
+            return response()->json([
+                'records' => $records,
+                'skipped' => $skippedCount + count($nonAttendance),
+                'saved' => count($records),
+                'summary' => $this->buildBatchSummary($records),
+                'mode_message' => $nonAttendanceMessage,
+            ]);
         }
 
         return response()->json([
             'records' => $records,
-            'skipped' => count($irrelevantResults),
+            'skipped' => $skippedCount,
             'saved' => count($records),
             'summary' => $this->buildBatchSummary($records),
         ]);
@@ -224,6 +350,8 @@ class ProcessedRecordController extends Controller
 
             if ($record->record_type === 'attendance') {
                 $this->createAttendanceRecords($record, $parsedData);
+                // Auto-sync detected worker rates to Worker Rate Management
+                $this->syncWorkerRates($parsedData, $record->project_id, $record->user_id);
             } elseif ($record->record_type === 'expense') {
                 $this->createExpenseRecord($record, $parsedData);
             }
@@ -293,10 +421,10 @@ class ProcessedRecordController extends Controller
      */
     public function reject(ProcessedRecord $record): JsonResponse
     {
-        $record->update(['status' => 'rejected']);
+        // Delete the record entirely so nothing is saved to attendance/expense tables
+        $record->delete();
 
         return response()->json([
-            'record' => $record->fresh()->load(['user:id,fullname', 'project:id,name']),
             'message' => 'Record rejected',
         ]);
     }
@@ -370,9 +498,23 @@ class ProcessedRecordController extends Controller
         $projectId = $record->project_id;
         $foremanId = $record->user_id;
 
+        // If no user (public/JotForm), derive foreman from the active submit token
+        // for this project. This ensures the attendance records use the same foreman_id
+        // that the Submit All flow (storeAll) will use.
+        if (!$foremanId && $projectId) {
+            $submitToken = \App\Models\ProgressSubmitToken::where('project_id', $projectId)
+                ->whereNull('revoked_at')
+                ->latest()
+                ->first();
+            $foremanId = $submitToken?->foreman_id ?? $this->getProjectForemanId($projectId);
+        }
+
         foreach ($parsedData['workers'] as $worker) {
             $workerName = $worker['name'] ?? 'Unknown';
             $workerRole = $worker['position'] ?? 'Laborer';
+
+            $recordsCreated = 0;
+            $hadParsableDates = false;
 
             // Format 1: Daily attendance map — {"8/16": "P", "8/17": "A", ...}
             if (isset($worker['attendance']) && is_array($worker['attendance'])) {
@@ -387,6 +529,7 @@ class ProcessedRecordController extends Controller
                     // Convert "8/16" or "Mon 8/24" to Y-m-d
                     $dayDate = $this->parseAttendanceDay($dayKey, $year);
                     if (!$dayDate) continue;
+                    $hadParsableDates = true;
 
                     // Only create record for Present days
                     $statusCode = strtoupper(trim($status));
@@ -400,30 +543,126 @@ class ProcessedRecordController extends Controller
                         'date'        => $dayDate,
                         'hours'       => 8,
                     ]);
+                    $recordsCreated++;
                 }
-                continue;
             }
 
             // Format 2: Single-day — {"date": "2026-08-24", "hours": 9.5}
             // Also handles date ranges like "2026-08-26 to 2026-08-27" — uses first date
-            $date = $this->parseFlexibleDate($parsedData['date'] ?? null)
-                ?? $this->parseFlexibleDate($parsedData['date_range_start'] ?? null)
-                ?? date('Y-m-d');
+            //
+            // When the attendance map yielded no records AND no usable dates (e.g. a
+            // dateless attendance sheet that returned an empty "attendance" map), fall
+            // back to this single-row format so the detected worker is still persisted
+            // instead of silently dropping out of the daily attendance after refresh.
+            if ($recordsCreated === 0 && !$hadParsableDates) {
+                $date = $this->parseFlexibleDate($parsedData['date'] ?? null)
+                    ?? $this->parseFlexibleDate($parsedData['date_range_start'] ?? null)
+                    ?? date('Y-m-d');
 
-            $hours = $worker['hours'] ?? ($worker['days_present'] ?? 8);
-            if (!is_numeric($hours)) {
-                $hours = 8;
+                $hours = $worker['hours'] ?? ($worker['days_present'] ?? 8);
+                if (!is_numeric($hours)) {
+                    $hours = 8;
+                }
+
+                Attendance::create([
+                    'foreman_id'  => $foremanId,
+                    'project_id' => $projectId,
+                    'worker_name' => $workerName,
+                    'worker_role' => $workerRole,
+                    'date'        => $date,
+                    'hours'       => (float) $hours,
+                ]);
+            }
+        }
+    }
+
+    /**
+     * Get the foreman ID assigned to a project.
+     * Falls back to head admin if no foreman is assigned.
+     */
+    protected function getProjectForemanId(int $projectId): ?int
+    {
+        $project = \App\Models\Project::with('foremen')->find($projectId);
+        if ($project && $project->foremen->isNotEmpty()) {
+            return $project->foremen->first()->id;
+        }
+        // Fallback: first head_admin user
+        $headAdmin = \App\Models\User::where('role', 'head_admin')->first();
+        return $headAdmin?->id;
+    }
+
+    /**
+     * Sync AI-detected worker rates to Worker Rate Management.
+     *
+     * For each worker with a detected daily_rate:
+     * - If worker exists in workers table (by name): update default_rate_per_hour
+     * - If worker does not exist: create a new Worker record with the rate
+     */
+    protected function syncWorkerRates(?array $parsedData, ?int $projectId, ?int $foremanId): void
+    {
+        if (!$parsedData || !isset($parsedData['workers']) || !$projectId) {
+            return;
+        }
+
+        foreach ($parsedData['workers'] as $worker) {
+            $workerName = trim($worker['name'] ?? '');
+
+            // Skip workers without a valid name
+            if (empty($workerName)) {
+                continue;
             }
 
-            Attendance::create([
-                'foreman_id'  => $foremanId,
-                'project_id' => $projectId,
-                'worker_name' => $workerName,
-                'worker_role' => $workerRole,
-                'date'        => $date,
-                'hours'       => (float) $hours,
-            ]);
+            $dailyRate = $worker['daily_rate'] ?? null;
+            $hasRate = $dailyRate && is_numeric($dailyRate) && (float) $dailyRate > 0;
+            $rate = $hasRate ? round((float) $dailyRate, 2) : null;
+
+            $workerRole = $worker['position'] ?? null;
+
+            // Check if worker already exists in the workers table (case-insensitive name match)
+            $existingWorker = Worker::query()
+                ->whereRaw('LOWER(name) = ?', [strtolower($workerName)])
+                ->where('project_id', $projectId)
+                ->first();
+
+            if ($existingWorker) {
+                // Only update rate if AI detected one — never overwrite existing rate with null
+                if ($hasRate && (float) $existingWorker->default_rate_per_hour !== $rate) {
+                    $existingWorker->update(['default_rate_per_hour' => $rate]);
+                }
+            } else {
+                // Create new worker — add to Worker Rate Management
+                $attributes = [
+                    'foreman_id' => $foremanId,
+                    'project_id' => $projectId,
+                    'name'       => $workerName,
+                    'job_type'   => $this->mapPositionToJobType($workerRole),
+                ];
+
+                // Only set rate if AI detected one
+                if ($hasRate) {
+                    $attributes['default_rate_per_hour'] = $rate;
+                }
+
+                Worker::create($attributes);
+            }
         }
+    }
+
+    /**
+     * Map an AI-detected position/role to a Worker job type constant.
+     */
+    protected function mapPositionToJobType(?string $position): string
+    {
+        $lower = strtolower(trim($position ?? ''));
+
+        if (str_contains($lower, 'skilled')) {
+            return Worker::JOB_TYPE_SKILLED_WORKER;
+        }
+        if (str_contains($lower, 'labor') || str_contains($lower, 'helper')) {
+            return Worker::JOB_TYPE_LABORER;
+        }
+
+        return Worker::JOB_TYPE_WORKER;
     }
 
     /**
@@ -574,17 +813,43 @@ class ProcessedRecordController extends Controller
     /**
      * Build the user prompt with project list.
      */
-    protected function buildUserPrompt(string $existingProjects, ?string $notes = null): string
+    protected function buildUserPrompt(string $existingProjects, ?string $notes = null, string $mode = 'general'): string
     {
         $notesSection = '';
         if ($notes && trim($notes) !== '') {
             $notesSection = "\n\nUSER NOTES: " . trim($notes) . "\n";
         }
 
+        $modeSection = '';
+        if ($mode === 'attendance') {
+            $modeSection = "
+
+═══════════════════════════════════════════════════════════
+⚠️  ATTENDANCE MODE — ONLY ATTENDANCE RECORDS WANTED
+═══════════════════════════════════════════════════════════
+You are processing images for DAILY ATTENDANCE ONLY.
+- ONLY extract attendance records (worker names, rates, attendance marks, hours).
+- Do NOT extract expense records, receipts, or any non-attendance data.
+- If the image contains expenses or unrelated content, still extract the attendance portion and mark non-attendance parts as irrelevant.
+- For each worker, include their daily_rate if visible in the image.
+";
+        }
+
         return "Analyze the attached images of construction records.
 
 EXISTING PROJECTS IN THE SYSTEM:
-{$existingProjects}{$notesSection}
+{$existingProjects}{$notesSection}{$modeSection}
+═══════════════════════════════════════════════════════════
+MANDATORY ANALYSIS PROCESS — FOLLOW THIS ORDER:
+═══════════════════════════════════════════════════════════
+
+STEP 1 — OVERVIEW: What type of document? What is the layout? What language?
+STEP 2 — STRUCTURE: Identify all column headers, row labels, form fields.
+STEP 3 — EXTRACTION: Read row by row, column by column. Follow each row across ALL columns before moving to the next row.
+STEP 4 — VALIDATION: Cross-check totals. Verify counts. Ensure mathematical consistency.
+
+═══════════════════════════════════════════════════════════
+
 For EACH distinct record found in the images, determine:
 1. Record type (attendance or expense)
 2. Project (match from the list above by ID, name, or context)
@@ -596,6 +861,14 @@ IMPORTANT: For attendance records:
 - P = Present (8 hrs), A = Absent (0 hrs), L = Late (8 hrs), H = Half Day (4 hrs)
 - For weekly sheets, set date_range_start and date_range_end from the form header.
 - For weekly sheets, each worker needs an attendance map like {8/16: P, 8/17: A} and days_present count.
+- For handwritten checkmarks (✓) or X marks: count them to determine days present/absent.
+- CRITICAL: Detect the daily_rate (pay/salary) for each worker. Rates may appear in various formats: a labeled column (Rate, Salary, Daily Rate, Pay, etc.), numbers next to worker names, or inferred from total amounts divided by days worked. Always include the detected rate as 'daily_rate' in each worker's data. This rate will automatically update the Worker Rate Management system.
+
+HANDWRITTEN DOCUMENTS — EXTRA CARE:
+- Distinguish between similar characters: O vs 0, I vs 1, S vs 5, 6 vs 8, l vs 1
+- Use context clues: if a name appears multiple times, use the most legible spelling
+- For amounts: verify math (rate × days = total)
+- If unsure about a character, note it in the SUMMARY field
 
 Return your response in this EXACT format for each record (separated by ---):
 

@@ -20,6 +20,11 @@ class PayrollRepository implements PayrollRepositoryInterface
 {
     public function latestPayrollsWithUser(?string $group = null, ?int $projectId = null): EloquentCollection
     {
+        return $this->latestPayrollsWithUserQuery($group, $projectId)->get();
+    }
+
+    public function latestPayrollsWithUserQuery(?string $group = null, ?int $projectId = null): \Illuminate\Database\Eloquent\Builder
+    {
         $query = Payroll::query()
             ->with(['user', 'project:id,name,client,status,phase'])
             ->latest();
@@ -27,7 +32,7 @@ class PayrollRepository implements PayrollRepositoryInterface
         $this->applyRoleGroupFilter($query, $group, 'role');
         $this->applyProjectFilter($query, $projectId);
 
-        return $query->get();
+        return $query;
     }
 
     public function totalPayableByStatuses(array $statuses, ?string $group = null, ?int $projectId = null): float

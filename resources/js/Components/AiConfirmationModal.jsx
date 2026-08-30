@@ -8,6 +8,7 @@ export default function ConfirmationModal({ records = [], projects = [], imagePr
     const [editData, setEditData] = useState({});
     const [expandedId, setExpandedId] = useState(null);
     const [loadingId, setLoadingId] = useState(null);
+    const [previewImage, setPreviewImage] = useState(null);
     // Track local status and which records have been removed
     const [removedIds, setRemovedIds] = useState(new Set());
 
@@ -157,9 +158,16 @@ export default function ConfirmationModal({ records = [], projects = [], imagePr
                         <p className="text-sm font-medium text-gray-700 mb-1">Workers ({data.workers.length}):</p>
                         <div className="bg-gray-50 rounded p-2 space-y-1 max-h-40 overflow-y-auto">
                             {data.workers.map((worker, i) => (
-                                <div key={i} className="text-xs flex justify-between">
+                                <div key={i} className="text-xs flex justify-between items-center">
                                     <span>{worker.name} ({worker.position || worker.worker_role || 'Worker'})</span>
-                                    <span>{worker.time_in && worker.time_out ? `${worker.time_in} - ${worker.time_out}` : worker.days_present ? `${worker.days_present} days present` : ''}</span>
+                                    <div className="flex items-center gap-2">
+                                        {worker.daily_rate && (
+                                            <span className="text-blue-600 font-medium">₱{Number(worker.daily_rate).toLocaleString()}/day</span>
+                                        )}
+                                        <span className="text-gray-500">
+                                            {worker.time_in && worker.time_out ? `${worker.time_in} - ${worker.time_out}` : worker.days_present ? `${worker.days_present} days present` : ''}
+                                        </span>
+                                    </div>
                                 </div>
                             ))}
                         </div>
@@ -378,6 +386,7 @@ export default function ConfirmationModal({ records = [], projects = [], imagePr
     }
 
     return (
+        <>
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
             <div className="bg-white rounded-xl shadow-xl max-w-7xl w-full max-h-[90vh] overflow-hidden">
                 {/* Header */}
@@ -448,11 +457,14 @@ export default function ConfirmationModal({ records = [], projects = [], imagePr
                                         <div className="p-4 border-t space-y-4">
                                             {/* Local preview image */}
                                             {imagePreviews[record.image_index] && (
-                                                <img
-                                                    src={imagePreviews[record.image_index]}
-                                                    alt="Uploaded record"
-                                                    className="max-h-48 rounded border"
-                                                />
+                                                <div className="cursor-pointer group" onClick={() => setPreviewImage(imagePreviews[record.image_index])}>
+                                                    <img
+                                                        src={imagePreviews[record.image_index]}
+                                                        alt="Uploaded record"
+                                                        className="max-h-48 rounded border group-hover:opacity-80 transition-opacity"
+                                                    />
+                                                    <p className="text-xs text-gray-400 mt-1 group-hover:text-blue-500">Click to enlarge</p>
+                                                </div>
                                             )}
 
                                             {/* Project Selection (if no project) */}
@@ -558,8 +570,29 @@ export default function ConfirmationModal({ records = [], projects = [], imagePr
                     )}
                 </div>
 
-
             </div>
         </div>
+
+        {/* Full-screen image preview modal */}
+        {previewImage && (
+            <div
+                className="fixed inset-0 bg-black/80 flex items-center justify-center z-[60] p-4 cursor-pointer"
+                onClick={() => setPreviewImage(null)}
+            >
+                <button
+                    onClick={() => setPreviewImage(null)}
+                    className="absolute top-4 right-4 text-white hover:text-gray-300 z-10"
+                >
+                    <X size={28} />
+                </button>
+                <img
+                    src={previewImage}
+                    alt="Full preview"
+                    className="max-w-[90vw] max-h-[90vh] object-contain rounded-lg shadow-2xl"
+                    onClick={(e) => e.stopPropagation()}
+                />
+            </div>
+        )}
+        </>
     );
 }

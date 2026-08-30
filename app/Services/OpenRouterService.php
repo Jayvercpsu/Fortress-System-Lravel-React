@@ -77,17 +77,55 @@ class OpenRouterService
     public static function getSystemPrompt(): string
     {
         return <<<'PROMPT'
-You are a construction project record assistant. Your job is to analyze images of attendance notes and expense receipts from construction sites.
+You are a construction project record assistant. Your job is to carefully analyze images of attendance notes and expense receipts from construction sites.
+
+═══════════════════════════════════════════════════════════
+MANDATORY ANALYSIS PROCESS — FOLLOW THIS ORDER:
+═══════════════════════════════════════════════════════════
+
+BEFORE extracting any data, you MUST complete this analysis:
+
+STEP 1 — OVERVIEW:
+- What type of document is this? (attendance sheet, expense receipt, ledger, etc.)
+- What is the overall layout? (table/grid, list, form, handwritten notes, printed text)
+- What language is the text in?
+- Is it handwritten, printed, or mixed?
+
+STEP 2 — STRUCTURE IDENTIFICATION:
+- Identify all column headers and row labels in tables/grids
+- Identify all form fields and their labels
+- Map out the relationship between columns and rows
+- Note any sections (header, body, footer, totals area)
+
+STEP 3 — CONTENT EXTRACTION (row by row, column by column):
+- Read each row carefully from left to right
+- For tables: follow each row across ALL columns before moving to the next row
+- For handwritten text: look at stroke patterns, context clues, and surrounding text
+- For numbers: check if they make mathematical sense (e.g., does 800 × 6 = 4800?)
+- For attendance sheets: detect the daily rate/pay for each worker. Rates may appear as: a labeled column (Rate, Salary, Daily Rate, Pay), numbers adjacent to worker names, or values that can be inferred from totals divided by days worked. Include the detected rate as 'daily_rate' in each worker's data.
+
+STEP 4 — VALIDATION:
+- Cross-check totals: sum of individual amounts should equal displayed total
+- Verify worker counts match the number of rows
+- Check that attendance marks (✓, X, P, A) are consistent with hours/amounts
+- Ensure dates are valid and in the expected range
+- Look for any data you may have missed in corners, margins, or margins
+
+═══════════════════════════════════════════════════════════
 
 RULES:
 1. Analyze each image carefully and determine if it is an attendance record or expense receipt.
 2. There may be MULTIPLE records in a single image — detect ALL of them.
 3. Extract project title and project code from the image.
-4. Extract ALL structured data from the image — names, dates, amounts, hours, items, quantities.
+4. Extract ALL structured data from the image — names, dates, amounts, hours, items, quantities. Be thorough and do not skip any visible data.
 5. If the image is NOT a construction record (e.g., selfie, random photo, meme), return TYPE: irrelevant with a brief reason.
-6. If text is unclear or partially readable, extract what you can and note uncertainties.
+6. If text is unclear or partially readable, extract what you can and note uncertainties in the SUMMARY field.
 7. Always respond in the exact format specified below.
 8. Respond in English.
+9. Double-check your extraction before finalizing — verify counts, totals, and data integrity.
+10. For handwritten documents: pay extra attention to similar characters (O vs 0, I vs 1, S vs 5, 6 vs 8)
+11. For tables/grids: read row by row to avoid mixing data between workers or items
+12. For attendance sheets with checkmarks (✓) or X marks: count them to determine days present/absent
 
 OUTPUT FORMAT (for each record found, separated by ---):
 
@@ -108,7 +146,7 @@ FORMAT A — Single-day attendance:
   "date": "YYYY-MM-DD",
   "location": "city/location",
   "workers": [
-    {"name": "Full Name", "position": "role", "time_in": "7:30 AM", "time_out": "5:00 PM", "hours": 9.5}
+    {"name": "Full Name", "position": "role", "daily_rate": 800, "time_in": "7:30 AM", "time_out": "5:00 PM", "hours": 9.5}
   ]
 }
 
@@ -124,6 +162,7 @@ with P (Present), A (Absent), L (Late), H (Half Day) marks in each cell.
     {
       "name": "Full Name",
       "position": "role or foreman",
+      "daily_rate": 800,
       "days_present": 13,
       "days_absent": 2,
       "attendance": {
@@ -191,10 +230,23 @@ PROMPT;
                     'body'   => $response->body(),
                 ]);
 
+                $status = $response->status();
+                $errorMessage = $response->json('error.message', '');
+
+                // Detect specific error types for user-friendly messages
+                if ($status === 402 || str_contains($errorMessage, 'more credits') || str_contains($errorMessage, '402')) {
+                    return [
+                        'error'   => true,
+                        'code'    => 'insufficient_credits',
+                        'message' => 'Insufficient OpenRouter credits. The AI account needs more credits to process this request. Please add credits at https://openrouter.ai/settings/credits',
+                        'details' => $errorMessage,
+                    ];
+                }
+
                 return [
                     'error'   => true,
-                    'message' => 'OpenRouter API returned status ' . $response->status(),
-                    'details' => $response->json('error.message', $response->body()),
+                    'message' => 'OpenRouter API returned status ' . $status,
+                    'details' => $errorMessage,
                 ];
             }
 

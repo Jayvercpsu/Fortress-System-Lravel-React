@@ -15,6 +15,7 @@ class User extends Authenticatable {
     public const ROLE_FOREMAN = 'foreman';
     public const ROLE_CLIENT = 'client';
     public const ROLE_DESIGNER = 'designer';
+    public const ROLE_PROJECT_MANAGER = 'project_manager';
 
     public const ROLE_OPTIONS = [
         self::ROLE_MASTER_ADMIN,
@@ -24,6 +25,7 @@ class User extends Authenticatable {
         self::ROLE_FOREMAN,
         self::ROLE_CLIENT,
         self::ROLE_DESIGNER,
+        self::ROLE_PROJECT_MANAGER,
     ];
 
     public const MANAGE_ROLES = [

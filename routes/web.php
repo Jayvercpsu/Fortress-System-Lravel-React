@@ -23,6 +23,7 @@ use App\Http\Controllers\ProgressPhotoController;
 use App\Http\Controllers\DeliveryConfirmationController;
 use App\Http\Controllers\IssueReportController;
 use App\Http\Controllers\PublicProgressController;
+use App\Http\Controllers\ProjectManagerController;
 use App\Http\Controllers\ReportsController;
 use App\Http\Controllers\ScopePhotoController;
 use App\Http\Controllers\StorageProxyController;
@@ -154,6 +155,17 @@ Route::middleware(['auth', 'role:client'])->group(function () {
     Route::get('/client', fn () => redirect()->route('client.portal'))->name('client.dashboard');
 });
 
+// Project Manager — read-only counter-checking of foreman submissions,
+// attendance and payroll. No mutation endpoints are exposed for this role.
+Route::middleware(['auth', 'role:project_manager'])->group(function () {
+    Route::get('/project-manager', [ProjectManagerController::class, 'dashboard'])->name('project_manager.dashboard');
+    Route::get('/project-manager/attendance', [ProjectManagerController::class, 'attendance'])->name('project_manager.attendance');
+    Route::get('/project-manager/payroll', [ProjectManagerController::class, 'payroll'])->name('project_manager.payroll');
+    Route::get('/project-manager/projects/{project}', [ProjectManagerController::class, 'project'])->name('project_manager.project');
+    Route::get('/project-manager/settings', [ProjectManagerController::class, 'settings'])->name('project_manager.settings');
+    Route::post('/project-manager/settings', [ProjectManagerController::class, 'updateSettings'])->name('project_manager.settings.update');
+});
+
 Route::middleware(['auth', 'role:head_admin,admin,designer'])->group(function () {
     Route::get('/monitoring-board', [MonitoringBoardController::class, 'index'])->name('monitoring-board.index');
     Route::post('/monitoring-board', [MonitoringBoardController::class, 'store'])->name('monitoring-board.store');
@@ -212,18 +224,19 @@ Route::middleware(['auth', 'role:head_admin,admin,designer'])->group(function ()
     Route::get('/projects/{project}/jotform', [ProjectController::class, 'generateJotform'])->name('projects.jotform.generate');
     Route::get('/projects/{project}', [ProjectController::class, 'show'])->name('projects.show');
 
-    // AI Processed Records (upload + AI processing)
-    Route::post('/processed-records', [ProcessedRecordController::class, 'storeAutoDetect'])->name('processed-records.store');
-    Route::post('/processed-records/{record}/confirm', [ProcessedRecordController::class, 'confirm'])->name('processed-records.confirm');
-    Route::post('/processed-records/{record}/reject', [ProcessedRecordController::class, 'reject'])->name('processed-records.reject');
-    Route::put('/processed-records/{record}/edit', [ProcessedRecordController::class, 'edit'])->name('processed-records.edit');
-    Route::post('/processed-records/{record}/assign-project', [ProcessedRecordController::class, 'assignProject'])->name('processed-records.assign-project');
-    Route::post('/projects/quick-create', [ProcessedRecordController::class, 'quickCreateProject'])->name('projects.quick-create');
     Route::get('/projects/{project}/processed-records', [ProcessedRecordController::class, 'index'])->name('processed-records.index');
     Route::post('/projects/{project}/processed-records', [ProcessedRecordController::class, 'store'])->name('processed-records.store.project');
     Route::patch('/projects/{project}/processed-records/{record}', [ProcessedRecordController::class, 'update'])->name('processed-records.update');
     Route::delete('/projects/{project}/processed-records/{record}', [ProcessedRecordController::class, 'destroy'])->name('processed-records.destroy');
 });
+
+// AI Processed Records — public routes (used by unauthenticated JotForm pages)
+Route::post('/processed-records', [ProcessedRecordController::class, 'storeAutoDetect'])->name('processed-records.store');
+Route::post('/processed-records/{record}/confirm', [ProcessedRecordController::class, 'confirm'])->name('processed-records.confirm');
+Route::post('/processed-records/{record}/reject', [ProcessedRecordController::class, 'reject'])->name('processed-records.reject');
+Route::put('/processed-records/{record}/edit', [ProcessedRecordController::class, 'edit'])->name('processed-records.edit');
+Route::post('/processed-records/{record}/assign-project', [ProcessedRecordController::class, 'assignProject'])->name('processed-records.assign-project');
+Route::post('/projects/quick-create', [ProcessedRecordController::class, 'quickCreateProject'])->name('projects.quick-create');
 
 Route::middleware(['auth', 'role:head_admin'])->group(function () {
 });

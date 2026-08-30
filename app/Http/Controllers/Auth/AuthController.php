@@ -102,6 +102,7 @@ class AuthController extends Controller {
             User::ROLE_FOREMAN    => redirect()->route('foreman.dashboard'),
             User::ROLE_CLIENT     => redirect()->route('client.portal'),
             User::ROLE_DESIGNER   => redirect()->route('designer.dashboard'),
+            User::ROLE_PROJECT_MANAGER => redirect()->route('project_manager.dashboard'),
             default      => redirect()->route('login'),
         };
     }

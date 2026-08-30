@@ -16,6 +16,8 @@ interface PayrollRepositoryInterface
 {
     public function latestPayrollsWithUser(?string $group = null, ?int $projectId = null): EloquentCollection;
 
+    public function latestPayrollsWithUserQuery(?string $group = null, ?int $projectId = null): \Illuminate\Database\Eloquent\Builder;
+
     public function totalPayableByStatuses(array $statuses, ?string $group = null, ?int $projectId = null): float;
 
     public function latestPayrollWorkers(?int $projectId = null): EloquentCollection;

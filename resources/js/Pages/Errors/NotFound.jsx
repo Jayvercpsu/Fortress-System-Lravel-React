@@ -1,4 +1,4 @@
-﻿import { Head, usePage } from '@inertiajs/react';
+import { Head, usePage } from '@inertiajs/react';
 import ActionButton from '../../Components/ActionButton';
 import BrandIcon from '../../Components/BrandIcon';
 
@@ -9,6 +9,7 @@ const dashboardByRole = {
     foreman: '/foreman',
     designer: '/designer',
     client: '/client',
+    project_manager: '/project-manager',
 };
 
 export default function NotFound() {

@@ -7,6 +7,55 @@ import AiProcessingImage from './AiProcessingImage';
 
 const MAX_IMAGES = 5;
 
+// Theme-aware color helpers using CSS custom properties
+const colors = {
+    infoBg: 'var(--surface-2)',
+    infoBorder: 'var(--border-color)',
+    infoText: 'var(--text-muted)',
+    label: 'var(--text-main)',
+    labelMuted: 'var(--text-muted)',
+    dropzoneBorder: 'var(--border-color)',
+    dropzoneHover: 'var(--text-muted)',
+    icon: 'var(--text-muted)',
+    bodyText: 'var(--text-muted)',
+    subtleText: 'var(--text-muted-2)',
+    textareaBg: 'var(--surface-1)',
+    textareaBorder: 'var(--border-color)',
+    textareaText: 'var(--text-main)',
+    textareaPlaceholder: 'var(--text-muted-2)',
+    noticeBg: 'rgba(251, 191, 36, 0.12)',
+    noticeBorder: 'rgba(251, 191, 36, 0.4)',
+    noticeText: 'var(--text-muted)',
+    statusBg: 'rgba(56, 189, 248, 0.12)',
+    statusBorder: 'rgba(56, 189, 248, 0.3)',
+    statusText: 'var(--text-main)',
+    statusTimer: 'var(--text-muted)',
+    errorBg: 'var(--toast-error-bg)',
+    errorBorder: 'var(--toast-error-border)',
+    errorText: 'var(--toast-error-border)',
+    errorSubtext: 'var(--text-muted)',
+    successBg: 'var(--toast-success-bg)',
+    successBorder: 'var(--toast-success-border)',
+    successText: 'var(--active-text)',
+    resultCardBg: 'var(--surface-2)',
+    resultCardBorder: 'var(--border-color)',
+    footerBg: 'var(--surface-2)',
+    footerBorder: 'var(--border-color)',
+    dialogBg: 'var(--surface-1)',
+    dialogBorder: 'var(--border-color)',
+    dialogText: 'var(--text-main)',
+    dialogMuted: 'var(--text-muted)',
+};
+
+const recordTypeStyle = (type) => {
+    if (type === 'attendance') return { background: 'rgba(59, 130, 246, 0.12)', color: 'var(--status-review-text)' };
+    if (type === 'expense') return { background: 'rgba(34, 197, 94, 0.12)', color: 'var(--active-text)' };
+    return { background: 'var(--surface-2)', color: 'var(--text-muted)' };
+};
+
+const badgePendingStyle = { background: 'rgba(251, 191, 36, 0.18)', color: 'var(--status-proposal-text)' };
+const badgeOkStyle = { background: 'rgba(34, 197, 94, 0.18)', color: 'var(--active-text)' };
+
 export default function AiUploadModal({ projects = [], onClose }) {
     const [imageFiles, setImageFiles] = useState([]);
     const [imagePreviews, setImagePreviews] = useState([]);
@@ -159,231 +208,291 @@ export default function AiUploadModal({ projects = [], onClose }) {
         return '❓';
     };
 
-    const recordTypeColor = (type) => {
-        if (type === 'attendance') return 'bg-blue-100 text-blue-800';
-        if (type === 'expense') return 'bg-green-100 text-green-800';
-        return 'bg-gray-100 text-gray-800';
-    };
-
     return (
         <Modal open={true} onClose={onClose} title="AI Record Processing" width="90vw" height="90vh" disableClose={processing}>
             <div className="p-4 space-y-4 overflow-y-auto flex-1">
-                    {/* Info Banner */}
-                    <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-sm text-blue-800">
-                        💡 <strong>AI Auto-Detection:</strong> Upload up to {MAX_IMAGES} images at once. The AI will automatically detect:
-                        <ul className="mt-1 ml-4 list-disc">
-                            <li>Record type (attendance or expense)</li>
-                            <li>Which project it belongs to</li>
-                            <li>Extract all relevant data</li>
-                        </ul>
-                    </div>
+                {/* Info Banner */}
+                <div style={{
+                    background: colors.infoBg,
+                    border: `1px solid ${colors.infoBorder}`,
+                    borderRadius: 8,
+                    padding: 12,
+                    fontSize: 13,
+                    color: colors.infoText,
+                }}>
+                    💡 <strong>AI Auto-Detection:</strong> Upload up to {MAX_IMAGES} images at once. The AI will automatically detect:
+                    <ul style={{ marginTop: 4, marginLeft: 16 }}>
+                        <li>Record type (attendance or expense)</li>
+                        <li>Which project it belongs to</li>
+                        <li>Extract all relevant data</li>
+                    </ul>
+                </div>
 
-                    {/* Image Upload */}
+                {/* Image Upload */}
+                <div>
+                    <label className="block text-sm font-medium mb-2" style={{ color: colors.label }}>
+                        Upload Images <span style={{ color: colors.labelMuted, fontWeight: 400 }}>(up to {MAX_IMAGES})</span>
+                    </label>
+                    <div
+                        onClick={() => fileInputRef.current?.click()}
+                        style={{
+                            border: `2px dashed ${colors.dropzoneBorder}`,
+                            borderRadius: 8,
+                            padding: 24,
+                            textAlign: 'center',
+                            cursor: 'pointer',
+                            transition: 'border-color 0.15s',
+                        }}
+                        onMouseEnter={(e) => e.currentTarget.style.borderColor = colors.dropzoneHover}
+                        onMouseLeave={(e) => e.currentTarget.style.borderColor = colors.dropzoneBorder}
+                    >
+                        <Camera size={48} style={{ margin: '0 auto', color: colors.icon }} />
+                        <p style={{ color: colors.bodyText, marginTop: 8 }}>
+                            Click to upload attendance notes and/or expense receipts
+                        </p>
+                        <p style={{ fontSize: 13, color: colors.subtleText, marginTop: 4 }}>
+                            JPG, PNG — up to 10MB each — up to {MAX_IMAGES} images
+                        </p>
+                    </div>
+                    <input
+                        ref={fileInputRef}
+                        type="file"
+                        accept=".jpg,.jpeg,.png,image/jpeg,image/png"
+                        multiple
+                        onChange={handleImageSelect}
+                        className="hidden"
+                    />
+                </div>
+
+                {/* Image Previews */}
+                {imagePreviews.length > 0 && (
                     <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">
-                            Upload Images <span className="text-gray-400 font-normal">(up to {MAX_IMAGES})</span>
-                        </label>
-                        <div
-                            onClick={() => fileInputRef.current?.click()}
-                            className="border-2 border-dashed rounded-lg p-6 text-center cursor-pointer hover:border-gray-400 transition-colors"
-                        >
-                            <Camera size={48} className="mx-auto text-gray-400" />
-                            <p className="text-gray-600 mt-2">
-                                Click to upload attendance notes and/or expense receipts
-                            </p>
-                            <p className="text-sm text-gray-400 mt-1">
-                                JPG, PNG — up to 10MB each — up to {MAX_IMAGES} images
-                            </p>
-                        </div>
-                        <input
-                            ref={fileInputRef}
-                            type="file"
-                            accept=".jpg,.jpeg,.png,image/jpeg,image/png"
-                            multiple
-                            onChange={handleImageSelect}
-                            className="hidden"
-                        />
-                    </div>
-
-                    {/* Image Previews */}
-                    {imagePreviews.length > 0 && (
-                        <div>
-                            <div className="flex items-center justify-between mb-2">
-                                <span className="text-sm font-medium text-gray-700">
-                                    {imageFiles.length}/{MAX_IMAGES} image(s) selected
-                                </span>
-                                <button
-                                    type="button"
-                                    onClick={() => { setImageFiles([]); setImagePreviews([]); }}
-                                    className="text-xs text-red-500 hover:text-red-700"
-                                >
-                                    Clear all
-                                </button>
-                            </div>
-                            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                                {imagePreviews.map((preview, index) => (
-                                    <div key={index} className="relative group">
-                                        <AiProcessingImage
-                                            src={preview}
-                                            alt={`Upload ${index + 1}`}
-                                            processing={processing}
-                                            onClick={() => !processing && setPreviewIndex(index)}
-                                        />
-                                        {!processing && (
-                                            <button
-                                                type="button"
-                                                onClick={() => removeImage(index)}
-                                                className="absolute top-1 right-1 bg-red-500 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"
-                                            >
-                                                <Trash2 size={12} />
-                                            </button>
-                                        )}
-                                        <div className="absolute bottom-1 left-1 bg-black/50 text-white text-xs px-1 rounded">
-                                            {index + 1}
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
-                        </div>
-                    )}
-
-                    {/* Notes */}
-                    <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">
-                            Notes (optional)
-                        </label>
-                        <textarea
-                            value={notes}
-                            onChange={(e) => setNotes(e.target.value)}
-                            rows={2}
-                            className="w-full border rounded-lg p-2 text-sm"
-                            placeholder="e.g. Weekly attendance for Site A, include worker hours..."
-                        />
-                    </div>
-
-                    {/* Processing Status */}
-                    {processing && (
-                        <div className="flex items-center gap-2 text-blue-600 bg-blue-50 p-3 rounded-lg">
-                            <Loader2 size={20} className="animate-spin" />
-                            <span className="flex-1">AI is analyzing {imageFiles.length} image(s)...</span>
-                            <span className="text-xs font-mono text-blue-500">
-                                {Math.floor(elapsed / 60)}m {elapsed % 60}s
+                        <div className="flex items-center justify-between mb-2">
+                            <span className="text-sm font-medium" style={{ color: colors.label }}>
+                                {imageFiles.length}/{MAX_IMAGES} image(s) selected
                             </span>
+                            <button
+                                type="button"
+                                onClick={() => { setImageFiles([]); setImagePreviews([]); }}
+                                className="text-xs hover:opacity-80"
+                                style={{ color: 'var(--toast-error-border)' }}
+                            >
+                                Clear all
+                            </button>
                         </div>
-                    )}
-
-                    {/* Error */}
-                    {error && (
-                        <div className="flex items-start gap-2 text-red-600 bg-red-50 p-3 rounded-lg">
-                            <AlertCircle size={20} className="flex-shrink-0 mt-0.5" />
-                            <div>
-                                <p className="font-medium">Processing Failed</p>
-                                <p className="text-sm mt-1">{error}</p>
-                                <p className="text-xs mt-2 text-red-500">
-                                    Your images were not saved. You can try again.
-                                </p>
-                                {error.includes('rate limit') && (
-                                    <p className="text-xs mt-2 text-blue-600">
-                                        💡 Tip: Add $10 credits at openrouter.ai/credits to increase your daily limit from 50 to 1,000 requests.
-                                    </p>
-                                )}
-                            </div>
-                        </div>
-                    )}
-
-                    {/* Results Summary (before confirmation modal) */}
-                    {results && !showConfirmation && (
-                        <div className="space-y-3">
-                            <div className="bg-green-50 border border-green-200 rounded-lg p-3">
-                                <div className="flex items-center gap-2 text-green-700 font-medium">
-                                    <CheckCircle size={18} />
-                                    Processing Complete
-                                </div>
-                                {results.summary && (
-                                    <div className="mt-2 text-sm text-green-600">
-                                        📋 {results.summary.attendance} attendance | 
-                                        🧾 {results.summary.expense} expense | 
-                                        🚫 {results.skipped} skipped
-                                    </div>
-                                )}
-                            </div>
-
-                            {/* Individual Results */}
-                            {results.records?.map((record, index) => (
-                                <div key={record.id} className="border rounded-lg p-3 bg-gray-50">
-                                    <div className="flex items-center gap-2 flex-wrap">
-                                        <div className="flex-1 min-w-0">
-                                            <div className="flex items-center gap-2">
-                                                <span className={`px-2 py-0.5 rounded text-xs font-medium ${recordTypeColor(record.record_type)}`}>
-                                                    {recordTypeIcon(record.record_type)} {record.record_type}
-                                                </span>
-                                                {record.status === 'pending_project' ? (
-                                                    <span className="text-xs text-yellow-600 bg-yellow-50 px-2 py-0.5 rounded">
-                                                        ⚠️ Needs project
-                                                    </span>
-                                                ) : record.project_id ? (
-                                                    <span className="text-xs text-green-600 bg-green-50 px-2 py-0.5 rounded">
-                                                        ✅ {record.project?.name || `Project #${record.project_id}`}
-                                                    </span>
-                                                ) : null}
-                                            </div>
-                                            {record.ai_summary && (
-                                                <p className="text-xs text-gray-600 mt-1 line-clamp-2">
-                                                    {record.ai_summary}
-                                                </p>
-                                            )}
-                                        </div>
+                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                            {imagePreviews.map((preview, index) => (
+                                <div key={index} className="relative group">
+                                    <AiProcessingImage
+                                        src={preview}
+                                        alt={`Upload ${index + 1}`}
+                                        processing={processing}
+                                        onClick={() => !processing && setPreviewIndex(index)}
+                                    />
+                                    {!processing && (
+                                        <button
+                                            type="button"
+                                            onClick={() => removeImage(index)}
+                                            className="absolute top-1 right-1 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"
+                                            style={{ background: 'var(--toast-error-border)' }}
+                                        >
+                                            <Trash2 size={12} />
+                                        </button>
+                                    )}
+                                    <div className="absolute bottom-1 left-1 text-white text-xs px-1 rounded" style={{ background: 'rgba(0,0,0,0.5)' }}>
+                                        {index + 1}
                                     </div>
                                 </div>
                             ))}
                         </div>
-                    )}
+                    </div>
+                )}
+
+                {/* Notes */}
+                <div>
+                    <label className="block text-sm font-medium mb-2" style={{ color: colors.label }}>
+                        Notes (optional)
+                    </label>
+                    <textarea
+                        value={notes}
+                        onChange={(e) => setNotes(e.target.value)}
+                        rows={2}
+                        className="w-full rounded-lg p-2 text-sm"
+                        style={{
+                            border: `1px solid ${colors.textareaBorder}`,
+                            background: colors.textareaBg,
+                            color: colors.textareaText,
+                        }}
+                        placeholder="e.g. Weekly attendance for Site A, include worker hours..."
+                    />
                 </div>
 
-                {/* Footer */}
-                <div className="flex justify-end gap-3 p-4 border-t bg-gray-50">
-                    {processing && (
-                        <button
-                            onClick={() => setShowTerminateConfirm(true)}
-                            className="px-4 py-2 text-red-600 hover:text-red-800 hover:bg-red-50 rounded-lg"
-                        >
-                            Cancel
-                        </button>
-                    )}
-                    {results && !processing && (
-                        <button
-                            onClick={onClose}
-                            className="px-4 py-2 text-gray-700 hover:text-gray-900"
-                        >
-                            Done
-                        </button>
-                    )}
-                    
-                    {!results && (
-                        <button
-                            onClick={handleUpload}
-                            disabled={processing || imageFiles.length === 0}
-                            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-                        >
-                            {processing ? (
-                                <>
-                                    <Loader2 size={16} className="animate-spin" />
-                                    Processing...
-                                </>
-                            ) : (
-                                <>
-                                    <Upload size={16} />
-                                    Process {imageFiles.length > 1 ? `${imageFiles.length} Images` : 'with AI'}
-                                </>
+                {/* Processing Status */}
+                {processing && (
+                    <>
+                        <div style={{
+                            background: colors.noticeBg,
+                            border: `1px solid ${colors.noticeBorder}`,
+                            borderRadius: 8,
+                            padding: 12,
+                            fontSize: 13,
+                            color: colors.noticeText,
+                        }}>
+                            ⚠️ <strong>AI Accuracy Notice:</strong> Results are generated by AI and may not always be fully accurate or complete. Please carefully review the extracted data before submitting. AI performance depends on image quality and model capabilities.
+                        </div>
+                        <div className="flex items-center gap-2 p-3 rounded-lg" style={{
+                            background: colors.statusBg,
+                            border: `1px solid ${colors.statusBorder}`,
+                            color: colors.statusText,
+                        }}>
+                            <Loader2 size={20} className="animate-spin" />
+                            <span className="flex-1">AI is analyzing {imageFiles.length} image(s)...</span>
+                            <span className="text-xs font-mono" style={{ color: colors.statusTimer }}>
+                                {Math.floor(elapsed / 60)}m {elapsed % 60}s
+                            </span>
+                        </div>
+                    </>
+                )}
+
+                {/* Error */}
+                {error && (
+                    <div className="flex items-start gap-2 p-3 rounded-lg" style={{
+                        background: colors.errorBg,
+                        border: `1px solid ${colors.errorBorder}`,
+                        color: colors.errorText,
+                    }}>
+                        <AlertCircle size={20} className="flex-shrink-0 mt-0.5" />
+                        <div>
+                            <p className="font-medium">Processing Failed</p>
+                            <p className="text-sm mt-1" style={{ color: colors.dialogText }}>{error}</p>
+                            <p className="text-xs mt-2" style={{ color: colors.errorSubtext }}>
+                                Your images were not saved. You can try again.
+                            </p>
+                            {(error.includes('credits') || error.includes('402')) && (
+                                <p className="text-xs mt-2" style={{ color: 'var(--active-text)' }}>
+                                    💡 Tip: Add credits at <a href="https://openrouter.ai/settings/credits" target="_blank" rel="noopener noreferrer" className="underline">openrouter.ai/settings/credits</a> to resolve this.
+                                </p>
                             )}
-                        </button>
-                    )}
-                </div>
+                            {error.includes('rate limit') && (
+                                <p className="text-xs mt-2" style={{ color: 'var(--active-text)' }}>
+                                    💡 Tip: Add $10 credits at openrouter.ai/credits to increase your daily limit from 50 to 1,000 requests.
+                                </p>
+                            )}
+                        </div>
+                    </div>
+                )}
+
+                {/* Results Summary (before confirmation modal) */}
+                {results && !showConfirmation && (
+                    <div className="space-y-3">
+                        <div className="rounded-lg p-3" style={{
+                            background: colors.successBg,
+                            border: `1px solid ${colors.successBorder}`,
+                        }}>
+                            <div className="flex items-center gap-2 font-medium" style={{ color: colors.successText }}>
+                                <CheckCircle size={18} />
+                                Processing Complete
+                            </div>
+                            {results.summary && (
+                                <div className="mt-2 text-sm" style={{ color: colors.successText }}>
+                                    📋 {results.summary.attendance} attendance |
+                                    🧾 {results.summary.expense} expense |
+                                    🚫 {results.skipped} skipped
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Individual Results */}
+                        {results.records?.map((record) => (
+                            <div key={record.id} className="rounded-lg p-3" style={{
+                                background: colors.resultCardBg,
+                                border: `1px solid ${colors.resultCardBorder}`,
+                            }}>
+                                <div className="flex items-center gap-2 flex-wrap">
+                                    <div className="flex-1 min-w-0">
+                                        <div className="flex items-center gap-2">
+                                            <span className="px-2 py-0.5 rounded text-xs font-medium" style={recordTypeStyle(record.record_type)}>
+                                                {recordTypeIcon(record.record_type)} {record.record_type}
+                                            </span>
+                                            {record.status === 'pending_project' ? (
+                                                <span className="px-2 py-0.5 rounded text-xs" style={badgePendingStyle}>
+                                                    ⚠️ Needs project
+                                                </span>
+                                            ) : record.project_id ? (
+                                                <span className="px-2 py-0.5 rounded text-xs" style={badgeOkStyle}>
+                                                    ✅ {record.project?.name || `Project #${record.project_id}`}
+                                                </span>
+                                            ) : null}
+                                        </div>
+                                        {record.ai_summary && (
+                                            <p className="text-xs mt-1 line-clamp-2" style={{ color: colors.bodyText }}>
+                                                {record.ai_summary}
+                                            </p>
+                                        )}
+                                    </div>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                )}
+            </div>
+
+            {/* Footer */}
+            <div className="flex justify-end gap-3 p-4" style={{
+                borderTop: `1px solid ${colors.footerBorder}`,
+                background: colors.footerBg,
+            }}>
+                {processing && (
+                    <button
+                        onClick={() => setShowTerminateConfirm(true)}
+                        className="px-4 py-2 rounded-lg hover:opacity-80"
+                        style={{ color: 'var(--toast-error-border)' }}
+                    >
+                        Cancel
+                    </button>
+                )}
+                {results && !processing && (
+                    <button
+                        onClick={onClose}
+                        className="px-4 py-2 hover:opacity-80"
+                        style={{ color: colors.label }}
+                    >
+                        Done
+                    </button>
+                )}
+
+                {!results && (
+                    <button
+                        onClick={handleUpload}
+                        disabled={processing || imageFiles.length === 0}
+                        className="px-4 py-2 rounded-lg flex items-center gap-2"
+                        style={{
+                            background: 'var(--active-text)',
+                            color: '#fff',
+                            opacity: processing || imageFiles.length === 0 ? 0.5 : 1,
+                            cursor: processing || imageFiles.length === 0 ? 'not-allowed' : 'pointer',
+                        }}
+                    >
+                        {processing ? (
+                            <>
+                                <Loader2 size={16} className="animate-spin" />
+                                Processing...
+                            </>
+                        ) : (
+                            <>
+                                <Upload size={16} />
+                                Process {imageFiles.length > 1 ? `${imageFiles.length} Images` : 'with AI'}
+                            </>
+                        )}
+                    </button>
+                )}
+            </div>
 
             {/* Image Preview Lightbox */}
             {previewIndex !== null && (
                 <div
-                    className="fixed inset-0 z-[1300] flex items-center justify-center bg-black/80"
+                    className="fixed inset-0 z-[1300] flex items-center justify-center"
+                    style={{ background: 'rgba(0,0,0,0.8)' }}
                     onClick={() => setPreviewIndex(null)}
                 >
                     <button
@@ -391,7 +500,8 @@ export default function AiUploadModal({ projects = [], onClose }) {
                             e.stopPropagation();
                             setPreviewIndex(prev => prev > 0 ? prev - 1 : imagePreviews.length - 1);
                         }}
-                        className="absolute left-4 top-1/2 -translate-y-1/2 bg-white/90 hover:bg-white text-gray-800 rounded-full p-3 shadow-lg z-10"
+                        className="absolute left-4 top-1/2 -translate-y-1/2 rounded-full p-3 shadow-lg z-10"
+                        style={{ background: 'var(--button-bg)', color: 'var(--text-main)', border: '1px solid var(--border-color)' }}
                     >
                         ‹
                     </button>
@@ -402,7 +512,7 @@ export default function AiUploadModal({ projects = [], onClose }) {
                             alt={`Preview ${previewIndex + 1}`}
                             className="max-w-[90vw] max-h-[85vh] object-contain rounded-lg shadow-2xl"
                         />
-                        <div className="absolute bottom-3 left-1/2 -translate-x-1/2 bg-black/60 text-white text-sm px-3 py-1 rounded-full">
+                        <div className="absolute bottom-3 left-1/2 -translate-x-1/2 text-white text-sm px-3 py-1 rounded-full" style={{ background: 'rgba(0,0,0,0.6)' }}>
                             {previewIndex + 1} / {imagePreviews.length}
                         </div>
                     </div>
@@ -412,14 +522,16 @@ export default function AiUploadModal({ projects = [], onClose }) {
                             e.stopPropagation();
                             setPreviewIndex(prev => prev < imagePreviews.length - 1 ? prev + 1 : 0);
                         }}
-                        className="absolute right-4 top-1/2 -translate-y-1/2 bg-white/90 hover:bg-white text-gray-800 rounded-full p-3 shadow-lg z-10"
+                        className="absolute right-4 top-1/2 -translate-y-1/2 rounded-full p-3 shadow-lg z-10"
+                        style={{ background: 'var(--button-bg)', color: 'var(--text-main)', border: '1px solid var(--border-color)' }}
                     >
                         ›
                     </button>
 
                     <button
                         onClick={() => setPreviewIndex(null)}
-                        className="absolute top-4 right-4 bg-white/90 hover:bg-white text-gray-800 rounded-full p-2 shadow-lg z-10"
+                        className="absolute top-4 right-4 rounded-full p-2 shadow-lg z-10"
+                        style={{ background: 'var(--button-bg)', color: 'var(--text-main)', border: '1px solid var(--border-color)' }}
                     >
                         ✕
                     </button>
@@ -428,30 +540,39 @@ export default function AiUploadModal({ projects = [], onClose }) {
 
             {/* Terminate Confirmation Dialog */}
             {showTerminateConfirm && (
-                <div className="fixed inset-0 z-[1500] flex items-center justify-center bg-black/60">
-                    <div className="bg-white rounded-lg shadow-xl p-6 max-w-sm w-full mx-4">
+                <div className="fixed inset-0 z-[1500] flex items-center justify-center" style={{ background: 'rgba(0,0,0,0.6)' }}>
+                    <div className="rounded-lg shadow-xl p-6 max-w-sm w-full mx-4" style={{
+                        background: colors.dialogBg,
+                        border: `1px solid ${colors.dialogBorder}`,
+                    }}>
                         <div className="flex items-center gap-3 mb-4">
-                            <div className="w-10 h-10 rounded-full bg-red-100 flex items-center justify-center">
-                                <AlertCircle size={20} className="text-red-600" />
+                            <div className="w-10 h-10 rounded-full flex items-center justify-center" style={{ background: colors.errorBg }}>
+                                <AlertCircle size={20} style={{ color: colors.errorText }} />
                             </div>
                             <div>
-                                <h3 className="font-semibold text-gray-900">Cancel Processing?</h3>
-                                <p className="text-sm text-gray-500">AI is still analyzing your images.</p>
+                                <h3 className="font-semibold" style={{ color: colors.dialogText }}>Cancel Processing?</h3>
+                                <p className="text-sm" style={{ color: colors.dialogMuted }}>AI is still analyzing your images.</p>
                             </div>
                         </div>
-                        <p className="text-sm text-gray-600 mb-5">
+                        <p className="text-sm mb-5" style={{ color: colors.dialogMuted }}>
                             Are you sure you want to terminate the process? The AI analysis will be stopped and no records will be saved.
                         </p>
                         <div className="flex justify-end gap-3">
                             <button
                                 onClick={() => setShowTerminateConfirm(false)}
-                                className="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg"
+                                className="px-4 py-2 rounded-lg"
+                                style={{
+                                    color: colors.label,
+                                    border: `1px solid ${colors.dialogBorder}`,
+                                    background: 'var(--button-bg)',
+                                }}
                             >
                                 Continue Processing
                             </button>
                             <button
                                 onClick={handleTerminate}
-                                className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700"
+                                className="px-4 py-2 text-white rounded-lg hover:opacity-90"
+                                style={{ background: 'var(--toast-error-border)' }}
                             >
                                 Yes, Cancel
                             </button>

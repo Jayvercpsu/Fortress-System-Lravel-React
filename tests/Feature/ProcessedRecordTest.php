@@ -7,6 +7,7 @@ use App\Models\Project;
 use App\Models\ProcessedRecord;
 use App\Models\Attendance;
 use App\Models\Expense;
+use App\Models\Worker;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Hash;
@@ -156,6 +157,60 @@ class ProcessedRecordTest extends TestCase
         $response->assertJsonMissingValidationErrors(['notes']);
     }
 
+    // ─── AI UPLOAD MESSAGING TESTS ────────────────────────────────
+
+    public function test_attendance_mode_reports_non_attendance_image_clearly(): void
+    {
+        // The AI explicitly classifies the uploaded image as irrelevant (not an
+        // attendance sheet), so the user should see a specific "not related to
+        // attendance" message rather than the generic "could not process" one.
+        $mock = \Mockery::mock(\App\Services\OpenRouterService::class);
+        $mock->shouldReceive('chat')->andReturn([
+            'choices' => [[
+                'message' => ['content' =>
+                    "RECORD_1:\n" .
+                    "TYPE: irrelevant\n" .
+                    "PROJECT: none\n" .
+                    "CONFIDENCE: high\n" .
+                    "IRRELEVANT_REASON: This image is a photo of a truck, not an attendance sheet\n" .
+                    "---",
+                ],
+            ]],
+        ]);
+        $this->app->instance(\App\Services\OpenRouterService::class, $mock);
+
+        $response = $this->actingAs($this->headAdmin)
+            ->postJson('/processed-records', [
+                'images' => [UploadedFile::fake()->image('site-photo.jpg')],
+                'mode' => 'attendance',
+            ]);
+
+        $response->assertStatus(422)
+            ->assertJsonFragment([
+                'message' => 'The uploaded image is not related to attendance. Please upload a clear photo of an attendance sheet (names and attendance marks).',
+            ]);
+    }
+
+    public function test_all_failed_images_still_returns_generic_error_when_not_irrelevant(): void
+    {
+        // The AI returned no usable content (and no explicit "irrelevant"
+        // classification), so the generic "could not process" fallback should remain.
+        $mock = \Mockery::mock(\App\Services\OpenRouterService::class);
+        $mock->shouldReceive('chat')->andReturn([]);
+        $this->app->instance(\App\Services\OpenRouterService::class, $mock);
+
+        $response = $this->actingAs($this->headAdmin)
+            ->postJson('/processed-records', [
+                'images' => [UploadedFile::fake()->image('blurry.jpg')],
+                'mode' => 'attendance',
+            ]);
+
+        $response->assertStatus(422)
+            ->assertJsonFragment([
+                'message' => 'AI could not process any of the uploaded images. Please try again with clearer images.',
+            ]);
+    }
+
     // ─── ROLE-BASED ACCESS TESTS ─────────────────────────────────
 
     public function test_head_admin_can_access(): void
@@ -176,30 +231,23 @@ class ProcessedRecordTest extends TestCase
         $response->assertOk();
     }
 
-    public function test_foreman_cannot_access(): void
+    public function test_foreman_can_access_public_routes(): void
     {
         $record = $this->makeRecord();
         $response = $this->actingAs($this->foreman)
             ->postJson("/processed-records/{$record->id}/reject");
 
-        $response->assertForbidden();
+        // Routes are public for JotForm page access
+        $response->assertOk();
     }
 
-    public function test_hr_cannot_access(): void
-    {
-        $record = $this->makeRecord();
-        $response = $this->actingAs($this->hr)
-            ->postJson("/processed-records/{$record->id}/reject");
-
-        $response->assertForbidden();
-    }
-
-    public function test_unauthenticated_cannot_access(): void
+    public function test_unauthenticated_can_access_public_routes(): void
     {
         $record = $this->makeRecord();
         $response = $this->postJson("/processed-records/{$record->id}/reject");
 
-        $response->assertStatus(401);
+        // Routes are public for JotForm page access
+        $response->assertOk();
     }
 
     // ─── SUBMIT (CONFIRM) FLOW TESTS ─────────────────────────────
@@ -292,7 +340,7 @@ class ProcessedRecordTest extends TestCase
 
     // ─── REJECT FLOW TESTS ───────────────────────────────────────
 
-    public function test_reject_record_sets_status(): void
+    public function test_reject_record_deletes_record(): void
     {
         $record = $this->makeRecord(['status' => 'pending']);
 
@@ -300,9 +348,9 @@ class ProcessedRecordTest extends TestCase
             ->postJson("/processed-records/{$record->id}/reject");
 
         $response->assertOk();
-        $this->assertDatabaseHas('processed_records', [
+        // Record should be deleted entirely, not just marked as rejected
+        $this->assertDatabaseMissing('processed_records', [
             'id' => $record->id,
-            'status' => 'rejected',
         ]);
     }
 
@@ -589,9 +637,9 @@ class ProcessedRecordTest extends TestCase
         $this->actingAs($this->headAdmin)
             ->postJson("/processed-records/{$record2->id}/reject");
 
-        // First is submitted, second is rejected
+        // First is submitted, second is deleted (rejected)
         $this->assertDatabaseHas('processed_records', ['id' => $record1->id, 'status' => 'submitted']);
-        $this->assertDatabaseHas('processed_records', ['id' => $record2->id, 'status' => 'rejected']);
+        $this->assertDatabaseMissing('processed_records', ['id' => $record2->id]);
 
         // Only attendance was created
         $this->assertDatabaseCount('attendances', 1);
@@ -906,6 +954,163 @@ class ProcessedRecordTest extends TestCase
         $this->assertDatabaseHas('expenses', [
             'project_id' => $this->project->id,
             'date' => \Carbon\Carbon::parse('2026-08-26'),
+        ]);
+    }
+
+    // ─── WORKER RATE SYNC TESTS ──────────────────────────────────
+
+    public function test_attendance_confirm_syncs_worker_rate_for_new_worker(): void
+    {
+        $record = $this->makeRecord([
+            'status' => 'pending',
+            'ai_parsed_data' => [
+                'date' => '2026-08-27',
+                'workers' => [
+                    ['name' => 'Pedro Santos', 'position' => 'Worker', 'daily_rate' => 800, 'hours' => 8],
+                ],
+            ],
+        ]);
+
+        $this->actingAs($this->headAdmin)
+            ->postJson("/processed-records/{$record->id}/confirm");
+
+        $this->assertDatabaseHas('workers', [
+            'project_id' => $this->project->id,
+            'name' => 'Pedro Santos',
+            'default_rate_per_hour' => 800,
+        ]);
+    }
+
+    public function test_attendance_confirm_updates_existing_worker_rate(): void
+    {
+        // Create worker with old rate
+        Worker::create([
+            'foreman_id' => $this->headAdmin->id,
+            'project_id' => $this->project->id,
+            'name' => 'Juan Dela Cruz',
+            'default_rate_per_hour' => 500,
+            'job_type' => Worker::JOB_TYPE_WORKER,
+        ]);
+
+        $record = $this->makeRecord([
+            'status' => 'pending',
+            'ai_parsed_data' => [
+                'date' => '2026-08-27',
+                'workers' => [
+                    ['name' => 'Juan Dela Cruz', 'position' => 'Worker', 'daily_rate' => 800, 'hours' => 8],
+                ],
+            ],
+        ]);
+
+        $this->actingAs($this->headAdmin)
+            ->postJson("/processed-records/{$record->id}/confirm");
+
+        // Rate should be updated to 800
+        $this->assertDatabaseHas('workers', [
+            'project_id' => $this->project->id,
+            'name' => 'Juan Dela Cruz',
+            'default_rate_per_hour' => 800,
+        ]);
+
+        // Old rate should not exist
+        $this->assertDatabaseMissing('workers', [
+            'project_id' => $this->project->id,
+            'name' => 'Juan Dela Cruz',
+            'default_rate_per_hour' => 500,
+        ]);
+    }
+
+    public function test_attendance_confirm_creates_worker_without_daily_rate(): void
+    {
+        $record = $this->makeRecord([
+            'status' => 'pending',
+            'ai_parsed_data' => [
+                'date' => '2026-08-27',
+                'workers' => [
+                    ['name' => 'Test Worker', 'position' => 'Worker', 'hours' => 8],
+                ],
+            ],
+        ]);
+
+        $this->actingAs($this->headAdmin)
+            ->postJson("/processed-records/{$record->id}/confirm");
+
+        // Worker should be added to Worker Rate Management even without a rate
+        $this->assertDatabaseHas('workers', [
+            'project_id' => $this->project->id,
+            'name' => 'Test Worker',
+        ]);
+
+        // But default_rate_per_hour should be null (no rate detected)
+        $worker = \App\Models\Worker::where('project_id', $this->project->id)
+            ->where('name', 'Test Worker')
+            ->first();
+        $this->assertNull($worker->default_rate_per_hour);
+    }
+
+    public function test_attendance_confirm_does_not_overwrite_existing_rate_without_detection(): void
+    {
+        // Create worker with existing rate
+        Worker::create([
+            'foreman_id'            => $this->headAdmin->id,
+            'project_id'            => $this->project->id,
+            'name'                  => 'Existing Worker',
+            'default_rate_per_hour' => 750,
+            'job_type'              => Worker::JOB_TYPE_WORKER,
+        ]);
+
+        $record = $this->makeRecord([
+            'status' => 'pending',
+            'ai_parsed_data' => [
+                'date' => '2026-08-27',
+                'workers' => [
+                    ['name' => 'Existing Worker', 'position' => 'Worker', 'hours' => 8],
+                ],
+            ],
+        ]);
+
+        $this->actingAs($this->headAdmin)
+            ->postJson("/processed-records/{$record->id}/confirm");
+
+        // Existing rate should NOT be overwritten when no rate detected
+        $this->assertDatabaseHas('workers', [
+            'project_id' => $this->project->id,
+            'name' => 'Existing Worker',
+            'default_rate_per_hour' => 750,
+        ]);
+    }
+
+    public function test_attendance_confirm_syncs_multiple_worker_rates(): void
+    {
+        $record = $this->makeRecord([
+            'status' => 'pending',
+            'ai_parsed_data' => [
+                'date' => '2026-08-27',
+                'workers' => [
+                    ['name' => 'Worker A', 'position' => 'Worker', 'daily_rate' => 600, 'hours' => 8],
+                    ['name' => 'Worker B', 'position' => 'Skilled Worker', 'daily_rate' => 800, 'hours' => 8],
+                    ['name' => 'Worker C', 'position' => 'Laborer', 'daily_rate' => 500, 'hours' => 8],
+                ],
+            ],
+        ]);
+
+        $this->actingAs($this->headAdmin)
+            ->postJson("/processed-records/{$record->id}/confirm");
+
+        $this->assertDatabaseHas('workers', [
+            'project_id' => $this->project->id,
+            'name' => 'Worker A',
+            'default_rate_per_hour' => 600,
+        ]);
+        $this->assertDatabaseHas('workers', [
+            'project_id' => $this->project->id,
+            'name' => 'Worker B',
+            'default_rate_per_hour' => 800,
+        ]);
+        $this->assertDatabaseHas('workers', [
+            'project_id' => $this->project->id,
+            'name' => 'Worker C',
+            'default_rate_per_hour' => 500,
         ]);
     }
 }
