@@ -1,7 +1,7 @@
 import './bootstrap';
 import 'react-datepicker/dist/react-datepicker.css';
 import '../css/app.css';
-import { createInertiaApp } from '@inertiajs/react';
+import { createInertiaApp, router } from '@inertiajs/react';
 import { createRoot } from 'react-dom/client';
 import { Toaster } from 'react-hot-toast';
 import Layout from './Components/Layout';
@@ -20,6 +20,21 @@ const pageModules = import.meta.glob('./Pages/**/*.jsx', { eager: true });
 if (typeof window !== 'undefined') {
     const savedTheme = window.localStorage.getItem('bb_theme') || 'light';
     document.documentElement.setAttribute('data-theme', savedTheme);
+
+    // After login, session()->regenerate() rotates the session ID.  Inertia
+    // only issues partial reloads so the HTML shell (and the meta CSRF token)
+    // is never re-rendered.  Sync the fresh token from the server-provided
+    // page props back into the meta tag so that raw fetch() calls always
+    // send a valid CSRF token.
+    router.on('success', (event) => {
+        const token = event?.detail?.page?.props?.csrf_token;
+        if (token) {
+            const meta = document.querySelector('meta[name="csrf-token"]');
+            if (meta && meta.getAttribute('content') !== token) {
+                meta.setAttribute('content', token);
+            }
+        }
+    });
 }
 
 createInertiaApp({

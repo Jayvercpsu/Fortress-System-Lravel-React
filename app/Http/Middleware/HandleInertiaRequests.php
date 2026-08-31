@@ -27,6 +27,7 @@ class HandleInertiaRequests extends Middleware {
                 'cooldown' => $request->session()->pull('cooldown'),
                 'cooldown_for' => $request->session()->pull('cooldown_for'),
             ],
+            'csrf_token' => fn () => csrf_token(),
         ]);
     }
 }
