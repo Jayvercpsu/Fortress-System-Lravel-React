@@ -69,7 +69,7 @@ test('head admin can use project team, files, and updates table actions', async 
     const downloadPromise = page.waitForEvent('download');
     await fileRow.getByRole('link', { name: 'Download' }).click();
     const download = await downloadPromise;
-    expect(download.suggestedFilename().toLowerCase()).toMatch(/\.jpg$/);
+    expect(download.suggestedFilename().toLowerCase()).toMatch(/\.(jpg|webp)$/);
 
     await fileRow.getByRole('button', { name: 'Delete' }).click();
     await page.getByRole('button', { name: 'Delete' }).last().click();

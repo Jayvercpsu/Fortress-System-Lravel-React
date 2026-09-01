@@ -6,6 +6,7 @@ use App\Models\Attendance;
 use App\Models\Project;
 use App\Models\User;
 use App\Models\WeeklyAccomplishment;
+use Carbon\Carbon;
 use Illuminate\Http\Request;
 
 /**
@@ -42,7 +43,7 @@ class ProjectManagerService
             ->with('foreman:id,fullname', 'project:id,name')
             ->orderByDesc('week_start')
             ->limit(10)
-            ->get(['id', 'foreman_id', 'project_id', 'scope_of_work', 'percent_completed', 'week_start'])
+            ->get(['id', 'foreman_id', 'project_id', 'scope_of_work', 'percent_completed', 'week_start', 'created_at'])
             ->map(fn (WeeklyAccomplishment $row) => [
                 'id' => $row->id,
                 'foreman_name' => $row->foreman?->fullname,
@@ -51,6 +52,7 @@ class ProjectManagerService
                 'scope_of_work' => $row->scope_of_work,
                 'percent_completed' => (float) $row->percent_completed,
                 'week_start' => optional($row->week_start)->toDateString(),
+                'submitted_at' => $row->created_at?->toDateTimeString(),
             ])
             ->values();
 
@@ -77,15 +79,21 @@ class ProjectManagerService
         ];
     }
 
-    public function projectPayload(Project $project): array
+    public function projectPayload(Request $request, Project $project): array
     {
+        $perPage = 50;
+
         // Counter-check the foreman's weekly accomplishments submitted via JotForm.
-        $accomplishments = WeeklyAccomplishment::query()
+        $accomplishmentsQuery = WeeklyAccomplishment::query()
             ->where('project_id', $project->id)
             ->with('foreman:id,fullname')
             ->orderBy('week_start')
-            ->orderBy('scope_of_work')
-            ->get(['id', 'foreman_id', 'scope_of_work', 'percent_completed', 'week_start', 'is_placeholder'])
+            ->orderBy('scope_of_work');
+
+        $accomplishmentsPaginator = $accomplishmentsQuery
+            ->paginate($perPage, ['*'], 'acc_page', $request->query('acc_page', 1));
+
+        $accomplishments = collect($accomplishmentsPaginator->items())
             ->map(fn (WeeklyAccomplishment $row) => [
                 'id' => $row->id,
                 'foreman_name' => $row->foreman?->fullname,
@@ -93,33 +101,43 @@ class ProjectManagerService
                 'percent_completed' => (float) $row->percent_completed,
                 'week_start' => optional($row->week_start)->toDateString(),
                 'is_placeholder' => (bool) $row->is_placeholder,
+                'submitted_at' => $row->created_at?->toDateTimeString(),
             ])
             ->values();
 
         // Attendance summary for this project (read-only).
-        $attendanceSummary = Attendance::query()
+        $attendanceSummaryQuery = Attendance::query()
             ->where('project_id', $project->id)
-            ->selectRaw('worker_name, worker_role, COALESCE(SUM(hours), 0) as total_hours, COUNT(*) as days_logged')
+            ->selectRaw('worker_name, worker_role, COALESCE(SUM(hours), 0) as total_hours, COUNT(*) as days_logged, MAX(created_at) as latest_submit')
             ->groupBy('worker_name', 'worker_role')
-            ->orderBy('worker_name')
-            ->get()
+            ->orderBy('worker_name');
+
+        $attendanceSummaryPaginator = $attendanceSummaryQuery
+            ->paginate($perPage, ['*'], 'att_page', $request->query('att_page', 1));
+
+        $attendanceSummary = collect($attendanceSummaryPaginator->items())
             ->map(fn ($row) => [
                 'worker_name' => $row->worker_name,
                 'worker_role' => $row->worker_role,
                 'total_hours' => round((float) $row->total_hours, 1),
                 'days_logged' => (int) $row->days_logged,
+                'latest_submit' => $row->latest_submit ? Carbon::parse($row->latest_submit)->toDateTimeString() : null,
             ])
             ->values();
 
-        // Summary stats for counter-checking.
-        $totalAccomplishments = $accomplishments->count();
+        // Summary stats for counter-checking (totals across all pages).
+        $totalAccomplishments = (int) $accomplishmentsPaginator->total();
         $totalAttendanceHours = round((float) Attendance::query()
             ->where('project_id', $project->id)
             ->sum('hours'), 1);
         $totalAttendanceDays = (int) Attendance::query()
             ->where('project_id', $project->id)
             ->count();
-        $uniqueForemen = $accomplishments->pluck('foreman_name')->filter()->unique()->count();
+        $uniqueForemen = (int) WeeklyAccomplishment::query()
+            ->where('project_id', $project->id)
+            ->whereNotNull('foreman_id')
+            ->distinct('foreman_id')
+            ->count('foreman_id');
 
         return [
             'project' => [
@@ -141,6 +159,22 @@ class ProjectManagerService
                 'total_attendance_hours' => $totalAttendanceHours,
                 'total_attendance_days' => $totalAttendanceDays,
                 'unique_foremen' => $uniqueForemen,
+            ],
+            'accomplishmentsTable' => [
+                'per_page' => $perPage,
+                'current_page' => $accomplishmentsPaginator->currentPage(),
+                'last_page' => max(1, $accomplishmentsPaginator->lastPage()),
+                'total' => $accomplishmentsPaginator->total(),
+                'from' => $accomplishmentsPaginator->firstItem(),
+                'to' => $accomplishmentsPaginator->lastItem(),
+            ],
+            'attendanceSummaryTable' => [
+                'per_page' => $perPage,
+                'current_page' => $attendanceSummaryPaginator->currentPage(),
+                'last_page' => max(1, $attendanceSummaryPaginator->lastPage()),
+                'total' => $attendanceSummaryPaginator->total(),
+                'from' => $attendanceSummaryPaginator->firstItem(),
+                'to' => $attendanceSummaryPaginator->lastItem(),
             ],
         ];
     }

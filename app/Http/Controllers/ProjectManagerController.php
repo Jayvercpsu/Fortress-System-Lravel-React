@@ -34,7 +34,7 @@ class ProjectManagerController extends Controller
 
     public function project(Request $request, Project $project)
     {
-        return Inertia::render('ProjectManager/Project', $this->projectManagerService->projectPayload($project));
+        return Inertia::render('ProjectManager/Project', $this->projectManagerService->projectPayload($request, $project));
     }
 
     public function settings(Request $request)

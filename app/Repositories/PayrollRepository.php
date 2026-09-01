@@ -26,7 +26,7 @@ class PayrollRepository implements PayrollRepositoryInterface
     public function latestPayrollsWithUserQuery(?string $group = null, ?int $projectId = null): \Illuminate\Database\Eloquent\Builder
     {
         $query = Payroll::query()
-            ->with(['user', 'project:id,name,client,status,phase'])
+            ->with(['user', 'project:id,name,client,status,phase', 'cutoff:id,start_date,end_date'])
             ->latest();
 
         $this->applyRoleGroupFilter($query, $group, 'role');
@@ -35,11 +35,12 @@ class PayrollRepository implements PayrollRepositoryInterface
         return $query;
     }
 
-    public function totalPayableByStatuses(array $statuses, ?string $group = null, ?int $projectId = null): float
+    public function totalPayableByStatuses(array $statuses, ?string $group = null, ?int $projectId = null, string $search = '', string $cutoffStart = '', string $cutoffEnd = ''): float
     {
         $query = Payroll::query()->whereIn('status', $statuses);
         $this->applyRoleGroupFilter($query, $group, 'role');
         $this->applyProjectFilter($query, $projectId);
+        $this->applyPayrollListFilters($query, $search, $cutoffStart, $cutoffEnd);
 
         return (float) $query->sum('net');
     }
@@ -458,5 +459,29 @@ class PayrollRepository implements PayrollRepositoryInterface
                 $sub->whereRaw("{$roleField} not like ?", ['%' . $matcher . '%']);
             }
         });
+    }
+
+    private function applyPayrollListFilters($query, string $search, string $cutoffStart = '', string $cutoffEnd = ''): void
+    {
+        if ($search !== '') {
+            $query->where(function ($builder) use ($search) {
+                $builder
+                    ->where('worker_name', 'like', "%{$search}%")
+                    ->orWhere('role', 'like', "%{$search}%")
+                    ->orWhere('status', 'like', "%{$search}%");
+            });
+        }
+
+        $this->applyCutoffRangeFilter($query, $cutoffStart, $cutoffEnd);
+    }
+
+    private function applyCutoffRangeFilter($query, string $cutoffStart = '', string $cutoffEnd = ''): void
+    {
+        if ($cutoffStart !== '' && preg_match('/^\d{4}-\d{2}-\d{2}$/', $cutoffStart)) {
+            $query->whereHas('cutoff', fn ($q) => $q->where('start_date', '>=', $cutoffStart));
+        }
+        if ($cutoffEnd !== '' && preg_match('/^\d{4}-\d{2}-\d{2}$/', $cutoffEnd)) {
+            $query->whereHas('cutoff', fn ($q) => $q->where('end_date', '<=', $cutoffEnd));
+        }
     }
 }

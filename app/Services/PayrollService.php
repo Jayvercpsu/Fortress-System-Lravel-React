@@ -57,8 +57,26 @@ class PayrollService
             });
         }
 
+        $cutoffStart = trim((string) $request->query('cutoff_start', ''));
+        $cutoffEnd = trim((string) $request->query('cutoff_end', ''));
+
+        // Filter payroll rows whose cutoff period falls entirely within the selected range.
+        if ($cutoffStart !== '' && preg_match('/^\d{4}-\d{2}-\d{2}$/', $cutoffStart)) {
+            $query->whereHas('cutoff', fn ($q) => $q->where('start_date', '>=', $cutoffStart));
+        }
+        if ($cutoffEnd !== '' && preg_match('/^\d{4}-\d{2}-\d{2}$/', $cutoffEnd)) {
+            $query->whereHas('cutoff', fn ($q) => $q->where('end_date', '<=', $cutoffEnd));
+        }
+
         $paginator = $query->paginate($perPage, ['*'], 'page', $page)->withQueryString();
-        $totalPayable = $this->payrollRepository->totalPayableByStatuses(Payroll::payableStatuses(), $group, $selectedProjectId);
+        $totalPayable = $this->payrollRepository->totalPayableByStatuses(
+            Payroll::payableStatuses(),
+            $group,
+            $selectedProjectId,
+            $search,
+            $cutoffStart,
+            $cutoffEnd
+        );
         $workerOptions = $this->manualPayrollWorkerOptions($group, $selectedProjectId);
 
         return [
@@ -70,6 +88,8 @@ class PayrollService
             'selectedProject' => $selectedProject ? $this->projectPayload($selectedProject) : null,
             'payrollTable' => [
                 'search' => $search,
+                'cutoff_start' => $cutoffStart,
+                'cutoff_end' => $cutoffEnd,
                 'per_page' => $paginator->perPage(),
                 'current_page' => $paginator->currentPage(),
                 'last_page' => max(1, $paginator->lastPage()),
@@ -756,7 +776,9 @@ class PayrollService
             'projectOptions' => $this->projectOptionsPayload(null, $group),
             'selectedProject' => null,
             'payrollTable' => [
-                'search' => '',
+                'search' => trim((string) $request->query('search', '')),
+                'cutoff_start' => trim((string) $request->query('cutoff_start', '')),
+                'cutoff_end' => trim((string) $request->query('cutoff_end', '')),
                 'per_page' => 50,
                 'current_page' => 1,
                 'last_page' => 1,

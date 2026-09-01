@@ -83,6 +83,14 @@ accounts:
       address: "Gun-ob, Lapu-Lapu City, Cebu"
       profile_photo_path: "demo/fortress-building/co-profile.jpg"
 
+  project_manager:
+    email: "projectmanager@buildbooks.com"
+    password: "password"
+    role: "project_manager"
+    fullname: "Fortress Demo Project Manager"
+    landingPath: "/project-manager"
+    label: "project manager"
+
   portal_client:
     email: "portal.client@buildbooks.com"
     password: "password"

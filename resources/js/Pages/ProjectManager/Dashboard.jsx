@@ -45,6 +45,11 @@ const phaseColor = {
 
 const dateOnly = (value) => (value ? String(value).slice(0, 10) : '-');
 
+const dateTime = (value) => value ? new Date(value).toLocaleString('en-PH', {
+    month: 'short', day: 'numeric', year: 'numeric',
+    hour: '2-digit', minute: '2-digit', hour12: true
+}) : '-';
+
 export default function ProjectManagerDashboard({
     projects = [],
     stats = {},
@@ -95,6 +100,7 @@ export default function ProjectManagerDashboard({
                                         <th style={{ padding: '8px 10px' }}>Foreman</th>
                                         <th style={{ padding: '8px 10px' }}>Scope of Work</th>
                                         <th style={{ padding: '8px 10px' }}>% Done</th>
+                                        <th style={{ padding: '8px 10px' }}>Submitted</th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -113,6 +119,9 @@ export default function ProjectManagerDashboard({
                                             <td style={{ padding: '8px 10px', color: 'var(--text-muted)' }}>{row.scope_of_work}</td>
                                             <td style={{ padding: '8px 10px', ...mono, fontWeight: 700 }}>
                                                 {Number(row.percent_completed || 0).toFixed(1)}%
+                                            </td>
+                                            <td style={{ padding: '8px 10px', ...mono, fontSize: 11, color: 'var(--text-muted)' }}>
+                                                {dateTime(row.submitted_at)}
                                             </td>
                                         </tr>
                                     ))}

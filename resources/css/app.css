@@ -284,6 +284,31 @@
     transform: none;
 }
 
+/* Reusable DateRangePicker (connected range selection) */
+.bb-datepicker--range .react-datepicker__day--in-range,
+.bb-datepicker--range .react-datepicker__day--in-selecting-range {
+    background: color-mix(in srgb, var(--active-bg) 40%, transparent);
+    color: var(--active-text);
+    border-radius: 0;
+}
+
+.bb-datepicker--range .react-datepicker__day--range-start,
+.bb-datepicker--range .react-datepicker__day--range-end {
+    background: linear-gradient(135deg, var(--active-text), var(--success));
+    color: #fff;
+    font-weight: 700;
+}
+
+.bb-datepicker--range .react-datepicker__day--range-start {
+    border-top-left-radius: 12px;
+    border-bottom-left-radius: 12px;
+}
+
+.bb-datepicker--range .react-datepicker__day--range-end {
+    border-top-right-radius: 12px;
+    border-bottom-right-radius: 12px;
+}
+
 /* Reusable TimePickerInput (react-datepicker) */
 .bb-timepicker {
     width: 220px;

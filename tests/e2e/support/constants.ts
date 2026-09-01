@@ -53,6 +53,12 @@ export const ACCOUNTS = {
         landingPath: data.accounts.co_foreman.landingPath,
         label: data.accounts.co_foreman.label,
     },
+    project_manager: {
+        email: data.accounts.project_manager.email,
+        password: data.accounts.project_manager.password,
+        landingPath: data.accounts.project_manager.landingPath,
+        label: data.accounts.project_manager.label,
+    },
 } as const;
 
 export type RoleKey = Exclude<keyof typeof ACCOUNTS, 'co_foreman'>;

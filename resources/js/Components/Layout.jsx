@@ -120,6 +120,8 @@ export default function Layout({ children }) {
             : '/';
     const isHrSpecialProjectPage =
         user?.role === 'hr' && /^\/projects\/\d+\/(payments|financials)$/.test(currentPath);
+    const isProjectManagerProjectPage =
+        user?.role === 'project_manager' && /^\/project-manager\/projects\/\d+$/.test(currentPath);
 
     const [headerTitle, setHeaderTitle] = useState('');
     const [showLogoutModal, setShowLogoutModal] = useState(false);
@@ -315,11 +317,12 @@ export default function Layout({ children }) {
                             '/payroll/run': ['/payroll', '/payroll/worker-rates'],
                         };
                         const aliases = aliasPathsByHref[itemPath] || [];
-                        const active =
-                            currentPath === itemPath ||
-                            aliases.includes(currentPath) ||
-                            (!exactOnly && itemPath !== '/' && currentPath.startsWith(`${itemPath}/`)) ||
-                            (isHrSpecialProjectPage && itemPath === '/hr');
+const active =
+        currentPath === itemPath ||
+        aliases.includes(currentPath) ||
+        (!exactOnly && itemPath !== '/' && currentPath.startsWith(`${itemPath}/`)) ||
+        (isHrSpecialProjectPage && itemPath === '/hr') ||
+        (isProjectManagerProjectPage && itemPath === '/project-manager');
 
                         return (
                             <Link

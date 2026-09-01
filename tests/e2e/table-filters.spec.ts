@@ -147,6 +147,85 @@ test('foreman tables honor per-page controls and pagination', async ({ page }) =
     }
 });
 
+test('project manager payroll cutoff date range filter is aligned with the search box and filters server-side', async ({ page }) => {
+    await loginAs(page, 'project_manager');
+    await page.goto('/project-manager/payroll');
+
+    const searchBox = page.locator('input[placeholder="Search payroll..."]');
+    await expect(searchBox).toBeVisible({ timeout: 20_000 });
+
+    const rangeInput = page.locator('input[placeholder="Select cutoff range…"]');
+    await expect(rangeInput).toBeVisible();
+
+    // The cutoff range picker is rendered inline with the search box (same toolbar row).
+    const searchToolbar = searchBox.locator('xpath=..');
+    await expect(searchToolbar.locator('xpath=.//input[@placeholder="Select cutoff range…"]')).toBeVisible();
+
+    const beforeRowTotal = await readTableTotal(page);
+    const beforePayableTotal = await readPayrollTotal(page);
+
+    // Open the calendar and navigate to January 2026 via the custom header selects.
+    await rangeInput.click();
+    const calendar = page.locator('.bb-datepicker');
+    await expect(calendar).toBeVisible();
+    await calendar.locator('.bb-datepicker-select').nth(0).selectOption('0'); // January
+    await calendar.locator('.bb-datepicker-select').nth(1).selectOption('2026');
+
+    await calendar
+        .locator('.react-datepicker__day:not(.react-datepicker__day--outside-month)')
+        .filter({ hasText: /^5$/ })
+        .first()
+        .click();
+    await calendar
+        .locator('.react-datepicker__day:not(.react-datepicker__day--outside-month)')
+        .filter({ hasText: /^25$/ })
+        .first()
+        .click();
+
+    // Picking both dates navigates with the cutoff params (server-side filter).
+    await expect(page).toHaveURL(/(?:\?|&)cutoff_start=2026-01-05(?:&|$)/);
+    await expect(page).toHaveURL(/(?:\?|&)cutoff_end=2026-01-25(?:&|$)/);
+
+    // The input reflects the committed range.
+    await expect(rangeInput).toHaveValue(/2026-01-05 .* 2026-01-25/);
+
+    // The filtered total is strictly smaller than the unfiltered total.
+    await expect(async () => {
+        expect(await readTableTotal(page)).toBeLessThan(beforeRowTotal);
+    }).toPass({ timeout: 10_000 });
+
+    // The filtered Total Payable header is strictly smaller than the unfiltered total.
+    await expect(async () => {
+        expect(await readPayrollTotal(page)).toBeLessThan(beforePayableTotal);
+    }).toPass({ timeout: 10_000 });
+
+    // The header label changes to "Filtered Total Payable" when filters are active.
+    await expect(page.locator('text=Filtered Total Payable')).toBeVisible();
+
+    // Clear filter removes the params and restores the full list.
+    await page.getByRole('button', { name: 'Clear filter' }).click();
+    await expect(page).not.toHaveURL(/cutoff_start=/);
+    await expect(page.getByRole('button', { name: 'Clear filter' })).toBeVisible();
+
+    // The header label reverts to "Total Payable" and amount restores.
+    await expect(page.locator('text=Total Payable')).toBeVisible();
+    await expect(async () => {
+        expect(await readPayrollTotal(page)).toBe(beforePayableTotal);
+    }).toPass({ timeout: 10_000 });
+});
+
+async function readTableTotal(page: Page): Promise<number> {
+    const text = await page.getByText(/^Showing \d+-\d+ of \d+$/).last().innerText();
+    const match = text.match(/ of (\d+)$/);
+    return Number(match?.[1] || 0);
+}
+
+async function readPayrollTotal(page: Page): Promise<number> {
+    const text = await page.locator('text=/Total Payable|Filtered Total Payable/').first().innerText();
+    const match = text.match(/P\s*([\d,]+\.?\d*)/);
+    return match ? Number(match[1].replace(/,/g, '')) : 0;
+}
+
 async function selectPerPage(page: Page, value: string) {
     const label = page.locator('span').filter({ hasText: /^Per page$/ }).last();
     await label.locator('xpath=following-sibling::select[1]').selectOption(value);

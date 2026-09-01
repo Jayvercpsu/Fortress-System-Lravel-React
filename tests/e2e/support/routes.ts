@@ -69,6 +69,11 @@ export const routeCoverage: Record<RoleKey, RouteExpectation[]> = {
         // { name: 'Foreman attendance page', path: '/foreman/attendance', bodyText: 'Daily Attendance' },
         { name: 'Settings page', path: '/settings', bodyText: 'Account Settings' },
     ],
+    project_manager: [
+        { name: 'Project manager dashboard', path: '/project-manager', bodyText: 'Project Manager Dashboard' },
+        { name: 'Project manager payroll page', path: '/project-manager/payroll', bodyText: 'Payroll (View Only)' },
+        { name: 'Project manager settings', path: '/project-manager/settings', bodyText: 'Account Settings' },
+    ],
 };
 
 export const forbiddenCoverage: Record<RoleKey, string[]> = {
@@ -92,6 +97,12 @@ export const forbiddenCoverage: Record<RoleKey, string[]> = {
         '/kpi',
         '/kpi/print',
         '/kpi/export',
+    ],
+    project_manager: [
+        '/payroll/run',
+        '/payroll',
+        '/users',
+        '/kpi',
     ],
 };
 

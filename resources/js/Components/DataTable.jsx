@@ -34,6 +34,8 @@ export default function DataTable({
     onServerPerPageChange,
     topLeftExtra = null,
     topRightExtra = null,
+    hidePerPage = false,
+    hideSearch = false,
     perPageLabelStyle = null,
     searchInputStyle = null,
     getRowStyle,
@@ -137,39 +139,45 @@ export default function DataTable({
             <style>{'@keyframes dataTableShimmer{0%{background-position:100% 0}100%{background-position:-100% 0}}'}</style>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, flexWrap: 'wrap' }}>
                 <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12, flexWrap: 'wrap', flex: 1, minWidth: 0 }}>
-                    <TextInput
-                        type="text"
-                        value={serverSide ? serverQueryDraft : query}
-                        onChange={(e) => (serverSide ? setServerQueryDraft(e.target.value) : setQuery(e.target.value))}
-                        placeholder={searchPlaceholder}
-                        disabled={showSkeleton}
-                        style={{ ...controlStyle, minWidth: 0, maxWidth: 420, flex: '1 1 260px', width: '100%', ...(searchInputStyle || {}) }}
-                    />
+                    {!hideSearch && (
+                        <TextInput
+                            type="text"
+                            value={serverSide ? serverQueryDraft : query}
+                            onChange={(e) => (serverSide ? setServerQueryDraft(e.target.value) : setQuery(e.target.value))}
+                            placeholder={searchPlaceholder}
+                            disabled={showSkeleton}
+                            style={{ ...controlStyle, minWidth: 0, maxWidth: 420, flex: '1 1 260px', width: '100%', ...(searchInputStyle || {}) }}
+                        />
+                    )}
                     {topLeftExtra}
                 </div>
 
                 <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8, flexWrap: 'wrap' }}>
                     {topRightExtra}
-                    <span style={{ fontSize: 12, color: 'var(--text-muted)', alignSelf: 'center', ...(perPageLabelStyle || {}) }}>Per page</span>
-                    <SelectInput
-                        value={serverSide ? serverPerPage : perPage}
-                        onChange={(e) =>
-                            serverSide
-                                ? (() => {
-                                    setServerLoading(true);
-                                    onServerPerPageChange?.(Number(e.target.value));
-                                })()
-                                : setPerPage(Number(e.target.value))
-                        }
-                        disabled={showSkeleton}
-                        style={controlStyle}
-                    >
-                        {pageSizeOptions.map((size) => (
-                            <option key={size} value={size}>
-                                {size}
-                            </option>
-                        ))}
-                    </SelectInput>
+                    {!hidePerPage && (
+                        <>
+                            <span style={{ fontSize: 12, color: 'var(--text-muted)', alignSelf: 'center', ...(perPageLabelStyle || {}) }}>Per page</span>
+                            <SelectInput
+                                value={serverSide ? serverPerPage : perPage}
+                                onChange={(e) =>
+                                    serverSide
+                                        ? (() => {
+                                            setServerLoading(true);
+                                            onServerPerPageChange?.(Number(e.target.value));
+                                        })()
+                                        : setPerPage(Number(e.target.value))
+                                }
+                                disabled={showSkeleton}
+                                style={controlStyle}
+                            >
+                                {pageSizeOptions.map((size) => (
+                                    <option key={size} value={size}>
+                                        {size}
+                                    </option>
+                                ))}
+                            </SelectInput>
+                        </>
+                    )}
                 </div>
             </div>
 
