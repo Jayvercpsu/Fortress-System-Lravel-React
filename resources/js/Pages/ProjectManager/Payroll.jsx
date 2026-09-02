@@ -192,6 +192,7 @@ export default function ProjectManagerPayroll({ payrolls = [], totalPayable = 0,
                      <ActionButton
                          type="button"
                          variant="neutral"
+                         className="bb-clear-filter-btn"
                          onClick={() => navigateTable({ search: '', cutoff_start: '', cutoff_end: '', page: 1 })}
                          style={{ padding: '8px 12px', fontSize: 13 }}
                      >

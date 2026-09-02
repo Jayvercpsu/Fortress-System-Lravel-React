@@ -137,3 +137,15 @@ which increases bundle size, reduces readability, and creates maintenance burden
 5. **Verify during changes** — When editing a file, scan for and remove any unused code you encounter in the modified scope.
 
 6. **Lint/typecheck catches this** — The build/lint step (Rule 1 in Code Change Verification) should surface unused code. Fix warnings before finishing.
+
+---
+
+## Git Rules
+
+## 🎯 Purpose
+
+Prevent accidental commits and keep the user in full control of version control.
+
+## ✅ Required Rules
+
+1. **Never auto-commit.** Do not run `git commit` or `git add` unless the user explicitly asks for it. Make the code changes, verify them, and leave committing to the user.

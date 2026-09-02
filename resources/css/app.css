@@ -389,3 +389,10 @@
         0 0 0 1px color-mix(in srgb, var(--active-text) 25%, transparent);
     transform: translateY(-2px);
 }
+
+/* Clear filter button hover opacity */
+@media (hover: hover) and (pointer: fine) {
+    .bb-clear-filter-btn:hover {
+        opacity: 0.9;
+    }
+}

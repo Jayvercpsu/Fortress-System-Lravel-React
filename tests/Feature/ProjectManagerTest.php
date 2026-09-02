@@ -34,7 +34,7 @@ class ProjectManagerTest extends TestCase
             'location' => 'QC',
             'assigned' => $this->foreman->fullname,
             'status' => 'ACTIVE',
-            'phase' => 'CONSTRUCTION',
+            'phase' => 'Construction',
             'overall_progress' => 25,
         ]);
     }

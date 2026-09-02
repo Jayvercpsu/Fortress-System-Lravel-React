@@ -25,8 +25,10 @@ class ProjectManagerService
 
     public function dashboardPayload(Request $request): array
     {
+        $totalProjectsCount = Project::query()->count();
+
         $projects = Project::query()
-            ->orderBy('phase')
+            ->where('phase', 'Construction')
             ->orderBy('name')
             ->get(['id', 'name', 'client', 'phase', 'status', 'overall_progress', 'assigned'])
             ->map(fn (Project $project) => $this->projectListItem($project))
@@ -41,7 +43,7 @@ class ProjectManagerService
         $recentSubmissions = WeeklyAccomplishment::query()
             ->where('is_placeholder', false)
             ->with('foreman:id,fullname', 'project:id,name')
-            ->orderByDesc('week_start')
+            ->orderByDesc('created_at')
             ->limit(10)
             ->get(['id', 'foreman_id', 'project_id', 'scope_of_work', 'percent_completed', 'week_start', 'created_at'])
             ->map(fn (WeeklyAccomplishment $row) => [
@@ -64,7 +66,7 @@ class ProjectManagerService
         return [
             'projects' => $projects,
             'stats' => [
-                'total_projects' => $projects->count(),
+                'total_projects' => $totalProjectsCount,
                 'construction_projects' => $projects->where('phase', 'Construction')->count(),
                 'total_foremen' => $foremen->count(),
                 'pending_accomplishments' => WeeklyAccomplishment::query()
@@ -87,8 +89,7 @@ class ProjectManagerService
         $accomplishmentsQuery = WeeklyAccomplishment::query()
             ->where('project_id', $project->id)
             ->with('foreman:id,fullname')
-            ->orderBy('week_start')
-            ->orderBy('scope_of_work');
+            ->orderByDesc('created_at');
 
         $accomplishmentsPaginator = $accomplishmentsQuery
             ->paginate($perPage, ['*'], 'acc_page', $request->query('acc_page', 1));
@@ -110,7 +111,7 @@ class ProjectManagerService
             ->where('project_id', $project->id)
             ->selectRaw('worker_name, worker_role, COALESCE(SUM(hours), 0) as total_hours, COUNT(*) as days_logged, MAX(created_at) as latest_submit')
             ->groupBy('worker_name', 'worker_role')
-            ->orderBy('worker_name');
+            ->orderByDesc('latest_submit');
 
         $attendanceSummaryPaginator = $attendanceSummaryQuery
             ->paginate($perPage, ['*'], 'att_page', $request->query('att_page', 1));

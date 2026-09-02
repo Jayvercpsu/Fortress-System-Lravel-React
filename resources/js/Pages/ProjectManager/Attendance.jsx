@@ -158,6 +158,7 @@ export default function ProjectManagerAttendance({ attendances = [], projects = 
                     <ActionButton
                         type="button"
                         variant="neutral"
+                        className="bb-clear-filter-btn"
                         onClick={() => navigateTable({ search: '', project_id: '', foreman_id: '', date: '', page: 1 })}
                         style={{ padding: '8px 12px', fontSize: 13 }}
                     >
