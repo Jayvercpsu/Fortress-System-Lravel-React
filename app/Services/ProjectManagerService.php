@@ -60,7 +60,7 @@ class ProjectManagerService
 
         // Projects with low reported progress (potential red flags for counter-checking).
         $lowProgressProjects = $projects
-            ->filter(fn (array $project) => $project['overall_progress'] > 0 && $project['overall_progress'] < 30)
+            ->filter(fn (array $project) => $project['overall_progress'] >= 0 && $project['overall_progress'] < 30)
             ->values();
 
         return [
