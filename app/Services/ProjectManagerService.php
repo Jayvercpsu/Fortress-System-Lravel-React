@@ -25,7 +25,7 @@ class ProjectManagerService
 
     public function dashboardPayload(Request $request): array
     {
-        $totalProjectsCount = Project::query()->count();
+        $totalProjectsCount = Project::query()->where('phase', 'Construction')->count();
 
         $projects = Project::query()
             ->where('phase', 'Construction')
@@ -67,7 +67,7 @@ class ProjectManagerService
             'projects' => $projects,
             'stats' => [
                 'total_projects' => $totalProjectsCount,
-                'construction_projects' => $projects->where('phase', 'Construction')->count(),
+                'low_progress_projects' => $lowProgressProjects->count(),
                 'total_foremen' => $foremen->count(),
                 'pending_accomplishments' => WeeklyAccomplishment::query()
                     ->where('is_placeholder', false)

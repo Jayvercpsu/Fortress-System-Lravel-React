@@ -65,7 +65,7 @@ export default function ProjectManagerDashboard({
             <div style={{ display: 'grid', gap: 16 }}>
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
                     <StatCard label="Total Projects" value={stats.total_projects ?? 0} color="#60a5fa" />
-                    <StatCard label="Construction Projects" value={stats.construction_projects ?? 0} color="#fbbf24" />
+                    <StatCard label="Low Progress Projects" value={stats.low_progress_projects ?? 0} color="#f87171" />
                     <StatCard label="Total Foremen" value={stats.total_foremen ?? 0} color="#4ade80" />
                     <StatCard
                         label="Accomplishment Rows"

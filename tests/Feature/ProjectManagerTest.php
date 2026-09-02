@@ -57,8 +57,33 @@ class ProjectManagerTest extends TestCase
             ->assertInertia(fn ($page) => $page
                 ->component('ProjectManager/Dashboard')
                 ->where('stats.total_projects', 1)
+                ->where('stats.low_progress_projects', 1)
                 ->has('recentSubmissions')
                 ->has('lowProgressProjects'));
+    }
+
+    public function test_total_projects_counts_only_construction_phase(): void
+    {
+        // Create a Design project — it should NOT be counted in total_projects.
+        Project::create([
+            'name' => 'Design Only Project',
+            'client' => 'Design Client',
+            'type' => 'Residential',
+            'location' => 'Makati',
+            'assigned' => $this->foreman->fullname,
+            'status' => 'ACTIVE',
+            'phase' => 'Design',
+            'overall_progress' => 50,
+        ]);
+
+        $this->actingAs($this->projectManager)
+            ->get('/project-manager')
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page
+                // total_projects should be 1 (only the Construction project from setUp), not 2.
+                ->where('stats.total_projects', 1)
+                // The Design project should not appear in the projects list.
+                ->where('projects', fn ($projects) => $projects->every('phase', 'Construction')));
     }
 
     public function test_dashboard_shows_recent_submissions(): void
