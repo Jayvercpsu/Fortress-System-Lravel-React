@@ -32,6 +32,23 @@ class ProjectManagerController extends Controller
         return Inertia::render('ProjectManager/Payroll', $this->projectManagerService->payrollPayload($request));
     }
 
+    public function accomplishments(Request $request)
+    {
+        return Inertia::render('ProjectManager/Accomplishments', $this->projectManagerService->accomplishmentPayload($request));
+    }
+
+    public function storeAccomplishments(Request $request)
+    {
+        $this->projectManagerService->storeAccomplishments($request);
+
+        return redirect()
+            ->route('project_manager.accomplishments', [
+                'project_id' => (int) $request->input('project_id'),
+                'foreman_id' => (int) $request->input('foreman_id'),
+            ])
+            ->with('success', 'Accomplishment updated successfully.');
+    }
+
     public function project(Request $request, Project $project)
     {
         return Inertia::render('ProjectManager/Project', $this->projectManagerService->projectPayload($request, $project));

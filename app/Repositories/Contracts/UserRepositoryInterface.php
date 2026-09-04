@@ -7,7 +7,7 @@ use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 
 interface UserRepositoryInterface
 {
-    public function paginateForManagement(string $search, int $perPage, ?string $managerRole = null): LengthAwarePaginator;
+    public function paginateForManagement(string $search, int $perPage, ?string $managerRole = null, ?int $managerId = null): LengthAwarePaginator;
 
     public function loadDetail(User $user): User;
 

@@ -157,11 +157,13 @@ Route::middleware(['auth', 'role:client'])->group(function () {
 });
 
 // Project Manager — read-only counter-checking of foreman submissions,
-// attendance and payroll. No mutation endpoints are exposed for this role.
+// attendance and payroll, plus editing weekly accomplishments on behalf of the project's foremen.
 Route::middleware(['auth', 'role:project_manager'])->group(function () {
     Route::get('/project-manager', [ProjectManagerController::class, 'dashboard'])->name('project_manager.dashboard');
     Route::get('/project-manager/attendance', [ProjectManagerController::class, 'attendance'])->name('project_manager.attendance');
     Route::get('/project-manager/payroll', [ProjectManagerController::class, 'payroll'])->name('project_manager.payroll');
+    Route::get('/project-manager/accomplishments', [ProjectManagerController::class, 'accomplishments'])->name('project_manager.accomplishments');
+    Route::post('/project-manager/accomplishments', [ProjectManagerController::class, 'storeAccomplishments'])->name('project_manager.accomplishments.store');
     Route::get('/project-manager/projects/{project}', [ProjectManagerController::class, 'project'])->name('project_manager.project');
     Route::get('/project-manager/settings', [ProjectManagerController::class, 'settings'])->name('project_manager.settings');
     Route::post('/project-manager/settings', [ProjectManagerController::class, 'updateSettings'])->name('project_manager.settings.update');

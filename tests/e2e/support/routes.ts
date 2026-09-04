@@ -71,6 +71,7 @@ export const routeCoverage: Record<RoleKey, RouteExpectation[]> = {
     ],
     project_manager: [
         { name: 'Project manager dashboard', path: '/project-manager', bodyText: 'Project Manager Dashboard' },
+        { name: 'Project manager accomplishment page', path: '/project-manager/accomplishments', bodyText: 'Weekly Accomplishment %' },
         { name: 'Project manager payroll page', path: '/project-manager/payroll', bodyText: 'Payroll (View Only)' },
         { name: 'Project manager settings', path: '/project-manager/settings', bodyText: 'Account Settings' },
     ],

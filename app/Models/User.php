@@ -36,7 +36,7 @@ class User extends Authenticatable {
 
     public const LEGACY_PROJECT_ACCESS_EMAIL = 'headadmin@buildbooks.com';
 
-    protected $fillable = ['fullname', 'username', 'email', 'password', 'role', 'default_rate_per_hour'];
+    protected $fillable = ['fullname', 'username', 'email', 'password', 'role', 'default_rate_per_hour', 'created_by'];
     protected $hidden   = ['password', 'remember_token'];
 
     protected $casts = [

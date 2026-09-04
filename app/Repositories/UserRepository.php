@@ -9,7 +9,7 @@ use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 
 class UserRepository implements UserRepositoryInterface
 {
-    public function paginateForManagement(string $search, int $perPage, ?string $managerRole = null): LengthAwarePaginator
+    public function paginateForManagement(string $search, int $perPage, ?string $managerRole = null, ?int $managerId = null): LengthAwarePaginator
     {
         // Master admins are never managed from the Users page. Head admins are
         // only visible to the master admin, who owns and manages them.
@@ -19,6 +19,22 @@ class UserRepository implements UserRepositoryInterface
         }
 
         $query = User::query()->whereNotIn('role', $excludedRoles);
+
+        // Head admins only see users they created.
+        // The legacy buildbooks account sees only users created by master admins.
+        if ($managerRole === User::ROLE_HEAD_ADMIN && $managerId !== null) {
+            $isLegacyAccount = auth()->user()?->email === User::LEGACY_PROJECT_ACCESS_EMAIL;
+            if ($isLegacyAccount) {
+                $masterAdminIds = User::query()->where('role', User::ROLE_MASTER_ADMIN)->pluck('id');
+                $query->where(function ($builder) use ($masterAdminIds, $managerId) {
+                    $builder->whereIn('created_by', $masterAdminIds)
+                        ->orWhereNull('created_by')
+                        ->orWhere('created_by', $managerId);
+                });
+            } else {
+                $query->where('created_by', $managerId);
+            }
+        }
 
         if ($search !== '') {
             $query->where(function ($builder) use ($search) {

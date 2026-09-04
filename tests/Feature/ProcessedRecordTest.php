@@ -313,6 +313,56 @@ class ProcessedRecordTest extends TestCase
         ]);
     }
 
+    public function test_submit_expense_with_multiple_categories_creates_one_expense_per_item(): void
+    {
+        $record = $this->makeExpenseRecord([
+            'status' => 'pending',
+            'ai_parsed_data' => [
+                'date' => '2026-09-04',
+                'location' => 'Cebu City',
+                'items' => [
+                    ['description' => '50 Bags Portland Cement', 'category' => 'Materials', 'quantity' => 50, 'unit_price' => 250, 'amount' => 12500],
+                    ['description' => 'Subcontractor - Masonry (40 hrs)', 'category' => 'Labor', 'quantity' => 40, 'unit_price' => 700, 'amount' => 28000],
+                    ['description' => 'Mini Excavator Rental (2 days)', 'category' => 'Equipment', 'quantity' => 2, 'unit_price' => 9000, 'amount' => 18000],
+                    ['description' => 'Site Safety Supplies (Gloves/Vests)', 'category' => 'Miscellaneous', 'quantity' => 1, 'unit_price' => 4200, 'amount' => 4200],
+                    ['description' => 'Local Municipal Permit Fee (Expedite)', 'category' => 'Others', 'quantity' => 1, 'unit_price' => 6500, 'amount' => 6500],
+                ],
+                'subtotal' => 69200,
+                'tax' => 0,
+                'total' => 69200,
+                'paid_by' => 'Maria Santos',
+            ],
+        ]);
+
+        $response = $this->actingAs($this->headAdmin)
+            ->postJson("/processed-records/{$record->id}/confirm");
+
+        $response->assertOk();
+
+        $this->assertDatabaseCount('expenses', 5);
+
+        foreach ([
+            ['Materials', 12500],
+            ['Labor', 28000],
+            ['Equipment', 18000],
+            ['Miscellaneous', 4200],
+            ['Others', 6500],
+        ] as [$category, $amount]) {
+            $this->assertDatabaseHas('expenses', [
+                'project_id' => $this->project->id,
+                'category' => $category,
+                'amount' => $amount,
+            ]);
+        }
+
+        // Guard against the old behavior: one combined row under the first item's category.
+        $this->assertDatabaseMissing('expenses', [
+            'project_id' => $this->project->id,
+            'category' => 'Materials',
+            'amount' => 69200,
+        ]);
+    }
+
     public function test_submit_requires_project(): void
     {
         $record = $this->makeRecord([
@@ -656,7 +706,7 @@ class ProcessedRecordTest extends TestCase
                 'date' => '2026-08-26 to 2026-08-27',
                 'location' => 'Fortress Construction Site',
                 'items' => [
-                    ['description' => 'Cement Bags', 'category' => 'Materials', 'quantity' => 1, 'unit_price' => 35, 'amount' => 35],
+                    ['description' => 'Cement Bags', 'category' => 'Materials', 'quantity' => 1, 'unit_price' => 300, 'amount' => 300],
                 ],
                 'subtotal' => 300,
                 'total' => 300,

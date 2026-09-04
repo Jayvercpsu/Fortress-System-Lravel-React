@@ -4,7 +4,9 @@ namespace Tests\Feature;
 
 use App\Models\BuildProject;
 use App\Models\Expense;
+use App\Models\Project;
 use App\Models\User;
+use App\Repositories\Contracts\BuildRepositoryInterface;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
 use Tests\TestCase;
@@ -82,6 +84,69 @@ class ExpenseTrackerTest extends TestCase
             ->assertRedirect('/projects/10/build?tab=expenses');
 
         $this->assertSoftDeleted('expenses', ['id' => $expense->id]);
+    }
+
+    public function test_expenses_table_lists_latest_created_first(): void
+    {
+        $olderDate = Expense::create([
+            'project_id' => 31,
+            'category' => 'Materials',
+            'amount' => 100,
+            'note' => 'Older receipt date, created first',
+            'date' => '2026-09-04',
+        ]);
+
+        $newerCreated = Expense::create([
+            'project_id' => 31,
+            'category' => 'Labor',
+            'amount' => 200,
+            'note' => 'Newer creation, older receipt date',
+            'date' => '2026-08-01',
+        ]);
+
+        $page = app(BuildRepositoryInterface::class)->paginatedExpenses('31', '', 50);
+
+        $this->assertEquals(
+            [$newerCreated->id, $olderDate->id],
+            $page->pluck('id')->all()
+        );
+    }
+
+    public function test_paginated_expenses_include_created_at(): void
+    {
+        $expense = Expense::create([
+            'project_id' => 32,
+            'category' => 'Materials',
+            'amount' => 150,
+            'note' => 'Created-at payload check',
+            'date' => '2026-09-04',
+        ]);
+
+        $page = app(BuildRepositoryInterface::class)->paginatedExpenses('32', '', 50);
+
+        $row = collect($page->items())->firstWhere('id', $expense->id);
+
+        $this->assertNotNull($row);
+        $this->assertNotNull($row->created_at);
+    }
+
+    public function test_expenses_table_defaults_to_ten_per_page(): void
+    {
+        $project = Project::create([
+            'name' => 'Per Page Building',
+            'client' => 'ABC Corp',
+            'type' => 'Commercial',
+            'location' => 'Cebu City',
+            'phase' => 'Construction',
+            'status' => 'active',
+        ]);
+
+        $this->actingAs($this->makeUser('head_admin'))
+            ->get("/projects/{$project->id}/build")
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page
+                ->component('HeadAdmin/Build/Show')
+                ->where('expenseTable.per_page', 10));
     }
 
     public function test_admin_can_manage_expenses_but_hr_and_foreman_cannot(): void

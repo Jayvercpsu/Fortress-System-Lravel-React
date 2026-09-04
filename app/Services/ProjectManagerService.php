@@ -10,16 +10,19 @@ use Carbon\Carbon;
 use Illuminate\Http\Request;
 
 /**
- * Read-only data service for the Project Manager role.
+ * Data service for the Project Manager role.
  *
  * The PM counter-checks the accomplishments/attendance that foremen submit
- * through the JotForm flow, so these payloads intentionally expose only the
- * data needed to review and verify — never the mutation endpoints/actions.
+ * through the JotForm flow, and can also record weekly accomplishments on
+ * behalf of the project's foremen — reusing the exact same weekly grid
+ * payload/save functions the JotForm uses so both stay in sync.
  */
 class ProjectManagerService
 {
     public function __construct(
-        private readonly PayrollService $payrollService
+        private readonly PayrollService $payrollService,
+        private readonly PublicProgressService $publicProgressService,
+        private readonly ProjectService $projectService
     ) {
     }
 
@@ -273,6 +276,126 @@ class ProjectManagerService
     {
         // Reuse the existing read-only payroll index payload (no mutating actions).
         return $this->payrollService->indexPayload($request);
+    }
+
+    public function accomplishmentPayload(Request $request): array
+    {
+        $projects = Project::query()
+            ->where('phase', Project::PHASE_CONSTRUCTION)
+            ->orderBy('name')
+            ->get(['id', 'name', 'phase'])
+            ->map(fn (Project $p) => [
+                'id' => (int) $p->id,
+                'name' => (string) $p->name,
+                'phase' => (string) $p->phase,
+            ])
+            ->values();
+
+        $projectId = (int) $request->query('project_id', $projects->first()['id'] ?? 0);
+        $project = Project::query()->find($projectId);
+
+        if (!$project || $project->phase !== Project::PHASE_CONSTRUCTION) {
+            return [
+                'projects' => $projects->all(),
+                'foremen' => [],
+                'selectedProjectId' => 0,
+                'selectedForemanId' => 0,
+                'selectedForemanName' => '',
+                'selectedProjectName' => '',
+                'jotformLink' => '',
+                'weekly' => $this->emptyWeeklyGrid(),
+            ];
+        }
+
+        $projectId = (int) $project->id;
+        $assignedForemanIds = $this->projectService->assignedForemanIds($project);
+
+        $foremen = User::query()
+            ->whereIn('id', $assignedForemanIds)
+            ->where('role', User::ROLE_FOREMAN)
+            ->orderBy('fullname')
+            ->get(['id', 'fullname'])
+            ->map(fn (User $user) => ['id' => (int) $user->id, 'fullname' => (string) $user->fullname])
+            ->values();
+
+        $foremanId = (int) $request->query('foreman_id', 0);
+        if ($foremanId <= 0 || $foremen->doesntContain(fn (array $foreman) => (int) $foreman['id'] === $foremanId)) {
+            $foremanId = (int) ($foremen->first()['id'] ?? 0);
+        }
+
+        $foreman = $foremanId > 0 ? User::query()->find($foremanId) : null;
+
+        $weeklyGrid = $this->emptyWeeklyGrid();
+        $jotformLink = '';
+
+        if ($foreman && $foreman->role === User::ROLE_FOREMAN) {
+            $weeklyGrid = $this->publicProgressService->weeklyGridPayload(
+                $projectId,
+                $foremanId,
+                trim((string) ($foreman->fullname ?? ''))
+            );
+            $jotformLink = $this->projectService->resolveJotformLink($project, $foremanId);
+        }
+
+        return [
+            'projects' => $projects->all(),
+            'foremen' => $foremen->values()->all(),
+            'selectedProjectId' => $projectId,
+            'selectedForemanId' => $foremanId,
+            'selectedForemanName' => trim((string) ($foreman->fullname ?? '')),
+            'selectedProjectName' => (string) $project->name,
+            'jotformLink' => $jotformLink,
+            'weekly' => $weeklyGrid,
+        ];
+    }
+
+    public function storeAccomplishments(Request $request): void
+    {
+        $validated = $request->validate([
+            'project_id' => ['required', 'integer'],
+            'foreman_id' => ['required', 'integer'],
+            'week_start' => ['required', 'date'],
+            'scopes' => ['nullable', 'array'],
+            'scopes.*.scope_of_work' => ['required_with:scopes', 'string', 'max:255'],
+            'scopes.*.percent_completed' => ['nullable', 'numeric', 'min:0', 'max:100'],
+            'removed_scopes' => ['nullable', 'array'],
+            'removed_scopes.*' => ['nullable', 'string', 'max:255'],
+        ]);
+
+        $project = Project::query()->findOrFail((int) $validated['project_id']);
+
+        abort_if($project->phase !== Project::PHASE_CONSTRUCTION, 422, 'Only construction-phase projects accept accomplishment updates.');
+
+        $assignedForemanIds = $this->projectService->assignedForemanIds($project);
+        abort_unless(in_array((int) $validated['foreman_id'], $assignedForemanIds, true), 422, 'Selected foreman is not assigned to this project.');
+
+        $foreman = User::query()->findOrFail((int) $validated['foreman_id']);
+
+        $weekStart = Carbon::parse($validated['week_start'])->startOfWeek(Carbon::MONDAY)->toDateString();
+
+        $this->publicProgressService->saveWeeklyProgress(
+            (int) $project->id,
+            (int) $foreman->id,
+            trim((string) ($foreman->fullname ?? '')),
+            $weekStart,
+            $validated['scopes'] ?? [],
+            $validated['removed_scopes'] ?? [],
+            true
+        );
+    }
+
+    private function emptyWeeklyGrid(): array
+    {
+        return [
+            'current_week_start' => Carbon::now('Asia/Manila')
+                ->startOfWeek(Carbon::MONDAY)
+                ->toDateString(),
+            'weekly_scope_of_works' => [],
+            'weekly_scope_of_works_by_week' => [],
+            'weekly_scope_defaults_enabled' => false,
+            'weekly_scope_photo_map' => [],
+            'weekly_saved_by_week' => [],
+        ];
     }
 
     private function projectListItem(Project $project): array

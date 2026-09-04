@@ -63,6 +63,7 @@ const navByRole = {
     ],
     project_manager: [
         { label: 'Dashboard', href: '/project-manager', icon: 'fi fi-rr-dashboard' },
+        { label: 'Accomplishment', href: '/project-manager/accomplishments', icon: 'fi fi-rr-document' },
         { label: 'Attendance', href: '/project-manager/attendance', icon: 'fi fi-rr-calendar-check' },
         { label: 'Payroll', href: '/project-manager/payroll', icon: 'fi fi-rr-money-bill-wave' },
         { label: 'Settings', href: '/project-manager/settings', icon: 'fi fi-rr-settings' },

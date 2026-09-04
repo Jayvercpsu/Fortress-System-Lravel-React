@@ -11,6 +11,10 @@ export default function ConfirmationModal({ records = [], projects = [], imagePr
     const [previewImage, setPreviewImage] = useState(null);
     // Track local status and which records have been removed
     const [removedIds, setRemovedIds] = useState(new Set());
+    // Track how each record left the review list so the completion
+    // message can distinguish submitted records from rejected ones.
+    const [submittedIds, setSubmittedIds] = useState(new Set());
+    const [rejectedIds, setRejectedIds] = useState(new Set());
 
     const irrelevantRecords = records.filter(r => r.record_type === 'irrelevant');
 
@@ -49,6 +53,7 @@ export default function ConfirmationModal({ records = [], projects = [], imagePr
             }
 
             toast.success('Record submitted to project');
+            setSubmittedIds(prev => new Set([...prev, record.id]));
             handleRemove(record.id);
         } catch (err) {
             toast.error(err.message);
@@ -71,6 +76,7 @@ export default function ConfirmationModal({ records = [], projects = [], imagePr
             if (!response.ok) throw new Error('Failed to reject');
 
             toast.success('Record rejected');
+            setRejectedIds(prev => new Set([...prev, record.id]));
             handleRemove(record.id);
         } catch (err) {
             toast.error(err.message);
@@ -364,15 +370,26 @@ export default function ConfirmationModal({ records = [], projects = [], imagePr
         );
     };
 
-    // All records done — show completion message
+    // All records done — show completion message. When every record was
+    // rejected (none submitted), do not claim anything was processed.
+    const submittedCount = submittedIds.size;
     if (allDone) {
+        const nothingSubmitted = submittedCount === 0;
         return (
             <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
                 <div className="bg-white rounded-xl shadow-xl max-w-md w-full p-8 text-center">
-                    <CheckCircle size={48} className="mx-auto text-green-500 mb-4" />
-                    <h2 className="text-lg font-semibold text-gray-900 mb-2">All Done!</h2>
+                    {nothingSubmitted ? (
+                        <XCircle size={48} className="mx-auto text-gray-400 mb-4" />
+                    ) : (
+                        <CheckCircle size={48} className="mx-auto text-green-500 mb-4" />
+                    )}
+                    <h2 className="text-lg font-semibold text-gray-900 mb-2">
+                        {nothingSubmitted ? 'Done' : 'All Done!'}
+                    </h2>
                     <p className="text-sm text-gray-500 mb-6">
-                        All {totalRelevant} record(s) have been processed.
+                        {nothingSubmitted
+                            ? `All ${totalRelevant} record(s) were rejected. Nothing was saved.`
+                            : `All ${totalRelevant} record(s) have been processed.`}
                     </p>
                     <button
                         onClick={onConfirmed}

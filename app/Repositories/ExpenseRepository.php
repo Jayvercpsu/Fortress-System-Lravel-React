@@ -13,7 +13,6 @@ class ExpenseRepository implements ExpenseRepositoryInterface
     {
         return Expense::query()
             ->where('project_id', $projectId)
-            ->orderByDesc('date')
             ->orderByDesc('id')
             ->get();
     }

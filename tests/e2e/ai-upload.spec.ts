@@ -531,6 +531,80 @@ test.describe('AI Confirmation Modal', () => {
     });
 });
 
+test.describe('AI Confirmation Modal — Reject Flow', () => {
+    test('rejecting the only record does not show a processed message', async ({ page }) => {
+        const fakeRecord = {
+            id: 999,
+            record_type: 'expense',
+            status: 'pending_project',
+            project_id: null,
+            project: null,
+            image_index: 0,
+            ai_parsed_data: {
+                date: '2026-09-04',
+                items: [
+                    { description: 'Stubbed cement', category: 'Materials', quantity: 1, unit_price: 100, amount: 100 },
+                ],
+                total: 100,
+            },
+            ai_summary: 'Stubbed expense record',
+            ai_model: 'stub',
+            notes: null,
+        };
+
+        await page.route('**/processed-records**', async (route) => {
+            const request = route.request();
+            const pathname = new URL(request.url()).pathname;
+            if (request.method() === 'POST' && /\/processed-records\/\d+\/reject$/.test(pathname)) {
+                await route.fulfill({
+                    status: 200,
+                    contentType: 'application/json',
+                    body: JSON.stringify({ message: 'Record rejected' }),
+                });
+                return;
+            }
+            if (request.method() === 'POST' && pathname === '/processed-records') {
+                await route.fulfill({
+                    status: 200,
+                    contentType: 'application/json',
+                    body: JSON.stringify({
+                        records: [fakeRecord],
+                        skipped: 0,
+                        saved: 1,
+                        summary: { total: 1, attendance: 0, expense: 1, pending: 0, pending_project: 1 },
+                    }),
+                });
+                return;
+            }
+            await route.continue();
+        });
+
+        await loginAs(page, 'head_admin');
+        await page.goto('/projects');
+        await page.waitForLoadState('networkidle');
+
+        await page.getByRole('button', { name: /AI Upload/i }).click();
+
+        const fileInput = page.locator('input[type="file"]');
+        await fileInput.setInputFiles({
+            name: 'test.jpg',
+            mimeType: 'image/jpeg',
+            buffer: Buffer.from('fake-image-data'),
+        });
+
+        await page.getByRole('button', { name: /Process/i }).click();
+        await expect(page.locator('text=Review Records')).toBeVisible();
+
+        // Expand the stubbed record to reveal its action buttons
+        await page.locator('text=Record 1').click();
+        await page.getByRole('button', { name: 'Reject' }).click();
+
+        // A rejected record must not be reported as processed
+        await expect(page.getByText('were rejected')).toBeVisible();
+        await expect(page.getByText('have been processed')).toHaveCount(0);
+    });
+});
+
 test.describe('Projects Page AI Section', () => {
     test('AI Upload button is in the same toolbar row as search and create', async ({ page }) => {
         await loginAs(page, 'head_admin');

@@ -73,15 +73,24 @@ class OpenRouterService
 
     /**
      * Get the system prompt for construction record detection.
+     *
+     * @param array|null $categories Project-specific expense categories. If null, defaults are used.
      */
-    public static function getSystemPrompt(): string
+    public static function getSystemPrompt(?array $categories = null): string
     {
-        return <<<'PROMPT'
+        $categoryValues = $categories ? implode('/', $categories) : 'Materials/Transport/Food/Labor/Other';
+
+        $prompt = <<<'PROMPT'
 You are a construction project record assistant. Your job is to carefully analyze images of attendance notes and expense receipts from construction sites.
 
-═══════════════════════════════════════════════════════════
+CATEGORY GUIDELINE:
+When classifying expense items, you MUST use only the following categories:
+__CATEGORY_VALUES__
+Do NOT invent or use categories outside this list. If an expense does not fit any of these categories, classify it under the closest matching category from the list above.
+
+══════════════════════════════════════════════════════════
 MANDATORY ANALYSIS PROCESS — FOLLOW THIS ORDER:
-═══════════════════════════════════════════════════════════
+══════════════════════════════════════════════════════════
 
 BEFORE extracting any data, you MUST complete this analysis:
 
@@ -111,7 +120,7 @@ STEP 4 — VALIDATION:
 - Ensure dates are valid and in the expected range
 - Look for any data you may have missed in corners, margins, or margins
 
-═══════════════════════════════════════════════════════════
+══════════════════════════════════════════════════════════
 
 RULES:
 1. Analyze each image carefully and determine if it is an attendance record or expense receipt.
@@ -185,7 +194,7 @@ For EXPENSE records, STRUCTURED_DATA should contain:
   "date": "YYYY-MM-DD",
   "location": "city/location",
   "items": [
-    {"description": "Item name", "category": "Materials/Transport/Food/Labor/Other", "quantity": 1, "unit_price": 1000, "amount": 1000}
+    {"description": "Item name", "category": "__CATEGORY_VALUES__", "quantity": 1, "unit_price": 1000, "amount": 1000}
   ],
   "subtotal": 7700,
   "tax": 0,
@@ -198,6 +207,8 @@ For EXPENSE records, STRUCTURED_DATA should contain:
 
 If only one record is found, only return RECORD_1 block.
 PROMPT;
+
+        return str_replace('__CATEGORY_VALUES__', $categoryValues, $prompt);
     }
 
     /**

@@ -86,9 +86,8 @@ class BuildRepository implements BuildRepositoryInterface
         }
 
         return $query
-            ->orderByDesc('date')
             ->orderByDesc('id')
-            ->paginate($perPage, ['id', 'project_id', 'category', 'amount', 'note', 'date'], 'expense_page')
+            ->paginate($perPage, ['id', 'project_id', 'category', 'amount', 'note', 'date', 'created_at'], 'expense_page')
             ->withQueryString();
     }
 

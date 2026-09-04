@@ -64,9 +64,9 @@ class BuildService
         ];
 
         $expenseSearch = trim((string) $request->query('expense_search', ''));
-        $expensePerPage = (int) $request->query('expense_per_page', 5);
+        $expensePerPage = (int) $request->query('expense_per_page', 10);
         if (!in_array($expensePerPage, self::ALLOWED_PER_PAGE, true)) {
-            $expensePerPage = 5;
+            $expensePerPage = 10;
         }
 
         $expenseTotal = $this->buildRepository->expenseTotal($projectId);
@@ -82,6 +82,7 @@ class BuildService
                 'amount' => (float) $expense->amount,
                 'note' => $expense->note,
                 'date' => optional($expense->date)->toDateString(),
+                'created_at' => optional($expense->created_at)->toDateTimeString(),
             ])
             ->values();
 

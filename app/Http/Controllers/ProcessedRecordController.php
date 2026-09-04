@@ -7,6 +7,7 @@ use App\Models\Project;
 use App\Models\Attendance;
 use App\Models\Expense;
 use App\Models\Worker;
+use App\Repositories\Contracts\BuildRepositoryInterface;
 use App\Services\OpenRouterService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -16,7 +17,8 @@ use Illuminate\Support\Facades\Log;
 class ProcessedRecordController extends Controller
 {
     public function __construct(
-        protected OpenRouterService $openRouter
+        protected OpenRouterService $openRouter,
+        protected BuildRepositoryInterface $buildRepository
     ) {}
 
     /**
@@ -160,9 +162,10 @@ class ProcessedRecordController extends Controller
             ->map(fn($p) => "ID: {$p->id} | {$p->name} | Client: {$p->client} | Phase: {$p->phase}")
             ->implode("\n");
 
-        $systemPrompt = OpenRouterService::getSystemPrompt();
         $mode = $request->input('mode', 'general');
-        $prompt = $this->buildUserPrompt($existingProjects, $request->notes, $mode);
+        $projectCategories = Expense::defaultCategories();
+        $systemPrompt = OpenRouterService::getSystemPrompt($projectCategories);
+        $prompt = $this->buildUserPrompt($existingProjects, $request->notes, $mode, $projectCategories);
 
         // 2. Prepare all images for AI processing (NOT saved to disk)
         // Resize and optimize images for better AI detection accuracy
@@ -186,7 +189,7 @@ class ProcessedRecordController extends Controller
         $lastApiError = null;
 
         foreach ($imagePayloads as $imageIndex => $imagePayload) {
-            $singlePrompt = $this->buildUserPrompt($existingProjects, $request->notes, $mode);
+            $singlePrompt = $this->buildUserPrompt($existingProjects, $request->notes, $mode, $projectCategories);
             $singleResponse = $this->openRouter->chat($model, $singlePrompt, [$imagePayload], $systemPrompt);
 
             // Retry once on 429 rate limit
@@ -779,7 +782,11 @@ class ProcessedRecordController extends Controller
     }
 
     /**
-     * Create expense record from parsed data.
+     * Create expense records from parsed data.
+     *
+     * One Expense row is created per AI-detected item so multi-line receipts
+     * keep their per-line categories instead of collapsing into the first
+     * item's category with the receipt total.
      */
     protected function createExpenseRecord(ProcessedRecord $record, ?array $parsedData): void
     {
@@ -787,33 +794,87 @@ class ProcessedRecordController extends Controller
             return;
         }
 
-        $noteParts = [];
-        if (isset($parsedData['items'])) {
-            $noteParts[] = collect($parsedData['items'])->pluck('description')->implode(', ');
-        }
+        $date = $this->parseFlexibleDate($parsedData['date'] ?? null) ?? date('Y-m-d');
+
+        $sharedNoteParts = [];
         if (isset($parsedData['receipt_number'])) {
-            $noteParts[] = "Receipt: {$parsedData['receipt_number']}";
+            $sharedNoteParts[] = "Receipt: {$parsedData['receipt_number']}";
         }
         if (isset($parsedData['paid_by'])) {
-            $noteParts[] = "Paid by: {$parsedData['paid_by']}";
+            $sharedNoteParts[] = "Paid by: {$parsedData['paid_by']}";
         }
         if (isset($parsedData['remarks'])) {
-            $noteParts[] = $parsedData['remarks'];
+            $sharedNoteParts[] = $parsedData['remarks'];
         }
 
-        Expense::create([
-            'project_id' => $record->project_id,
-            'category'   => $parsedData['items'][0]['category'] ?? 'Other',
-            'amount'     => $parsedData['total'] ?? $parsedData['subtotal'] ?? 0,
-            'note'       => implode(' | ', $noteParts),
-            'date'       => $this->parseFlexibleDate($parsedData['date'] ?? null) ?? date('Y-m-d'),
-        ]);
+        $items = $parsedData['items'] ?? [];
+        if (!is_array($items)) {
+            $items = [];
+        }
+        $items = array_values(array_filter(
+            $items,
+            fn ($item) => is_array($item) && (
+                trim((string) ($item['description'] ?? '')) !== '' ||
+                (float) ($item['amount'] ?? 0) > 0
+            )
+        ));
+
+        if (empty($items)) {
+            Expense::create([
+                'project_id' => $record->project_id,
+                'category'   => $this->normalizeExpenseCategory($parsedData['items'][0]['category'] ?? null),
+                'amount'     => $parsedData['total'] ?? $parsedData['subtotal'] ?? 0,
+                'note'       => implode(' | ', $sharedNoteParts),
+                'date'       => $date,
+            ]);
+
+            return;
+        }
+
+        foreach ($items as $item) {
+            $amount = (float) ($item['amount']
+                ?? ((float) ($item['quantity'] ?? 0) * (float) ($item['unit_price'] ?? 0)));
+
+            $noteParts = [];
+            if (trim((string) ($item['description'] ?? '')) !== '') {
+                $noteParts[] = $item['description'];
+            }
+            $noteParts = array_merge($noteParts, $sharedNoteParts);
+
+            Expense::create([
+                'project_id' => $record->project_id,
+                'category'   => $this->normalizeExpenseCategory($item['category'] ?? null),
+                'amount'     => $amount,
+                'note'       => implode(' | ', $noteParts),
+                'date'       => $date,
+            ]);
+        }
     }
 
     /**
-     * Build the user prompt with project list.
+     * Map an AI-detected category onto the canonical default categories.
      */
-    protected function buildUserPrompt(string $existingProjects, ?string $notes = null, string $mode = 'general'): string
+    protected function normalizeExpenseCategory(mixed $category): string
+    {
+        $value = trim((string) $category);
+
+        foreach (Expense::defaultCategories() as $canonical) {
+            if (strcasecmp($value, $canonical) === 0) {
+                return $canonical;
+            }
+        }
+
+        if (strcasecmp($value, 'other') === 0) {
+            return 'Others';
+        }
+
+        return 'Others';
+    }
+
+    /**
+     * Build the user prompt with project list and project-specific categories.
+     */
+    protected function buildUserPrompt(string $existingProjects, ?string $notes = null, string $mode = 'general', array $projectCategories = []): string
     {
         $notesSection = '';
         if ($notes && trim($notes) !== '') {

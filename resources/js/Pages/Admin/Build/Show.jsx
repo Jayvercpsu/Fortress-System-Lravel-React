@@ -16,6 +16,19 @@ import { toastMessages } from '../../../constants/toastMessages';
 const money = (value) =>
     `P ${Number(value || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
+const formatDateTime = (value) => {
+    if (!value) return '-';
+    const parsed = new Date(String(value).replace(' ', 'T'));
+    if (Number.isNaN(parsed.getTime())) return String(value);
+    const year = parsed.getFullYear();
+    const month = String(parsed.getMonth() + 1).padStart(2, '0');
+    const day = String(parsed.getDate()).padStart(2, '0');
+    const suffix = parsed.getHours() >= 12 ? 'PM' : 'AM';
+    const hours = parsed.getHours() % 12 || 12;
+    const minutes = String(parsed.getMinutes()).padStart(2, '0');
+    return `${year}-${month}-${day} ${hours}:${minutes}${suffix}`;
+};
+
 const cardStyle = {
     background: 'var(--surface-1)',
     border: '1px solid var(--border-color)',
@@ -113,7 +126,7 @@ export default function AdminBuildShow({
     const expenseBreakdown = Array.isArray(expenseCategoryTotals) ? expenseCategoryTotals : [];
     const expenseTableState = {
         search: expenseTable?.search ?? '',
-        perPage: Number(expenseTable?.per_page ?? 5),
+        perPage: Number(expenseTable?.per_page ?? 10),
         page: Number(expenseTable?.current_page ?? 1),
         lastPage: Number(expenseTable?.last_page ?? 1),
         total: Number(expenseTable?.total ?? expenses.length ?? 0),
@@ -284,8 +297,14 @@ export default function AdminBuildShow({
             key: 'amount',
             label: 'Amount',
             align: 'right',
-            render: (expense) => <div style={{ fontWeight: 700 }}>{money(expense.amount)}</div>,
+            render: (expense) => <div style={{ fontWeight: 700, whiteSpace: 'nowrap' }}>{money(expense.amount)}</div>,
             searchAccessor: (expense) => expense.amount,
+        },
+        {
+            key: 'created_at',
+            label: 'Created At',
+            render: (expense) => <div style={{ fontSize: 13, whiteSpace: 'nowrap' }}>{formatDateTime(expense.created_at)}</div>,
+            searchAccessor: (expense) => expense.created_at,
         },
         {
             key: 'actions',

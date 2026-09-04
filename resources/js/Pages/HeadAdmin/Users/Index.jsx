@@ -12,6 +12,8 @@ const roleColor = {
     hr: '#fbbf24',
     foreman: '#4ade80',
     designer: '#f472b6',
+    project_manager: '#06b6d4',
+    client: '#a78bfa',
 };
 
 export default function UsersIndex({ users = [], userTable = {} }) {

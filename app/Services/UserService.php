@@ -27,7 +27,8 @@ class UserService
         }
 
         $managerRole = $request->user()?->role;
-        $paginator = $this->userRepository->paginateForManagement($search, $perPage, $managerRole);
+        $managerId = $request->user()?->id;
+        $paginator = $this->userRepository->paginateForManagement($search, $perPage, $managerRole, $managerId);
 
         $users = collect($paginator->items())->map(fn (User $user) => [
             'id' => $user->id,
@@ -59,6 +60,7 @@ class UserService
             'email' => $validated['email'],
             'password' => Hash::make($validated['password']),
             'role' => $validated['role'],
+            'created_by' => $validated['created_by'] ?? null,
         ]);
 
         $this->userRepository->upsertDetail($user, $this->detailPayloadFromValidated($validated));

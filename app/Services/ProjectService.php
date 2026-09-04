@@ -984,15 +984,32 @@ class ProjectService
 
     public function resolveJotformLink(Project $project, int $foremanId): string
     {
+        if (!$this->isForemanAssignedToProject($project, $foremanId)) {
+            throw ValidationException::withMessages([
+                'foreman_id' => 'Selected foreman is not assigned to this project.',
+            ]);
+        }
+
+        $token = $this->projectRepository->findActiveProgressToken((int) $project->id, $foremanId)
+            ?? $this->projectRepository->createProgressToken((int) $project->id, $foremanId);
+
+        return route('public.progress-submit.show', ['token' => $token->token]);
+    }
+
+    /**
+     * Whether the given foreman user is assigned to the project — either through the
+     * legacy CSV "assigned" field or a ProjectAssignment row (foreman role).
+     * Mirrors the validation that used to live inside resolveJotformLink().
+     */
+    public function isForemanAssignedToProject(Project $project, int $foremanId): bool
+    {
         $foreman = User::query()
             ->whereKey($foremanId)
             ->where('role', User::ROLE_FOREMAN)
             ->first();
 
         if (!$foreman) {
-            throw ValidationException::withMessages([
-                'foreman_id' => 'Selected foreman is not assigned to this project.',
-            ]);
+            return false;
         }
 
         $assignedNames = collect(preg_split('/[,;]+/', (string) ($project->assigned ?? '')))
@@ -1010,15 +1027,47 @@ class ProjectService
             ->exists();
 
         if ($assignedNames->isNotEmpty() && !$isAssignedByName && !$isAssignedByProject) {
-            throw ValidationException::withMessages([
-                'foreman_id' => 'Selected foreman is not assigned to this project.',
-            ]);
+            return false;
         }
 
-        $token = $this->projectRepository->findActiveProgressToken((int) $project->id, $foremanId)
-            ?? $this->projectRepository->createProgressToken((int) $project->id, $foremanId);
+        return true;
+    }
 
-        return route('public.progress-submit.show', ['token' => $token->token]);
+    /**
+     * Foreman user ids assigned to a project — union of ProjectAssignment rows with the
+     * foreman role and users whose fullname matches the legacy CSV "assigned" field.
+     */
+    public function assignedForemanIds(Project $project): array
+    {
+        $ids = ProjectAssignment::query()
+            ->where('project_id', $project->id)
+            ->where('role_in_project', ProjectAssignment::ROLE_FOREMAN)
+            ->pluck('user_id')
+            ->map(fn ($id) => (int) $id)
+            ->values()
+            ->all();
+
+        $assignedNames = collect(preg_split('/[,;]+/', (string) ($project->assigned ?? '')))
+            ->map(fn ($name) => trim((string) $name))
+            ->filter(fn (string $name) => $name !== '')
+            ->values();
+
+        if ($assignedNames->isNotEmpty()) {
+            $nameIds = User::query()
+                ->where('role', User::ROLE_FOREMAN)
+                ->get(['id', 'fullname'])
+                ->filter(function (User $user) use ($assignedNames) {
+                    return $assignedNames->contains(fn (string $name) => mb_strtolower($name) === mb_strtolower((string) $user->fullname));
+                })
+                ->pluck('id')
+                ->map(fn ($id) => (int) $id)
+                ->values()
+                ->all();
+
+            $ids = array_values(array_unique(array_merge($ids, $nameIds)));
+        }
+
+        return $ids;
     }
 
     public function updateProjectPhase(Project $project, string $phase): void
