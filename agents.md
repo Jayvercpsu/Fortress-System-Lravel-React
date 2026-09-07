@@ -115,6 +115,31 @@ project data files — without the user's explicit, case-by-case approval.
 - `DatabaseSeeder` only creates the master admin and head admin accounts; all demo users, foremen,
   workers, and project data come from `FortressBuildingFlowSeeder`.
 
+## 🔍 Real vs Test Database Check
+
+Before running **any** command that touches a database (migrate, seed, tinker, raw SQL, etc.),
+determine which database the command will connect to:
+
+1. **Read the `.env` file** to identify the `DB_CONNECTION`, `DB_DATABASE`, and `DB_HOST`.
+   - If `DB_CONNECTION=mysql` and `DB_DATABASE=fortress` (or any non-test DB name), it is the **real database**.
+   - If the command targets the real database, **treat it as destructive** and follow Rule 1 above — ask the user explicitly before running.
+2. **The PHPUnit suite** (`php artisan test`) automatically uses the in-memory SQLite DB (configured in `phpunit.xml` via `DB_CONNECTION=sqlite` / `DB_DATABASE=:memory:`). It never touches the real MySQL database. PHPUnit tests are safe to run without asking.
+3. **The Playwright e2e suite** uses `database/playwright.sqlite` — a separate throwaway database. E2E tests are safe to run without asking.
+4. **When in doubt**, check the active database connection. If it's the real `fortress` MySQL database and the command mutates data, **stop and ask the user first**.
+
+### Practical examples
+
+| Command | Target DB | Safe to run? |
+|---------|-----------|--------------|
+| `php -l` | N/A | ✅ Yes |
+| `php artisan test` | In-memory SQLite | ✅ Yes |
+| `php artisan migrate:status` | Real MySQL `fortress` | ✅ Yes (read-only) |
+| `php artisan migrate` | Real MySQL `fortress` | ⚠️ **Ask first** |
+| `php artisan migrate:fresh` | Real MySQL `fortress` | ❌ **Never without explicit approval** |
+| `php artisan db:seed` | Real MySQL `fortress` | ❌ **Never without explicit approval** |
+| `php artisan tinker --execute="..."` (read-only) | Real MySQL `fortress` | ✅ Yes |
+| `php artisan tinker --execute="..."` (write/delete) | Real MySQL `fortress` | ⚠️ **Ask first** |
+
 ---
 
 ## Code Quality: No Unused Code

@@ -56,6 +56,7 @@ class MonitoringBoardController extends Controller
     public function update(UpdateMonitoringBoardItemRequest $request, MonitoringBoardItem $item)
     {
         $this->monitoringBoardService->ensureAuthorized($request->user());
+        $this->monitoringBoardService->assertVisibleTo($request->user(), $item);
         $this->monitoringBoardService->updateItem($item, $request->validated());
 
         return redirect()
@@ -66,6 +67,7 @@ class MonitoringBoardController extends Controller
     public function destroy(Request $request, MonitoringBoardItem $item)
     {
         $this->monitoringBoardService->ensureAuthorized($request->user());
+        $this->monitoringBoardService->assertVisibleTo($request->user(), $item);
         $this->monitoringBoardService->deleteItem($item);
 
         return redirect()
@@ -76,7 +78,7 @@ class MonitoringBoardController extends Controller
     public function destroyDepartment(Request $request, MonitoringBoardDepartment $department)
     {
         $this->monitoringBoardService->ensureAuthorized($request->user());
-        $this->monitoringBoardService->deleteDepartment($department);
+        $this->monitoringBoardService->deleteDepartment($request->user(), $department);
 
         return redirect()
             ->route('monitoring-board.index')
@@ -86,6 +88,7 @@ class MonitoringBoardController extends Controller
     public function storeFile(StoreMonitoringBoardFileRequest $request, MonitoringBoardItem $item)
     {
         $this->monitoringBoardService->ensureAuthorized($request->user());
+        $this->monitoringBoardService->assertVisibleTo($request->user(), $item);
         $this->monitoringBoardService->storeFile($item, $request->file('file'), (int) $request->user()->id);
 
         return redirect()
@@ -96,6 +99,8 @@ class MonitoringBoardController extends Controller
     public function destroyFile(Request $request, MonitoringBoardFile $file)
     {
         $this->monitoringBoardService->ensureAuthorized($request->user());
+        $this->monitoringBoardService->assertVisibleTo($request->user(), $file->item);
+
         $this->monitoringBoardService->deleteFile($file);
 
         return redirect()

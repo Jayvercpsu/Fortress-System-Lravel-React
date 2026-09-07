@@ -6,12 +6,13 @@ use App\Models\MonitoringBoardFile;
 use App\Models\MonitoringBoardDepartment;
 use App\Models\MonitoringBoardItem;
 use App\Models\Project;
+use App\Models\User;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Collection;
 
 interface MonitoringBoardRepositoryInterface
 {
-    public function listItemsWithFiles(): Collection;
+    public function listItemsWithFiles(User $user): Collection;
 
     public function existingProjectIds(array $projectIds): array;
 
@@ -19,15 +20,13 @@ interface MonitoringBoardRepositoryInterface
 
     public function designerUsers(): Collection;
 
-    public function listDepartments(): Collection;
+    public function listVisibleDepartments(User $user): Collection;
 
-    public function ensureDepartmentExists(string $name): MonitoringBoardDepartment;
+    public function ensureDepartmentExists(string $name, int $createdBy): MonitoringBoardDepartment;
 
-    public function deleteDepartment(MonitoringBoardDepartment $department): void;
+    public function createDepartment(string $name, int $createdBy): MonitoringBoardDepartment;
 
-    public function departmentHasItems(string $departmentName): bool;
-
-    public function deleteItemsByDepartment(string $departmentName): void;
+    public function deleteItemsByDepartment(string $departmentName, User $user): void;
 
     public function latestAssignmentsByUserIds(array $userIds, string $role): Collection;
 
@@ -44,4 +43,6 @@ interface MonitoringBoardRepositoryInterface
     public function createItemFile(MonitoringBoardItem $item, UploadedFile $file, int $userId): void;
 
     public function deleteItemFile(MonitoringBoardFile $file): void;
+
+    public function deleteDepartment(MonitoringBoardDepartment $department): void;
 }

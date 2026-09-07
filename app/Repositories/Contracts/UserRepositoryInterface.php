@@ -9,6 +9,8 @@ interface UserRepositoryInterface
 {
     public function paginateForManagement(string $search, int $perPage, ?string $managerRole = null, ?int $managerId = null): LengthAwarePaginator;
 
+    public function countForManagement(string $search, ?string $managerRole = null, ?int $managerId = null): int;
+
     public function loadDetail(User $user): User;
 
     public function createUser(array $attributes): User;

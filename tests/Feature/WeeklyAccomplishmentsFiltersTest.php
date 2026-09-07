@@ -29,17 +29,17 @@ class WeeklyAccomplishmentsFiltersTest extends TestCase
                 ->where('weeklyAccomplishmentTable.project_id', (string) $projectA->id));
     }
 
-    public function test_foreman_filter_limits_results(): void
+    public function test_submitted_by_filter_limits_results(): void
     {
         [$headAdmin, , $foremanA] = $this->seedData();
 
         $this->actingAs($headAdmin)
-            ->get('/weekly-accomplishments?foreman_id=' . $foremanA->id)
+            ->get('/weekly-accomplishments?submitted_by=' . $foremanA->id)
             ->assertOk()
             ->assertInertia(fn ($page) => $page
                 ->component('HeadAdmin/WeeklyAccomplishments/Index')
                 ->has('weeklyAccomplishments', 2)
-                ->where('weeklyAccomplishmentTable.foreman_id', (string) $foremanA->id));
+                ->where('weeklyAccomplishmentTable.submitted_by', (string) $foremanA->id));
     }
 
     public function test_week_range_filter_limits_results(): void
@@ -391,7 +391,7 @@ class WeeklyAccomplishmentsFiltersTest extends TestCase
 
         // Foreman A has rows only on project A, so combining both still returns 2.
         $this->actingAs($headAdmin)
-            ->get('/weekly-accomplishments?project_id=' . $projectA->id . '&foreman_id=' . $foremanA->id)
+            ->get('/weekly-accomplishments?project_id=' . $projectA->id . '&submitted_by=' . $foremanA->id)
             ->assertOk()
             ->assertInertia(fn ($page) => $page
                 ->component('HeadAdmin/WeeklyAccomplishments/Index')
@@ -400,7 +400,7 @@ class WeeklyAccomplishmentsFiltersTest extends TestCase
         // Foreman B has no rows on project A, so the combination returns nothing.
         $foremanB = User::where('role', 'foreman')->where('id', '!=', $foremanA->id)->firstOrFail();
         $this->actingAs($headAdmin)
-            ->get('/weekly-accomplishments?project_id=' . $projectA->id . '&foreman_id=' . $foremanB->id)
+            ->get('/weekly-accomplishments?project_id=' . $projectA->id . '&submitted_by=' . $foremanB->id)
             ->assertOk()
             ->assertInertia(fn ($page) => $page
                 ->component('HeadAdmin/WeeklyAccomplishments/Index')
@@ -553,6 +553,7 @@ class WeeklyAccomplishmentsFiltersTest extends TestCase
 
         $first = WeeklyAccomplishment::create([
             'foreman_id' => $foremanA->id,
+            'submitted_by' => $foremanA->id,
             'project_id' => $projectA->id,
             'scope_of_work' => 'Excavation',
             'percent_completed' => 40,
@@ -560,6 +561,7 @@ class WeeklyAccomplishmentsFiltersTest extends TestCase
         ]);
         $second = WeeklyAccomplishment::create([
             'foreman_id' => $foremanA->id,
+            'submitted_by' => $foremanA->id,
             'project_id' => $projectA->id,
             'scope_of_work' => 'Excavation',
             'percent_completed' => 60,
@@ -567,6 +569,7 @@ class WeeklyAccomplishmentsFiltersTest extends TestCase
         ]);
         $third = WeeklyAccomplishment::create([
             'foreman_id' => $foremanB->id,
+            'submitted_by' => $foremanB->id,
             'project_id' => $projectB->id,
             'scope_of_work' => 'Roofing',
             'percent_completed' => 20,

@@ -170,14 +170,14 @@ Route::middleware(['auth', 'role:project_manager'])->group(function () {
 });
 
 Route::middleware(['auth', 'role:head_admin,admin,designer'])->group(function () {
-    Route::get('/monitoring-board', [MonitoringBoardController::class, 'index'])->name('monitoring-board.index');
-    Route::post('/monitoring-board', [MonitoringBoardController::class, 'store'])->name('monitoring-board.store');
-    Route::patch('/monitoring-board/{item}', [MonitoringBoardController::class, 'update'])->name('monitoring-board.update');
-    Route::delete('/monitoring-board/{item}', [MonitoringBoardController::class, 'destroy'])->name('monitoring-board.destroy');
-    Route::delete('/monitoring-board/departments/{department}', [MonitoringBoardController::class, 'destroyDepartment'])
+    Route::get('/design', [MonitoringBoardController::class, 'index'])->name('monitoring-board.index');
+    Route::post('/design', [MonitoringBoardController::class, 'store'])->name('monitoring-board.store');
+    Route::patch('/design/{item}', [MonitoringBoardController::class, 'update'])->name('monitoring-board.update');
+    Route::delete('/design/{item}', [MonitoringBoardController::class, 'destroy'])->name('monitoring-board.destroy');
+    Route::delete('/design/departments/{department}', [MonitoringBoardController::class, 'destroyDepartment'])
         ->name('monitoring-board.departments.destroy');
-    Route::post('/monitoring-board/{item}/files', [MonitoringBoardController::class, 'storeFile'])->name('monitoring-board.files.store');
-    Route::delete('/monitoring-board-files/{file}', [MonitoringBoardController::class, 'destroyFile'])->name('monitoring-board.files.destroy');
+    Route::post('/design/{item}/files', [MonitoringBoardController::class, 'storeFile'])->name('monitoring-board.files.store');
+    Route::delete('/design-files/{file}', [MonitoringBoardController::class, 'destroyFile'])->name('monitoring-board.files.destroy');
 
     Route::get('/reports', [ReportsController::class, 'index'])->name('reports.index');
     Route::get('/weekly-accomplishments', [WeeklyAccomplishmentController::class, 'index'])->name('weekly-accomplishments.index');

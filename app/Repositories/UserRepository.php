@@ -6,10 +6,24 @@ use App\Models\User;
 use App\Repositories\Contracts\UserRepositoryInterface;
 use App\Support\Uploads\UploadManager;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
+use Illuminate\Database\Eloquent\Builder;
 
 class UserRepository implements UserRepositoryInterface
 {
     public function paginateForManagement(string $search, int $perPage, ?string $managerRole = null, ?int $managerId = null): LengthAwarePaginator
+    {
+        return $this->buildManagementQuery($search, $managerRole, $managerId)
+            ->latest()
+            ->paginate($perPage)
+            ->withQueryString();
+    }
+
+    public function countForManagement(string $search, ?string $managerRole = null, ?int $managerId = null): int
+    {
+        return $this->buildManagementQuery($search, $managerRole, $managerId)->count();
+    }
+
+    private function buildManagementQuery(string $search, ?string $managerRole = null, ?int $managerId = null): Builder
     {
         // Master admins are never managed from the Users page. Head admins are
         // only visible to the master admin, who owns and manages them.
@@ -45,10 +59,7 @@ class UserRepository implements UserRepositoryInterface
             });
         }
 
-        return $query
-            ->latest()
-            ->paginate($perPage)
-            ->withQueryString();
+        return $query;
     }
 
     public function loadDetail(User $user): User

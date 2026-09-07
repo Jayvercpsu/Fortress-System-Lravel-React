@@ -39,7 +39,7 @@ class WeeklyAccomplishmentService
 
         $filters = [
             'project_id' => trim((string) $request->query('project_id', '')),
-            'foreman_id' => trim((string) $request->query('foreman_id', '')),
+            'submitted_by' => trim((string) $request->query('submitted_by', '')),
             'week_from' => trim((string) $request->query('week_from', '')),
             'week_to' => trim((string) $request->query('week_to', '')),
             'date_from' => trim((string) $request->query('date_from', '')),
@@ -144,11 +144,20 @@ class WeeklyAccomplishmentService
         }
 
         $accomplishments = $accomplishments
-            ->map(fn (WeeklyAccomplishment $row) => [
-                'id' => $row->id,
-                'foreman_name' => $row->foreman?->fullname ?? 'Unknown',
-                'project_id' => $row->project_id,
-                'project_name' => $row->project?->name ?? 'Unassigned',
+            ->map(function (WeeklyAccomplishment $row) {
+                $submitter = $row->submitter;
+                $submittedByName = $submitter?->fullname ?? $row->foreman?->fullname ?? 'Unknown';
+                $submittedByRole = $submitter
+                    ? ucwords(str_replace('_', ' ', (string) $submitter->role))
+                    : 'Foreman';
+
+                return [
+                    'id' => $row->id,
+                    'foreman_name' => $row->foreman?->fullname ?? 'Unknown',
+                    'submitted_by_name' => $submittedByName,
+                    'submitted_by_role' => $submittedByRole,
+                    'project_id' => $row->project_id,
+                    'project_name' => $row->project?->name ?? 'Unassigned',
                 'week_start' => $row->week_start
                     ? Carbon::parse($row->week_start)->toDateString()
                     : null,
@@ -157,7 +166,8 @@ class WeeklyAccomplishmentService
                 'is_placeholder' => (bool) $row->is_placeholder,
                 'submitted_at' => optional($row->updated_at)?->toDateTimeString(),
                 'created_at' => optional($row->created_at)?->toDateTimeString(),
-            ])
+                ];
+            })
             ->values();
 
         // Keep the full set of rows (including unedited auto-seeded placeholders)
@@ -255,10 +265,11 @@ class WeeklyAccomplishmentService
                         'name' => $project->name,
                     ])
                     ->values(),
-                'filterForemen' => $this->weeklyAccomplishmentRepository->filterForemen()
-                    ->map(fn ($foreman) => [
-                        'id' => $foreman->id,
-                        'fullname' => $foreman->fullname,
+                'filterSubmitters' => $this->weeklyAccomplishmentRepository->filterSubmitters()
+                    ->map(fn ($user) => [
+                        'id' => $user->id,
+                        'fullname' => $user->fullname,
+                        'role' => $user->role,
                     ])
                     ->values(),
                 'groupEmptyMessage' => $isHeadAdminView
@@ -380,7 +391,7 @@ class WeeklyAccomplishmentService
             'to' => $paginator->lastItem(),
             'status' => $status,
             'project_id' => $filters['project_id'] ?? '',
-            'foreman_id' => $filters['foreman_id'] ?? '',
+            'submitted_by' => $filters['submitted_by'] ?? '',
             'week_from' => $filters['week_from'] ?? '',
             'week_to' => $filters['week_to'] ?? '',
             'date_from' => $filters['date_from'] ?? '',

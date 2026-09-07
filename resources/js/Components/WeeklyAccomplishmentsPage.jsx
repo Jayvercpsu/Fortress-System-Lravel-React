@@ -7,7 +7,7 @@ import DatePickerInput from './DatePickerInput';
 import ActionButton from './ActionButton';
 import { Head, router } from '@inertiajs/react';
 import OptimizedImage from './OptimizedImage';
-import { formatYmd, formatYmdHmAmPm } from '../Utils/dateTimeFormat';
+import { formatYmdHmAmPm } from '../Utils/dateTimeFormat';
 
 const cardStyle = {
     background: 'var(--surface-1)',
@@ -34,14 +34,20 @@ export default function WeeklyAccomplishmentsPage({
     statusFilters = [],
     projects = [],
     filterProjects = [],
-    filterForemen = [],
+    filterSubmitters = [],
     groupEmptyMessage = 'No accomplishments for this project.',
 }) {
     const routePath = '/weekly-accomplishments';
 
+    const prettifyRole = (role) => String(role ?? '')
+        .split('_')
+        .filter(Boolean)
+        .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+        .join(' ') || 'Foreman';
+
     const tableFilters = {
         project_id: String(weeklyAccomplishmentTable?.project_id ?? ''),
-        foreman_id: String(weeklyAccomplishmentTable?.foreman_id ?? ''),
+        submitted_by: String(weeklyAccomplishmentTable?.submitted_by ?? ''),
         week_from: String(weeklyAccomplishmentTable?.week_from ?? ''),
         week_to: String(weeklyAccomplishmentTable?.week_to ?? ''),
         date_from: String(weeklyAccomplishmentTable?.date_from ?? ''),
@@ -152,15 +158,15 @@ export default function WeeklyAccomplishmentsPage({
                 </SelectInput>
             </label>
             <label>
-                <div style={{ fontSize: 12, marginBottom: 6 }}>Foreman</div>
+                <div style={{ fontSize: 12, marginBottom: 6 }}>Submitted By</div>
                 <SelectInput
-                    value={tableFilters.foreman_id}
-                    onChange={(e) => applyFilter('foreman_id', e.target.value)}
+                    value={tableFilters.submitted_by}
+                    onChange={(e) => applyFilter('submitted_by', e.target.value)}
                     style={filterControlStyle}
                 >
-                    <option value="">All foremen</option>
-                    {filterForemen.map((foreman) => (
-                        <option key={foreman.id} value={foreman.id}>{foreman.fullname}</option>
+                    <option value="">All submitters</option>
+                    {filterSubmitters.map((submitter) => (
+                        <option key={submitter.id} value={submitter.id}>{`${submitter.fullname} (${prettifyRole(submitter.role)})`}</option>
                     ))}
                 </SelectInput>
             </label>
@@ -220,26 +226,23 @@ export default function WeeklyAccomplishmentsPage({
             ),
         },
         {
-            key: 'foreman_name',
-            label: 'Foreman',
-            width: 170,
-            render: (row) => row.foreman_name || '-',
+            key: 'submitted_by_name',
+            label: 'Submitted By',
+            width: 190,
+            render: (row) => (
+                <div style={{ lineHeight: 1.35 }}>
+                    <div>{row.submitted_by_name || row.foreman_name || '-'}</div>
+                    <div style={{ color: 'var(--text-muted)', fontSize: 12 }}>
+                        {row.submitted_by_role || 'Foreman'}
+                    </div>
+                </div>
+            ),
         },
         {
             key: 'project_name',
             label: 'Project',
             width: 180,
             render: (row) => row.project_name || '-',
-        },
-        {
-            key: 'week_start',
-            label: 'Week Start',
-            width: 130,
-            render: (row) => (
-                <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 12 }}>
-                    {formatYmd(row.week_start)}
-                </span>
-            ),
         },
         {
             key: 'scope_of_work',

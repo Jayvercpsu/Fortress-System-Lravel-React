@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 
 class MonitoringBoardItem extends Model
@@ -77,5 +78,37 @@ class MonitoringBoardItem extends Model
     public static function statusOptions(): array
     {
         return self::STATUS_OPTIONS;
+    }
+
+    /**
+     * Scope items to those a user is allowed to see on the design board.
+     *
+     * - The master admin sees every design.
+     * - The legacy buildbooks account sees designs it created as well as
+     *   designs created by a master admin (it must not see designs created by
+     *   other head admins).
+     * - All other roles - head_admin, admin and designer - only see the
+     *   designs they created.
+     * Rows without a creator are visible to the master admin only.
+     */
+    public function scopeVisibleTo(Builder $query, ?User $user): Builder
+    {
+        if (!$user) {
+            return $query;
+        }
+
+        if ($user->role === User::ROLE_MASTER_ADMIN) {
+            return $query;
+        }
+
+        if ($user->email === User::LEGACY_PROJECT_ACCESS_EMAIL) {
+            return $query->where(function (Builder $builder) use ($user) {
+                $builder
+                    ->where('created_by', $user->id)
+                    ->orWhereIn('created_by', User::query()->where('role', User::ROLE_MASTER_ADMIN)->select('id'));
+            });
+        }
+
+        return $query->where('created_by', $user->id);
     }
 }

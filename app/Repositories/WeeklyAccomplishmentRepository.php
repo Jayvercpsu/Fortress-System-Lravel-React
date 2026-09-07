@@ -71,7 +71,7 @@ class WeeklyAccomplishmentRepository implements WeeklyAccomplishmentRepositoryIn
         }
 
         $query = WeeklyAccomplishment::query()
-            ->with('foreman:id,fullname', 'project:id,name');
+            ->with('foreman:id,fullname', 'submitter:id,fullname,role', 'project:id,name');
         $this->applySearch($query, $search);
         $this->applyFilters($query, $filters);
 
@@ -240,6 +240,10 @@ class WeeklyAccomplishmentRepository implements WeeklyAccomplishmentRepositoryIn
                 ->orWhere('week_start', 'like', "%{$search}%")
                 ->orWhere('percent_completed', 'like', "%{$search}%")
                 ->orWhereHas('foreman', fn ($q) => $q->where('fullname', 'like', "%{$search}%"))
+                ->orWhereHas('submitter', fn ($q) => $q
+                    ->where('fullname', 'like', "%{$search}%")
+                    ->orWhere('role', 'like', "%{$search}%")
+                    ->orWhereRaw("REPLACE(role, '_', ' ') LIKE ?", ["%{$search}%"]))
                 ->orWhereHas('project', fn ($q) => $q->where('name', 'like', "%{$search}%"));
         });
     }
@@ -271,7 +275,7 @@ class WeeklyAccomplishmentRepository implements WeeklyAccomplishmentRepositoryIn
     private function applyFilters(Builder $builder, array $filters): void
     {
         $projectId = trim((string) ($filters['project_id'] ?? ''));
-        $foremanId = trim((string) ($filters['foreman_id'] ?? ''));
+        $submittedBy = trim((string) ($filters['submitted_by'] ?? ''));
         $weekFrom = trim((string) ($filters['week_from'] ?? ''));
         $weekTo = trim((string) ($filters['week_to'] ?? ''));
         $dateFrom = trim((string) ($filters['date_from'] ?? ''));
@@ -280,8 +284,8 @@ class WeeklyAccomplishmentRepository implements WeeklyAccomplishmentRepositoryIn
         if ($projectId !== '') {
             $builder->where('project_id', (int) $projectId);
         }
-        if ($foremanId !== '') {
-            $builder->where('foreman_id', (int) $foremanId);
+        if ($submittedBy !== '') {
+            $builder->where('submitted_by', (int) $submittedBy);
         }
         if ($weekFrom !== '') {
             // Treat the picked date as the week that contains it, so a mid-week
@@ -308,11 +312,11 @@ class WeeklyAccomplishmentRepository implements WeeklyAccomplishmentRepositoryIn
             ->get(['id', 'name']);
     }
 
-    public function filterForemen(): Collection
+    public function filterSubmitters(): Collection
     {
         return \App\Models\User::query()
-            ->where('role', \App\Models\User::ROLE_FOREMAN)
+            ->whereIn('role', [\App\Models\User::ROLE_FOREMAN, \App\Models\User::ROLE_PROJECT_MANAGER])
             ->orderBy('fullname')
-            ->get(['id', 'fullname']);
+            ->get(['id', 'fullname', 'role']);
     }
 }

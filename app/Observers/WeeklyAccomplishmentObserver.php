@@ -42,8 +42,17 @@ class WeeklyAccomplishmentObserver
             return;
         }
 
+        // Average over the latest submission per (foreman, scope) so that
+        // superseded history rows don't drag the project progress.
         $progressPercent = WeeklyAccomplishment::query()
             ->where('project_id', $projectId)
+            ->whereIn('id', function ($query) use ($projectId) {
+                $query->selectRaw('MAX(id)')
+                    ->from('weekly_accomplishments')
+                    ->where('project_id', $projectId)
+                    ->whereNull('deleted_at')
+                    ->groupBy('foreman_id', 'scope_of_work');
+            })
             ->avg('percent_completed');
 
         if ($progressPercent === null) {

@@ -8,6 +8,7 @@ use App\Models\User;
 use App\Models\WeeklyAccomplishment;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 
 /**
  * Data service for the Project Manager role.
@@ -72,8 +73,14 @@ class ProjectManagerService
                 'total_projects' => $totalProjectsCount,
                 'low_progress_projects' => $lowProgressProjects->count(),
                 'total_foremen' => $foremen->count(),
-                'pending_accomplishments' => WeeklyAccomplishment::query()
-                    ->where('is_placeholder', false)
+                'pending_accomplishments' => DB::query()
+                    ->fromSub(
+                        WeeklyAccomplishment::query()
+                            ->where('is_placeholder', false)
+                            ->select('project_id', 'foreman_id', 'scope_of_work')
+                            ->distinct(),
+                        'distinct_scopes'
+                    )
                     ->count(),
                 'total_attendance_records' => Attendance::query()->count(),
                 'total_attendance_hours' => round((float) Attendance::query()->sum('hours'), 1),
@@ -380,7 +387,8 @@ class ProjectManagerService
             $weekStart,
             $validated['scopes'] ?? [],
             $validated['removed_scopes'] ?? [],
-            true
+            true,
+            (int) $request->user()->id
         );
     }
 

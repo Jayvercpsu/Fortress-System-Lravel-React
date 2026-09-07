@@ -585,7 +585,16 @@ foreach (section($data, 'project_files') as $row) {
 $monitoringItemIdByName = [];
 
 foreach (section($data, 'monitoring_board_departments') as $name) {
-    DB::table('monitoring_board_departments')->updateOrInsert(['name' => $name], ['name' => $name]);
+    // Departments are scoped by creator, so attribute the fixture columns to
+    // the Head Administrator (matching the fixture items) — otherwise they
+    // would be creator-less and visible to the master admin only.
+    $departmentOwner = $userByFullname['Head Administrator']
+        ?? $userByFullname['Master Administrator']
+        ?? null;
+    DB::table('monitoring_board_departments')->updateOrInsert(
+        ['name' => $name],
+        ['name' => $name, 'created_by' => $departmentOwner]
+    );
 }
 
 foreach (section($data, 'monitoring_board_items') as $row) {

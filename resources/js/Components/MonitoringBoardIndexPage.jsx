@@ -1106,7 +1106,7 @@ export default function MonitoringBoardIndexPage({
 
     const syncDepartmentPagination = (nextPages, nextSizes) => {
         router.get(
-            '/monitoring-board',
+            '/design',
             {
                 dept_page: JSON.stringify(nextPages),
                 dept_size: JSON.stringify(nextSizes),
@@ -1121,7 +1121,7 @@ export default function MonitoringBoardIndexPage({
 
     const submitCreate = (event) => {
         event.preventDefault();
-        post('/monitoring-board', {
+        post('/design', {
             preserveScroll: true,
             onSuccess: () => {
                 resetCreateData();
@@ -1204,7 +1204,7 @@ export default function MonitoringBoardIndexPage({
     const submitEdit = (event) => {
         event.preventDefault();
         if (!editItem) return;
-        patch(`/monitoring-board/${editItem.id}`, {
+        patch(`/design/${editItem.id}`, {
             preserveScroll: true,
             onSuccess: () => {
                 setEditItem(null);
@@ -1217,7 +1217,7 @@ export default function MonitoringBoardIndexPage({
     const confirmDelete = () => {
         if (!itemToDelete) return;
         setDeletingId(itemToDelete.id);
-        router.delete(`/monitoring-board/${itemToDelete.id}`, {
+        router.delete(`/design/${itemToDelete.id}`, {
             preserveScroll: true,
             onSuccess: () => {
                 setItemToDelete(null);
@@ -1256,7 +1256,7 @@ export default function MonitoringBoardIndexPage({
     const confirmDeleteDepartment = () => {
         if (!departmentToDelete?.id) return;
         setDeletingDepartment(true);
-        router.delete(`/monitoring-board/departments/${departmentToDelete.id}`, {
+        router.delete(`/design/departments/${departmentToDelete.id}`, {
             preserveScroll: true,
             onSuccess: () => {
                 const lookupKey = String(departmentToDelete.name || '').toLowerCase();
@@ -1296,7 +1296,7 @@ export default function MonitoringBoardIndexPage({
             }
 
             const currentId = idsQueue.shift();
-            router.delete(`/monitoring-board/${currentId}`, {
+            router.delete(`/design/${currentId}`, {
                 preserveScroll: true,
                 onSuccess: () => deleteNext(),
                 onError: () => {
@@ -1346,7 +1346,7 @@ export default function MonitoringBoardIndexPage({
         }
         const filesItemId = filesItem.id;
 
-        postFile(`/monitoring-board/${filesItem.id}/files`, {
+        postFile(`/design/${filesItem.id}/files`, {
             forceFormData: true,
             preserveScroll: true,
             onSuccess: (page) => {
@@ -1366,7 +1366,7 @@ export default function MonitoringBoardIndexPage({
         if (!fileToDelete) return;
         const filesItemId = filesItem?.id;
         setDeletingFileId(fileToDelete.id);
-        router.delete(`/monitoring-board-files/${fileToDelete.id}`, {
+        router.delete(`/design-files/${fileToDelete.id}`, {
             preserveScroll: true,
             onSuccess: (page) => {
                 setFileToDelete(null);

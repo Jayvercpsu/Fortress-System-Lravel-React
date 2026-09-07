@@ -417,14 +417,39 @@ class ForemanService
                 $percentCompleted = $scope['percent_completed'] ?? null;
 
                 if ($scopeName !== '' && $percentCompleted !== '' && $percentCompleted !== null) {
-                    $this->foremanProgressRepository->weeklyAccomplishments()->updateOrCreate(
+                    // Skip untouched resubmits: same percent as the latest real
+                    // row for these keys means nothing changed — no new record.
+                    $incomingPercent = round((float) $percentCompleted, 2);
+                    $latestPercent = $this->foremanProgressRepository->weeklyAccomplishments()
+                        ->where('foreman_id', $foremanId)
+                        ->where('project_id', $accomplishmentProjectId)
+                        ->whereDate('week_start', $resolvedWeekStart)
+                        ->where('scope_of_work', $scopeName)
+                        ->where('is_placeholder', false)
+                        ->orderByDesc('id')
+                        ->value('percent_completed');
+
+                    if ($latestPercent !== null && round((float) $latestPercent, 2) === $incomingPercent) {
+                        continue;
+                    }
+
+                    // Append-only history: keep every changed submission as its own
+                    // row and clear any superseded auto-seeded placeholder.
+                    $this->foremanProgressRepository->weeklyAccomplishments()
+                        ->where('foreman_id', $foremanId)
+                        ->where('project_id', $accomplishmentProjectId)
+                        ->whereDate('week_start', $resolvedWeekStart)
+                        ->where('scope_of_work', $scopeName)
+                        ->where('is_placeholder', true)
+                        ->forceDelete();
+
+                    $this->foremanProgressRepository->weeklyAccomplishments()->create(
                         [
                             'foreman_id' => $foremanId,
+                            'submitted_by' => $foremanId,
                             'project_id' => $accomplishmentProjectId,
                             'week_start' => $resolvedWeekStart,
                             'scope_of_work' => $scopeName,
-                        ],
-                        [
                             'percent_completed' => $percentCompleted,
                             'is_placeholder' => false,
                         ]
@@ -724,8 +749,17 @@ class ForemanService
             return;
         }
 
+        // Average over the latest submission per (foreman, scope) so that
+        // superseded history rows don't drag the project progress.
         $progressPercent = $this->foremanProgressRepository->weeklyAccomplishments()
             ->where('project_id', $projectId)
+            ->whereIn('id', function ($query) use ($projectId) {
+                $query->selectRaw('MAX(id)')
+                    ->from('weekly_accomplishments')
+                    ->where('project_id', $projectId)
+                    ->whereNull('deleted_at')
+                    ->groupBy('foreman_id', 'scope_of_work');
+            })
             ->avg('percent_completed');
 
         if ($progressPercent === null) {

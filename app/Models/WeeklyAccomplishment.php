@@ -38,7 +38,7 @@ class WeeklyAccomplishment extends Model {
         'Outdoor Fluted Panel',
     ];
 
-    protected $fillable = ['foreman_id','project_id','scope_of_work','percent_completed','week_start','is_placeholder'];
+    protected $fillable = ['foreman_id','submitted_by','project_id','scope_of_work','percent_completed','week_start','is_placeholder'];
 
     protected $casts = [
         'week_start' => 'date',
@@ -52,5 +52,6 @@ class WeeklyAccomplishment extends Model {
     }
 
     public function foreman() { return $this->belongsTo(User::class, 'foreman_id'); }
+    public function submitter() { return $this->belongsTo(User::class, 'submitted_by'); }
     public function project() { return $this->belongsTo(Project::class); }
 }

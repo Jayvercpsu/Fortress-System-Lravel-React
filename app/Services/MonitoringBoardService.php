@@ -25,14 +25,8 @@ class MonitoringBoardService
 
     public function indexPayload(User $user, array $departmentPages = [], array $departmentSizes = []): array
     {
-        $rawItems = $this->monitoringBoardRepository->listItemsWithFiles();
-        $departments = $this->monitoringBoardRepository->listDepartments();
-
-        $departmentNames = $departments
-            ->pluck('name')
-            ->map(fn ($name) => trim((string) $name))
-            ->filter()
-            ->values();
+        $rawItems = $this->monitoringBoardRepository->listItemsWithFiles($user);
+        $departments = $this->monitoringBoardRepository->listVisibleDepartments($user);
 
         $rawDepartmentNames = $rawItems
             ->map(fn (MonitoringBoardItem $item) => $item->department)
@@ -40,13 +34,8 @@ class MonitoringBoardService
             ->filter()
             ->reject(fn ($name) => $name === self::COMPLETED_DEPARTMENT)
             ->unique()
-            ->values();
-
-        $missingDepartments = $rawDepartmentNames->diff($departmentNames);
-        if ($missingDepartments->isNotEmpty()) {
-            $missingDepartments->each(fn ($name) => $this->monitoringBoardRepository->ensureDepartmentExists($name));
-            $departments = $this->monitoringBoardRepository->listDepartments();
-        }
+            ->values()
+            ->all();
 
         $projectIds = $rawItems
             ->pluck('project_id')
@@ -112,6 +101,7 @@ class MonitoringBoardService
                     ->map(fn (MonitoringBoardDepartment $department) => [
                         'id' => (int) $department->id,
                         'name' => $department->name,
+                        'created_by' => (int) $department->created_by,
                     ])
                     ->values(),
                 'status_options' => MonitoringBoardItem::statusOptions(),
@@ -125,7 +115,7 @@ class MonitoringBoardService
         $payload = $this->normalizeItemPayload($validated);
         $payload = $this->applyCompletedDepartment(null, $payload);
         $payload['created_by'] = $userId;
-        $this->ensureDepartmentRecords($payload);
+        $this->ensureDepartmentRecords($payload, $userId);
 
         $this->monitoringBoardRepository->createItem($payload);
     }
@@ -134,7 +124,7 @@ class MonitoringBoardService
     {
         $payload = $this->normalizeItemPayload($validated);
         $payload = $this->applyCompletedDepartment($item, $payload);
-        $this->ensureDepartmentRecords($payload);
+        $this->ensureDepartmentRecords($payload, $item->created_by);
 
         $this->monitoringBoardRepository->updateItem($item, $payload);
     }
@@ -144,13 +134,35 @@ class MonitoringBoardService
         $this->monitoringBoardRepository->deleteItem($item);
     }
 
-    public function deleteDepartment(MonitoringBoardDepartment $department): void
+    /**
+     * Abort unless the given user is allowed to see this design item. Mirrors
+     * the master-admin / legacy account rules used by scopeVisibleTo().
+     */
+    public function assertVisibleTo(User $user, MonitoringBoardItem $item): void
+    {
+        abort_unless(
+            MonitoringBoardItem::query()->visibleTo($user)->whereKey($item->getKey())->exists(),
+            403
+        );
+    }
+
+    private function departmentVisibleTo(User $user, MonitoringBoardDepartment $department): bool
+    {
+        return $this->monitoringBoardRepository
+            ->listVisibleDepartments($user)
+            ->contains(fn (MonitoringBoardDepartment $visible) => (int) $visible->id === (int) $department->id);
+    }
+
+    public function deleteDepartment(User $user, MonitoringBoardDepartment $department): void
     {
         if (trim((string) $department->name) === self::COMPLETED_DEPARTMENT) {
             abort(422, 'Completed department cannot be deleted.');
         }
 
-        $this->monitoringBoardRepository->deleteItemsByDepartment($department->name);
+        abort_unless($this->departmentVisibleTo($user, $department), 403);
+
+        // Remove the acting user's own items in this department.
+        $this->monitoringBoardRepository->deleteItemsByDepartment($department->name, $user);
 
         $this->monitoringBoardRepository->deleteDepartment($department);
     }
@@ -274,13 +286,13 @@ class MonitoringBoardService
         return $payload;
     }
 
-    private function ensureDepartmentRecords(array $payload): void
+    private function ensureDepartmentRecords(array $payload, int $userId): void
     {
         $department = trim((string) ($payload['department'] ?? ''));
         if ($department === '' || $department === self::COMPLETED_DEPARTMENT) {
             return;
         }
-        $this->monitoringBoardRepository->ensureDepartmentExists($department);
+        $this->monitoringBoardRepository->ensureDepartmentExists($department, $userId);
     }
 
     private function designerOptionsPayload(): array

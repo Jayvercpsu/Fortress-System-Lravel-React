@@ -25,6 +25,7 @@ use Illuminate\Http\Request;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
+use App\Repositories\Contracts\UserRepositoryInterface;
 use Illuminate\Support\Str;
 use Inertia\Inertia;
 
@@ -32,7 +33,8 @@ class DashboardService
 {
     public function __construct(
         private readonly DashboardRepositoryInterface $dashboardRepository,
-        private readonly ProjectRepositoryInterface $projectRepository
+        private readonly ProjectRepositoryInterface $projectRepository,
+        private readonly UserRepositoryInterface $userRepository
     ) {
     }
 
@@ -42,10 +44,12 @@ class DashboardService
         $payrollPaymentKpis = $this->payrollAndPaymentKpis(true);
         $companyFinancialSummary = $this->companyFinancialSummary((float) ($projectKpis['financial_totals']['contract_sum'] ?? 0));
 
+        $managerRole = $request->user()?->role;
+        $managerId = $request->user()?->id;
+        $userTable = $this->userRepository->countForManagement('', $managerRole, $managerId);
+
         $stats = [
-            'total_users' => $this->dashboardRepository->users()
-                ->whereNotIn('role', [User::ROLE_MASTER_ADMIN, User::ROLE_CLIENT, User::ROLE_HEAD_ADMIN])
-                ->count(),
+            'total_users' => $userTable,
             'total_foremen' => $this->dashboardRepository->users()->where('role', User::ROLE_FOREMAN)->count(),
             'total_hr' => $this->dashboardRepository->users()->where('role', User::ROLE_HR)->count(),
             'total_admins' => $this->dashboardRepository->users()->where('role', User::ROLE_ADMIN)->count(),

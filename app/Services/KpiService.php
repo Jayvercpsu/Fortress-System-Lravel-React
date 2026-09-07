@@ -137,8 +137,10 @@ class KpiService
             ->when($dateFrom, fn ($query) => $query->whereDate('week_start', '>=', $dateFrom))
             ->when($dateTo, fn ($query) => $query->whereDate('week_start', '<=', $dateTo))
             ->get([
+                'id',
                 'foreman_id',
                 'project_id',
+                'scope_of_work',
                 'week_start',
                 'percent_completed',
             ]);
@@ -574,15 +576,23 @@ class KpiService
             $deliveryCount = $deliveryRows->count();
             $photoCount = $photoRows->count();
 
+            // Dedupe to the latest submission per (project, scope) so
+            // superseded history rows don't inflate scope counts/averages.
+            $currentWeeklyRows = $weeklyRows
+                ->groupBy(fn (WeeklyAccomplishment $row) => (int) ($row->project_id ?? 0).'|'.Str::lower(trim((string) ($row->scope_of_work ?? ''))))
+                ->map(fn ($scopeRows) => $scopeRows->sortBy('id')->last())
+                ->filter()
+                ->values();
+
             return [
                 'foreman_id' => (int) $foremanId,
                 'foreman_name' => $foremanNameById[$foremanId] ?? 'Unknown',
                 'projects_count' => $projectCount,
                 'attendance_days' => $attendanceDays,
                 'attendance_hours' => round((float) $attendanceRows->sum(fn ($row) => (float) ($row->hours ?? 0)), 1),
-                'weekly_scopes' => $weeklyRows->count(),
-                'avg_percent_completed' => $weeklyRows->isNotEmpty()
-                    ? round((float) $weeklyRows->avg(fn ($row) => (float) ($row->percent_completed ?? 0)), 1)
+                'weekly_scopes' => $currentWeeklyRows->count(),
+                'avg_percent_completed' => $currentWeeklyRows->isNotEmpty()
+                    ? round((float) $currentWeeklyRows->avg(fn ($row) => (float) ($row->percent_completed ?? 0)), 1)
                     : 0.0,
                 'issues_count' => $issueCount,
                 'material_requests_count' => $materialCount,

@@ -36,5 +36,5 @@ interface WeeklyAccomplishmentRepositoryInterface
 
     public function filterProjects(): Collection;
 
-    public function filterForemen(): Collection;
+    public function filterSubmitters(): Collection;
 }

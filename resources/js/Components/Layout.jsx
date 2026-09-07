@@ -11,7 +11,7 @@ const navByRole = {
     head_admin: [
         { label: 'Dashboard', href: '/head-admin', icon: 'fi fi-rr-dashboard' },
         { label: 'KPI', href: '/kpi', icon: 'fi fi-rr-chart-pie', headAdminOnly: true },
-        { label: 'Design', href: '/monitoring-board', icon: 'fi fi-rr-apps' },
+        { label: 'Design', href: '/design', icon: 'fi fi-rr-apps' },
         { label: 'Construction', href: '/projects', icon: 'fi fi-rr-diagram-project', headAdminOnly: true },
         // Builders navigation temporarily hidden
         { label: 'Payroll', href: '/payroll/run', icon: 'fi fi-rr-money-bill-wave' },
@@ -28,7 +28,7 @@ const navByRole = {
     admin: [
         { label: 'Dashboard', href: '/admin', icon: 'fi fi-rr-dashboard' },
         { label: 'KPI', href: '/kpi', icon: 'fi fi-rr-chart-pie', headAdminOnly: true },
-        { label: 'Design', href: '/monitoring-board', icon: 'fi fi-rr-apps' },
+        { label: 'Design', href: '/design', icon: 'fi fi-rr-apps' },
         { label: 'Construction', href: '/projects', icon: 'fi fi-rr-diagram-project', headAdminOnly: true },
         { label: 'Materials', href: '/materials', icon: 'fi fi-rr-shopping-cart' },
         { label: 'Delivery', href: '/delivery', icon: 'fi fi-rr-truck-side' },
@@ -55,7 +55,7 @@ const navByRole = {
     ],
     designer: [
         { label: 'Dashboard', href: '/designer', icon: 'fi fi-rr-dashboard' },
-        { label: 'Design', href: '/monitoring-board', icon: 'fi fi-rr-apps' },
+        { label: 'Design', href: '/design', icon: 'fi fi-rr-apps' },
         { label: 'Settings', href: '/settings', icon: 'fi fi-rr-settings' },
     ],
     client: [
