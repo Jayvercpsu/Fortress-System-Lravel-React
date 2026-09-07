@@ -82,7 +82,7 @@ class ProjectOwnershipTest extends TestCase
             'client' => 'Client A',
             'type' => 'Residential',
             'location' => 'QC',
-            'assigned' => null,
+            'assigned' => 'Foreman A',
             'target' => '2026-12-31',
             'status' => 'PLANNING',
             'phase' => 'Design',
@@ -92,6 +92,26 @@ class ProjectOwnershipTest extends TestCase
             'name' => 'Owned Project',
             'user_id' => $headAdmin->id,
         ]);
+    }
+
+    public function test_storing_a_project_requires_assigned_foremen(): void
+    {
+        $headAdmin = $this->makeUser('head_admin');
+
+        foreach ([null, ''] as $assigned) {
+            $this->actingAs($headAdmin)->post('/projects', [
+                'name' => 'Unassigned Project',
+                'client' => 'Client A',
+                'type' => 'Residential',
+                'location' => 'QC',
+                'assigned' => $assigned,
+                'target' => '2026-12-31',
+                'status' => 'PLANNING',
+                'phase' => 'Design',
+            ])->assertSessionHasErrors('assigned');
+        }
+
+        $this->assertDatabaseMissing('projects', ['name' => 'Unassigned Project']);
     }
 
     public function test_regular_head_admin_cannot_open_another_head_admins_project(): void

@@ -32,7 +32,7 @@ class StoreProjectRequest extends FormRequest
                     }
                 },
             ],
-            'assigned' => ['nullable', 'string', 'max:255'],
+            'assigned' => ['required', 'string', 'max:255'],
             'target' => ['nullable', 'date'],
             'status' => ['required', 'string', 'max:50', Rule::in(ProjectFlow::statuses())],
             'phase' => ['required', 'string', 'max:50', Rule::in(ProjectFlow::phases())],

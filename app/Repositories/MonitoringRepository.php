@@ -9,6 +9,7 @@ use App\Models\User;
 use App\Models\WeeklyAccomplishment;
 use App\Repositories\Contracts\MonitoringRepositoryInterface;
 use App\Support\Uploads\UploadManager;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
@@ -119,38 +120,111 @@ class MonitoringRepository implements MonitoringRepositoryInterface
         $scope->delete();
     }
 
-    public function latestWeeklyWeekStart(int $projectId): ?string
-    {
-        return WeeklyAccomplishment::query()
-            ->where('project_id', $projectId)
-            ->max('week_start');
-    }
-
-    public function averageWeeklyProgress(int $projectId, string $weekStart): float
-    {
-        return (float) (WeeklyAccomplishment::query()
-            ->where('project_id', $projectId)
-            ->whereDate('week_start', $weekStart)
-            ->avg('percent_completed') ?? 0);
-    }
-
     public function averageScopeProgress(Project $project): float
     {
         return (float) ($project->scopes()->avg('progress_percent') ?? 0);
     }
 
-    public function updateWeeklyProgressForScope(int $projectId, string $scopeName, float $progressPercent, string $weekStart): void
+    /**
+     * Push a build-page scope edit down into submissions (in place). Only the
+     * single latest real row per foreman for the scope is forced to the edited
+     * value — older history rows keep their submitted percents. Unsubmitted
+     * auto-seeded placeholders are brought in line as well, with their
+     * timestamps pinned so they stay invisible on /weekly-accomplishments.
+     * When the scope has no weekly rows at all, a placeholder is seeded for
+     * the current week per assigned foreman so the grids open on the edited
+     * value. No submission records are created and submitter attribution is
+     * preserved. The foreman jotform and PM grids read the latest per scope,
+     * so they open on the edited value.
+     */
+    public function propagateScopeProgressToLatestWeekly(int $projectId, string $previousScopeName, string $newScopeName, float $progressPercent, string $assignedPersonnel = ''): void
     {
-        $normalizedScope = trim($scopeName);
-        if ($projectId <= 0 || $normalizedScope === '' || trim($weekStart) === '') {
+        $previousScopeName = trim($previousScopeName);
+        $newScopeName = trim($newScopeName);
+        if ($projectId <= 0 || $previousScopeName === '' || $newScopeName === '') {
             return;
         }
 
-        WeeklyAccomplishment::query()
+        $scopeFilter = fn ($query) => $query
             ->where('project_id', $projectId)
-            ->whereDate('week_start', $weekStart)
-            ->whereRaw('LOWER(scope_of_work) = ?', [Str::lower($normalizedScope)])
-            ->update(['percent_completed' => $progressPercent]);
+            ->whereRaw('LOWER(scope_of_work) = ?', [Str::lower($previousScopeName)]);
+
+        $latestIds = WeeklyAccomplishment::query()
+            ->where($scopeFilter)
+            ->where('is_placeholder', false)
+            ->groupBy('foreman_id')
+            ->pluck(DB::raw('MAX(id)'))
+            ->filter()
+            ->values()
+            ->all();
+
+        if (!empty($latestIds)) {
+            WeeklyAccomplishment::query()
+                ->whereIn('id', $latestIds)
+                ->update([
+                    'scope_of_work' => $newScopeName,
+                    'percent_completed' => $progressPercent,
+                ]);
+        }
+
+        WeeklyAccomplishment::query()
+            ->where($scopeFilter)
+            ->where('is_placeholder', true)
+            ->update([
+                'scope_of_work' => $newScopeName,
+                'percent_completed' => $progressPercent,
+                'updated_at' => DB::raw('created_at'),
+            ]);
+
+        if (!WeeklyAccomplishment::query()->where($scopeFilter)->exists()
+            && !WeeklyAccomplishment::query()
+                ->where('project_id', $projectId)
+                ->whereRaw('LOWER(scope_of_work) = ?', [Str::lower($newScopeName)])
+                ->exists()) {
+            $this->seedScopePlaceholderForAssignedForemen($projectId, $newScopeName, $progressPercent, $assignedPersonnel);
+        }
+    }
+
+    /**
+     * Seed one current-week placeholder per assigned foreman so grids open on
+     * the build-page value. Fresh rows get identical created/updated stamps
+     * and stay unsubmitted, hence invisible on /weekly-accomplishments.
+     */
+    private function seedScopePlaceholderForAssignedForemen(int $projectId, string $scopeName, float $progressPercent, string $assignedPersonnel): void
+    {
+        $names = collect(preg_split('/[,;]+/', $assignedPersonnel))
+            ->map(fn ($name) => Str::lower(trim((string) $name)))
+            ->filter()
+            ->values();
+
+        $foremanIds = $this->assignedForemanIdsForProject($projectId);
+        $candidates = $this->foremenByIds($foremanIds->all());
+        if ($candidates->isEmpty()) {
+            $candidates = $this->allForemen();
+        }
+
+        $matched = $candidates
+            ->filter(fn (User $user) => $names->contains(Str::lower(trim((string) $user->fullname))))
+            ->map(fn (User $user) => (int) $user->id)
+            ->unique()
+            ->values();
+
+        $targetIds = $matched->isNotEmpty() ? $matched : $candidates->map(fn (User $user) => (int) $user->id)->unique()->values();
+        if ($targetIds->isEmpty()) {
+            return;
+        }
+
+        $weekStart = Carbon::now('Asia/Manila')->startOfWeek(Carbon::MONDAY)->toDateString();
+        foreach ($targetIds as $foremanId) {
+            WeeklyAccomplishment::query()->create([
+                'foreman_id' => $foremanId,
+                'project_id' => $projectId,
+                'scope_of_work' => $scopeName,
+                'percent_completed' => $progressPercent,
+                'week_start' => $weekStart,
+                'is_placeholder' => true,
+            ]);
+        }
     }
 
     public function saveProjectOverallProgress(Project $project, int $overallProgress): void

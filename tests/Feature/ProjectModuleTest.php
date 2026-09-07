@@ -54,6 +54,40 @@ class ProjectModuleTest extends TestCase
         ]);
     }
 
+    public function test_updating_a_project_requires_assigned_foremen(): void
+    {
+        $headAdmin = $this->makeUser('head_admin');
+
+        $this->actingAs($headAdmin)->post('/projects', [
+            'name' => 'Project A',
+            'client' => 'Client A',
+            'type' => 'Residential',
+            'location' => 'QC',
+            'assigned' => 'Team 1',
+            'target' => '2026-12-31',
+            'status' => 'PLANNING',
+            'phase' => 'Design',
+        ])->assertRedirect();
+
+        $project = Project::where('name', 'Project A')->firstOrFail();
+
+        $this->actingAs($headAdmin)->patch("/projects/{$project->id}", [
+            'name' => 'Project A',
+            'client' => 'Client A',
+            'type' => 'Residential',
+            'location' => 'QC',
+            'assigned' => '',
+            'target' => '2026-12-31',
+            'status' => 'ACTIVE',
+            'phase' => 'Design',
+        ])->assertSessionHasErrors('assigned');
+
+        $this->assertDatabaseHas('projects', [
+            'id' => $project->id,
+            'assigned' => 'Team 1',
+        ]);
+    }
+
     public function test_admin_cannot_access_construction_pages_but_head_admin_can(): void
     {
         $headAdmin = $this->makeUser('head_admin');

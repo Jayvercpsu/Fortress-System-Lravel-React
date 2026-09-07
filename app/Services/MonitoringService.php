@@ -81,20 +81,25 @@ class MonitoringService
     public function updateScope(ProjectScope $scope, array $validated): void
     {
         $previousScopeName = (string) ($scope->scope_name ?? '');
+        $previousPercent = (float) ($scope->progress_percent ?? 0);
         $this->validateAssignedPersonnel($scope->project, $validated);
         $this->monitoringRepository->updateScope($scope, $validated);
-        $latestWeekStart = $this->monitoringRepository->latestWeeklyWeekStart((int) $scope->project_id);
-        if ($latestWeekStart !== null) {
-            $progressPercent = array_key_exists('progress_percent', $validated)
-                ? (float) $validated['progress_percent']
-                : (float) ($scope->progress_percent ?? 0);
-            $this->monitoringRepository->updateWeeklyProgressForScope(
+
+        // The build page is the authority on scope progress: when the percent
+        // actually changed, push it down into the latest-week submission rows
+        // (in place — no new history rows, submitter attribution untouched) so
+        // the foreman jotform and PM grids open on the edited value.
+        $newPercent = (float) ($scope->progress_percent ?? 0);
+        if (abs($newPercent - $previousPercent) > 0.0001) {
+            $this->monitoringRepository->propagateScopeProgressToLatestWeekly(
                 (int) $scope->project_id,
                 $previousScopeName,
-                $progressPercent,
-                $latestWeekStart
+                (string) ($scope->scope_name ?? ''),
+                $newPercent,
+                (string) ($scope->assigned_personnel ?? '')
             );
         }
+
         $this->recomputeOverallProgress($scope->project);
     }
 
@@ -135,13 +140,10 @@ class MonitoringService
 
     private function recomputeOverallProgress(Project $project): void
     {
-        $latestWeekStart = $this->monitoringRepository->latestWeeklyWeekStart((int) $project->id);
-
-        if ($latestWeekStart) {
-            $averageProgress = $this->monitoringRepository->averageWeeklyProgress((int) $project->id, $latestWeekStart);
-        } else {
-            $averageProgress = $this->monitoringRepository->averageScopeProgress($project);
-        }
+        // Overall progress follows the project_scopes table — the build page
+        // owns scope progress. Weekly accomplishment rows are submission
+        // records (foreman / project manager) and are never written from here.
+        $averageProgress = $this->monitoringRepository->averageScopeProgress($project);
 
         $overallProgress = (int) round(max(0, min(100, $averageProgress)));
         $this->monitoringRepository->saveProjectOverallProgress($project, $overallProgress);

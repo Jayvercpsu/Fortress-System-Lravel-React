@@ -20,13 +20,9 @@ interface MonitoringRepositoryInterface
 
     public function deleteScope(ProjectScope $scope): void;
 
-    public function latestWeeklyWeekStart(int $projectId): ?string;
-
-    public function averageWeeklyProgress(int $projectId, string $weekStart): float;
-
     public function averageScopeProgress(Project $project): float;
 
-    public function updateWeeklyProgressForScope(int $projectId, string $scopeName, float $progressPercent, string $weekStart): void;
+    public function propagateScopeProgressToLatestWeekly(int $projectId, string $previousScopeName, string $newScopeName, float $progressPercent, string $assignedPersonnel = ''): void;
 
     public function saveProjectOverallProgress(Project $project, int $overallProgress): void;
 

@@ -7,6 +7,8 @@ use App\Models\MonitoringBoardItem;
 use App\Models\Project;
 use App\Models\ProjectScope;
 use App\Models\User;
+use App\Models\WeeklyAccomplishment;
+use Carbon\Carbon;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Hash;
@@ -81,6 +83,246 @@ class MonitoringBoardTest extends TestCase
 
         $project->refresh();
         $this->assertSame(80, (int) $project->overall_progress);
+    }
+
+    public function test_build_scope_edit_forces_only_latest_weekly_row_per_foreman(): void
+    {
+        $headAdmin = $this->makeUser('head_admin');
+        $project = $this->makeProject($headAdmin->id);
+        $foreman = $this->makeUser('foreman');
+
+        $scope = ProjectScope::create([
+            'project_id' => $project->id,
+            'scope_name' => 'Foundation',
+            'assigned_personnel' => $foreman->fullname,
+            'progress_percent' => 26,
+            'status' => 'IN_PROGRESS',
+            'remarks' => null,
+            'contract_amount' => 100000,
+            'weight_percent' => 100,
+        ]);
+
+        $weekStart = now()->startOfWeek()->toDateString();
+        WeeklyAccomplishment::query()->create([
+            'foreman_id' => $foreman->id,
+            'submitted_by' => $foreman->id,
+            'project_id' => $project->id,
+            'scope_of_work' => 'Foundation',
+            'percent_completed' => 26,
+            'week_start' => $weekStart,
+            'is_placeholder' => false,
+        ]);
+        $this->travel(1)->second();
+        WeeklyAccomplishment::query()->create([
+            'foreman_id' => $foreman->id,
+            'submitted_by' => $headAdmin->id,
+            'project_id' => $project->id,
+            'scope_of_work' => 'Foundation',
+            'percent_completed' => 30,
+            'week_start' => $weekStart,
+            'is_placeholder' => false,
+        ]);
+
+        // Edit progress on the build page — only the latest row per foreman is
+        // forced to 35 in place: no new rows, older history keeps its values,
+        // submitter attribution preserved.
+        $this->actingAs($headAdmin)
+            ->patch("/scopes/{$scope->id}", [
+                'scope_name' => 'Foundation',
+                'assigned_personnel' => $foreman->fullname,
+                'progress_percent' => 35,
+                'status' => 'IN_PROGRESS',
+                'remarks' => 'Updated from build page.',
+                'contract_amount' => 100000,
+                'weight_percent' => 100,
+            ])
+            ->assertRedirect("/projects/{$project->id}/monitoring");
+
+        $this->assertDatabaseCount('weekly_accomplishments', 2);
+        $this->assertDatabaseHas('weekly_accomplishments', [
+            'scope_of_work' => 'Foundation',
+            'percent_completed' => 26,
+            'submitted_by' => $foreman->id,
+        ]);
+        $this->assertDatabaseHas('weekly_accomplishments', [
+            'scope_of_work' => 'Foundation',
+            'percent_completed' => 35,
+            'submitted_by' => $headAdmin->id,
+        ]);
+
+        // Overall progress follows the build-page scopes table, not weekly rows.
+        $project->refresh();
+        $this->assertSame(35, (int) $project->overall_progress);
+    }
+
+    public function test_build_scope_edit_updates_placeholders_without_creating_records(): void
+    {
+        $headAdmin = $this->makeUser('head_admin');
+        $project = $this->makeProject($headAdmin->id);
+        $foreman = $this->makeUser('foreman');
+
+        $scope = ProjectScope::create([
+            'project_id' => $project->id,
+            'scope_name' => 'Slab on Fill',
+            'assigned_personnel' => $foreman->fullname,
+            'progress_percent' => 0,
+            'status' => 'NOT_STARTED',
+            'remarks' => null,
+            'contract_amount' => 80000,
+            'weight_percent' => 100,
+        ]);
+
+        // Only an unsubmitted auto-seeded placeholder exists for this scope.
+        $project->update(['phase' => 'Construction', 'assigned' => $foreman->fullname]);
+        $weekStart = now()->startOfWeek()->toDateString();
+        $placeholder = WeeklyAccomplishment::query()->create([
+            'foreman_id' => $foreman->id,
+            'project_id' => $project->id,
+            'scope_of_work' => 'Slab on Fill',
+            'percent_completed' => 0,
+            'week_start' => $weekStart,
+            'is_placeholder' => true,
+        ]);
+
+        $this->actingAs($headAdmin)
+            ->patch("/scopes/{$scope->id}", [
+                'scope_name' => 'Slab on Fill',
+                'assigned_personnel' => $foreman->fullname,
+                'progress_percent' => 15,
+                'status' => 'IN_PROGRESS',
+                'remarks' => 'Started.',
+                'contract_amount' => 80000,
+                'weight_percent' => 100,
+            ])
+            ->assertRedirect("/projects/{$project->id}/monitoring");
+
+        // Placeholder carries the edited value but stays unsubmitted: no new
+        // rows, still a placeholder, timestamps pinned so it stays invisible
+        // on /weekly-accomplishments.
+        $this->assertDatabaseCount('weekly_accomplishments', 1);
+        $placeholder->refresh();
+        $this->assertSame(15, (int) $placeholder->percent_completed);
+        $this->assertTrue((bool) $placeholder->is_placeholder);
+        $this->assertTrue($placeholder->updated_at->equalTo($placeholder->created_at));
+
+        $this->actingAs($headAdmin)
+            ->get('/weekly-accomplishments')
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page->has('weeklyAccomplishments', 0));
+
+        // ...but the PM grid opens on the edited value (under the current
+        // Monday week once the grid seeds the week forward).
+        $mondayWeek = Carbon::now()->startOfWeek(Carbon::MONDAY)->toDateString();
+        $this->actingAs($this->makeUser('project_manager'))
+            ->get('/project-manager/accomplishments?project_id=' . $project->id . '&foreman_id=' . $foreman->id)
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page
+                ->where('weekly.weekly_saved_by_week', fn ($byWeek) => collect($byWeek[$mondayWeek] ?? [])
+                    ->contains(fn ($row) => ($row['scope_of_work'] ?? '') === 'Slab on Fill'
+                        && (float) ($row['percent_completed'] ?? 0) === 15.0)));
+    }
+
+    public function test_build_scope_edit_seeds_placeholder_when_scope_has_no_weekly_rows(): void
+    {
+        $headAdmin = $this->makeUser('head_admin');
+        $project = $this->makeProject($headAdmin->id);
+        $foreman = $this->makeUser('foreman');
+
+        $scope = ProjectScope::create([
+            'project_id' => $project->id,
+            'scope_name' => 'Slab on Fill',
+            'assigned_personnel' => $foreman->fullname,
+            'progress_percent' => 0,
+            'status' => 'NOT_STARTED',
+            'remarks' => null,
+            'contract_amount' => 80000,
+            'weight_percent' => 100,
+        ]);
+        $project->update(['phase' => 'Construction', 'assigned' => $foreman->fullname]);
+
+        $this->actingAs($headAdmin)
+            ->patch("/scopes/{$scope->id}", [
+                'scope_name' => 'Slab on Fill',
+                'assigned_personnel' => $foreman->fullname,
+                'progress_percent' => 15,
+                'status' => 'IN_PROGRESS',
+                'remarks' => 'Started.',
+                'contract_amount' => 80000,
+                'weight_percent' => 100,
+            ])
+            ->assertRedirect("/projects/{$project->id}/monitoring");
+
+        // One unsubmitted placeholder seeded for the assigned foreman — still
+        // invisible on /weekly-accomplishments.
+        $this->assertDatabaseCount('weekly_accomplishments', 1);
+        $this->assertDatabaseHas('weekly_accomplishments', [
+            'project_id' => $project->id,
+            'foreman_id' => $foreman->id,
+            'scope_of_work' => 'Slab on Fill',
+            'percent_completed' => 15,
+            'is_placeholder' => true,
+        ]);
+
+        $this->actingAs($headAdmin)
+            ->get('/weekly-accomplishments')
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page->has('weeklyAccomplishments', 0));
+
+        // ...but the PM grid opens on the edited value.
+        $mondayWeek = Carbon::now()->startOfWeek(Carbon::MONDAY)->toDateString();
+        $this->actingAs($this->makeUser('project_manager'))
+            ->get('/project-manager/accomplishments?project_id=' . $project->id . '&foreman_id=' . $foreman->id)
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page
+                ->where('weekly.weekly_saved_by_week', fn ($byWeek) => collect($byWeek[$mondayWeek] ?? [])
+                    ->contains(fn ($row) => ($row['scope_of_work'] ?? '') === 'Slab on Fill'
+                        && (float) ($row['percent_completed'] ?? 0) === 15.0)));
+    }
+
+    public function test_build_scope_edit_without_percent_change_leaves_weekly_rows_alone(): void
+    {
+        $headAdmin = $this->makeUser('head_admin');
+        $project = $this->makeProject($headAdmin->id);
+        $foreman = $this->makeUser('foreman');
+
+        $scope = ProjectScope::create([
+            'project_id' => $project->id,
+            'scope_name' => 'Foundation',
+            'assigned_personnel' => $foreman->fullname,
+            'progress_percent' => 26,
+            'status' => 'IN_PROGRESS',
+            'remarks' => null,
+            'contract_amount' => 100000,
+            'weight_percent' => 100,
+        ]);
+
+        $weekStart = now()->startOfWeek()->toDateString();
+        $row = WeeklyAccomplishment::query()->create([
+            'foreman_id' => $foreman->id,
+            'submitted_by' => $foreman->id,
+            'project_id' => $project->id,
+            'scope_of_work' => 'Foundation',
+            'percent_completed' => 26,
+            'week_start' => $weekStart,
+            'is_placeholder' => false,
+        ]);
+        $originalUpdatedAt = $row->updated_at;
+
+        // Edit only the remarks — same percent, so weekly rows are untouched.
+        $this->actingAs($headAdmin)
+            ->patch("/scopes/{$scope->id}", [
+                'scope_name' => 'Foundation',
+                'assigned_personnel' => $foreman->fullname,
+                'progress_percent' => 26,
+                'status' => 'IN_PROGRESS',
+                'remarks' => 'Remarks only.',
+                'contract_amount' => 100000,
+                'weight_percent' => 100,
+            ])
+            ->assertRedirect("/projects/{$project->id}/monitoring");
+
+        $this->assertDatabaseCount('weekly_accomplishments', 1);
+        $this->assertTrue($row->fresh()->updated_at->equalTo($originalUpdatedAt));
     }
 
     public function test_admin_can_view_monitoring_board_but_hr_cannot_access_it(): void
