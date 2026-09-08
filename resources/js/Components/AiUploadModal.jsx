@@ -1,9 +1,10 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import toast from 'react-hot-toast';
-import { Upload, Camera, Loader2, CheckCircle, AlertCircle, Trash2 } from 'lucide-react';
+import { Upload, Camera, Loader2, CheckCircle, AlertCircle, Trash2, Maximize2, X } from 'lucide-react';
 import Modal from './Modal';
 import AiConfirmationModal from './AiConfirmationModal';
 import AiProcessingImage from './AiProcessingImage';
+import TextareaInput from './TextareaInput';
 
 const MAX_IMAGES = 5;
 
@@ -50,6 +51,7 @@ const colors = {
 const recordTypeStyle = (type) => {
     if (type === 'attendance') return { background: 'rgba(59, 130, 246, 0.12)', color: 'var(--status-review-text)' };
     if (type === 'expense') return { background: 'rgba(34, 197, 94, 0.12)', color: 'var(--active-text)' };
+    if (type === 'accomplishment') return { background: 'rgba(168, 85, 247, 0.12)', color: 'var(--status-review-text)' };
     return { background: 'var(--surface-2)', color: 'var(--text-muted)' };
 };
 
@@ -68,6 +70,7 @@ export default function AiUploadModal({ projects = [], onClose }) {
     const [showConfirmation, setShowConfirmation] = useState(false);
     const [showTerminateConfirm, setShowTerminateConfirm] = useState(false);
     const [previewIndex, setPreviewIndex] = useState(null);
+    const [minimized, setMinimized] = useState(false);
     const abortControllerRef = useRef(null);
     const fileInputRef = useRef(null);
 
@@ -170,6 +173,7 @@ export default function AiUploadModal({ projects = [], onClose }) {
             }
 
             setResults(data);
+            setMinimized(false);
             setShowConfirmation(true);
             toast.success(`Processed ${data.saved} record(s)!`);
         } catch (err) {
@@ -205,11 +209,61 @@ export default function AiUploadModal({ projects = [], onClose }) {
     const recordTypeIcon = (type) => {
         if (type === 'attendance') return '📋';
         if (type === 'expense') return '🧾';
+        if (type === 'accomplishment') return '🏗️';
         return '❓';
     };
 
+    // Minimized: dock to a floating pill. Upload state, processing, and
+    // timers keep running — only the dialog is hidden.
+    if (minimized) {
+        return (
+            <>
+                <div className="fixed bottom-4 right-4 z-[1200] flex items-center gap-2 bg-white rounded-full shadow-xl border border-gray-200 pl-4 pr-2 py-2">
+                    <span className="text-sm font-medium text-gray-700">
+                        AI Record Processing{processing ? ` • analyzing ${imageFiles.length} image(s)…` : imageFiles.length > 0 ? ` • ${imageFiles.length} image(s)` : ''}
+                    </span>
+                    <button
+                        type="button"
+                        onClick={() => setMinimized(false)}
+                        className="text-gray-500 hover:text-gray-800 rounded-full p-1.5 hover:bg-gray-100"
+                        aria-label="Restore AI Record Processing"
+                        title="Restore"
+                    >
+                        <Maximize2 size={16} />
+                    </button>
+                    <button
+                        type="button"
+                        onClick={processing ? undefined : onClose}
+                        disabled={processing}
+                        className="text-gray-500 hover:text-gray-800 rounded-full p-1.5 hover:bg-gray-100 disabled:opacity-40"
+                        aria-label="Close AI Record Processing"
+                        title="Close"
+                    >
+                        <X size={16} />
+                    </button>
+                </div>
+                {/* Confirmation Modal */}
+                {showConfirmation && results?.records && (
+                    <AiConfirmationModal
+                        records={results.records}
+                        projects={projects}
+                        imagePreviews={imagePreviews}
+                        accomplishmentContext={results.accomplishment_context || {}}
+                        onClose={() => setShowConfirmation(false)}
+                        onConfirmed={handleConfirmed}
+                    />
+                )}
+            </>
+        );
+    }
+
+    // Minimizing to a pill only makes sense while there is something to dock
+    // for — an ongoing AI run or results awaiting review. In the idle upload
+    // state the toggle is maximize/restore only.
+    const canMinimize = processing || Boolean(results);
+
     return (
-        <Modal open={true} onClose={onClose} title="AI Record Processing" width="90vw" height="90vh" disableClose={processing}>
+        <Modal open={true} onClose={onClose} title="AI Record Processing" width="90vw" height="90vh" disableClose={processing} onMinimize={canMinimize ? () => setMinimized(true) : undefined}>
             <div className="p-4 space-y-4 overflow-y-auto flex-1">
                 {/* Info Banner */}
                 <div style={{
@@ -222,7 +276,7 @@ export default function AiUploadModal({ projects = [], onClose }) {
                 }}>
                     💡 <strong>AI Auto-Detection:</strong> Upload up to {MAX_IMAGES} images at once. The AI will automatically detect:
                     <ul style={{ marginTop: 4, marginLeft: 16 }}>
-                        <li>Record type (attendance or expense)</li>
+                        <li>Record type (attendance, expense, or scope-of-works accomplishment)</li>
                         <li>Which project it belongs to</li>
                         <li>Extract all relevant data</li>
                     </ul>
@@ -234,21 +288,27 @@ export default function AiUploadModal({ projects = [], onClose }) {
                         Upload Images <span style={{ color: colors.labelMuted, fontWeight: 400 }}>(up to {MAX_IMAGES})</span>
                     </label>
                     <div
-                        onClick={() => fileInputRef.current?.click()}
+                        role="button"
+                        tabIndex={processing ? -1 : 0}
+                        aria-disabled={processing ? 'true' : undefined}
+                        aria-label="Upload images"
+                        onClick={() => { if (!processing) fileInputRef.current?.click(); }}
+                        onKeyDown={(e) => { if (!processing && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); fileInputRef.current?.click(); } }}
                         style={{
                             border: `2px dashed ${colors.dropzoneBorder}`,
                             borderRadius: 8,
                             padding: 24,
                             textAlign: 'center',
-                            cursor: 'pointer',
+                            cursor: processing ? 'not-allowed' : 'pointer',
                             transition: 'border-color 0.15s',
+                            opacity: processing ? 0.55 : 1,
                         }}
-                        onMouseEnter={(e) => e.currentTarget.style.borderColor = colors.dropzoneHover}
-                        onMouseLeave={(e) => e.currentTarget.style.borderColor = colors.dropzoneBorder}
+                        onMouseEnter={(e) => { if (!processing) e.currentTarget.style.borderColor = colors.dropzoneHover; }}
+                        onMouseLeave={(e) => { e.currentTarget.style.borderColor = colors.dropzoneBorder; }}
                     >
                         <Camera size={48} style={{ margin: '0 auto', color: colors.icon }} />
                         <p style={{ color: colors.bodyText, marginTop: 8 }}>
-                            Click to upload attendance notes and/or expense receipts
+                            {processing ? 'Uploading is paused while AI analysis runs' : 'Click to upload attendance notes, expense receipts, and/or scope-of-works sheets'}
                         </p>
                         <p style={{ fontSize: 13, color: colors.subtleText, marginTop: 4 }}>
                             JPG, PNG — up to 10MB each — up to {MAX_IMAGES} images
@@ -273,9 +333,10 @@ export default function AiUploadModal({ projects = [], onClose }) {
                             </span>
                             <button
                                 type="button"
-                                onClick={() => { setImageFiles([]); setImagePreviews([]); }}
-                                className="text-xs hover:opacity-80"
-                                style={{ color: 'var(--toast-error-border)' }}
+                                onClick={() => { if (!processing) { setImageFiles([]); setImagePreviews([]); } }}
+                                disabled={processing}
+                                className="text-xs hover:opacity-80 disabled:opacity-40"
+                                style={{ color: 'var(--toast-error-border)', cursor: processing ? 'not-allowed' : 'pointer' }}
                             >
                                 Clear all
                             </button>
@@ -313,17 +374,19 @@ export default function AiUploadModal({ projects = [], onClose }) {
                     <label className="block text-sm font-medium mb-2" style={{ color: colors.label }}>
                         Notes (optional)
                     </label>
-                    <textarea
+                    <TextareaInput
                         value={notes}
                         onChange={(e) => setNotes(e.target.value)}
                         rows={2}
-                        className="w-full rounded-lg p-2 text-sm"
+                        disabled={processing}
+                        className="w-full rounded-lg p-2 text-sm disabled:opacity-60"
                         style={{
                             border: `1px solid ${colors.textareaBorder}`,
                             background: colors.textareaBg,
                             color: colors.textareaText,
+                            cursor: processing ? 'not-allowed' : 'text',
                         }}
-                        placeholder="e.g. Weekly attendance for Site A, include worker hours..."
+                        placeholder={processing ? 'Notes are locked while AI analysis runs…' : 'e.g. Weekly attendance for Site A, include worker hours...'}
                     />
                 </div>
 
@@ -397,6 +460,7 @@ export default function AiUploadModal({ projects = [], onClose }) {
                                 <div className="mt-2 text-sm" style={{ color: colors.successText }}>
                                     📋 {results.summary.attendance} attendance |
                                     🧾 {results.summary.expense} expense |
+                                    🏗️ {results.summary.accomplishment ?? 0} accomplishment |
                                     🚫 {results.skipped} skipped
                                 </div>
                             )}
@@ -587,6 +651,7 @@ export default function AiUploadModal({ projects = [], onClose }) {
                     records={results.records}
                     projects={projects}
                     imagePreviews={imagePreviews}
+                    accomplishmentContext={results.accomplishment_context || {}}
                     onClose={() => setShowConfirmation(false)}
                     onConfirmed={handleConfirmed}
                 />

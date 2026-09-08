@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Requests\Monitoring\BulkDestroyProjectScopeRequest;
 use App\Http\Requests\Monitoring\StoreProjectScopeRequest;
 use App\Http\Requests\Monitoring\UpdateProjectScopeRequest;
 use App\Http\Requests\Monitoring\ReorderProjectScopesRequest;
@@ -46,6 +47,14 @@ class MonitoringController extends Controller
         return redirect()
             ->route('monitoring.show', ['project' => $scope->project_id])
             ->with('success', __('messages.monitoring.scope_updated'));
+    }
+
+    public function bulkDestroy(BulkDestroyProjectScopeRequest $request, Project $project)
+    {
+        $this->monitoringService->ensureAuthorized($request->user());
+        $this->monitoringService->deleteScopes($project, $request->validated('ids'));
+
+        return back()->with('success', __('messages.monitoring.scopes_bulk_deleted'));
     }
 
     public function destroy(Request $request, ProjectScope $scope)

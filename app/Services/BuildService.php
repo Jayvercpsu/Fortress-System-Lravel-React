@@ -87,7 +87,10 @@ class BuildService
             ->values();
 
         $scopesQuery = $this->buildRepository->scopesWithPhotos($project);
-        if ($scopesQuery->isEmpty()) {
+        // Only seed defaults for brand-new projects. If the project once had
+        // scopes and the user deleted all of them, reseding here would
+        // reseeding here would resurrect the table on the next page load.
+        if ($scopesQuery->isEmpty() && ! $this->buildRepository->hasEverHadScopes($project)) {
             $this->buildRepository->insertDefaultScopes($project, $this->defaultConstructionScopes());
             $scopesQuery = $this->buildRepository->scopesWithPhotos($project);
         }

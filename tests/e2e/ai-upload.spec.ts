@@ -605,6 +605,350 @@ test.describe('AI Confirmation Modal — Reject Flow', () => {
     });
 });
 
+test.describe('AI Upload Dropzone Disabled While Processing', () => {
+    test('upload dropzone is disabled during processing and re-enabled after cancel', async ({ page }) => {
+        await loginAs(page, 'head_admin');
+        await page.goto('/projects');
+        await page.waitForLoadState('networkidle');
+
+        await page.getByRole('button', { name: /AI Upload/i }).click();
+
+        const fileInput = page.locator('input[type="file"]');
+        await fileInput.setInputFiles({
+            name: 'test.jpg',
+            mimeType: 'image/jpeg',
+            buffer: Buffer.from('fake-image-data'),
+        });
+
+        const dropzone = page.getByLabel('Upload images', { exact: true });
+        await expect(dropzone).toBeVisible();
+        await expect(dropzone).not.toHaveAttribute('aria-disabled', 'true');
+
+        await page.getByRole('button', { name: /Process/i }).click();
+        await expect(page.locator('text=AI is analyzing')).toBeVisible();
+
+        // Dropzone is disabled while the AI works
+        await expect(dropzone).toHaveAttribute('aria-disabled', 'true');
+        await expect(page.locator('text=Uploading is paused while AI analysis runs')).toBeVisible();
+
+        // Cancel processing → dropzone works again
+        await page.getByRole('button', { name: /^Cancel$/ }).click();
+        await page.getByRole('button', { name: /Yes, Cancel/ }).click();
+        await expect(page.locator('text=AI is analyzing')).not.toBeVisible();
+        await expect(dropzone).not.toHaveAttribute('aria-disabled', 'true');
+    });
+});
+
+test.describe('AI Confirmation Modal — Accomplishment Foreman Assignment', () => {
+    const stubAccomplishmentUpload = async (page) => {
+        const fakeRecord = {
+            id: 1001,
+            record_type: 'accomplishment',
+            status: 'pending',
+            project_id: 999,
+            project: { id: 999, name: 'Stub Project' },
+            image_index: 0,
+            ai_parsed_data: {
+                date: '2026-09-07',
+                scopes: [
+                    { scope_name: 'Existing Scope', contract_amount: 1000, weight_percent: 1, progress_percent: 50 },
+                    { scope_name: 'New Scope', contract_amount: 2000, weight_percent: 2, progress_percent: 10 },
+                ],
+            },
+            ai_summary: 'Stubbed accomplishment record',
+            ai_model: 'stub',
+            notes: null,
+        };
+
+        await page.route('**/processed-records**', async (route) => {
+            const request = route.request();
+            const pathname = new URL(request.url()).pathname;
+            if (request.method() === 'PUT' && /\/processed-records\/\d+\/edit$/.test(pathname)) {
+                await route.fulfill({
+                    status: 200,
+                    contentType: 'application/json',
+                    body: JSON.stringify({ record: fakeRecord }),
+                });
+                return;
+            }
+            if (request.method() === 'POST' && pathname === '/processed-records') {
+                await route.fulfill({
+                    status: 200,
+                    contentType: 'application/json',
+                    body: JSON.stringify({
+                        records: [fakeRecord],
+                        skipped: 0,
+                        saved: 1,
+                        summary: { total: 1, attendance: 0, expense: 0, accomplishment: 1, pending: 1, pending_project: 0 },
+                        accomplishment_context: {
+                            '999': {
+                                foreman_options: [{ id: 7, fullname: 'Stub Foreman' }],
+                                scopes: [{ scope_name: 'Existing Scope', assigned_personnel: 'Old Foreman' }],
+                            },
+                        },
+                    }),
+                });
+                return;
+            }
+            await route.continue();
+        });
+
+        await loginAs(page, 'head_admin');
+        await page.goto('/projects');
+        await page.waitForLoadState('networkidle');
+
+        await page.getByRole('button', { name: /AI Upload/i }).click();
+
+        const fileInput = page.locator('input[type="file"]');
+        await fileInput.setInputFiles({
+            name: 'scope-sheet.jpg',
+            mimeType: 'image/jpeg',
+            buffer: Buffer.from('fake-image-data'),
+        });
+
+        await page.getByRole('button', { name: /Process/i }).click();
+        await expect(page.locator('text=Review Records')).toBeVisible();
+
+        // Expand the stubbed accomplishment record
+        await page.locator('text=Record 1').click();
+    };
+
+    test('existing assignee shows as badge without foreman dropdown', async ({ page }) => {
+        await stubAccomplishmentUpload(page);
+
+        await expect(page.getByText('Old Foreman')).toBeVisible();
+    });
+
+    test('unassigned scope shows project foreman dropdown', async ({ page }) => {
+        await stubAccomplishmentUpload(page);
+
+        const foremanSelect = page.getByLabel('Assign foreman for New Scope');
+        await expect(foremanSelect).toBeVisible();
+        await expect(foremanSelect).toContainText('Stub Foreman');
+
+        // Only the unassigned scope gets a dropdown
+        await expect(page.getByLabel('Assign foreman for Existing Scope')).toHaveCount(0);
+    });
+
+    test('selecting a foreman persists the assignment', async ({ page }) => {
+        await stubAccomplishmentUpload(page);
+
+        let savedBody: string | null = null;
+        page.on('request', (request) => {
+            if (request.method() === 'PUT' && /\/processed-records\/\d+\/edit$/.test(request.url())) {
+                savedBody = request.postData();
+            }
+        });
+
+        await page.getByLabel('Assign foreman for New Scope').selectOption('Stub Foreman');
+
+        await expect.poll(() => savedBody, { timeout: 10000 }).toContain('Stub Foreman');
+    });
+
+    test('submit without foreman shows a required error per scope', async ({ page }) => {
+        const fakeRecord = {
+            id: 1002,
+            record_type: 'accomplishment',
+            status: 'pending',
+            project_id: 999,
+            project: { id: 999, name: 'Stub Project' },
+            image_index: 0,
+            ai_parsed_data: {
+                date: '2026-09-07',
+                scopes: [
+                    { scope_name: 'New Scope', contract_amount: 2000, weight_percent: 2, progress_percent: 10 },
+                ],
+            },
+            ai_summary: 'Stubbed accomplishment record',
+            ai_model: 'stub',
+            notes: null,
+        };
+
+        await page.route('**/processed-records**', async (route) => {
+            const request = route.request();
+            const pathname = new URL(request.url()).pathname;
+            if (request.method() === 'POST' && /\/processed-records\/\d+\/confirm$/.test(pathname)) {
+                await route.fulfill({
+                    status: 422,
+                    contentType: 'application/json',
+                    body: JSON.stringify({
+                        message: 'Some scopes still need a foreman. Please assign a foreman for each highlighted scope.',
+                        errors: {
+                            'scopes.0.assigned_personnel': ['Foreman is required for scope "New Scope".'],
+                        },
+                    }),
+                });
+                return;
+            }
+            if (request.method() === 'POST' && pathname === '/processed-records') {
+                await route.fulfill({
+                    status: 200,
+                    contentType: 'application/json',
+                    body: JSON.stringify({
+                        records: [fakeRecord],
+                        skipped: 0,
+                        saved: 1,
+                        summary: { total: 1, attendance: 0, expense: 0, accomplishment: 1, pending: 1, pending_project: 0 },
+                        accomplishment_context: {
+                            '999': {
+                                foreman_options: [{ id: 7, fullname: 'Stub Foreman' }],
+                                scopes: [],
+                            },
+                        },
+                    }),
+                });
+                return;
+            }
+            await route.continue();
+        });
+
+        await loginAs(page, 'head_admin');
+        await page.goto('/projects');
+        await page.waitForLoadState('networkidle');
+
+        await page.getByRole('button', { name: /AI Upload/i }).click();
+
+        const fileInput = page.locator('input[type="file"]');
+        await fileInput.setInputFiles({
+            name: 'scope-sheet.jpg',
+            mimeType: 'image/jpeg',
+            buffer: Buffer.from('fake-image-data'),
+        });
+
+        await page.getByRole('button', { name: /Process/i }).click();
+        await expect(page.locator('text=Review Records')).toBeVisible();
+        await page.locator('text=Record 1').click();
+
+        await page.getByRole('button', { name: 'Submit' }).click();
+
+        // Toast explains the problem, the scope's foreman field gets a red
+        // border (no inline text), and the modal stays open
+        await expect(page.getByText('Some scopes still need a foreman.')).toBeVisible();
+        await expect(page.getByLabel('Assign foreman for New Scope')).toHaveAttribute('aria-invalid', 'true');
+        await expect(page.getByText('Foreman is required for scope "New Scope".')).toHaveCount(0);
+        await expect(page.locator('text=Review Records')).toBeVisible();
+    });
+
+    test('review records is always full height with no window toggle', async ({ page }) => {
+        await stubAccomplishmentUpload(page);
+
+        await expect(page.locator('text=Review Records').first()).toBeVisible();
+        await expect(page.locator('text=Record 1')).toBeVisible();
+
+        // Records list stretches to the dialog bottom (no dead padding)
+        const dialogBox = await page.getByTestId('review-records-dialog').boundingBox();
+        const listBox = await page.getByTestId('review-records-list').boundingBox();
+        expect(dialogBox && listBox).toBeTruthy();
+        if (dialogBox && listBox) {
+            expect(Math.abs(dialogBox.y + dialogBox.height - (listBox.y + listBox.height))).toBeLessThan(5);
+        }
+
+        // Dialog fits inside the viewport (no overflow past the parent modal)
+        const viewport = page.viewportSize();
+        expect(viewport).toBeTruthy();
+        if (dialogBox && viewport) {
+            expect(dialogBox.x).toBeGreaterThanOrEqual(0);
+            expect(dialogBox.y).toBeGreaterThanOrEqual(0);
+            expect(dialogBox.x + dialogBox.width).toBeLessThanOrEqual(viewport.width + 1);
+            expect(dialogBox.y + dialogBox.height).toBeLessThanOrEqual(viewport.height + 1);
+        }
+
+        // No minimize/maximize toggle and no minimized pill
+        await expect(page.getByLabel('Toggle Review Records window size')).toHaveCount(0);
+        await expect(page.getByLabel('Restore Review Records')).toHaveCount(0);
+    });
+});
+
+test.describe('AI Record Processing Modal — Window Toggle', () => {
+    test('idle upload modal toggle only maximizes and restores (no pill)', async ({ page }) => {
+        await loginAs(page, 'head_admin');
+        await page.goto('/projects');
+        await page.waitForLoadState('networkidle');
+
+        await page.getByRole('button', { name: /AI Upload/i }).click();
+        await expect(page.locator('text=AI Record Processing')).toBeVisible();
+
+        // Maximize, then the same toggle restores — no minimize pill when idle
+        await page.getByLabel('Maximize').click();
+        await expect(page.locator('text=AI Record Processing')).toBeVisible();
+        await page.getByLabel('Minimize').click();
+        await expect(page.locator('text=AI Record Processing')).toBeVisible();
+        await expect(page.locator('text=Upload Images')).toBeVisible();
+        await expect(page.getByLabel('Restore AI Record Processing')).toHaveCount(0);
+    });
+
+    test('upload modal minimizes to a pill once results await review', async ({ page }) => {
+        const fakeRecord = {
+            id: 1003,
+            record_type: 'expense',
+            status: 'pending',
+            project_id: 999,
+            project: { id: 999, name: 'Stub Project' },
+            image_index: 0,
+            ai_parsed_data: {
+                date: '2026-09-04',
+                items: [
+                    { description: 'Stubbed cement', category: 'Materials', quantity: 1, unit_price: 100, amount: 100 },
+                ],
+                total: 100,
+            },
+            ai_summary: 'Stubbed expense record',
+            ai_model: 'stub',
+            notes: null,
+        };
+
+        await page.route('**/processed-records**', async (route) => {
+            const request = route.request();
+            const pathname = new URL(request.url()).pathname;
+            if (request.method() === 'POST' && pathname === '/processed-records') {
+                await route.fulfill({
+                    status: 200,
+                    contentType: 'application/json',
+                    body: JSON.stringify({
+                        records: [fakeRecord],
+                        skipped: 0,
+                        saved: 1,
+                        summary: { total: 1, attendance: 0, expense: 1, accomplishment: 0, pending: 1, pending_project: 0 },
+                        accomplishment_context: {},
+                    }),
+                });
+                return;
+            }
+            await route.continue();
+        });
+
+        await loginAs(page, 'head_admin');
+        await page.goto('/projects');
+        await page.waitForLoadState('networkidle');
+
+        await page.getByRole('button', { name: /AI Upload/i }).click();
+
+        const fileInput = page.locator('input[type="file"]');
+        await fileInput.setInputFiles({
+            name: 'receipt.jpg',
+            mimeType: 'image/jpeg',
+            buffer: Buffer.from('fake-image-data'),
+        });
+
+        await page.getByRole('button', { name: /Process/i }).click();
+        await expect(page.locator('text=Review Records')).toBeVisible();
+
+        // Close the review overlay — results await on the upload modal
+        await page.getByLabel('Close Review Records').click();
+        await expect(page.locator('text=Processing Complete')).toBeVisible();
+
+        // Now the toggle reaches the minimized pill
+        await page.getByLabel('Maximize').click();
+        await page.getByLabel('Minimize').click();
+        await expect(page.locator('text=Upload Images')).not.toBeVisible();
+        await expect(page.getByLabel('Restore AI Record Processing')).toBeVisible();
+
+        // Restore brings the results back
+        await page.getByLabel('Restore AI Record Processing').click();
+        await expect(page.locator('text=Processing Complete')).toBeVisible();
+    });
+});
+
 test.describe('Projects Page AI Section', () => {
     test('AI Upload button is in the same toolbar row as search and create', async ({ page }) => {
         await loginAs(page, 'head_admin');
@@ -660,5 +1004,125 @@ test.describe('Projects Page AI Section', () => {
             const aiCenter = aiBox.y + aiBox.height / 2;
             expect(Math.abs(searchCenter - aiCenter)).toBeLessThan(60);
         }
+    });
+});
+
+test.describe('Review Records action spinners', () => {
+    test('reject shows loading in the reject button, not submit', async ({ page }) => {
+        await loginAs(page, 'head_admin');
+        await page.goto('/projects');
+        await page.waitForLoadState('networkidle');
+
+        await page.route('**/processed-records', async (route) => {
+            if (route.request().method() !== 'POST') return route.continue();
+            await route.fulfill({
+                status: 200,
+                contentType: 'application/json',
+                body: JSON.stringify({
+                    saved: 1,
+                    skipped: 0,
+                    records: [
+                        {
+                            id: 9201,
+                            record_type: 'accomplishment',
+                            status: 'pending',
+                            project_id: 1,
+                            project: { id: 1, name: 'Fortress Building' },
+                            image_index: 0,
+                            ai_parsed_data: {
+                                date: '2026-09-08',
+                                scopes: [
+                                    {
+                                        scope_name: 'Spinner Scope',
+                                        contract_amount: 1000,
+                                        weight_percent: 5,
+                                        progress_percent: 10,
+                                        status: 'NOT_STARTED',
+                                        assigned_personnel: '',
+                                        remarks: '',
+                                    },
+                                ],
+                            },
+                        },
+                    ],
+                    accomplishment_context: {
+                        1: {
+                            foreman_options: [{ id: 11, fullname: 'Fortress Demo Foreman' }],
+                            scopes: [],
+                        },
+                    },
+                }),
+            });
+        });
+        await page.route('**/processed-records/9201/reject', async (route) => {
+            // Hold the response so the loading spinner is observable.
+            await new Promise((resolve) => setTimeout(resolve, 1500));
+            await route.fulfill({ status: 200, contentType: 'application/json', body: '{}' });
+        });
+
+        await page.getByRole('button', { name: /AI Upload/i }).click();
+
+        const fileInput = page.locator('input[type="file"]');
+        await fileInput.setInputFiles({
+            name: 'test.jpg',
+            mimeType: 'image/jpeg',
+            buffer: Buffer.from('fake-image-data'),
+        });
+
+        await page.getByRole('button', { name: /Process/i }).click();
+        await expect(page.getByTestId('review-records-dialog')).toBeVisible();
+        await page.locator('[data-testid="review-records-list"]').getByText('Record 1').click();
+
+        const dialog = page.getByTestId('review-records-dialog');
+        const rejectButton = dialog.getByRole('button', { name: 'Reject', exact: true });
+        const submitButton = dialog.getByRole('button', { name: 'Submit', exact: true });
+        await rejectButton.click();
+
+        await expect(rejectButton.locator('svg.animate-spin')).toBeVisible();
+        await expect(submitButton.locator('svg.animate-spin')).toHaveCount(0);
+
+        await expect(page.locator('body')).toContainText('Record rejected');
+    });
+});
+
+test.describe('AI Upload input locking', () => {
+    test('clear all and notes are locked during processing, unlocked after', async ({ page }) => {
+        await loginAs(page, 'head_admin');
+        await page.goto('/projects');
+        await page.waitForLoadState('networkidle');
+
+        // Hold the processing state briefly so the locked controls are observable.
+        await page.route('**/processed-records', async (route) => {
+            if (route.request().method() !== 'POST') return route.continue();
+            await new Promise((resolve) => setTimeout(resolve, 2000));
+            await route.fulfill({
+                status: 500,
+                contentType: 'application/json',
+                body: JSON.stringify({ message: 'Processing failed' }),
+            });
+        });
+
+        await page.getByRole('button', { name: /AI Upload/i }).click();
+
+        const fileInput = page.locator('input[type="file"]');
+        await fileInput.setInputFiles({
+            name: 'test.jpg',
+            mimeType: 'image/jpeg',
+            buffer: Buffer.from('fake-image-data'),
+        });
+
+        await page.getByRole('button', { name: /Process/i }).click();
+        await expect(page.locator('text=AI is analyzing')).toBeVisible();
+
+        await expect(page.getByRole('button', { name: 'Clear all', exact: true })).toBeDisabled();
+        const lockedNotes = page.locator('textarea[placeholder*="locked while AI"]');
+        await expect(lockedNotes).toBeVisible();
+        await expect(lockedNotes).toBeDisabled();
+
+        await expect(page.getByText('Processing Failed', { exact: true })).toBeVisible({ timeout: 30000 });
+        await expect(page.getByRole('button', { name: 'Clear all', exact: true })).toBeEnabled();
+        const unlockedNotes = page.locator('textarea[placeholder*="Weekly attendance"]');
+        await expect(unlockedNotes).toBeVisible();
+        await expect(unlockedNotes).toBeEnabled();
     });
 });

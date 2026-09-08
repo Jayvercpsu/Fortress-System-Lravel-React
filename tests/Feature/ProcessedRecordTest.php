@@ -1163,4 +1163,881 @@ class ProcessedRecordTest extends TestCase
             'default_rate_per_hour' => 500,
         ]);
     }
+
+    // ─── ACCOMPLISHMENT (SCOPE-OF-WORKS) TESTS ───────────────────
+
+    private function makeAccomplishmentRecord(array $overrides = []): ProcessedRecord
+    {
+        return ProcessedRecord::create(array_merge([
+            'project_id' => $this->project->id,
+            'user_id' => $this->headAdmin->id,
+            'record_type' => 'accomplishment',
+            'ai_model' => 'test-model',
+            'ai_parsed_data' => [
+                'date' => '2026-09-07',
+                'scopes' => [
+                    ['scope_name' => '1. MOBILIZATION AND HAULING', 'contract_amount' => 90000, 'weight_percent' => 3.76, 'progress_percent' => 66],
+                    ['scope_name' => '2. FOUNDATION PREPARATION', 'contract_amount' => 41500, 'weight_percent' => 1.74, 'progress_percent' => 76],
+                ],
+            ],
+            'status' => 'pending',
+        ], $overrides));
+    }
+
+    public function test_accomplishment_upload_is_detected_as_accomplishment(): void
+    {
+        $mock = \Mockery::mock(\App\Services\OpenRouterService::class);
+        $mock->shouldReceive('chat')->andReturn([
+            'choices' => [[
+                'message' => ['content' =>
+                    "RECORD_1:\n" .
+                    "TYPE: accomplishment\n" .
+                    "PROJECT: Fortress Building\n" .
+                    "PROJECT_ID: {$this->project->id}\n" .
+                    "CONFIDENCE: high\n" .
+                    "STRUCTURED_DATA: {\"date\": \"2026-09-07\", \"scopes\": [{\"scope_name\": \"Mobilization and Hauling\", \"contract_amount\": 90000, \"weight_percent\": 3.76, \"progress_percent\": 66}]}\n" .
+                    "SUMMARY: Scope-of-works sheet with 1 scope\n" .
+                    "---",
+                ],
+            ]],
+        ]);
+        $this->app->instance(\App\Services\OpenRouterService::class, $mock);
+
+        $response = $this->actingAs($this->headAdmin)
+            ->postJson('/processed-records', [
+                'images' => [\Illuminate\Http\UploadedFile::fake()->image('scope-sheet.jpg')],
+                'project_id' => $this->project->id,
+            ]);
+
+        $response->assertOk();
+        $response->assertJsonPath('records.0.record_type', 'accomplishment');
+        $response->assertJsonPath('summary.accomplishment', 1);
+    }
+
+    public function test_accomplishment_upload_canonicalizes_scope_casing_to_stored_scope(): void
+    {
+        \App\Models\ProjectScope::create([
+            'project_id' => $this->project->id,
+            'scope_name' => 'Floor',
+            'progress_percent' => 0,
+            'status' => 'NOT_STARTED',
+            'sort_order' => 1,
+        ]);
+
+        $mock = \Mockery::mock(\App\Services\OpenRouterService::class);
+        $mock->shouldReceive('chat')->andReturn([
+            'choices' => [[
+                'message' => ['content' =>
+                    "RECORD_1:\n" .
+                    "TYPE: accomplishment\n" .
+                    "PROJECT: Fortress Building\n" .
+                    "PROJECT_ID: {$this->project->id}\n" .
+                    "CONFIDENCE: high\n" .
+                    "STRUCTURED_DATA: {\"date\": \"2026-09-07\", \"scopes\": [{\"scope_name\": \"1. floor\", \"contract_amount\": 50000, \"weight_percent\": 5, \"progress_percent\": 20}, {\"scope_name\": \"Brand New Scope\", \"contract_amount\": 1000, \"weight_percent\": 1, \"progress_percent\": 5}]}\n" .
+                    "SUMMARY: Scope-of-works sheet with 2 scopes\n" .
+                    "---",
+                ],
+            ]],
+        ]);
+        $this->app->instance(\App\Services\OpenRouterService::class, $mock);
+
+        $response = $this->actingAs($this->headAdmin)
+            ->postJson('/processed-records', [
+                'images' => [\Illuminate\Http\UploadedFile::fake()->image('scope-sheet.jpg')],
+                'project_id' => $this->project->id,
+            ]);
+
+        $response->assertOk();
+        // "1. floor" matches stored "Floor" (numbering stripped, case-insensitive).
+        $response->assertJsonPath('records.0.ai_parsed_data.scopes.0.scope_name', 'Floor');
+        // Genuinely new names keep the AI casing.
+        $response->assertJsonPath('records.0.ai_parsed_data.scopes.1.scope_name', 'Brand New Scope');
+    }
+
+    public function test_accomplishment_upload_fuzzy_matches_abbreviation_rewrites(): void
+    {
+        \App\Models\ProjectScope::create([
+            'project_id' => $this->project->id,
+            'scope_name' => 'Floor Topping (Ground and 2ndF)',
+            'progress_percent' => 0,
+            'status' => 'NOT_STARTED',
+            'sort_order' => 1,
+        ]);
+        \App\Models\ProjectScope::create([
+            'project_id' => $this->project->id,
+            'scope_name' => 'Foundation Preparation',
+            'progress_percent' => 0,
+            'status' => 'NOT_STARTED',
+            'sort_order' => 2,
+        ]);
+
+        $mock = \Mockery::mock(\App\Services\OpenRouterService::class);
+        $mock->shouldReceive('chat')->andReturn([
+            'choices' => [[
+                'message' => ['content' =>
+                    "RECORD_1:\n" .
+                    "TYPE: accomplishment\n" .
+                    "PROJECT: Fortress Building\n" .
+                    "PROJECT_ID: {$this->project->id}\n" .
+                    "CONFIDENCE: high\n" .
+                    "STRUCTURED_DATA: {\"date\": \"2026-09-07\", \"scopes\": [{\"scope_name\": \"Floor Topping (Ground and 2nd Floor)\", \"contract_amount\": 50000, \"weight_percent\": 5, \"progress_percent\": 20}, {\"scope_name\": \"Foundation\", \"contract_amount\": 1000, \"weight_percent\": 1, \"progress_percent\": 5}]}\n" .
+                    "SUMMARY: Scope-of-works sheet with 2 scopes\n" .
+                    "---",
+                ],
+            ]],
+        ]);
+        $this->app->instance(\App\Services\OpenRouterService::class, $mock);
+
+        $response = $this->actingAs($this->headAdmin)
+            ->postJson('/processed-records', [
+                'images' => [\Illuminate\Http\UploadedFile::fake()->image('scope-sheet.jpg')],
+                'project_id' => $this->project->id,
+            ]);
+
+        $response->assertOk();
+        // Expanded abbreviation maps back to the stored scope.
+        $response->assertJsonPath('records.0.ai_parsed_data.scopes.0.scope_name', 'Floor Topping (Ground and 2ndF)');
+        // Genuinely different scope keeps the AI text (no false merge).
+        $response->assertJsonPath('records.0.ai_parsed_data.scopes.1.scope_name', 'Foundation');
+    }
+
+    public function test_accomplishment_upload_fuzzy_matches_typo_rewrites(): void
+    {
+        \App\Models\ProjectScope::create([
+            'project_id' => $this->project->id,
+            'scope_name' => 'Catch Basin (with Inside Plastering)',
+            'progress_percent' => 0,
+            'status' => 'NOT_STARTED',
+            'sort_order' => 1,
+        ]);
+        \App\Models\ProjectScope::create([
+            'project_id' => $this->project->id,
+            'scope_name' => 'Electrical Wiring',
+            'progress_percent' => 0,
+            'status' => 'NOT_STARTED',
+            'sort_order' => 2,
+        ]);
+
+        $mock = \Mockery::mock(\App\Services\OpenRouterService::class);
+        $mock->shouldReceive('chat')->andReturn([
+            'choices' => [[
+                'message' => ['content' =>
+                    "RECORD_1:\n" .
+                    "TYPE: accomplishment\n" .
+                    "PROJECT: Fortress Building\n" .
+                    "PROJECT_ID: {$this->project->id}\n" .
+                    "CONFIDENCE: high\n" .
+                    "STRUCTURED_DATA: {\"date\": \"2026-09-07\", \"scopes\": [{\"scope_name\": \"Catch Basin (within Inside Plastering)\", \"contract_amount\": 50000, \"weight_percent\": 5, \"progress_percent\": 20}, {\"scope_name\": \"Painting Works\", \"contract_amount\": 1000, \"weight_percent\": 1, \"progress_percent\": 5}]}\n" .
+                    "SUMMARY: Scope-of-works sheet with 2 scopes\n" .
+                    "---",
+                ],
+            ]],
+        ]);
+        $this->app->instance(\App\Services\OpenRouterService::class, $mock);
+
+        $response = $this->actingAs($this->headAdmin)
+            ->postJson('/processed-records', [
+                'images' => [\Illuminate\Http\UploadedFile::fake()->image('scope-sheet.jpg')],
+                'project_id' => $this->project->id,
+            ]);
+
+        $response->assertOk();
+        // Typo ("within" vs "with") maps back to the stored scope.
+        $response->assertJsonPath('records.0.ai_parsed_data.scopes.0.scope_name', 'Catch Basin (with Inside Plastering)');
+        // Unrelated scope keeps the AI text (no false merge).
+        $response->assertJsonPath('records.0.ai_parsed_data.scopes.1.scope_name', 'Painting Works');
+    }
+
+    public function test_accomplishment_upload_ai_resolves_scope_names_against_selected_project(): void
+    {
+        \App\Models\ProjectScope::create([
+            'project_id' => $this->project->id,
+            'scope_name' => 'Site Preparation and Layout',
+            'progress_percent' => 0,
+            'status' => 'NOT_STARTED',
+            'sort_order' => 1,
+        ]);
+
+        // "Site Prep" is too far for the deterministic fallback (<80% similar),
+        // so only the AI refinement pass can resolve it to the stored scope.
+        $extraction = [
+            'choices' => [[
+                'message' => ['content' =>
+                    "RECORD_1:\n" .
+                    "TYPE: accomplishment\n" .
+                    "PROJECT: Fortress Building\n" .
+                    "PROJECT_ID: {$this->project->id}\n" .
+                    "CONFIDENCE: high\n" .
+                    "STRUCTURED_DATA: {\"date\": \"2026-09-07\", \"scopes\": [{\"scope_name\": \"Site Prep\", \"contract_amount\": 50000, \"weight_percent\": 5, \"progress_percent\": 20}]}\n" .
+                    "SUMMARY: Scope-of-works sheet with 1 scope\n" .
+                    "---",
+                ],
+            ]],
+        ];
+        $refinement = [
+            'choices' => [[
+                'message' => ['content' => '{"matches": [{"index": 0, "canonical_name": "Site Preparation and Layout"}]}'],
+            ]],
+        ];
+        $mock = \Mockery::mock(\App\Services\OpenRouterService::class);
+        $mock->shouldReceive('chat')->once()->andReturn($extraction);
+        $mock->shouldReceive('chatText')->once()->andReturn($refinement);
+        $this->app->instance(\App\Services\OpenRouterService::class, $mock);
+
+        $response = $this->actingAs($this->headAdmin)
+            ->postJson('/processed-records', [
+                'images' => [\Illuminate\Http\UploadedFile::fake()->image('scope-sheet.jpg')],
+            ]);
+
+        $response->assertOk();
+        $response->assertJsonPath('records.0.ai_parsed_data.scopes.0.scope_name', 'Site Preparation and Layout');
+    }
+
+    public function test_accomplishment_upload_falls_back_when_ai_refinement_fails(): void
+    {
+        \App\Models\ProjectScope::create([
+            'project_id' => $this->project->id,
+            'scope_name' => 'Floor',
+            'progress_percent' => 0,
+            'status' => 'NOT_STARTED',
+            'sort_order' => 1,
+        ]);
+
+        $extraction = [
+            'choices' => [[
+                'message' => ['content' =>
+                    "RECORD_1:\n" .
+                    "TYPE: accomplishment\n" .
+                    "PROJECT: Fortress Building\n" .
+                    "PROJECT_ID: {$this->project->id}\n" .
+                    "CONFIDENCE: high\n" .
+                    "STRUCTURED_DATA: {\"date\": \"2026-09-07\", \"scopes\": [{\"scope_name\": \"floor\", \"contract_amount\": 50000, \"weight_percent\": 5, \"progress_percent\": 20}]}\n" .
+                    "SUMMARY: Scope-of-works sheet with 1 scope\n" .
+                    "---",
+                ],
+            ]],
+        ];
+        $garbage = [
+            'choices' => [[
+                'message' => ['content' => 'not json at all {{{'],
+            ]],
+        ];
+        $mock = \Mockery::mock(\App\Services\OpenRouterService::class);
+        $mock->shouldReceive('chat')->once()->andReturn($extraction);
+        $mock->shouldReceive('chatText')->once()->andReturn($garbage);
+        $this->app->instance(\App\Services\OpenRouterService::class, $mock);
+
+        $response = $this->actingAs($this->headAdmin)
+            ->postJson('/processed-records', [
+                'images' => [\Illuminate\Http\UploadedFile::fake()->image('scope-sheet.jpg')],
+            ]);
+
+        $response->assertOk();
+        // Refinement output was garbage, so the deterministic fallback still fixes the casing.
+        $response->assertJsonPath('records.0.ai_parsed_data.scopes.0.scope_name', 'Floor');
+    }
+
+    public function test_accomplishment_upload_skips_refinement_when_project_preselected(): void
+    {
+        $this->project->update(['user_id' => $this->headAdmin->id]);
+
+        \App\Models\ProjectScope::create([
+            'project_id' => $this->project->id,
+            'scope_name' => 'Floor',
+            'progress_percent' => 0,
+            'status' => 'NOT_STARTED',
+            'sort_order' => 1,
+        ]);
+
+        $extraction = [
+            'choices' => [[
+                'message' => ['content' =>
+                    "RECORD_1:\n" .
+                    "TYPE: accomplishment\n" .
+                    "PROJECT: Fortress Building\n" .
+                    "PROJECT_ID: {$this->project->id}\n" .
+                    "CONFIDENCE: high\n" .
+                    "STRUCTURED_DATA: {\"date\": \"2026-09-07\", \"scopes\": [{\"scope_name\": \"floor\", \"contract_amount\": 50000, \"weight_percent\": 5, \"progress_percent\": 20}]}\n" .
+                    "SUMMARY: Scope-of-works sheet with 1 scope\n" .
+                    "---",
+                ],
+            ]],
+        ];
+        $mock = \Mockery::mock(\App\Services\OpenRouterService::class);
+        $mock->shouldReceive('chat')->once()->andReturn($extraction);
+        $mock->shouldNotReceive('chatText');
+        $this->app->instance(\App\Services\OpenRouterService::class, $mock);
+
+        $response = $this->actingAs($this->headAdmin)
+            ->postJson("/projects/{$this->project->id}/processed-records", [
+                'images' => [\Illuminate\Http\UploadedFile::fake()->image('scope-sheet.jpg')],
+            ]);
+
+        $response->assertOk();
+        $response->assertJsonPath('records.0.ai_parsed_data.scopes.0.scope_name', 'Floor');
+    }
+
+    public function test_resolve_scopes_matches_detected_names_via_ai(): void
+    {
+        \App\Models\ProjectScope::create([
+            'project_id' => $this->project->id,
+            'scope_name' => 'Floor',
+            'progress_percent' => 0,
+            'status' => 'NOT_STARTED',
+            'sort_order' => 1,
+        ]);
+        $record = $this->makeAccomplishmentRecord([
+            'ai_parsed_data' => [
+                'date' => '2026-09-07',
+                'scopes' => [
+                    ['scope_name' => 'floor', 'contract_amount' => 50000, 'weight_percent' => 5, 'progress_percent' => 20],
+                ],
+            ],
+        ]);
+
+        $mock = \Mockery::mock(\App\Services\OpenRouterService::class);
+        $mock->shouldReceive('chatText')->once()->andReturn([
+            'choices' => [[
+                'message' => ['content' => '{"matches": [{"index": 0, "canonical_name": "Floor"}]}'],
+            ]],
+        ]);
+        $this->app->instance(\App\Services\OpenRouterService::class, $mock);
+
+        $response = $this->actingAs($this->headAdmin)
+            ->postJson("/processed-records/{$record->id}/resolve-scopes");
+
+        $response->assertOk();
+        $response->assertJsonPath('resolved', 1);
+        $this->assertSame('Floor', $record->fresh()->ai_parsed_data['scopes'][0]['scope_name']);
+    }
+
+    public function test_resolve_scopes_is_noop_without_project_or_non_accomplishment(): void
+    {
+        $record = $this->makeAccomplishmentRecord([
+            'project_id' => null,
+            'status' => 'pending_project',
+        ]);
+
+        $mock = \Mockery::mock(\App\Services\OpenRouterService::class);
+        $mock->shouldNotReceive('chatText');
+        $this->app->instance(\App\Services\OpenRouterService::class, $mock);
+
+        $this->actingAs($this->headAdmin)
+            ->postJson("/processed-records/{$record->id}/resolve-scopes")
+            ->assertOk()
+            ->assertJsonPath('resolved', 0);
+
+        $other = $this->makeRecord();
+        $this->actingAs($this->headAdmin)
+            ->postJson("/processed-records/{$other->id}/resolve-scopes")
+            ->assertOk()
+            ->assertJsonPath('resolved', 0);
+    }
+
+    public function test_failed_reupload_preserves_previous_pending_records(): void
+    {
+        $old = $this->makeRecord(['status' => 'pending']);
+
+        $mock = \Mockery::mock(\App\Services\OpenRouterService::class);
+        $mock->shouldReceive('chat')->andReturn([]);
+        $this->app->instance(\App\Services\OpenRouterService::class, $mock);
+
+        $this->actingAs($this->headAdmin)
+            ->postJson('/processed-records', [
+                'images' => [UploadedFile::fake()->image('blurry.jpg')],
+            ])
+            ->assertStatus(422);
+
+        // The failed batch must not wipe the review list the user may still hold.
+        $this->assertDatabaseHas('processed_records', ['id' => $old->id, 'status' => 'pending']);
+    }
+
+    public function test_successful_upload_cleans_previous_pending_records(): void
+    {
+        $old = $this->makeRecord(['status' => 'pending']);
+
+        $mock = \Mockery::mock(\App\Services\OpenRouterService::class);
+        $mock->shouldReceive('chat')->andReturn([
+            'choices' => [[
+                'message' => ['content' =>
+                    "RECORD_1:\n" .
+                    "TYPE: accomplishment\n" .
+                    "PROJECT: Fortress Building\n" .
+                    "PROJECT_ID: {$this->project->id}\n" .
+                    "CONFIDENCE: high\n" .
+                    "STRUCTURED_DATA: {\"date\": \"2026-09-07\", \"scopes\": [{\"scope_name\": \"Floor\", \"contract_amount\": 50000, \"weight_percent\": 5, \"progress_percent\": 20}]}\n" .
+                    "SUMMARY: Scope-of-works sheet with 1 scope\n" .
+                    "---",
+                ],
+            ]],
+        ]);
+        $mock->shouldReceive('chatText')->andReturn([
+            'choices' => [[
+                'message' => ['content' => '{"matches": []}'],
+            ]],
+        ]);
+        $this->app->instance(\App\Services\OpenRouterService::class, $mock);
+
+        $response = $this->actingAs($this->headAdmin)
+            ->postJson('/processed-records', [
+                'images' => [UploadedFile::fake()->image('scope-sheet.jpg')],
+            ]);
+
+        $response->assertOk();
+        $this->assertDatabaseMissing('processed_records', ['id' => $old->id]);
+        $this->assertDatabaseHas('processed_records', [
+            'project_id' => $this->project->id,
+            'record_type' => 'accomplishment',
+            'status' => 'pending',
+        ]);
+    }
+
+    public function test_submit_accomplishment_updates_scope_and_weekly_history(): void
+    {
+        $foreman = $this->makeUser('foreman');
+        \App\Models\ProjectAssignment::create([
+            'project_id' => $this->project->id,
+            'user_id' => $foreman->id,
+            'role_in_project' => \App\Models\ProjectAssignment::ROLE_FOREMAN,
+        ]);
+        \App\Models\ProjectScope::create([
+            'project_id' => $this->project->id,
+            'scope_name' => 'Mobilization and Hauling',
+            'progress_percent' => 0,
+            'status' => 'NOT_STARTED',
+            'sort_order' => 1,
+        ]);
+
+        $record = $this->makeAccomplishmentRecord([
+            'ai_parsed_data' => [
+                'date' => '2026-09-07',
+                'scopes' => [
+                    ['scope_name' => '1. MOBILIZATION AND HAULING', 'contract_amount' => 90000, 'weight_percent' => 3.76, 'progress_percent' => 66, 'assigned_personnel' => $foreman->fullname],
+                    ['scope_name' => '2. FOUNDATION PREPARATION', 'contract_amount' => 41500, 'weight_percent' => 1.74, 'progress_percent' => 76, 'assigned_personnel' => $foreman->fullname],
+                ],
+            ],
+        ]);
+
+        $response = $this->actingAs($this->headAdmin)
+            ->postJson("/processed-records/{$record->id}/confirm");
+
+        $response->assertOk();
+
+        // Fuzzy match strips "1." numbering and matches case-insensitively
+        $this->assertDatabaseHas('project_scopes', [
+            'project_id' => $this->project->id,
+            'scope_name' => 'Mobilization and Hauling',
+            'progress_percent' => 66,
+            'status' => 'IN_PROGRESS',
+        ]);
+
+        // Missing scope is created (AI casing preserved after numbering strip)
+        $this->assertDatabaseHas('project_scopes', [
+            'project_id' => $this->project->id,
+            'scope_name' => 'FOUNDATION PREPARATION',
+            'progress_percent' => 76,
+        ]);
+
+        // Weekly history rows inserted for both scopes
+        $this->assertDatabaseHas('weekly_accomplishments', [
+            'project_id' => $this->project->id,
+            'scope_of_work' => 'Mobilization and Hauling',
+            'percent_completed' => 66,
+        ]);
+        $this->assertDatabaseHas('weekly_accomplishments', [
+            'project_id' => $this->project->id,
+            'scope_of_work' => 'FOUNDATION PREPARATION',
+            'percent_completed' => 76,
+        ]);
+
+        $this->assertDatabaseHas('processed_records', [
+            'id' => $record->id,
+            'status' => 'submitted',
+        ]);
+    }
+
+    public function test_submit_accomplishment_does_not_overwrite_contract_with_dash(): void
+    {
+        $foreman = $this->makeUser('foreman');
+        \App\Models\ProjectAssignment::create([
+            'project_id' => $this->project->id,
+            'user_id' => $foreman->id,
+            'role_in_project' => \App\Models\ProjectAssignment::ROLE_FOREMAN,
+        ]);
+        \App\Models\ProjectScope::create([
+            'project_id' => $this->project->id,
+            'scope_name' => 'Column Footing',
+            'contract_amount' => 66810,
+            'weight_percent' => 2.79,
+            'progress_percent' => 0,
+            'status' => 'NOT_STARTED',
+            'sort_order' => 1,
+        ]);
+
+        $record = $this->makeAccomplishmentRecord([
+            'ai_parsed_data' => [
+                'date' => '2026-09-07',
+                'scopes' => [
+                    ['scope_name' => 'Column Footing', 'contract_amount' => '-', 'weight_percent' => '-', 'progress_percent' => 50, 'assigned_personnel' => $foreman->fullname],
+                ],
+            ],
+        ]);
+
+        $this->actingAs($this->headAdmin)
+            ->postJson("/processed-records/{$record->id}/confirm");
+
+        $scope = \App\Models\ProjectScope::where('project_id', $this->project->id)
+            ->where('scope_name', 'Column Footing')
+            ->first();
+
+        $this->assertEquals(50, (int) $scope->progress_percent);
+        $this->assertEquals(66810.00, (float) $scope->contract_amount);
+        $this->assertEquals(2.79, (float) $scope->weight_percent);
+    }
+
+    public function test_submit_accomplishment_drops_invalid_assignee_and_recomputes_overall(): void
+    {
+        $foreman = $this->makeUser('foreman');
+        \App\Models\ProjectAssignment::create([
+            'project_id' => $this->project->id,
+            'user_id' => $foreman->id,
+            'role_in_project' => \App\Models\ProjectAssignment::ROLE_FOREMAN,
+        ]);
+        \App\Models\ProjectScope::create([
+            'project_id' => $this->project->id,
+            'scope_name' => 'Mobilization and Hauling',
+            'assigned_personnel' => $foreman->fullname,
+            'progress_percent' => 0,
+            'status' => 'NOT_STARTED',
+            'sort_order' => 1,
+        ]);
+
+        $record = $this->makeAccomplishmentRecord([
+            'ai_parsed_data' => [
+                'date' => '2026-09-07',
+                'scopes' => [
+                    // "Nobody, Foreman" contains a comma so it fails the build-page
+                    // assigned_personnel rule and must be dropped, not saved.
+                    // The stored assignee satisfies the foreman requirement.
+                    ['scope_name' => 'Mobilization and Hauling', 'contract_amount' => 90000, 'weight_percent' => 3.76, 'progress_percent' => 60, 'assigned_personnel' => 'Nobody, Foreman'],
+                    ['scope_name' => 'Brand New Scope', 'contract_amount' => '-', 'weight_percent' => '-', 'progress_percent' => 20, 'assigned_personnel' => $foreman->fullname],
+                ],
+            ],
+        ]);
+
+        $response = $this->actingAs($this->headAdmin)
+            ->postJson("/processed-records/{$record->id}/confirm");
+
+        $response->assertOk();
+        $response->assertJson(['message' => 'Accomplishment saved: 1 scope(s) updated, 1 new scope(s) added.']);
+
+        $updated = \App\Models\ProjectScope::where('project_id', $this->project->id)
+            ->where('scope_name', 'Mobilization and Hauling')
+            ->first();
+        $this->assertEquals($foreman->fullname, $updated->assigned_personnel);
+
+        // New rows default missing numbers to 0 like the Add Scope form requires.
+        $created = \App\Models\ProjectScope::where('project_id', $this->project->id)
+            ->where('scope_name', 'Brand New Scope')
+            ->first();
+        $this->assertEquals(0.00, (float) $created->contract_amount);
+        $this->assertEquals(0.00, (float) $created->weight_percent);
+
+        // Overall = AVG(60, 20) = 40, same recompute as the build page.
+        $this->assertEquals(40, (int) $this->project->fresh()->overall_progress);
+    }
+
+    public function test_accomplishment_context_endpoint_returns_foremen_and_assignments(): void
+    {
+        // Route binding enforces project visibility: the project must belong
+        // to the acting head admin.
+        $this->project->update(['user_id' => $this->headAdmin->id]);
+        $foreman = $this->makeUser('foreman');
+        \App\Models\ProjectAssignment::create([
+            'project_id' => $this->project->id,
+            'user_id' => $foreman->id,
+            'role_in_project' => \App\Models\ProjectAssignment::ROLE_FOREMAN,
+        ]);
+        \App\Models\ProjectScope::create([
+            'project_id' => $this->project->id,
+            'scope_name' => 'Roof Beam',
+            'assigned_personnel' => $foreman->fullname,
+            'progress_percent' => 10,
+            'status' => 'IN_PROGRESS',
+            'sort_order' => 1,
+        ]);
+
+        $response = $this->actingAs($this->headAdmin)
+            ->getJson("/projects/{$this->project->id}/accomplishment-context");
+
+        $response->assertOk();
+        $response->assertJsonPath('foreman_options.0.fullname', $foreman->fullname);
+        $response->assertJsonPath('scopes.0.scope_name', 'Roof Beam');
+        $response->assertJsonPath('scopes.0.assigned_personnel', $foreman->fullname);
+    }
+
+    public function test_accomplishment_context_includes_legacy_csv_foremen(): void
+    {
+        $foreman = $this->makeUser('foreman');
+        $this->project->update(['user_id' => $this->headAdmin->id, 'assigned' => $foreman->fullname]);
+
+        $response = $this->actingAs($this->headAdmin)
+            ->getJson("/projects/{$this->project->id}/accomplishment-context");
+
+        $response->assertOk();
+        $response->assertJsonPath('foreman_options.0.fullname', $foreman->fullname);
+    }
+
+    public function test_accomplishment_upload_response_includes_context_map(): void
+    {
+        \App\Models\ProjectScope::create([
+            'project_id' => $this->project->id,
+            'scope_name' => 'Mobilization and Hauling',
+            'progress_percent' => 0,
+            'status' => 'NOT_STARTED',
+            'sort_order' => 1,
+        ]);
+
+        $mock = \Mockery::mock(\App\Services\OpenRouterService::class);
+        $mock->shouldReceive('chat')->andReturn([
+            'choices' => [[
+                'message' => ['content' =>
+                    "RECORD_1:\n" .
+                    "TYPE: accomplishment\n" .
+                    "PROJECT: Fortress Building\n" .
+                    "PROJECT_ID: {$this->project->id}\n" .
+                    "CONFIDENCE: high\n" .
+                    "STRUCTURED_DATA: {\"date\": \"2026-09-07\", \"scopes\": [{\"scope_name\": \"Mobilization and Hauling\", \"contract_amount\": 90000, \"weight_percent\": 3.76, \"progress_percent\": 66}]}\n" .
+                    "SUMMARY: Scope-of-works sheet with 1 scope\n" .
+                    "---",
+                ],
+            ]],
+        ]);
+        $this->app->instance(\App\Services\OpenRouterService::class, $mock);
+
+        $response = $this->actingAs($this->headAdmin)
+            ->postJson('/processed-records', [
+                'images' => [\Illuminate\Http\UploadedFile::fake()->image('scope-sheet.jpg')],
+                'project_id' => $this->project->id,
+            ]);
+
+        $response->assertOk();
+        $response->assertJsonStructure(['accomplishment_context']);
+        $response->assertJsonPath("accomplishment_context.{$this->project->id}.scopes.0.scope_name", 'Mobilization and Hauling');
+    }
+
+    public function test_submit_accomplishment_keeps_legacy_csv_assignee(): void
+    {
+        $foreman = $this->makeUser('foreman');
+        $this->project->update(['assigned' => $foreman->fullname]);
+        \App\Models\ProjectScope::create([
+            'project_id' => $this->project->id,
+            'scope_name' => 'Roof Beam',
+            'progress_percent' => 0,
+            'status' => 'NOT_STARTED',
+            'sort_order' => 1,
+        ]);
+
+        $record = $this->makeAccomplishmentRecord([
+            'ai_parsed_data' => [
+                'date' => '2026-09-07',
+                'scopes' => [
+                    ['scope_name' => 'Roof Beam', 'contract_amount' => 50000, 'weight_percent' => 2, 'progress_percent' => 30, 'assigned_personnel' => $foreman->fullname],
+                ],
+            ],
+        ]);
+
+        $this->actingAs($this->headAdmin)
+            ->postJson("/processed-records/{$record->id}/confirm");
+
+        // Legacy CSV foremen are valid assignees — kept, not dropped.
+        $this->assertDatabaseHas('project_scopes', [
+            'project_id' => $this->project->id,
+            'scope_name' => 'Roof Beam',
+            'assigned_personnel' => $foreman->fullname,
+        ]);
+    }
+
+    public function test_submit_accomplishment_without_foreman_returns_per_scope_errors(): void
+    {
+        $foreman = $this->makeUser('foreman');
+        \App\Models\ProjectAssignment::create([
+            'project_id' => $this->project->id,
+            'user_id' => $foreman->id,
+            'role_in_project' => \App\Models\ProjectAssignment::ROLE_FOREMAN,
+        ]);
+        \App\Models\ProjectScope::create([
+            'project_id' => $this->project->id,
+            'scope_name' => 'Column Footing',
+            'assigned_personnel' => null,
+            'progress_percent' => 0,
+            'status' => 'NOT_STARTED',
+            'sort_order' => 1,
+        ]);
+
+        $record = $this->makeAccomplishmentRecord([
+            'ai_parsed_data' => [
+                'date' => '2026-09-07',
+                'scopes' => [
+                    ['scope_name' => 'Column Footing', 'contract_amount' => 66810, 'weight_percent' => 2.79, 'progress_percent' => 50, 'assigned_personnel' => ''],
+                    ['scope_name' => 'Brand New Scope', 'contract_amount' => 1000, 'weight_percent' => 1, 'progress_percent' => 10],
+                ],
+            ],
+        ]);
+
+        $response = $this->actingAs($this->headAdmin)
+            ->postJson("/processed-records/{$record->id}/confirm");
+
+        $response->assertStatus(422);
+        // Error keys are literal "scopes.{index}.assigned_personnel" strings.
+        $errors = $response->json('errors');
+        $this->assertEquals(['Foreman is required for scope "Column Footing".'], $errors['scopes.0.assigned_personnel']);
+        $this->assertEquals(['Foreman is required for scope "Brand New Scope".'], $errors['scopes.1.assigned_personnel']);
+
+        // Nothing is saved when validation fails.
+        $this->assertDatabaseCount('weekly_accomplishments', 0);
+        $this->assertDatabaseHas('processed_records', ['id' => $record->id, 'status' => 'pending']);
+    }
+
+    public function test_submit_accomplishment_without_project_foremen_skips_foreman_check(): void
+    {
+        // No foremen assigned to this project at all — submit must not be
+        // blocked since there is nobody to select.
+        $record = $this->makeAccomplishmentRecord([
+            'ai_parsed_data' => [
+                'date' => '2026-09-07',
+                'scopes' => [
+                    ['scope_name' => 'Column Footing', 'contract_amount' => 66810, 'weight_percent' => 2.79, 'progress_percent' => 50],
+                ],
+            ],
+        ]);
+
+        $response = $this->actingAs($this->headAdmin)
+            ->postJson("/processed-records/{$record->id}/confirm");
+
+        $response->assertOk();
+        $this->assertDatabaseHas('processed_records', ['id' => $record->id, 'status' => 'submitted']);
+    }
+
+    public function test_submit_accomplishment_with_stored_assignee_needs_no_selection(): void
+    {
+        $foreman = $this->makeUser('foreman');
+        \App\Models\ProjectScope::create([
+            'project_id' => $this->project->id,
+            'scope_name' => 'Column Footing',
+            'assigned_personnel' => $foreman->fullname,
+            'progress_percent' => 0,
+            'status' => 'NOT_STARTED',
+            'sort_order' => 1,
+        ]);
+
+        // No assignee selected during review, but the stored scope already has
+        // one — submit must pass.
+        $record = $this->makeAccomplishmentRecord([
+            'ai_parsed_data' => [
+                'date' => '2026-09-07',
+                'scopes' => [
+                    ['scope_name' => 'Column Footing', 'contract_amount' => 66810, 'weight_percent' => 2.79, 'progress_percent' => 50],
+                ],
+            ],
+        ]);
+
+        $response = $this->actingAs($this->headAdmin)
+            ->postJson("/processed-records/{$record->id}/confirm");
+
+        $response->assertOk();
+        $this->assertDatabaseHas('processed_records', ['id' => $record->id, 'status' => 'submitted']);
+    }
+
+    public function test_accomplishment_prompt_includes_canonical_scopes_and_foremen(): void
+    {
+        $foreman = $this->makeUser('foreman');
+        \App\Models\ProjectAssignment::create([
+            'project_id' => $this->project->id,
+            'user_id' => $foreman->id,
+            'role_in_project' => \App\Models\ProjectAssignment::ROLE_FOREMAN,
+        ]);
+        \App\Models\ProjectScope::create([
+            'project_id' => $this->project->id,
+            'scope_name' => 'Roof Beam',
+            'progress_percent' => 10,
+            'status' => 'IN_PROGRESS',
+            'sort_order' => 1,
+        ]);
+
+        $controller = app(\App\Http\Controllers\ProcessedRecordController::class);
+        $method = new \ReflectionMethod($controller, 'buildScopeContext');
+
+        $context = $method->invoke($controller, $this->project->id);
+
+        $this->assertStringContainsString('CANONICAL SCOPE LIST', $context);
+        $this->assertStringContainsString('Roof Beam', $context);
+        $this->assertStringContainsString('VALID ASSIGNED PERSONNEL', $context);
+        $this->assertStringContainsString($foreman->fullname, $context);
+        $this->assertStringContainsString('character-for-character', $context);
+        $this->assertStringContainsString('never expand abbreviations', $context);
+
+        $promptMethod = new \ReflectionMethod($controller, 'buildUserPrompt');
+        $prompt = $promptMethod->invoke($controller, '', null, 'general', [], '');
+        $this->assertStringContainsString('tolerate typos', $prompt);
+        $this->assertStringContainsString('never the image variant', $prompt);
+        $this->assertStringContainsString('never comment on the image', $prompt);
+    }
+
+    public function test_accomplishment_upload_strips_image_commentary_from_remarks(): void
+    {
+        $mock = \Mockery::mock(\App\Services\OpenRouterService::class);
+        $mock->shouldReceive('chat')->andReturn([
+            'choices' => [[
+                'message' => ['content' =>
+                    "RECORD_1:\n" .
+                    "TYPE: accomplishment\n" .
+                    "PROJECT: Fortress Building\n" .
+                    "PROJECT_ID: {$this->project->id}\n" .
+                    "CONFIDENCE: high\n" .
+                    "STRUCTURED_DATA: {\"date\": \"2026-09-07\", \"scopes\": [" .
+                    "{\"scope_name\": \"Scope A\", \"contract_amount\": 50000, \"weight_percent\": 5, \"progress_percent\": 20, \"remarks\": \"Progress/accomplishment column is not visible in the image.\"}, " .
+                    "{\"scope_name\": \"Scope B\", \"contract_amount\": 1000, \"weight_percent\": 1, \"progress_percent\": 5, \"remarks\": \"Level 2 beam forms are ready for the next concrete schedule. Weight column is blurry.\"}, " .
+                    "{\"scope_name\": \"Scope C\", \"contract_amount\": 1000, \"weight_percent\": 1, \"progress_percent\": 5, \"remarks\": \"Ground floor walling is complete.\"}" .
+                    "]}\n" .
+                    "SUMMARY: Scope-of-works sheet with 3 scopes\n" .
+                    "---",
+                ],
+            ]],
+        ]);
+        $this->app->instance(\App\Services\OpenRouterService::class, $mock);
+
+        $response = $this->actingAs($this->headAdmin)
+            ->postJson('/processed-records', [
+                'images' => [\Illuminate\Http\UploadedFile::fake()->image('scope-sheet.jpg')],
+                'project_id' => $this->project->id,
+            ]);
+
+        $response->assertOk();
+        // Pure image commentary is removed entirely.
+        $response->assertJsonPath('records.0.ai_parsed_data.scopes.0.remarks', '');
+        // Mixed notes keep the genuine work sentence.
+        $response->assertJsonPath('records.0.ai_parsed_data.scopes.1.remarks', 'Level 2 beam forms are ready for the next concrete schedule.');
+        // Genuine notes are untouched.
+        $response->assertJsonPath('records.0.ai_parsed_data.scopes.2.remarks', 'Ground floor walling is complete.');
+    }
+
+    public function test_accomplishment_prompt_omits_foreman_section_without_project_foremen(): void
+    {
+        \App\Models\ProjectScope::create([
+            'project_id' => $this->project->id,
+            'scope_name' => 'Roof Beam',
+            'progress_percent' => 10,
+            'status' => 'IN_PROGRESS',
+            'sort_order' => 1,
+        ]);
+
+        $controller = app(\App\Http\Controllers\ProcessedRecordController::class);
+        $method = new \ReflectionMethod($controller, 'buildScopeContext');
+
+        $context = $method->invoke($controller, $this->project->id);
+
+        $this->assertStringContainsString('CANONICAL SCOPE LIST', $context);
+        $this->assertStringNotContainsString('VALID ASSIGNED PERSONNEL', $context);
+    }
 }

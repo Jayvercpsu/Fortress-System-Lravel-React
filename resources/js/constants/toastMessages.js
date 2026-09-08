@@ -124,6 +124,8 @@ export const toastMessages = {
         updateError: 'Unable to update scope.',
         deleteSuccess: 'Scope deleted successfully.',
         deleteError: 'Unable to delete scope.',
+        bulkDeleteSuccess: 'Selected scopes deleted successfully.',
+        bulkDeleteError: 'Unable to delete selected scopes.',
         reorderSuccess: 'Scope order updated successfully.',
         reorderError: 'Unable to update scope order.',
         photoDeleteSuccess: 'Scope photo deleted successfully.',

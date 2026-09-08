@@ -123,23 +123,24 @@ STEP 4 — VALIDATION:
 ══════════════════════════════════════════════════════════
 
 RULES:
-1. Analyze each image carefully and determine if it is an attendance record or expense receipt.
+1. Analyze each image carefully and determine if it is an attendance record, expense receipt, or scope-of-works accomplishment sheet.
 2. There may be MULTIPLE records in a single image — detect ALL of them.
 3. Extract project title and project code from the image.
-4. Extract ALL structured data from the image — names, dates, amounts, hours, items, quantities. Be thorough and do not skip any visible data.
+4. Extract ALL structured data from the image — names, dates, amounts, hours, items, quantities, scopes, contract amounts, weight percents, progress percents. Be thorough and do not skip any visible data.
 5. If the image is NOT a construction record (e.g., selfie, random photo, meme), return TYPE: irrelevant with a brief reason.
 6. If text is unclear or partially readable, extract what you can and note uncertainties in the SUMMARY field.
 7. Always respond in the exact format specified below.
 8. Respond in English.
 9. Double-check your extraction before finalizing — verify counts, totals, and data integrity.
 10. For handwritten documents: pay extra attention to similar characters (O vs 0, I vs 1, S vs 5, 6 vs 8)
-11. For tables/grids: read row by row to avoid mixing data between workers or items
+11. For tables/grids: read row by row to avoid mixing data between workers, items, or scopes
 12. For attendance sheets with checkmarks (✓) or X marks: count them to determine days present/absent
+13. For accomplishment sheets (SCOPE OF WORKS AND MATERIALS / CONTRACT AMOUNT / WT % / % ACCOMP tables): read each scope row across ALL columns; strip leading row numbers (e.g. "1. MOBILIZATION..." → "Mobilization and Hauling"); parse amounts with commas (90,000.00 → 90000) and percents with % sign (3.76% → 3.76); infer status from progress (100 → COMPLETED, 0 → NOT_STARTED, else IN_PROGRESS) unless an explicit status column says otherwise.
 
 OUTPUT FORMAT (for each record found, separated by ---):
 
 RECORD_N:
-TYPE: attendance|expense|irrelevant
+TYPE: attendance|expense|accomplishment|irrelevant
 PROJECT: project title from image
 PROJECT_CODE: project code if visible (e.g., PRJ-001)
 CONFIDENCE: high|medium|low
@@ -204,6 +205,26 @@ For EXPENSE records, STRUCTURED_DATA should contain:
   "payment_method": "Cash/Card",
   "remarks": "notes"
 }
+
+For ACCOMPLISHMENT records (scope-of-works sheets — the source document for the /build Scope of Works table), STRUCTURED_DATA should contain:
+{
+  "date": "YYYY-MM-DD",
+  "scopes": [
+    {"scope_name": "Mobilization and Hauling", "contract_amount": 90000, "weight_percent": 3.76, "progress_percent": 66, "status": "IN_PROGRESS", "assigned_personnel": "", "remarks": ""}
+  ]
+}
+Study the build table before extracting:
+- The build Scope of Works table has columns: Scope | Contract | Weight | WT % | Accomp Amount | Assigned | Progress | Status | Remarks | Photos | Updated | Actions.
+- The sheet you are reading maps to it as: SCOPE OF WORKS AND MATERIALS → Scope, CONTRACT AMOUNT → Contract, WT % → Weight, % AC / % ACCOMP → Progress. WT % contribution and Accomp Amount are COMPUTED on the page (weight x progress / 100 and contract x progress / 100) — extract only the raw sheet cells, never compute.
+- The Add Scope form requires: scope_name (max 255 chars), progress_percent (integer 0-100), status, contract_amount (number >= 0), weight_percent (number 0-100). The Edit form uses the same rules. Update keeps stored Contract/Weight when the sheet cell is "-" or empty.
+- Assigned on the build page must be an exact foreman fullname or empty — when the user prompt gives VALID ASSIGNED PERSONNEL, copy those names exactly or leave empty; never invent a name.
+- Overall Progress on the build page is the AVERAGE of all scope Progress values.
+Rules for accomplishment sheets:
+- scope_name is required; strip leading numbering like "1.", "12." and trim whitespace; when a CANONICAL SCOPE LIST is given in the user prompt, you must resolve every image row to that list yourself: compare case-insensitively and tolerate typos, abbreviations, and expanded short forms (image "floor" → canonical "Floor"; image "2nd Floor" → canonical "2ndF"; image "within" vs canonical "with" is the same scope). Always output the canonical name exactly, never the image variant. Only emit a new name when no list entry is related in meaning.
+- contract_amount is numeric (no commas/currency symbols); null when the cell is "-" or empty.
+- weight_percent and progress_percent are 0-100 numbers (strip % sign); null when "-" or empty.
+- status must be one of NOT_STARTED|IN_PROGRESS|HOLD|COMPLETED; infer from progress when not shown (100 → COMPLETED, 0 → NOT_STARTED, else IN_PROGRESS).
+- Omit TOTAL/LESS footer rows (e.g. the 2,390,996.26 / 100.00% totals line) — only real scopes.
 
 If only one record is found, only return RECORD_1 block.
 PROMPT;

@@ -110,6 +110,22 @@ class MonitoringService
         $this->recomputeOverallProgress($project);
     }
 
+    public function deleteScopes(Project $project, array $ids): int
+    {
+        $scopes = ProjectScope::query()
+            ->where('project_id', $project->id)
+            ->whereIn('id', $ids)
+            ->get();
+
+        foreach ($scopes as $scope) {
+            $this->monitoringRepository->deleteScope($scope);
+        }
+
+        $this->recomputeOverallProgress($project);
+
+        return $scopes->count();
+    }
+
     public function reorderScopes(Project $project, array $orderedIds): void
     {
         $this->monitoringRepository->reorderScopes($project, $orderedIds);

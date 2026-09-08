@@ -7,18 +7,26 @@ function resolveMaxHeight(value) {
     return value;
 }
 
-export default function Modal({ open, onClose, title, headerContent, children, width, height, maxWidth = 960, maxHeight, showMaximize = true, disableClose = false, forceLightTheme = false }) {
+export default function Modal({ open, onClose, title, headerContent, children, width, height, maxWidth = 960, maxHeight, showMaximize = true, onMinimize, disableClose = false, forceLightTheme = false }) {
     const [isMaximized, setIsMaximized] = useState(false);
     const modalRef = useRef(null);
 
     // Animation for maximize transition
     const [animateMaximize, setAnimateMaximize] = useState(false);
 
+    // Single window toggle. Without onMinimize it restores as before
+    // (normal ⇄ maximized). With onMinimize it cycles normal → maximized →
+    // minimized (parent docks to a pill and restores from there).
     const handleMaximizeToggle = () => {
+        if (onMinimize && isMaximized) {
+            onMinimize();
+            return;
+        }
         setAnimateMaximize(true);
         setIsMaximized(!isMaximized);
         setTimeout(() => setAnimateMaximize(false), 300);
     };
+    const toggleTitle = isMaximized ? 'Minimize' : 'Maximize';
 
     useEffect(() => {
         if (!open) {
@@ -118,7 +126,8 @@ export default function Modal({ open, onClose, title, headerContent, children, w
                             <button
                                 type="button"
                                 onClick={handleMaximizeToggle}
-                                title={isMaximized ? 'Minimize' : 'Maximize'}
+                                title={toggleTitle}
+                                aria-label={toggleTitle}
                                 style={{
                                     border: '1px solid var(--border-color)',
                                     background: 'var(--button-bg)',

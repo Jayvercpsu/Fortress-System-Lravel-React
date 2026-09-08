@@ -1,5 +1,6 @@
 ﻿import { useLayoutTitle } from './Layout';
 import ActionButton from './ActionButton';
+import CheckboxInput from './CheckboxInput';
 import Modal from './Modal';
 import EditModal from './EditModal';
 import ConfirmationModal from './ConfirmationModal';
@@ -104,6 +105,10 @@ export default function MonitoringBoardPage({
     const [editScope, setEditScope] = useState(null);
     const [scopeToDelete, setScopeToDelete] = useState(null);
     const [deleting, setDeleting] = useState(false);
+    const [selectedScopeIds, setSelectedScopeIds] = useState([]);
+    const [selectedScopeRows, setSelectedScopeRows] = useState({});
+    const [bulkDeleteScopesOpen, setBulkDeleteScopesOpen] = useState(false);
+    const [bulkDeletingScopes, setBulkDeletingScopes] = useState(false);
     const [photoToDelete, setPhotoToDelete] = useState(null);
     const [deletingPhoto, setDeletingPhoto] = useState(false);
     const [uploadScopeId, setUploadScopeId] = useState(null);
@@ -478,11 +483,19 @@ export default function MonitoringBoardPage({
         if (!scopeToDelete) return;
         if (readOnly) return;
 
+        const deletedScopeId = scopeToDelete.id;
         setDeleting(true);
         router.delete(`/scopes/${scopeToDelete.id}`, {
             preserveScroll: true,
             onSuccess: () => {
                 setScopeToDelete(null);
+                setSelectedScopeIds((prev) => prev.filter((id) => id !== deletedScopeId));
+                setSelectedScopeRows((prev) => {
+                    if (!prev[deletedScopeId]) return prev;
+                    const next = { ...prev };
+                    delete next[deletedScopeId];
+                    return next;
+                });
                 toast.success(toastMessages.monitoringScopes.deleteSuccess);
             },
             onError: () => toast.error(toastMessages.monitoringScopes.deleteError),
@@ -588,6 +601,96 @@ export default function MonitoringBoardPage({
         const timer = window.setTimeout(() => setScopeTableLoading(false), 350);
         return () => window.clearTimeout(timer);
     }, [scopeSearch, scopePage, scopePerPage, orderedScopes.length]);
+
+    const selectedScopeIdSet = new Set(selectedScopeIds);
+    const selectedScopeCount = selectedScopeIds.length;
+    const singleSelectedScope =
+        selectedScopeCount === 1
+            ? visibleScopes.find((row) => row.id === selectedScopeIds[0]) ||
+              orderedScopes.find((row) => row.id === selectedScopeIds[0]) ||
+              selectedScopeRows[selectedScopeIds[0]] ||
+              null
+            : null;
+    const visibleScopeIds = visibleScopes.map((row) => row.id);
+    const allVisibleSelected = visibleScopeIds.length > 0 && visibleScopeIds.every((id) => selectedScopeIdSet.has(id));
+
+    const toggleScopeSelection = (scope) => {
+        if (readOnly) return;
+        setSelectedScopeIds((prev) => {
+            if (prev.includes(scope.id)) return prev.filter((id) => id !== scope.id);
+            return [...prev, scope.id];
+        });
+        setSelectedScopeRows((prev) => {
+            if (prev[scope.id]) {
+                const next = { ...prev };
+                delete next[scope.id];
+                return next;
+            }
+            return { ...prev, [scope.id]: scope };
+        });
+    };
+
+    const toggleSelectAllVisibleScopes = () => {
+        if (readOnly || visibleScopeIds.length === 0) return;
+        if (allVisibleSelected) {
+            setSelectedScopeIds((prev) => prev.filter((id) => !visibleScopeIds.includes(id)));
+            setSelectedScopeRows((prev) => {
+                const next = { ...prev };
+                visibleScopeIds.forEach((id) => delete next[id]);
+                return next;
+            });
+        } else {
+            setSelectedScopeIds((prev) => Array.from(new Set([...prev, ...visibleScopeIds])));
+            setSelectedScopeRows((prev) => {
+                const next = { ...prev };
+                visibleScopes.forEach((row) => {
+                    next[row.id] = row;
+                });
+                return next;
+            });
+        }
+    };
+
+    const clearScopeSelection = () => {
+        setSelectedScopeIds([]);
+        setSelectedScopeRows({});
+    };
+
+    const startEditSelectedScope = () => {
+        if (readOnly || !singleSelectedScope) return;
+        startEdit(singleSelectedScope);
+    };
+
+    const deleteSelectedScopes = () => {
+        if (readOnly || selectedScopeCount === 0) return;
+        setBulkDeletingScopes(true);
+        router.delete(`/projects/${project.id}/scopes`, {
+            data: { ids: selectedScopeIds },
+            preserveScroll: true,
+            onSuccess: () => {
+                clearScopeSelection();
+                toast.success(toastMessages.monitoringScopes.bulkDeleteSuccess);
+            },
+            onError: () => toast.error(toastMessages.monitoringScopes.bulkDeleteError),
+            onFinish: () => {
+                setBulkDeletingScopes(false);
+                setBulkDeleteScopesOpen(false);
+            },
+        });
+    };
+
+    useEffect(() => {
+        setSelectedScopeIds((prev) => {
+            const existing = new Set(orderedScopes.map((row) => row.id));
+            const next = prev.filter((id) => existing.has(id));
+            return next.length === prev.length ? prev : next;
+        });
+        setSelectedScopeRows((prev) => {
+            const existing = new Set(orderedScopes.map((row) => row.id));
+            const next = Object.fromEntries(Object.entries(prev).filter(([id]) => existing.has(Number(id))));
+            return Object.keys(next).length === Object.keys(prev).length ? prev : next;
+        });
+    }, [orderedScopes]);
 
     const openSortModal = () => {
         setSortDraftScopes(orderedScopes);
@@ -766,11 +869,59 @@ export default function MonitoringBoardPage({
                     </div>
                 </div>
 
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                    <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+                        {selectedScopeCount === 0 ? 'No scopes selected.' : `${selectedScopeCount} selected`}
+                    </div>
+                    <div style={{ flex: 1 }} />
+                    {selectedScopeCount > 0 && (
+                        <ActionButton
+                            type="button"
+                            variant="edit"
+                            onClick={startEditSelectedScope}
+                            disabled={readOnly || selectedScopeCount !== 1}
+                            title={selectedScopeCount !== 1 ? 'Select exactly one scope to edit' : 'Edit selected scope'}
+                            style={{ padding: '8px 12px', fontSize: 12 }}
+                        >
+                            Edit Selected
+                        </ActionButton>
+                    )}
+                    {selectedScopeCount > 0 && (
+                        <ActionButton
+                            type="button"
+                            variant="danger"
+                            onClick={() => setBulkDeleteScopesOpen(true)}
+                            disabled={readOnly || bulkDeletingScopes}
+                            loading={bulkDeletingScopes}
+                            style={{ padding: '8px 12px', fontSize: 12 }}
+                        >
+                            {bulkDeletingScopes ? 'Deleting...' : `Delete Selected${selectedScopeCount > 0 ? ` (${selectedScopeCount})` : ''}`}
+                        </ActionButton>
+                    )}
+                </div>
+
                 <div style={{ ...cardStyle, overflowX: 'auto' }}>
-                    <style>{'@keyframes scopeTableShimmer{0%{background-position:100% 0}100%{background-position:-100% 0}}'}</style>
+                    <style>{'@keyframes scopeTableShimmer{0%{background-position:100% 0}100%{background-position:-100% 0}}.bb-scope-row{transition:background-color 120ms ease}.bb-scope-row:hover{background:var(--surface-2)}'}</style>
                     <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
                         <thead>
                             <tr>
+                                <th
+                                    style={{
+                                        textAlign: 'left',
+                                        borderBottom: '1px solid var(--border-color)',
+                                        color: 'var(--text-muted)',
+                                        fontWeight: 600,
+                                        padding: '10px 8px',
+                                        width: 44,
+                                    }}
+                                >
+                                    <CheckboxInput
+                                        checked={allVisibleSelected}
+                                        onChange={toggleSelectAllVisibleScopes}
+                                        disabled={readOnly || visibleScopeIds.length === 0}
+                                        aria-label="Select all scopes on this page"
+                                    />
+                                </th>
                         {['Scope', 'Contract', 'Weight', 'WT %', 'Accomp Amount', 'Assigned', 'Progress', 'Status', 'Remarks', 'Photos', 'Updated', 'Actions'].map((label) => (
                             <th
                                 key={label}
@@ -791,6 +942,18 @@ export default function MonitoringBoardPage({
                         <tbody>
                             {scopeTableLoading && Array.from({ length: Math.min(scopePerPage, 10) }).map((_, rowIndex) => (
                                 <tr key={`scope-skeleton-${rowIndex}`}>
+                                    <td style={{ padding: '10px 8px', borderBottom: '1px solid var(--border-color)' }}>
+                                        <div
+                                            style={{
+                                                height: 12,
+                                                width: 16,
+                                                borderRadius: 6,
+                                                background: 'linear-gradient(90deg, var(--surface-2, #f1f5f9) 25%, var(--border-color, #e2e8f0) 37%, var(--surface-2, #f1f5f9) 63%)',
+                                                backgroundSize: '300% 100%',
+                                                animation: 'scopeTableShimmer 1.35s ease-in-out infinite',
+                                            }}
+                                        />
+                                    </td>
                                     {['Scope', 'Contract', 'Weight', 'WT %', 'Accomp Amount', 'Assigned', 'Progress', 'Status', 'Remarks', 'Photos', 'Updated', 'Actions'].map((label, colIndex) => (
                                         <td
                                             key={`scope-skeleton-${rowIndex}-${colIndex}`}
@@ -812,13 +975,21 @@ export default function MonitoringBoardPage({
                             ))}
                             {!scopeTableLoading && visibleScopes.length === 0 && (
                                 <tr>
-                                    <td colSpan={12} style={{ padding: '14px 8px', color: 'var(--text-muted)' }}>
+                                    <td colSpan={13} style={{ padding: '14px 8px', color: 'var(--text-muted)' }}>
                                         No scope rows yet.
                                     </td>
                                 </tr>
                             )}
                             {!scopeTableLoading && visibleScopes.map((scope) => (
-                                <tr key={scope.id}>
+                                <tr key={scope.id} className="bb-scope-row">
+                                    <td style={{ padding: '10px 8px', borderBottom: '1px solid var(--border-color)' }}>
+                                        <CheckboxInput
+                                            checked={selectedScopeIdSet.has(scope.id)}
+                                            onChange={() => toggleScopeSelection(scope)}
+                                            disabled={readOnly}
+                                            aria-label={`Select scope ${scope.scope_name || scope.id}`}
+                                        />
+                                    </td>
                                     <td style={{ padding: '10px 8px', borderBottom: '1px solid var(--border-color)' }}>
                                         {scope.scope_name}
                                     </td>
@@ -1352,6 +1523,17 @@ export default function MonitoringBoardPage({
                     processing={deleting}
                     onClose={closeDeleteModal}
                     onConfirm={confirmDeleteScope}
+                />
+                <ConfirmationModal
+                    open={bulkDeleteScopesOpen}
+                    title="Delete Selected Scopes"
+                    message={`Delete ${selectedScopeCount} selected scope${selectedScopeCount === 1 ? '' : 's'}? This action cannot be undone.`}
+                    confirmLabel={bulkDeletingScopes ? 'Deleting...' : 'Delete'}
+                    cancelLabel="Cancel"
+                    danger
+                    processing={bulkDeletingScopes}
+                    onClose={() => (bulkDeletingScopes ? null : setBulkDeleteScopesOpen(false))}
+                    onConfirm={deleteSelectedScopes}
                 />
                 <ConfirmationModal
                     open={!!photoToDelete}

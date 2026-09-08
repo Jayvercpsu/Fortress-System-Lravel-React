@@ -717,6 +717,138 @@ class MonitoringBoardTest extends TestCase
             );
     }
 
+    public function test_head_admin_can_bulk_delete_selected_scopes(): void
+    {
+        $headAdmin = $this->makeUser('head_admin');
+        $project = $this->makeProject($headAdmin->id);
+        $foreman = $this->makeUser('foreman');
+
+        $keep = ProjectScope::create([
+            'project_id' => $project->id,
+            'scope_name' => 'Keep me',
+            'assigned_personnel' => $foreman->fullname,
+            'progress_percent' => 10,
+            'status' => 'NOT_STARTED',
+            'remarks' => null,
+            'contract_amount' => 50000,
+            'weight_percent' => 10,
+        ]);
+        $first = ProjectScope::create([
+            'project_id' => $project->id,
+            'scope_name' => 'Delete me one',
+            'assigned_personnel' => $foreman->fullname,
+            'progress_percent' => 20,
+            'status' => 'IN_PROGRESS',
+            'remarks' => null,
+            'contract_amount' => 60000,
+            'weight_percent' => 20,
+        ]);
+        $second = ProjectScope::create([
+            'project_id' => $project->id,
+            'scope_name' => 'Delete me two',
+            'assigned_personnel' => $foreman->fullname,
+            'progress_percent' => 30,
+            'status' => 'IN_PROGRESS',
+            'remarks' => null,
+            'contract_amount' => 70000,
+            'weight_percent' => 30,
+        ]);
+
+        $this->actingAs($headAdmin)
+            ->delete("/projects/{$project->id}/scopes", ['ids' => [$first->id, $second->id]])
+            ->assertRedirect();
+
+        $this->assertDatabaseHas('project_scopes', ['id' => $keep->id, 'deleted_at' => null]);
+        $this->assertSoftDeleted('project_scopes', ['id' => $first->id]);
+        $this->assertSoftDeleted('project_scopes', ['id' => $second->id]);
+    }
+
+    public function test_bulk_scope_delete_ignores_other_projects_and_validates_ids(): void
+    {
+        $headAdmin = $this->makeUser('head_admin');
+        $project = $this->makeProject($headAdmin->id);
+        $otherProject = $this->makeProject($headAdmin->id);
+        $foreman = $this->makeUser('foreman');
+
+        $own = ProjectScope::create([
+            'project_id' => $project->id,
+            'scope_name' => 'Own scope',
+            'assigned_personnel' => $foreman->fullname,
+            'progress_percent' => 10,
+            'status' => 'NOT_STARTED',
+            'remarks' => null,
+            'contract_amount' => 50000,
+            'weight_percent' => 10,
+        ]);
+        $other = ProjectScope::create([
+            'project_id' => $otherProject->id,
+            'scope_name' => 'Other scope',
+            'assigned_personnel' => $foreman->fullname,
+            'progress_percent' => 10,
+            'status' => 'NOT_STARTED',
+            'remarks' => null,
+            'contract_amount' => 50000,
+            'weight_percent' => 10,
+        ]);
+
+        $this->actingAs($headAdmin)
+            ->delete("/projects/{$project->id}/scopes", ['ids' => [$own->id, $other->id]])
+            ->assertRedirect();
+
+        $this->assertSoftDeleted('project_scopes', ['id' => $own->id]);
+        $this->assertDatabaseHas('project_scopes', ['id' => $other->id, 'deleted_at' => null]);
+
+        $this->actingAs($headAdmin)
+            ->delete("/projects/{$project->id}/scopes", ['ids' => []])
+            ->assertSessionHasErrors('ids');
+
+        $this->actingAs($this->makeUser('foreman'))
+            ->delete("/projects/{$project->id}/scopes", ['ids' => [$own->id]])
+            ->assertForbidden();
+    }
+
+    public function test_build_page_does_not_reseed_default_scopes_after_all_scopes_deleted(): void
+    {
+        $headAdmin = $this->makeUser('head_admin');
+        $project = $this->makeProject($headAdmin->id);
+        $foreman = $this->makeUser('foreman');
+
+        $scope = ProjectScope::create([
+            'project_id' => $project->id,
+            'scope_name' => 'Only scope',
+            'assigned_personnel' => $foreman->fullname,
+            'progress_percent' => 10,
+            'status' => 'NOT_STARTED',
+            'remarks' => null,
+            'contract_amount' => 50000,
+            'weight_percent' => 10,
+        ]);
+
+        $this->actingAs($headAdmin)
+            ->delete("/projects/{$project->id}/scopes", ['ids' => [$scope->id]])
+            ->assertRedirect();
+
+        $this->actingAs($headAdmin)
+            ->get("/projects/{$project->id}/build")
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page
+                ->component('HeadAdmin/Build/Show')
+                ->where('monitoring.scopes', []));
+    }
+
+    public function test_build_page_still_seeds_default_scopes_for_brand_new_project(): void
+    {
+        $headAdmin = $this->makeUser('head_admin');
+        $project = $this->makeProject($headAdmin->id);
+
+        $this->actingAs($headAdmin)
+            ->get("/projects/{$project->id}/build")
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page
+                ->component('HeadAdmin/Build/Show')
+                ->where('monitoring.scopes', fn ($scopes) => is_countable($scopes) && count($scopes) > 0));
+    }
+
     private function makeProject(?int $userId = null): Project
     {
         return Project::create([

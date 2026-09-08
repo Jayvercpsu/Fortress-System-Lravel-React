@@ -211,6 +211,7 @@ Route::middleware(['auth', 'role:head_admin,admin,designer'])->group(function ()
 
     Route::get('/projects/{project}/monitoring', [MonitoringController::class, 'show'])->name('monitoring.show');
     Route::post('/projects/{project}/scopes', [MonitoringController::class, 'store'])->name('scopes.store');
+    Route::delete('/projects/{project}/scopes', [MonitoringController::class, 'bulkDestroy'])->name('scopes.bulk-destroy');
     Route::patch('/scopes/{scope}', [MonitoringController::class, 'update'])->name('scopes.update');
     Route::put('/projects/{project}/scopes/reorder', [MonitoringController::class, 'reorder'])->name('scopes.reorder');
     Route::delete('/scopes/{scope}', [MonitoringController::class, 'destroy'])->name('scopes.destroy');
@@ -228,6 +229,7 @@ Route::middleware(['auth', 'role:head_admin,admin,designer'])->group(function ()
     Route::get('/projects/{project}', [ProjectController::class, 'show'])->name('projects.show');
 
     Route::get('/projects/{project}/processed-records', [ProcessedRecordController::class, 'index'])->name('processed-records.index');
+    Route::get('/projects/{project}/accomplishment-context', [ProcessedRecordController::class, 'accomplishmentContext'])->name('processed-records.accomplishment-context');
     Route::post('/projects/{project}/processed-records', [ProcessedRecordController::class, 'store'])->name('processed-records.store.project');
     Route::patch('/projects/{project}/processed-records/{record}', [ProcessedRecordController::class, 'update'])->name('processed-records.update');
     Route::delete('/projects/{project}/processed-records/{record}', [ProcessedRecordController::class, 'destroy'])->name('processed-records.destroy');
@@ -236,6 +238,7 @@ Route::middleware(['auth', 'role:head_admin,admin,designer'])->group(function ()
 // AI Processed Records — public routes (used by unauthenticated JotForm pages)
 Route::post('/processed-records', [ProcessedRecordController::class, 'storeAutoDetect'])->name('processed-records.store');
 Route::post('/processed-records/{record}/confirm', [ProcessedRecordController::class, 'confirm'])->name('processed-records.confirm');
+Route::post('/processed-records/{record}/resolve-scopes', [ProcessedRecordController::class, 'resolveScopes'])->name('processed-records.resolve-scopes');
 Route::post('/processed-records/{record}/reject', [ProcessedRecordController::class, 'reject'])->name('processed-records.reject');
 Route::put('/processed-records/{record}/edit', [ProcessedRecordController::class, 'edit'])->name('processed-records.edit');
 Route::post('/processed-records/{record}/assign-project', [ProcessedRecordController::class, 'assignProject'])->name('processed-records.assign-project');

@@ -147,6 +147,13 @@ class BuildRepository implements BuildRepositoryInterface
             ->pluck('caption');
     }
 
+    public function hasEverHadScopes(Project $project): bool
+    {
+        return ProjectScope::withTrashed()
+            ->where('project_id', $project->id)
+            ->exists();
+    }
+
     public function insertDefaultScopes(Project $project, array $scopeNames): void
     {
         $now = now();

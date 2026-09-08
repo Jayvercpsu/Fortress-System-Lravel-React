@@ -29,6 +29,8 @@ interface BuildRepositoryInterface
 
     public function insertDefaultScopes(Project $project, array $scopeNames): void;
 
+    public function hasEverHadScopes(Project $project): bool;
+
     public function projectForemanOptions(Project $project): array;
 
     public function updateOrCreateBuildByProjectId(string $projectId, array $attributes): void;
