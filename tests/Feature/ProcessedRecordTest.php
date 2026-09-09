@@ -11,6 +11,7 @@ use App\Models\Worker;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Http;
 use Tests\TestCase;
 
 class ProcessedRecordTest extends TestCase
@@ -26,6 +27,16 @@ class ProcessedRecordTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
+
+        // Hermetic AI: no test in this class may reach the real OpenRouter
+        // API. Unmocked upload flows get a fast 500 (the controller treats
+        // it as a generic processing failure); per-test Mockery swaps of
+        // OpenRouterService still take precedence where defined. Anything
+        // else external fails loudly instead of burning quota.
+        Http::fake([
+            'openrouter.ai/*' => Http::response(['error' => 'stubbed in tests'], 500),
+        ]);
+        Http::preventStrayRequests();
 
         $this->masterAdmin = $this->makeUser('master_admin');
         $this->headAdmin = $this->makeUser('head_admin');

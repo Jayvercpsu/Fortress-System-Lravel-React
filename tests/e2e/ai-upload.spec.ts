@@ -2,6 +2,40 @@ import { test, expect } from '@playwright/test';
 import { Buffer } from 'node:buffer';
 import { loginAs } from './support/auth';
 
+// Holds POST /processed-records open forever so in-flight UI (analyzing
+// state, cancel/terminate dialogs, disabled controls, elapsed timer) stays
+// observable deterministically instead of depending on live AI latency.
+// The pending request dies with the test's browser context.
+const stubProcessingHang = async (page) => {
+    await page.route('**/processed-records**', async (route) => {
+        const request = route.request();
+        const pathname = new URL(request.url()).pathname;
+        if (request.method() === 'POST' && pathname === '/processed-records') {
+            await new Promise(() => {});
+            return;
+        }
+        await route.continue();
+    });
+};
+
+// Fails processing immediately so failure UI is deterministic without
+// waiting on the live backend.
+const stubProcessingFailure = async (page) => {
+    await page.route('**/processed-records**', async (route) => {
+        const request = route.request();
+        const pathname = new URL(request.url()).pathname;
+        if (request.method() === 'POST' && pathname === '/processed-records') {
+            await route.fulfill({
+                status: 500,
+                contentType: 'application/json',
+                body: JSON.stringify({ message: 'Processing failed' }),
+            });
+            return;
+        }
+        await route.continue();
+    });
+};
+
 test.describe('AI Accuracy Disclaimer', () => {
     test('disclaimer is NOT visible before processing', async ({ page }) => {
         await loginAs(page, 'head_admin');
@@ -17,6 +51,8 @@ test.describe('AI Accuracy Disclaimer', () => {
         await loginAs(page, 'head_admin');
         await page.goto('/projects');
         await page.waitForLoadState('load');
+
+        await stubProcessingHang(page);
 
         await page.getByRole('button', { name: /AI Upload/i }).click();
 
@@ -37,6 +73,8 @@ test.describe('AI Accuracy Disclaimer', () => {
         await page.goto('/projects');
         await page.waitForLoadState('load');
 
+        await stubProcessingFailure(page);
+
         await page.getByRole('button', { name: /AI Upload/i }).click();
 
         const fileInput = page.locator('input[type="file"]');
@@ -49,7 +87,7 @@ test.describe('AI Accuracy Disclaimer', () => {
         await page.getByRole('button', { name: /Process/i }).click();
 
         // Wait for processing to finish (error)
-        await expect(page.locator('text=Processing Failed')).toBeVisible({ timeout: 30000 });
+        await expect(page.getByText('Processing Failed', { exact: true })).toBeVisible({ timeout: 30000 });
         await expect(page.locator('text=AI Accuracy Notice')).not.toBeVisible();
     });
 
@@ -57,6 +95,8 @@ test.describe('AI Accuracy Disclaimer', () => {
         await loginAs(page, 'head_admin');
         await page.goto('/projects');
         await page.waitForLoadState('load');
+
+        await stubProcessingHang(page);
 
         await page.getByRole('button', { name: /AI Upload/i }).click();
 
@@ -86,6 +126,8 @@ test.describe('AI Upload Processing State', () => {
         await page.goto('/projects');
         await page.waitForLoadState('load');
 
+        await stubProcessingHang(page);
+
         await page.getByRole('button', { name: /AI Upload/i }).click();
 
         const fileInput = page.locator('input[type="file"]');
@@ -106,6 +148,8 @@ test.describe('AI Upload Processing State', () => {
         await loginAs(page, 'head_admin');
         await page.goto('/projects');
         await page.waitForLoadState('load');
+
+        await stubProcessingHang(page);
 
         await page.getByRole('button', { name: /AI Upload/i }).click();
 
@@ -131,6 +175,8 @@ test.describe('AI Upload Processing State', () => {
         await loginAs(page, 'head_admin');
         await page.goto('/projects');
         await page.waitForLoadState('load');
+
+        await stubProcessingHang(page);
 
         await page.getByRole('button', { name: /AI Upload/i }).click();
 
@@ -160,6 +206,8 @@ test.describe('AI Upload Processing State', () => {
         await page.goto('/projects');
         await page.waitForLoadState('load');
 
+        await stubProcessingHang(page);
+
         await page.getByRole('button', { name: /AI Upload/i }).click();
 
         const fileInput = page.locator('input[type="file"]');
@@ -187,6 +235,8 @@ test.describe('AI Upload Processing State', () => {
         await page.goto('/projects');
         await page.waitForLoadState('load');
 
+        await stubProcessingHang(page);
+
         await page.getByRole('button', { name: /AI Upload/i }).click();
 
         const fileInput = page.locator('input[type="file"]');
@@ -208,6 +258,8 @@ test.describe('AI Upload Processing State', () => {
         await loginAs(page, 'head_admin');
         await page.goto('/projects');
         await page.waitForLoadState('load');
+
+        await stubProcessingHang(page);
 
         await page.getByRole('button', { name: /AI Upload/i }).click();
 
@@ -400,6 +452,8 @@ test.describe('AI Upload on Projects Page', () => {
         await page.goto('/projects');
         await page.waitForLoadState('load');
 
+        await stubProcessingHang(page);
+
         await page.getByRole('button', { name: /AI Upload/i }).click();
 
         const fileInput = page.locator('input[type="file"]');
@@ -427,6 +481,8 @@ test.describe('AI Upload on Projects Page', () => {
         await page.goto('/projects');
         await page.waitForLoadState('load');
 
+        await stubProcessingFailure(page);
+
         await page.getByRole('button', { name: /AI Upload/i }).click();
 
         const fileInput = page.locator('input[type="file"]');
@@ -438,8 +494,8 @@ test.describe('AI Upload on Projects Page', () => {
 
         await page.getByRole('button', { name: /Process/i }).click();
 
-        // Should show error (AI will fail without real API key)
-        await expect(page.locator('text=Processing Failed')).toBeVisible({ timeout: 30000 });
+        // Should show error (stubbed 500 failure, no live API needed)
+        await expect(page.getByText('Processing Failed', { exact: true })).toBeVisible({ timeout: 30000 });
         await expect(page.locator('text=Your images were not saved')).toBeVisible();
     });
 
@@ -610,6 +666,8 @@ test.describe('AI Upload Dropzone Disabled While Processing', () => {
         await loginAs(page, 'head_admin');
         await page.goto('/projects');
         await page.waitForLoadState('load');
+
+        await stubProcessingHang(page);
 
         await page.getByRole('button', { name: /AI Upload/i }).click();
 

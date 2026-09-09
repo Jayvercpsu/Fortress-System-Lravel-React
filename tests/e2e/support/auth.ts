@@ -35,7 +35,14 @@ export async function loginAs(page: Page, accountKey: AccountKey) {
             );
             if (cookies.length > 0) {
                 await page.context().addCookies(cookies);
-                return;
+                if (await restoredSessionIsAlive(page)) {
+                    return;
+                }
+                // Dead session (rotated APP_KEY, wiped session storage, or
+                // a DB rebuild the skip-check didn't catch): drop the stale
+                // cookies so the UI login below starts clean instead of
+                // failing mysteriously steps later.
+                await page.context().clearCookies();
             }
         } catch {
             // Corrupt state file: fall through to the UI login below.
@@ -54,6 +61,21 @@ export async function loginAs(page: Page, accountKey: AccountKey) {
 
 function escapeForRegExp(value: string) {
     return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+// A restored session can be dead (rotated APP_KEY, wiped session files,
+// rebuilt DB): the cookies restore fine but the server no longer honors
+// them. One cheap probe distinguishes that from a live session — guests
+// are bounced to /login (302), while any other status (200, even 403)
+// proves the session is authenticated.
+async function restoredSessionIsAlive(page: Page): Promise<boolean> {
+    try {
+        const probe = await page.request.get('/head-admin', { maxRedirects: 0 });
+        const location = probe.headers()['location'] ?? '';
+        return !(probe.status() === 302 && location.includes('/login'));
+    } catch {
+        return false;
+    }
 }
 
 // Reads the CSRF token without navigating: the Blade shell of any page

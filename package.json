@@ -5,9 +5,10 @@
     "scripts": {
         "build": "vite build",
         "dev": "vite",
-        "e2e": "playwright test",
-        "e2e:headed": "playwright test --headed",
-        "e2e:ui": "playwright test --ui"
+        "e2e": "node scripts/free-e2e-ports.js && playwright test",
+        "e2e:headed": "node scripts/free-e2e-ports.js && playwright test --headed",
+        "e2e:ui": "node scripts/free-e2e-ports.js && playwright test --ui",
+        "e2e:free-ports": "node scripts/free-e2e-ports.js"
     },
     "devDependencies": {
         "@playwright/test": "^1.58.2",

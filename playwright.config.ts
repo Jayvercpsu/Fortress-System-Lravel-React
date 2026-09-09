@@ -26,18 +26,27 @@ export default defineConfig({
         video: 'off',
     },
     webServer: [
+        // NOTE: reuseExistingServer is deliberately false. With `true`,
+        // orphaned servers left behind by an aborted run (Ctrl+C) are
+        // silently reused on the next run — including servers predating your
+        // latest pull — which produces mysterious hangs and stale-code
+        // failures. The `e2e` npm scripts free ports 8010/5180 up front
+        // (scripts/free-e2e-ports.js); if a run still fails here with the
+        // port in use, kill leftovers manually and re-run:
+        //   taskkill /F /IM node.exe && taskkill /F /IM php.exe
+        // (close your own `composer dev` / editor servers first).
         {
             command: 'php artisan serve --host 127.0.0.1 --port 8010',
             url: `${TEST_BASE_URL}/login`,
             env: laravelEnv,
-            reuseExistingServer: true,
+            reuseExistingServer: false,
             timeout: 120_000,
         },
         {
             command: 'npm run dev -- --host 127.0.0.1 --port 5180',
             url: `${VITE_URL}/@vite/client`,
             env: laravelEnv,
-            reuseExistingServer: true,
+            reuseExistingServer: false,
             timeout: 120_000,
         },
     ],
