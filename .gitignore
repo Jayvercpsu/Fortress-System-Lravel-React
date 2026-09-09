@@ -15,6 +15,7 @@
 /.vscode
 /.zed
 /auth.json
+/tests/e2e/.auth/
 /node_modules
 /public/build
 /public/hot
@@ -23,6 +24,8 @@
 /test-results
 /blob-report
 /database/playwright.sqlite
+/database/playwright.snapshot.sqlite
+/database/.playwright-snapshot.hash
 /nul
 /storage/*.key
 /storage/pail

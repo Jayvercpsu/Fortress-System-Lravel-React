@@ -98,7 +98,7 @@ test.skip('dashboard and report computations stay synced after payment and expen
 });
 
 async function readDashboardSnapshot(page: import('@playwright/test').Page, path: string) {
-    await page.goto(path, { waitUntil: 'networkidle' });
+    await page.goto(path, { waitUntil: 'load' });
 
     return {
         collected: await readStatMoney(page, 'Collected Contract Value'),
@@ -108,7 +108,7 @@ async function readDashboardSnapshot(page: import('@playwright/test').Page, path
 }
 
 async function readReportSnapshot(page: import('@playwright/test').Page) {
-    await page.goto('/reports', { waitUntil: 'networkidle' });
+    await page.goto('/reports', { waitUntil: 'load' });
 
     return {
         collected: await readStatMoney(page, 'Collected Contract Value'),

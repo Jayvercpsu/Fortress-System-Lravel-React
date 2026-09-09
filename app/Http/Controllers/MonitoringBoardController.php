@@ -25,11 +25,15 @@ class MonitoringBoardController extends Controller
 
         $departmentPages = $request->query('dept_page', []);
         $departmentSizes = $request->query('dept_size', []);
+        $departmentSorts = $request->query('dept_sort', []);
         if (is_string($departmentPages)) {
             $departmentPages = json_decode($departmentPages, true) ?? [];
         }
         if (is_string($departmentSizes)) {
             $departmentSizes = json_decode($departmentSizes, true) ?? [];
+        }
+        if (is_string($departmentSorts)) {
+            $departmentSorts = json_decode($departmentSorts, true) ?? [];
         }
         if (!is_array($departmentPages)) {
             $departmentPages = [];
@@ -37,8 +41,21 @@ class MonitoringBoardController extends Controller
         if (!is_array($departmentSizes)) {
             $departmentSizes = [];
         }
+        if (!is_array($departmentSorts)) {
+            $departmentSorts = [];
+        }
 
-        $payload = $this->monitoringBoardService->indexPayload($request->user(), $departmentPages, $departmentSizes);
+        $payload = $this->monitoringBoardService->indexPayload(
+            $request->user(),
+            $departmentPages,
+            $departmentSizes,
+            trim((string) $request->query('search', '')),
+            [
+                'key' => (string) $request->query('sort_key', 'default'),
+                'dir' => (string) $request->query('sort_dir', 'desc'),
+                'departments' => $departmentSorts,
+            ]
+        );
 
         return Inertia::render($payload['page'], $payload['props']);
     }
@@ -59,19 +76,33 @@ class MonitoringBoardController extends Controller
         $this->monitoringBoardService->assertVisibleTo($request->user(), $item);
         $this->monitoringBoardService->updateItem($item, $request->validated());
 
+        // Send Inertia back to the page the edit was submitted from so the
+        // board's existing filter and pagination params are preserved.
         return redirect()
-            ->route('monitoring-board.index')
+            ->back()
             ->with('success', __('messages.monitoring_board.updated'));
     }
 
-    public function destroy(Request $request, MonitoringBoardItem $item)
+    public function destroy(Request $request, string $item)
     {
         $this->monitoringBoardService->ensureAuthorized($request->user());
-        $this->monitoringBoardService->assertVisibleTo($request->user(), $item);
-        $this->monitoringBoardService->deleteItem($item);
+        $model = MonitoringBoardItem::query()->find($item);
+
+        if ($model === null) {
+            // The entry is already gone (double-click, stale row, or garbage
+            // id). Refresh the board instead of landing on a 404 page at
+            // /design/{id}. 303 makes API clients follow the redirect with
+            // GET instead of replaying DELETE against /design (405).
+            return redirect()
+                ->route('monitoring-board.index', [], 303)
+                ->with('success', __('messages.monitoring_board.already_deleted'));
+        }
+
+        $this->monitoringBoardService->assertVisibleTo($request->user(), $model);
+        $this->monitoringBoardService->deleteItem($model);
 
         return redirect()
-            ->route('monitoring-board.index')
+            ->route('monitoring-board.index', [], 303)
             ->with('success', __('messages.monitoring_board.deleted'));
     }
 

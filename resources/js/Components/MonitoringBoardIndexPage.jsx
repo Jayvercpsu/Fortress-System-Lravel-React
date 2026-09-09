@@ -9,7 +9,7 @@ import DatePickerInput from './DatePickerInput';
 import SearchableDropdown from './SearchableDropdown';
 import { useLayoutTitle } from './Layout';
 import { Head, router, useForm, usePage } from '@inertiajs/react';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import toast from 'react-hot-toast';
 import { Check, Lock, Trash2, User as UserIcon } from 'lucide-react';
 import OptimizedImage from './OptimizedImage';
@@ -83,9 +83,13 @@ const boardInputStyle = {
     boxSizing: 'border-box',
 };
 
+const boardTableGridColor = 'color-mix(in srgb, var(--border-color) 85%, transparent)';
+
 const boardTableHeaderCell = {
     textAlign: 'left',
-    border: '1px solid color-mix(in srgb, var(--border-color) 85%, transparent)',
+    borderStyle: 'solid',
+    borderColor: boardTableGridColor,
+    borderWidth: '0 1px 1px 0',
     color: 'var(--text-muted)',
     fontWeight: 600,
     padding: '10px 8px',
@@ -94,7 +98,9 @@ const boardTableHeaderCell = {
 
 const boardTableCell = {
     padding: '10px 8px',
-    border: '1px solid color-mix(in srgb, var(--border-color) 85%, transparent)',
+    borderStyle: 'solid',
+    borderColor: boardTableGridColor,
+    borderWidth: '0 1px 1px 0',
     whiteSpace: 'nowrap',
     color: 'var(--text-main)',
     background: 'var(--mb-row-bg, transparent)',
@@ -231,6 +237,13 @@ const deletedBadgeStyle = {
 const groupColors = ['#38bdf8', '#a3e635', '#fbbf24', '#f472b6', '#f97316', '#22d3ee', '#c084fc'];
 const COMPLETED_DEPARTMENT = 'Completed';
 
+// Filler rows pad short pages up to a full page of slots so the grid keeps
+// its structure. Each department wrapper additionally locks to its tallest
+// observed height (measured at runtime, since real row heights vary with
+// content), so turning pages never shifts the layout.
+const BOARD_TABLE_ROW_PX = 48;
+const BOARD_TABLE_VISIBLE_ROWS = 10;
+
 const normalizeGroupKey = (value) => {
     const trimmed = String(value || '').trim();
     return trimmed === '' ? 'General' : trimmed;
@@ -283,50 +296,6 @@ const sortDirectionOptions = [
     { value: 'asc', label: 'Asc' },
     { value: 'desc', label: 'Desc' },
 ];
-
-const getSortValue = (row, key) => {
-    const raw = row?.[key];
-    if (key === 'progress_percent') {
-        const numeric = Number(row?.computed_progress ?? raw);
-        return Number.isFinite(numeric) ? numeric : null;
-    }
-    if (key === 'created_at') {
-        const createdAt = raw ? Date.parse(raw) : NaN;
-        if (Number.isFinite(createdAt)) return createdAt;
-        const updatedAt = row?.updated_at ? Date.parse(row.updated_at) : NaN;
-        if (Number.isFinite(updatedAt)) return updatedAt;
-        const fallbackId = Number(row?.id);
-        return Number.isFinite(fallbackId) ? fallbackId : null;
-    }
-    if (key === 'updated_at') {
-        const updatedAt = raw ? Date.parse(raw) : NaN;
-        if (Number.isFinite(updatedAt)) return updatedAt;
-        const fallbackId = Number(row?.id);
-        return Number.isFinite(fallbackId) ? fallbackId : null;
-    }
-    if (key.endsWith('_date')) {
-        const timestamp = raw ? Date.parse(raw) : NaN;
-        return Number.isFinite(timestamp) ? timestamp : null;
-    }
-    if (raw == null || raw === '') return null;
-    return String(raw).toLowerCase();
-};
-
-const sortRows = (rows, sortKey, sortDir) => {
-    if (!sortKey) return rows;
-    const effectiveKey = sortKey === 'default' ? 'created_at' : sortKey;
-    const direction = sortDir === 'desc' ? -1 : 1;
-    return [...rows].sort((a, b) => {
-        const left = getSortValue(a, effectiveKey);
-        const right = getSortValue(b, effectiveKey);
-        if (left == null && right == null) return 0;
-        if (left == null) return 1;
-        if (right == null) return -1;
-        if (left < right) return -1 * direction;
-        if (left > right) return 1 * direction;
-        return 0;
-    });
-};
 
 const getStatusBadgeStyle = (statusValue) => {
     const normalized = normalizeStatus(statusValue, '');
@@ -498,6 +467,8 @@ export default function MonitoringBoardIndexPage({
     designerOptions = [],
     departments = [],
     department_pagination: departmentPagination = {},
+    department_meta: departmentMeta = {},
+    search: serverSearch = '',
 }) {
     const { auth } = usePage().props;
     const isHeadAdmin = ['head_admin', 'master_admin'].includes(auth?.user?.role);
@@ -830,7 +801,7 @@ export default function MonitoringBoardIndexPage({
         setEditData('department', value);
     };
 
-    const [search, setSearch] = useState('');
+    const [searchDraft, setSearchDraft] = useState(serverSearch || '');
     const [itemToDelete, setItemToDelete] = useState(null);
     const [deletingId, setDeletingId] = useState(null);
     const [departmentToDelete, setDepartmentToDelete] = useState(null);
@@ -842,6 +813,53 @@ export default function MonitoringBoardIndexPage({
     const [previewFile, setPreviewFile] = useState(null);
     const [fileInputKey, setFileInputKey] = useState(0);
     const [collapsedDepartments, setCollapsedDepartments] = useState({});
+    const tableWrapRefs = useRef({});
+    const [tableMinHeights, setTableMinHeights] = useState({});
+    const [departmentPage, setDepartmentPage] = useState(departmentPagination.pages || {});
+    const [departmentPageSize, setDepartmentPageSize] = useState(departmentPagination.sizes || {});
+
+    const [fillerGapByDepartment, setFillerGapByDepartment] = useState({});
+
+    useEffect(() => {
+        const meta = departmentMeta && typeof departmentMeta === 'object' ? departmentMeta : {};
+        const grown = {};
+        const gaps = {};
+        Object.entries(tableWrapRefs.current).forEach(([department, el]) => {
+            if (!(el instanceof HTMLElement)) return;
+            // Only departments with a full page (10+ total items) lock a full-page
+            // height and stretch empty rows; shorter departments fit their content.
+            const deptTotal = Number(meta[department]?.total ?? NaN);
+            const isPaged = Number.isFinite(deptTotal) && deptTotal >= BOARD_TABLE_VISIBLE_ROWS;
+            const appliedGap = isPaged ? Math.max(0, Number(fillerGapByDepartment[department] ?? 0)) : 0;
+            // Back out any stretch already applied to a filler row so the
+            // natural (unstretched) content height drives the next measurement.
+            const natural = el.scrollHeight - appliedGap;
+            const locked = Math.max(natural, tableMinHeights[department] ?? 0);
+            if (locked > (tableMinHeights[department] ?? 0)) {
+                grown[department] = locked;
+            }
+            // When a page's content is shorter than the locked min-height, compute
+            // the leftover so the last empty row can stretch to fill the bottom.
+            // A negative or zero target means the row pair already has no gap.
+            const gap = isPaged ? Math.max(0, Math.floor(locked - natural - 1)) : 0;
+            if (gap > 0) {
+                gaps[department] = gap;
+            } else if (fillerGapByDepartment[department]) {
+                gaps[department] = 0;
+            }
+        });
+        if (Object.keys(grown).length > 0) {
+            setTableMinHeights((prev) => ({ ...prev, ...grown }));
+        }
+        const nextGaps = { ...fillerGapByDepartment, ...gaps };
+        Object.keys(nextGaps).forEach((key) => {
+            if (!nextGaps[key]) delete nextGaps[key];
+        });
+        if (JSON.stringify(nextGaps) !== JSON.stringify(fillerGapByDepartment)) {
+            setFillerGapByDepartment(nextGaps);
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [items, departmentPage, departmentPageSize, collapsedDepartments]);
     const [selectedRowsByDepartment, setSelectedRowsByDepartment] = useState({});
     const [bulkActionByDepartment, setBulkActionByDepartment] = useState({});
     const [bulkDeleteIds, setBulkDeleteIds] = useState([]);
@@ -850,8 +868,6 @@ export default function MonitoringBoardIndexPage({
     const [showCreateModal, setShowCreateModal] = useState(false);
     const [globalSort, setGlobalSort] = useState({ key: 'default', dir: 'desc' });
     const [departmentSort, setDepartmentSort] = useState({});
-    const [departmentPage, setDepartmentPage] = useState(departmentPagination.pages || {});
-    const [departmentPageSize, setDepartmentPageSize] = useState(departmentPagination.sizes || {});
 
     useEffect(() => {
         if (typeof window === 'undefined') return;
@@ -909,72 +925,40 @@ export default function MonitoringBoardIndexPage({
         }
     }, [filesPage, filesPageCount]);
 
+    // Rows arrive already searched, sorted, and paginated from the server.
+    // departmentMeta carries per-department totals for the pager.
     const groupedItems = useMemo(() => {
-        const needle = String(search || '').trim().toLowerCase();
-        const preparedItems = Array.isArray(items)
-            ? items.map((item) => ({
-                ...item,
-                computed_progress: computeDesignProgressWithBasis({
-                    basis: item.design_computation_basis,
-                    designContractAmount: Number(item.design_contract_amount || 0),
-                    totalReceived: Number(item.total_received || 0),
-                    clientApprovalStatus: item.client_approval_status,
-                }),
-            }))
-            : [];
-        const filtered = needle === ''
-            ? preparedItems
-            : preparedItems.filter((item) => (
-                [
-                    item.department,
-                    item.client_name,
-                    item.project_name,
-                    item.project_type,
-                    item.location,
-                    item.assigned_to,
-                    item.status,
-                ]
-                    .filter(Boolean)
-                    .some((value) => String(value).toLowerCase().includes(needle))
-            ));
-
-        const groups = new Map();
-        if (needle === '') {
-            departmentOptions.forEach((department) => {
-                const key = normalizeGroupKey(department);
-                if (!groups.has(key)) {
-                    groups.set(key, []);
-                }
-            });
-        }
-        filtered.forEach((item) => {
-            const key = normalizeGroupKey(item.department);
-            if (!groups.has(key)) {
-                groups.set(key, []);
+        const metaByDepartment = departmentMeta && typeof departmentMeta === 'object' ? departmentMeta : {};
+        const rowsByDepartment = new Map();
+        (Array.isArray(items) ? items : []).forEach((item) => {
+            const key = normalizeGroupKey(item?.department);
+            if (!rowsByDepartment.has(key)) {
+                rowsByDepartment.set(key, []);
             }
-            groups.get(key).push(item);
+            rowsByDepartment.get(key).push(item);
         });
 
-        const completedRows = groups.get(COMPLETED_DEPARTMENT) || [];
-        groups.delete(COMPLETED_DEPARTMENT);
-
-        const orderedGroups = Array.from(groups.entries())
-            .map(([department, rows]) => {
-                const latestCreated = rows.reduce((maxValue, row) => {
-                    const timestamp = row?.created_at ? Date.parse(row.created_at) : NaN;
-                    if (!Number.isFinite(timestamp)) return maxValue;
-                    return Math.max(maxValue, timestamp);
-                }, 0);
-                return { department, rows, latestCreated };
+        const orderedGroups = Object.keys(metaByDepartment)
+            .map((department) => {
+                const latest = metaByDepartment[department]?.latest_created_at;
+                const timestamp = latest ? Date.parse(latest) : NaN;
+                return {
+                    department,
+                    rows: rowsByDepartment.get(department) || [],
+                    total: Number(metaByDepartment[department]?.total ?? 0),
+                    serverPage: Math.max(1, Number(metaByDepartment[department]?.page ?? 1)),
+                    serverPerPage: Math.max(1, Number(metaByDepartment[department]?.per_page ?? 10)),
+                    latestCreated: Number.isFinite(timestamp) ? timestamp : 0,
+                };
             })
             .sort((a, b) => {
                 if (b.latestCreated !== a.latestCreated) return b.latestCreated - a.latestCreated;
                 return a.department.localeCompare(b.department);
-            })
-            .map(({ department, rows }) => ({ department, rows }));
-        orderedGroups.push({ department: COMPLETED_DEPARTMENT, rows: completedRows });
-        return orderedGroups;
-    }, [items, search, departmentOptions]);
+            });
+        const completedGroups = orderedGroups.filter((group) => group.department === COMPLETED_DEPARTMENT);
+        const activeGroups = orderedGroups.filter((group) => group.department !== COMPLETED_DEPARTMENT);
+        return [...activeGroups, ...completedGroups];
+    }, [items, departmentMeta]);
 
     useEffect(() => {
         if (groupedItems.length === 0) return;
@@ -1002,16 +986,29 @@ export default function MonitoringBoardIndexPage({
         });
     }, [groupedItems]);
 
+    // The server is the source of truth for which page is displayed: rows
+    // arrive already paginated, so mirror the normalized server page/size
+    // into local state. This keeps Prev/Next in sync after navigations and
+    // after Add Entry clears the board query (server resets to page 1).
     useEffect(() => {
         if (groupedItems.length === 0) return;
         setDepartmentPage((prev) => {
             const next = { ...prev };
+            let changed = false;
             groupedItems.forEach((group) => {
-                if (!(group.department in next) || !Number.isFinite(Number(next[group.department])) || Number(next[group.department]) < 1) {
-                    next[group.department] = 1;
+                const serverPage = Math.max(1, Number(group.serverPage ?? 1));
+                if (Number(next[group.department]) !== serverPage) {
+                    next[group.department] = serverPage;
+                    changed = true;
                 }
             });
-            return next;
+            Object.keys(next).forEach((key) => {
+                if (!groupedItems.some((group) => group.department === key)) {
+                    delete next[key];
+                    changed = true;
+                }
+            });
+            return changed ? next : prev;
         });
     }, [groupedItems]);
 
@@ -1019,12 +1016,21 @@ export default function MonitoringBoardIndexPage({
         if (groupedItems.length === 0) return;
         setDepartmentPageSize((prev) => {
             const next = { ...prev };
+            let changed = false;
             groupedItems.forEach((group) => {
-                if (!(group.department in next) || !Number.isFinite(Number(next[group.department])) || Number(next[group.department]) < 1) {
-                    next[group.department] = 10;
+                const serverSize = Math.max(1, Number(group.serverPerPage ?? 10));
+                if (Number(next[group.department]) !== serverSize) {
+                    next[group.department] = serverSize;
+                    changed = true;
                 }
             });
-            return next;
+            Object.keys(next).forEach((key) => {
+                if (!groupedItems.some((group) => group.department === key)) {
+                    delete next[key];
+                    changed = true;
+                }
+            });
+            return changed ? next : prev;
         });
     }, [groupedItems]);
 
@@ -1072,11 +1078,44 @@ export default function MonitoringBoardIndexPage({
         setCollapsedDepartments((prev) => ({ ...prev, [department]: !prev[department] }));
     };
 
-    const updateDepartmentSort = (department, next) => {
-        setDepartmentSort((prev) => {
-            const base = { ...globalSort, ...(prev[department] || {}) };
-            return { ...prev, [department]: { ...base, ...next } };
+    const buildBoardQuery = (overrides = {}) => {
+        const query = {
+            search: overrides.search !== undefined ? overrides.search : searchDraft,
+            dept_page: JSON.stringify(overrides.pages !== undefined ? overrides.pages : departmentPage),
+            dept_size: JSON.stringify(overrides.sizes !== undefined ? overrides.sizes : departmentPageSize),
+            dept_sort: JSON.stringify(overrides.sorts !== undefined ? overrides.sorts : departmentSort),
+        };
+        if (!query.search) delete query.search;
+        if (query.dept_sort === '{}') delete query.dept_sort;
+        return query;
+    };
+
+    const navigateBoard = (overrides = {}) => {
+        router.get('/design', buildBoardQuery(overrides), {
+            preserveScroll: true,
+            preserveState: true,
+            replace: true,
         });
+    };
+
+    useEffect(() => {
+        if ((serverSearch || '') === searchDraft) return;
+        const handle = window.setTimeout(() => {
+            navigateBoard({ search: searchDraft, pages: {} });
+        }, 300);
+        return () => window.clearTimeout(handle);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [searchDraft, serverSearch]);
+
+    useEffect(() => {
+        setSearchDraft(serverSearch || '');
+    }, [serverSearch]);
+
+    const updateDepartmentSort = (department, next) => {
+        const base = { ...globalSort, ...(departmentSort[department] || {}) };
+        const updated = { ...departmentSort, [department]: { ...base, ...next } };
+        setDepartmentSort(updated);
+        navigateBoard({ sorts: updated });
     };
 
     const toggleRowSelection = (department, rowId) => {
@@ -1104,20 +1143,66 @@ export default function MonitoringBoardIndexPage({
         setBulkActionByDepartment((prev) => ({ ...prev, [department]: '' }));
     };
 
-    const syncDepartmentPagination = (nextPages, nextSizes) => {
-        router.get(
-            '/design',
-            {
-                dept_page: JSON.stringify(nextPages),
-                dept_size: JSON.stringify(nextSizes),
-            },
-            {
-                preserveScroll: true,
-                preserveState: true,
-                replace: true,
-            }
-        );
+    const sanitizeEntryId = (value) => {
+        const id = Number(value);
+        return Number.isFinite(id) && id > 0 ? id : null;
     };
+
+    // Drop every local reference to deleted entries so a stale (cached) row
+    // can never be selected, edited, or deleted a second time.
+    const purgeDeletedEntryIds = (ids) => {
+        const doomed = new Set(
+            (Array.isArray(ids) ? ids : [ids])
+                .map((id) => sanitizeEntryId(id))
+                .filter((id) => id !== null)
+        );
+        if (doomed.size === 0) return;
+        setSelectedRowsByDepartment((prev) => {
+            const next = {};
+            let changed = false;
+            Object.entries(prev).forEach(([department, selected]) => {
+                const kept = (selected || []).filter((id) => !doomed.has(Number(id)));
+                next[department] = kept;
+                if (kept.length !== (selected || []).length) changed = true;
+            });
+            return changed ? next : prev;
+        });
+        setBulkDeleteIds((prev) => prev.filter((id) => !doomed.has(Number(id))));
+        setItemToDelete((prev) => (prev && doomed.has(Number(prev.id)) ? null : prev));
+        setEditItem((prev) => (prev && doomed.has(Number(prev.id)) ? null : prev));
+        setInfoItem((prev) => (prev && doomed.has(Number(prev.id)) ? null : prev));
+        if (filesItem && doomed.has(Number(filesItem.id))) {
+            setFilesItem(null);
+            setFileToDelete(null);
+            setPreviewFile(null);
+        }
+    };
+
+    const syncDepartmentPagination = (nextPages, nextSizes) => {
+        navigateBoard({ pages: nextPages, sizes: nextSizes });
+    };
+
+    // Prefetch adjacent pages so Prev/Next turns apply instantly instead of
+    // looking like a page refresh.
+    useEffect(() => {
+        groupedItems.forEach((group) => {
+            const total = Number(group.total ?? group.rows.length);
+            const size = Math.max(1, Number(departmentPageSize[group.department] ?? 10));
+            const pages = Math.max(1, Math.ceil(total / size));
+            const current = Math.min(Math.max(1, departmentPage[group.department] ?? 1), pages);
+            if (current < pages) {
+                router.prefetch('/design', {
+                    data: buildBoardQuery({ pages: { ...departmentPage, [group.department]: current + 1 } }),
+                });
+            }
+            if (current > 1) {
+                router.prefetch('/design', {
+                    data: buildBoardQuery({ pages: { ...departmentPage, [group.department]: current - 1 } }),
+                });
+            }
+        });
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [groupedItems, departmentPage, departmentPageSize]);
 
     const submitCreate = (event) => {
         event.preventDefault();
@@ -1139,6 +1224,13 @@ export default function MonitoringBoardIndexPage({
                 setCreateData('client_approval_status', 'pending');
                 setCreateData('design_computation_basis', cloneDesignBasis(DEFAULT_DESIGN_BASIS));
                 setShowCreateModal(false);
+                // Clear every board query param (search, pagination, sizes, sorts) from
+                // the URL now that a fresh entry has been added successfully, and
+                // reset local pager state so Prev/Next match the page-1 rows
+                // the server returns.
+                setSearchDraft('');
+                setDepartmentPage({});
+                router.get('/design', {}, { preserveScroll: true, preserveState: true, replace: true });
                 toast.success(toastMessages.monitoringBoard.entryAdded);
             },
             onError: () => toast.error(toastMessages.monitoringBoard.entryAddError),
@@ -1215,15 +1307,26 @@ export default function MonitoringBoardIndexPage({
     };
 
     const confirmDelete = () => {
-        if (!itemToDelete) return;
-        setDeletingId(itemToDelete.id);
-        router.delete(`/design/${itemToDelete.id}`, {
+        const entryId = sanitizeEntryId(itemToDelete?.id);
+        if (entryId === null) {
+            setItemToDelete(null);
+            return;
+        }
+        setDeletingId(entryId);
+        router.delete(`/design/${entryId}`, {
             preserveScroll: true,
             onSuccess: () => {
+                purgeDeletedEntryIds([entryId]);
                 setItemToDelete(null);
                 toast.success(toastMessages.monitoringBoard.entryDeleted);
             },
-            onError: () => toast.error(toastMessages.monitoringBoard.entryDeleteError),
+            onError: () => {
+                setItemToDelete(null);
+                // Reconcile with the server so a phantom (already deleted)
+                // row disappears instead of lingering in the UI.
+                router.reload({ preserveScroll: true });
+                toast.error(toastMessages.monitoringBoard.entryDeleteError);
+            },
             onFinish: () => setDeletingId(null),
         });
     };
@@ -1272,26 +1375,53 @@ export default function MonitoringBoardIndexPage({
     };
 
     const requestBulkDelete = (department, ids) => {
-        if (!ids.length) return;
+        const cleanIds = Array.from(
+            new Set(
+                (Array.isArray(ids) ? ids : [])
+                    .map((id) => sanitizeEntryId(id))
+                    .filter((id) => id !== null)
+            )
+        );
+        if (cleanIds.length === 0) return;
         if (department === COMPLETED_DEPARTMENT && !isHeadAdmin) return;
         setBulkDeleteDepartment(department);
-        setBulkDeleteIds(ids);
+        setBulkDeleteIds(cleanIds);
     };
 
     const confirmBulkDelete = () => {
-        if (bulkDeleteIds.length === 0) return;
-        const idsQueue = [...bulkDeleteIds];
+        if (bulkDeleting) return;
+        const idsQueue = (Array.isArray(bulkDeleteIds) ? bulkDeleteIds : [])
+            .map((id) => sanitizeEntryId(id))
+            .filter((id) => id !== null);
+        if (idsQueue.length === 0) {
+            setBulkDeleteIds([]);
+            setBulkDeleteDepartment(null);
+            return;
+        }
         setBulkDeleting(true);
+        const attempted = [...idsQueue];
+        let failed = 0;
+
+        const finishBulkDelete = () => {
+            setBulkDeleting(false);
+            setBulkDeleteIds([]);
+            purgeDeletedEntryIds(attempted);
+            if (bulkDeleteDepartment) {
+                clearDepartmentSelection(bulkDeleteDepartment);
+            }
+            setBulkDeleteDepartment(null);
+            if (failed > 0) {
+                // Refresh from the server so phantom rows are reconciled.
+                router.reload({ preserveScroll: true });
+                toast.error(toastMessages.monitoringBoard.selectedDeleteError);
+                return;
+            }
+            toast.success(toastMessages.monitoringBoard.selectedDeleted);
+        };
 
         const deleteNext = () => {
             if (idsQueue.length === 0) {
-                setBulkDeleting(false);
-                setBulkDeleteIds([]);
-                if (bulkDeleteDepartment) {
-                    clearDepartmentSelection(bulkDeleteDepartment);
-                }
-                setBulkDeleteDepartment(null);
-                toast.success(toastMessages.monitoringBoard.selectedDeleted);
+                finishBulkDelete();
                 return;
             }
 
@@ -1299,11 +1429,11 @@ export default function MonitoringBoardIndexPage({
             router.delete(`/design/${currentId}`, {
                 preserveScroll: true,
                 onSuccess: () => deleteNext(),
+                // One stale (already deleted) entry must not abort the rest
+                // of the queue; the board is reconciled at the end.
                 onError: () => {
-                    setBulkDeleting(false);
-                    setBulkDeleteIds([]);
-                    setBulkDeleteDepartment(null);
-                    toast.error(toastMessages.monitoringBoard.selectedDeleteError);
+                    failed += 1;
+                    deleteNext();
                 },
             });
         };
@@ -1363,14 +1493,18 @@ export default function MonitoringBoardIndexPage({
     };
 
     const confirmDeleteFile = () => {
-        if (!fileToDelete) return;
+        const fileId = sanitizeEntryId(fileToDelete?.id);
+        if (fileId === null) {
+            setFileToDelete(null);
+            return;
+        }
         const filesItemId = filesItem?.id;
-        setDeletingFileId(fileToDelete.id);
-        router.delete(`/design-files/${fileToDelete.id}`, {
+        setDeletingFileId(fileId);
+        router.delete(`/design-files/${fileId}`, {
             preserveScroll: true,
             onSuccess: (page) => {
                 setFileToDelete(null);
-                if (previewFile?.id === fileToDelete.id) {
+                if (previewFile?.id === fileToDelete?.id) {
                     setPreviewFile(null);
                 }
                 if (page?.props?.items && filesItemId) {
@@ -1379,7 +1513,11 @@ export default function MonitoringBoardIndexPage({
                 }
                 toast.success(toastMessages.monitoringBoard.fileDeleted);
             },
-            onError: () => toast.error(toastMessages.monitoringBoard.fileDeleteError),
+            onError: () => {
+                setFileToDelete(null);
+                router.reload({ preserveScroll: true });
+                toast.error(toastMessages.monitoringBoard.fileDeleteError);
+            },
             onFinish: () => setDeletingFileId(null),
         });
     };
@@ -1396,13 +1534,27 @@ export default function MonitoringBoardIndexPage({
                     .monitoring-board-table .mb-row:hover{
                         --mb-row-bg: color-mix(in srgb, var(--surface-2) 72%, var(--surface-1));
                     }
+                    .monitoring-board-table thead th{
+                        position: sticky;
+                        top: 0;
+                        z-index: 3;
+                        background: var(--surface-2);
+                    }
+                    .bb-table-wrap.bb-hscrolled .monitoring-board-table thead th:first-child{
+                        box-shadow: 4px 0 8px -4px rgba(0, 0, 0, 0.25);
+                    }
+                    .bb-table-wrap.bb-hscrolled .monitoring-board-table tbody td:first-child{
+                        background: var(--surface-1) !important;
+                        box-shadow: 4px 0 8px -4px rgba(0, 0, 0, 0.25);
+                    }
+
                 `}</style>
                 <div style={boardShell}>
                     <div style={boardToolbar}>
                         <div style={{ flex: '1 1 360px', minWidth: 220, maxWidth: 520 }}>
                             <TextInput
-                                value={search}
-                                onChange={(event) => setSearch(event.target.value)}
+                                value={searchDraft}
+                                onChange={(event) => setSearchDraft(event.target.value)}
                                 placeholder="Search"
                                 style={boardInputStyle}
                             />
@@ -1456,18 +1608,21 @@ export default function MonitoringBoardIndexPage({
                                       ]
                                     : [{ value: 'delete', label: 'Delete selected' }];
                         const sortConfig = { ...globalSort, ...(departmentSort[group.department] || {}) };
-                        const sortedRows = sortRows(group.rows, sortConfig.key, sortConfig.dir);
+                        const totalItems = Number(group.total ?? group.rows.length);
                         const pageSize = isCompletedGroup
                             ? Math.max(1, Number(departmentPageSize[group.department] ?? 10))
-                            : sortedRows.length || 1;
-                        const totalPages = isCompletedGroup ? Math.max(1, Math.ceil(sortedRows.length / pageSize)) : 1;
-                        const currentPage = isCompletedGroup
-                            ? Math.min(departmentPage[group.department] ?? 1, totalPages)
-                            : 1;
+                            : 10;
+                        const totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
+                        const currentPage = Math.min(Math.max(1, departmentPage[group.department] ?? group.serverPage ?? 1), totalPages);
                         const pageStart = (currentPage - 1) * pageSize;
-                        const pagedRows = isCompletedGroup ? sortedRows.slice(pageStart, pageStart + pageSize) : sortedRows;
+                        const pagedRows = group.rows;
                         const stickyHeaderStyle = {
                             ...selectionHeaderStyle,
+                            // Keep the corner (select-all) cell on top of the other
+                            // vertically-sticky header cells (z-index 3) so the
+                            // horizontally-scrolling column headers paint beneath it
+                            // instead of covering the checkbox while scrolling right.
+                            zIndex: 5,
                             background: `color-mix(in srgb, ${groupColor} 14%, var(--surface-2))`,
                         };
                         const stickyCellStyle = {
@@ -1620,8 +1775,18 @@ export default function MonitoringBoardIndexPage({
                             </div>
                             {!isCollapsed && (
                                 <>
-                                <div style={{ overflowX: 'auto', width: '100%', maxWidth: '100%', minWidth: 0 }}>
-                                    <table className="monitoring-board-table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12, minWidth: 1500 }}>
+                                <div
+                                    className="bb-table-wrap"
+                                    ref={(el) => {
+                                        tableWrapRefs.current[group.department] = el;
+                                    }}
+                                    onScroll={(event) => {
+                                        const el = event.currentTarget;
+                                        el.classList.toggle('bb-hscrolled', el.scrollLeft > 0);
+                                    }}
+                                    style={{ overflowX: 'auto', width: '100%', maxWidth: '100%', minWidth: 0, minHeight: tableMinHeights[group.department] }}
+                                >
+                                    <table className="monitoring-board-table" style={{ width: '100%', borderCollapse: 'separate', borderSpacing: 0, fontSize: 12, minWidth: 1500, borderTop: `1px solid ${boardTableGridColor}`, borderLeft: `1px solid ${boardTableGridColor}` }}>
                                         <thead>
                                             <tr>
                                                 <th style={{ ...boardTableHeaderCell, ...stickyHeaderStyle }}>
@@ -1650,7 +1815,7 @@ export default function MonitoringBoardIndexPage({
                                             </tr>
                                         </thead>
                                         <tbody>
-                                            {sortedRows.length === 0 ? (
+                                            {totalItems === 0 ? (
                                                 <tr>
                                                     <td
                                                         colSpan={emptyRowColSpan}
@@ -1849,10 +2014,39 @@ export default function MonitoringBoardIndexPage({
                                                 );
                                             })
                                             )}
+                                            {(() => {
+                                                const fillerCount = totalItems >= BOARD_TABLE_VISIBLE_ROWS
+                                                ? Math.max(0, BOARD_TABLE_VISIBLE_ROWS - pagedRows.length)
+                                                : 0;
+                                                // Stretch the last empty row so the table reaches the
+                                                // bottom of the locked wrapper height, filling any leftover gap.
+                                                const fillerStretch = Math.max(0, Number(fillerGapByDepartment[group.department] ?? 0));
+                                                return Array.from({ length: fillerCount }).map((_, fillerIndex) => {
+                                                    const isLastFiller = fillerIndex === fillerCount - 1;
+                                                    const stretch = isLastFiller ? fillerStretch : 0;
+                                                    return (
+                                                        <tr key={`empty-${fillerIndex}`} aria-hidden="true" style={{ height: BOARD_TABLE_ROW_PX + stretch }}>
+                                                            {Array.from({ length: emptyRowColSpan }).map((__, fillerCellIndex) => (
+                                                                <td
+                                                                    key={fillerCellIndex}
+                                                                    style={{
+                                                                        ...boardTableCell,
+                                                                        color: 'transparent',
+                                                                        userSelect: 'none',
+                                                                        ...(stretch > 0 ? { height: BOARD_TABLE_ROW_PX + stretch } : {}),
+                                                                    }}
+                                                                >
+                                                                    {'\u00A0'}
+                                                                </td>
+                                                            ))}
+                                                        </tr>
+                                                    );
+                                                });
+                                            })()}
                                         </tbody>
                                     </table>
                                 </div>
-                                {isCompletedGroup && sortedRows.length > 0 ? (
+                                {totalItems > 0 ? (
                                     <div
                                         style={{
                                             display: 'flex',
@@ -1863,32 +2057,40 @@ export default function MonitoringBoardIndexPage({
                                             marginTop: 12,
                                         }}
                                     >
-                                        <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
-                                            Showing {sortedRows.length ? pageStart + 1 : 0}-{Math.min(pageStart + pageSize, sortedRows.length)} of {sortedRows.length}
-                                        </div>
-                                        <SelectInput
-                                            value={String(pageSize)}
-                                            onChange={(event) => {
-                                                const nextSize = Number(event.target.value) || 10;
-                                                const nextPages = { ...departmentPage, [group.department]: 1 };
-                                                const nextSizes = { ...departmentPageSize, [group.department]: nextSize };
-                                                setDepartmentPageSize(nextSizes);
-                                                setDepartmentPage(nextPages);
-                                                syncDepartmentPagination(nextPages, nextSizes);
-                                            }}
-                                            style={{ ...boardInputStyle, width: 80 }}
-                                        >
-                                            {[5, 10, 25, 50].map((size) => (
-                                                <option key={size} value={size}>{size}</option>
-                                            ))}
-                                        </SelectInput>
+                                        {isCompletedGroup && (
+                                            <>
+                                                <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+                                                    Showing {totalItems ? pageStart + 1 : 0}-{Math.min(pageStart + pageSize, totalItems)} of {totalItems}
+                                                </div>
+                                                <SelectInput
+                                                    value={String(pageSize)}
+                                                    onChange={(event) => {
+                                                        const nextSize = Number(event.target.value) || 10;
+                                                        const nextPages = { ...departmentPage, [group.department]: 1 };
+                                                        const nextSizes = { ...departmentPageSize, [group.department]: nextSize };
+                                                        setDepartmentPageSize(nextSizes);
+                                                        setDepartmentPage(nextPages);
+                                                        syncDepartmentPagination(nextPages, nextSizes);
+                                                    }}
+                                                    style={{ ...boardInputStyle, width: 80 }}
+                                                >
+                                                    {[5, 10, 25, 50].map((size) => (
+                                                        <option key={size} value={size}>{size}</option>
+                                                    ))}
+                                                </SelectInput>
+                                            </>
+                                        )}
                                         <ActionButton
                                             type="button"
                                             variant="neutral"
                                             onClick={() => {
                                                 const nextPages = { ...departmentPage, [group.department]: Math.max(1, currentPage - 1) };
+                                                const nextSizes = isCompletedGroup
+                                                    ? departmentPageSize
+                                                    : { ...departmentPageSize, [group.department]: 10 };
+                                                if (!isCompletedGroup) setDepartmentPageSize(nextSizes);
                                                 setDepartmentPage(nextPages);
-                                                syncDepartmentPagination(nextPages, departmentPageSize);
+                                                syncDepartmentPagination(nextPages, nextSizes);
                                             }}
                                             disabled={currentPage <= 1}
                                         >
@@ -1899,8 +2101,12 @@ export default function MonitoringBoardIndexPage({
                                             variant="neutral"
                                             onClick={() => {
                                                 const nextPages = { ...departmentPage, [group.department]: Math.min(totalPages, currentPage + 1) };
+                                                const nextSizes = isCompletedGroup
+                                                    ? departmentPageSize
+                                                    : { ...departmentPageSize, [group.department]: 10 };
+                                                if (!isCompletedGroup) setDepartmentPageSize(nextSizes);
                                                 setDepartmentPage(nextPages);
-                                                syncDepartmentPagination(nextPages, departmentPageSize);
+                                                syncDepartmentPagination(nextPages, nextSizes);
                                             }}
                                             disabled={currentPage >= totalPages}
                                         >

@@ -1,12 +1,12 @@
 import { expect, test } from '@playwright/test';
+import { loginAs } from './support/auth';
 import { DEMO_PROJECT_ID } from './support/constants';
 
 test('a second head admin only sees their own projects', async ({ page }) => {
     await test.step('Log in as a second head admin', async () => {
-        await page.goto('/login');
-        await page.locator('input[name="email"]').fill('headadmin2@buildbooks.com');
-        await page.locator('input[type="password"]').fill('password');
-        await page.getByRole('button', { name: /sign in/i }).click();
+        await loginAs(page, 'head_admin_2');
+        // loginAs restores the session without navigating.
+        await page.goto('/head-admin');
         await expect(page).toHaveURL(/\/head-admin(?:\?|$)/);
     });
 

@@ -849,6 +849,281 @@ class MonitoringBoardTest extends TestCase
                 ->where('monitoring.scopes', fn ($scopes) => is_countable($scopes) && count($scopes) > 0));
     }
 
+    public function test_add_design_entry_to_department_created_by_another_user(): void
+    {
+        foreach (['head_admin', 'admin', 'designer', 'master_admin'] as $role) {
+            $department = "Shared Dept {$role}";
+            $deptOwner = $this->makeUser('head_admin');
+            $this->makeDepartment($department, $deptOwner->id);
+            $adder = $this->makeUser($role);
+
+            $this->actingAs($adder)
+                ->post('/design', [
+                    'department' => $department,
+                    'client_name' => 'Client X',
+                    'project_name' => "Shared Department Project {$role}",
+                    'project_type' => 'Commercial',
+                    'location' => 'Cebu City',
+                    'status' => 'PROPOSAL',
+                    'progress_percent' => 10,
+                ])
+                ->assertRedirect('/design');
+
+            $this->assertDatabaseHas('monitoring_board_items', [
+                'project_name' => "Shared Department Project {$role}",
+                'department' => $department,
+            ]);
+            $this->assertSame(1, MonitoringBoardDepartment::where('name', $department)->count());
+        }
+    }
+
+    public function test_edit_design_entry_moving_to_department_created_by_another_user(): void
+    {
+        foreach (['head_admin', 'admin', 'designer', 'master_admin'] as $role) {
+            $department = "Target Dept {$role}";
+            $otherOwner = $this->makeUser('head_admin');
+            $this->makeDepartment($department, $otherOwner->id);
+            $editor = $this->makeUser($role);
+            $item = $this->makeBoardItem("Movable Project {$role}", $editor->id);
+
+            $this->actingAs($editor)
+                ->from('/design?' . http_build_query(['search' => 'Movable', 'dept_page' => json_encode(['Target Dept ' . $role => 2])]))
+                ->patch("/design/{$item->id}", [
+                    'department' => $department,
+                    'client_name' => 'Client X',
+                    'project_name' => "Movable Project {$role}",
+                    'project_type' => 'Commercial',
+                    'location' => 'Cebu City',
+                    'status' => 'IN_REVIEW',
+                    'progress_percent' => 20,
+                ])
+                ->assertRedirect('/design?' . http_build_query(['search' => 'Movable', 'dept_page' => json_encode(['Target Dept ' . $role => 2])]));
+
+            $this->assertDatabaseHas('monitoring_board_items', [
+                'id' => $item->id,
+                'department' => $department,
+            ]);
+        }
+    }
+
+    public function test_design_index_paginates_each_department_with_totals(): void
+    {
+        $admin = $this->makeUser('head_admin');
+        for ($i = 1; $i <= 12; $i++) {
+            MonitoringBoardItem::create([
+                'department' => 'Paginate Dept',
+                'client_name' => 'Client X',
+                'project_name' => "Paginated Project {$i}",
+                'project_type' => 'Commercial',
+                'location' => 'Cebu City',
+                'status' => 'PROPOSAL',
+                'progress_percent' => 10,
+                'created_by' => $admin->id,
+            ]);
+        }
+
+        $this->actingAs($admin)
+            ->get('/design')
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page
+                ->where('department_meta.Paginate Dept.total', 12)
+                ->where('department_meta.Paginate Dept.page', 1)
+                ->where('department_meta.Paginate Dept.per_page', 10)
+                ->where('department_meta.Paginate Dept.last_page', 2)
+                ->has('items', 10));
+
+        $this->actingAs($admin)
+            ->get('/design?' . http_build_query(['dept_page' => json_encode(['Paginate Dept' => 2])]))
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page
+                ->where('department_meta.Paginate Dept.page', 2)
+                ->has('items', 2));
+    }
+
+    public function test_design_index_respects_per_page_and_clamps_out_of_range_pages(): void
+    {
+        $admin = $this->makeUser('head_admin');
+        for ($i = 1; $i <= 12; $i++) {
+            MonitoringBoardItem::create([
+                'department' => 'Per Page Dept',
+                'client_name' => 'Client X',
+                'project_name' => "Per Page Project {$i}",
+                'project_type' => 'Commercial',
+                'location' => 'Cebu City',
+                'status' => 'PROPOSAL',
+                'progress_percent' => 10,
+                'created_by' => $admin->id,
+            ]);
+        }
+
+        $this->actingAs($admin)
+            ->get('/design?' . http_build_query(['dept_size' => json_encode(['Per Page Dept' => 5])]))
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page
+                ->where('department_meta.Per Page Dept.per_page', 5)
+                ->where('department_meta.Per Page Dept.last_page', 3)
+                ->has('items', 5));
+
+        $this->actingAs($admin)
+            ->get('/design?' . http_build_query(['dept_page' => json_encode(['Per Page Dept' => 99])]))
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page
+                ->where('department_meta.Per Page Dept.page', 2)
+                ->where('department_pagination.pages.Per Page Dept', 2)
+                ->where('department_pagination.sizes.Per Page Dept', 10)
+                ->has('items', 2));
+    }
+
+    public function test_design_index_echoes_normalized_pagination_pages(): void
+    {
+        $admin = $this->makeUser('head_admin');
+        for ($i = 1; $i <= 12; $i++) {
+            MonitoringBoardItem::create([
+                'department' => 'Normalized Page Dept',
+                'client_name' => 'Client X',
+                'project_name' => "Normalized Page Project {$i}",
+                'project_type' => 'Commercial',
+                'location' => 'Cebu City',
+                'status' => 'PROPOSAL',
+                'progress_percent' => 10,
+                'created_by' => $admin->id,
+            ]);
+        }
+
+        // Out-of-range requests are clamped so Prev/Next buttons can trust
+        // the echoed pagination prop after Add Entry resets the query.
+        $this->actingAs($admin)
+            ->get('/design?' . http_build_query(['dept_page' => json_encode(['Normalized Page Dept' => 99])]))
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page
+                ->where('department_meta.Normalized Page Dept.page', 2)
+                ->where('department_pagination.pages.Normalized Page Dept', 2)
+                ->has('items', 2));
+
+        $this->actingAs($admin)
+            ->get('/design')
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page
+                ->where('department_meta.Normalized Page Dept.page', 1)
+                ->where('department_pagination.pages.Normalized Page Dept', 1)
+                ->has('items', 10));
+    }
+
+    public function test_deleting_an_already_deleted_design_item_redirects_to_board(): void
+    {
+        $admin = $this->makeUser('head_admin');
+        $item = $this->makeBoardItem('Vanishing Entry', $admin->id);
+
+        $this->actingAs($admin)
+            ->delete("/design/{$item->id}")
+            ->assertStatus(303)
+            ->assertRedirect('/design');
+        $this->assertDatabaseMissing('monitoring_board_items', ['id' => $item->id]);
+
+        // Second delete from a stale row (or double submit) refreshes the
+        // board instead of rendering a 404 page stuck at /design/{id}.
+        $this->actingAs($admin)
+            ->delete("/design/{$item->id}")
+            ->assertStatus(303)
+            ->assertRedirect('/design');
+    }
+
+    public function test_deleting_with_garbage_id_redirects_to_board(): void
+    {
+        $admin = $this->makeUser('head_admin');
+
+        $this->actingAs($admin)->delete('/design/null')->assertStatus(303)->assertRedirect('/design');
+        $this->actingAs($admin)->delete('/design/undefined')->assertStatus(303)->assertRedirect('/design');
+        $this->actingAs($admin)->delete('/design/999999')->assertStatus(303)->assertRedirect('/design');
+    }
+
+    public function test_design_index_search_filters_server_side(): void
+    {
+        $admin = $this->makeUser('head_admin');
+        foreach (['Alpha Hall', 'Beta Barn', 'Gamma Shed'] as $name) {
+            MonitoringBoardItem::create([
+                'department' => 'Search Dept',
+                'client_name' => 'Client X',
+                'project_name' => $name,
+                'project_type' => 'Commercial',
+                'location' => 'Cebu City',
+                'status' => 'PROPOSAL',
+                'progress_percent' => 10,
+                'created_by' => $admin->id,
+            ]);
+        }
+
+        $this->actingAs($admin)
+            ->get('/design?' . http_build_query(['search' => 'beta barn']))
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page
+                ->where('department_meta.Search Dept.total', 1)
+                ->where('items.0.project_name', 'Beta Barn'));
+    }
+
+    public function test_design_index_sorts_by_project_name_and_falls_back_on_invalid_sort(): void
+    {
+        $admin = $this->makeUser('head_admin');
+        foreach (['Gamma', 'Alpha', 'Beta'] as $index => $name) {
+            $item = MonitoringBoardItem::create([
+                'department' => 'Sort Dept',
+                'client_name' => 'Client X',
+                'project_name' => $name,
+                'project_type' => 'Commercial',
+                'location' => 'Cebu City',
+                'status' => 'PROPOSAL',
+                'progress_percent' => 10,
+                'created_by' => $admin->id,
+            ]);
+            $item->created_at = now()->subDays(3 - $index);
+            $item->save();
+        }
+
+        $sort = http_build_query(['dept_sort' => json_encode(['Sort Dept' => ['key' => 'project_name', 'dir' => 'asc']])]);
+        $this->actingAs($admin)
+            ->get("/design?{$sort}")
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page
+                ->where('items.0.project_name', 'Alpha')
+                ->where('items.1.project_name', 'Beta')
+                ->where('items.2.project_name', 'Gamma'));
+
+        $badSort = http_build_query(['dept_sort' => json_encode(['Sort Dept' => ['key' => 'hacker', 'dir' => 'sideways']])]);
+        $this->actingAs($admin)
+            ->get("/design?{$badSort}")
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page
+                ->where('items.0.project_name', 'Beta')
+                ->where('items.1.project_name', 'Alpha')
+                ->where('items.2.project_name', 'Gamma'));
+    }
+
+    public function test_design_index_lists_empty_departments_with_zero_total(): void
+    {
+        $admin = $this->makeUser('head_admin');
+        $this->makeDepartment('Empty Dept', $admin->id);
+
+        $this->actingAs($admin)
+            ->get('/design')
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page
+                ->where('department_meta.Empty Dept.total', 0)
+                ->where('department_meta.Empty Dept.page', 1));
+    }
+
+    public function test_design_index_always_lists_completed_group_even_when_empty(): void
+    {
+        $admin = $this->makeUser('head_admin');
+
+        $this->actingAs($admin)
+            ->get('/design')
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page
+                ->where('department_meta.Completed.total', 0)
+                ->where('department_meta.Completed.page', 1)
+                ->has('items', 0));
+    }
+
     private function makeProject(?int $userId = null): Project
     {
         return Project::create([

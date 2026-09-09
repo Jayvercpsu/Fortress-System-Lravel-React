@@ -29,6 +29,36 @@ class MonitoringBoardRepository implements MonitoringBoardRepositoryInterface
             ->values();
     }
 
+    public function listFilteredItems(User $user, string $search): Collection
+    {
+        $query = MonitoringBoardItem::query()->visibleTo($user);
+
+        $needle = trim($search);
+        if ($needle !== '') {
+            $query->where(function (Builder $builder) use ($needle) {
+                $like = '%' . str_replace(['\\', '%', '_'], ['\\\\', '\\%', '\\_'], $needle) . '%';
+                foreach (['department', 'client_name', 'project_name', 'project_type', 'location', 'assigned_to', 'status'] as $field) {
+                    $builder->orWhere($field, 'like', $like);
+                }
+            });
+        }
+
+        return $query->orderBy('id')->get();
+    }
+
+    public function itemsWithFilesByIds(array $ids): Collection
+    {
+        if (empty($ids)) {
+            return collect();
+        }
+
+        return MonitoringBoardItem::query()
+            ->whereIn('id', $ids)
+            ->with(['files' => fn ($query) => $query->latest('id')])
+            ->get()
+            ->keyBy('id');
+    }
+
     public function existingProjectIds(array $projectIds): array
     {
         if (empty($projectIds)) {
@@ -105,10 +135,13 @@ class MonitoringBoardRepository implements MonitoringBoardRepositoryInterface
     public function ensureDepartmentExists(string $name, int $createdBy): MonitoringBoardDepartment
     {
         $normalized = trim((string) $name);
-        $department = MonitoringBoardDepartment::withTrashed()->firstOrCreate([
-            'name' => $normalized,
-            'created_by' => $createdBy,
-        ]);
+        // Match on name only: the unique index is on name, so including
+        // created_by in the lookup made a different user re-insert the same
+        // department and blow up with a 500 on add/edit.
+        $department = MonitoringBoardDepartment::withTrashed()->firstOrCreate(
+            ['name' => $normalized],
+            ['created_by' => $createdBy]
+        );
 
         if ($department->trashed()) {
             $department->restore();

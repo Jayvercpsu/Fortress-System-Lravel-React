@@ -14,6 +14,10 @@ interface MonitoringBoardRepositoryInterface
 {
     public function listItemsWithFiles(User $user): Collection;
 
+    public function listFilteredItems(User $user, string $search): Collection;
+
+    public function itemsWithFilesByIds(array $ids): Collection;
+
     public function existingProjectIds(array $projectIds): array;
 
     public function clientUsers(): Collection;

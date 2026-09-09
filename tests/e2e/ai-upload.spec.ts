@@ -6,7 +6,7 @@ test.describe('AI Accuracy Disclaimer', () => {
     test('disclaimer is NOT visible before processing', async ({ page }) => {
         await loginAs(page, 'head_admin');
         await page.goto('/projects');
-        await page.waitForLoadState('networkidle');
+        await page.waitForLoadState('load');
 
         await page.getByRole('button', { name: /AI Upload/i }).click();
 
@@ -16,7 +16,7 @@ test.describe('AI Accuracy Disclaimer', () => {
     test('disclaimer is visible during processing', async ({ page }) => {
         await loginAs(page, 'head_admin');
         await page.goto('/projects');
-        await page.waitForLoadState('networkidle');
+        await page.waitForLoadState('load');
 
         await page.getByRole('button', { name: /AI Upload/i }).click();
 
@@ -35,7 +35,7 @@ test.describe('AI Accuracy Disclaimer', () => {
     test('disclaimer is NOT visible after processing fails', async ({ page }) => {
         await loginAs(page, 'head_admin');
         await page.goto('/projects');
-        await page.waitForLoadState('networkidle');
+        await page.waitForLoadState('load');
 
         await page.getByRole('button', { name: /AI Upload/i }).click();
 
@@ -56,7 +56,7 @@ test.describe('AI Accuracy Disclaimer', () => {
     test('disclaimer is hidden when cancel terminates processing', async ({ page }) => {
         await loginAs(page, 'head_admin');
         await page.goto('/projects');
-        await page.waitForLoadState('networkidle');
+        await page.waitForLoadState('load');
 
         await page.getByRole('button', { name: /AI Upload/i }).click();
 
@@ -84,7 +84,7 @@ test.describe('AI Upload Processing State', () => {
     test('cancel button changes to terminate during processing', async ({ page }) => {
         await loginAs(page, 'head_admin');
         await page.goto('/projects');
-        await page.waitForLoadState('networkidle');
+        await page.waitForLoadState('load');
 
         await page.getByRole('button', { name: /AI Upload/i }).click();
 
@@ -105,7 +105,7 @@ test.describe('AI Upload Processing State', () => {
     test('cancel button opens terminate confirmation during processing', async ({ page }) => {
         await loginAs(page, 'head_admin');
         await page.goto('/projects');
-        await page.waitForLoadState('networkidle');
+        await page.waitForLoadState('load');
 
         await page.getByRole('button', { name: /AI Upload/i }).click();
 
@@ -130,7 +130,7 @@ test.describe('AI Upload Processing State', () => {
     test('continue processing button closes terminate dialog', async ({ page }) => {
         await loginAs(page, 'head_admin');
         await page.goto('/projects');
-        await page.waitForLoadState('networkidle');
+        await page.waitForLoadState('load');
 
         await page.getByRole('button', { name: /AI Upload/i }).click();
 
@@ -158,7 +158,7 @@ test.describe('AI Upload Processing State', () => {
     test('yes cancel terminates processing and resets state', async ({ page }) => {
         await loginAs(page, 'head_admin');
         await page.goto('/projects');
-        await page.waitForLoadState('networkidle');
+        await page.waitForLoadState('load');
 
         await page.getByRole('button', { name: /AI Upload/i }).click();
 
@@ -185,7 +185,7 @@ test.describe('AI Upload Processing State', () => {
     test('close button is disabled during processing', async ({ page }) => {
         await loginAs(page, 'head_admin');
         await page.goto('/projects');
-        await page.waitForLoadState('networkidle');
+        await page.waitForLoadState('load');
 
         await page.getByRole('button', { name: /AI Upload/i }).click();
 
@@ -207,7 +207,7 @@ test.describe('AI Upload Processing State', () => {
     test('clicking outside modal does not close it during processing', async ({ page }) => {
         await loginAs(page, 'head_admin');
         await page.goto('/projects');
-        await page.waitForLoadState('networkidle');
+        await page.waitForLoadState('load');
 
         await page.getByRole('button', { name: /AI Upload/i }).click();
 
@@ -236,7 +236,7 @@ test.describe('AI Upload on Projects Page', () => {
     test('head admin can see AI Upload button', async ({ page }) => {
         await loginAs(page, 'head_admin');
         await page.goto('/projects');
-        await page.waitForLoadState('networkidle');
+        await page.waitForLoadState('load');
 
         await expect(page.getByRole('button', { name: /AI Upload/i })).toBeVisible();
     });
@@ -244,7 +244,7 @@ test.describe('AI Upload on Projects Page', () => {
     test('master admin can see AI Upload button', async ({ page }) => {
         await loginAs(page, 'master_admin');
         await page.goto('/projects');
-        await page.waitForLoadState('networkidle');
+        await page.waitForLoadState('load');
 
         await expect(page.getByRole('button', { name: /AI Upload/i })).toBeVisible();
     });
@@ -252,7 +252,7 @@ test.describe('AI Upload on Projects Page', () => {
     test('foreman cannot see AI Upload button', async ({ page }) => {
         await loginAs(page, 'foreman');
         await page.goto('/projects');
-        await page.waitForLoadState('networkidle');
+        await page.waitForLoadState('load');
 
         await expect(page.getByRole('button', { name: /AI Upload/i })).not.toBeVisible();
     });
@@ -262,7 +262,7 @@ test.describe('AI Upload on Projects Page', () => {
     test('AI Upload modal opens with correct title', async ({ page }) => {
         await loginAs(page, 'head_admin');
         await page.goto('/projects');
-        await page.waitForLoadState('networkidle');
+        await page.waitForLoadState('load');
 
         await page.getByRole('button', { name: /AI Upload/i }).click();
         await expect(page.locator('text=AI Record Processing')).toBeVisible();
@@ -271,7 +271,7 @@ test.describe('AI Upload on Projects Page', () => {
     test('AI Upload modal does not show a project selector', async ({ page }) => {
         await loginAs(page, 'head_admin');
         await page.goto('/projects');
-        await page.waitForLoadState('networkidle');
+        await page.waitForLoadState('load');
 
         await page.getByRole('button', { name: /AI Upload/i }).click();
 
@@ -283,7 +283,7 @@ test.describe('AI Upload on Projects Page', () => {
     test('AI Upload modal shows auto-detect info banner', async ({ page }) => {
         await loginAs(page, 'head_admin');
         await page.goto('/projects');
-        await page.waitForLoadState('networkidle');
+        await page.waitForLoadState('load');
 
         await page.getByRole('button', { name: /AI Upload/i }).click();
 
@@ -295,7 +295,7 @@ test.describe('AI Upload on Projects Page', () => {
     test('AI Upload modal shows max 5 images limit', async ({ page }) => {
         await loginAs(page, 'head_admin');
         await page.goto('/projects');
-        await page.waitForLoadState('networkidle');
+        await page.waitForLoadState('load');
 
         await page.getByRole('button', { name: /AI Upload/i }).click();
 
@@ -305,7 +305,7 @@ test.describe('AI Upload on Projects Page', () => {
     test('AI Upload modal closes via header Close button', async ({ page }) => {
         await loginAs(page, 'head_admin');
         await page.goto('/projects');
-        await page.waitForLoadState('networkidle');
+        await page.waitForLoadState('load');
 
         await page.getByRole('button', { name: /AI Upload/i }).click();
         await expect(page.locator('text=AI Record Processing')).toBeVisible();
@@ -319,7 +319,7 @@ test.describe('AI Upload on Projects Page', () => {
     test('process button is disabled without images', async ({ page }) => {
         await loginAs(page, 'head_admin');
         await page.goto('/projects');
-        await page.waitForLoadState('networkidle');
+        await page.waitForLoadState('load');
 
         await page.getByRole('button', { name: /AI Upload/i }).click();
 
@@ -330,7 +330,7 @@ test.describe('AI Upload on Projects Page', () => {
     test('image preview shows after file selection', async ({ page }) => {
         await loginAs(page, 'head_admin');
         await page.goto('/projects');
-        await page.waitForLoadState('networkidle');
+        await page.waitForLoadState('load');
 
         await page.getByRole('button', { name: /AI Upload/i }).click();
 
@@ -350,7 +350,7 @@ test.describe('AI Upload on Projects Page', () => {
     test('clear all removes image previews', async ({ page }) => {
         await loginAs(page, 'head_admin');
         await page.goto('/projects');
-        await page.waitForLoadState('networkidle');
+        await page.waitForLoadState('load');
 
         await page.getByRole('button', { name: /AI Upload/i }).click();
 
@@ -372,7 +372,7 @@ test.describe('AI Upload on Projects Page', () => {
     test('notes field is present and optional', async ({ page }) => {
         await loginAs(page, 'head_admin');
         await page.goto('/projects');
-        await page.waitForLoadState('networkidle');
+        await page.waitForLoadState('load');
 
         await page.getByRole('button', { name: /AI Upload/i }).click();
 
@@ -384,7 +384,7 @@ test.describe('AI Upload on Projects Page', () => {
     test('notes field accepts text input', async ({ page }) => {
         await loginAs(page, 'head_admin');
         await page.goto('/projects');
-        await page.waitForLoadState('networkidle');
+        await page.waitForLoadState('load');
 
         await page.getByRole('button', { name: /AI Upload/i }).click();
 
@@ -398,7 +398,7 @@ test.describe('AI Upload on Projects Page', () => {
     test('processing status shows elapsed time counter', async ({ page }) => {
         await loginAs(page, 'head_admin');
         await page.goto('/projects');
-        await page.waitForLoadState('networkidle');
+        await page.waitForLoadState('load');
 
         await page.getByRole('button', { name: /AI Upload/i }).click();
 
@@ -425,7 +425,7 @@ test.describe('AI Upload on Projects Page', () => {
     test('shows error message when processing fails', async ({ page }) => {
         await loginAs(page, 'head_admin');
         await page.goto('/projects');
-        await page.waitForLoadState('networkidle');
+        await page.waitForLoadState('load');
 
         await page.getByRole('button', { name: /AI Upload/i }).click();
 
@@ -448,7 +448,7 @@ test.describe('AI Upload on Projects Page', () => {
     test('no project selection is required for processing', async ({ page }) => {
         await loginAs(page, 'head_admin');
         await page.goto('/projects');
-        await page.waitForLoadState('networkidle');
+        await page.waitForLoadState('load');
 
         await page.getByRole('button', { name: /AI Upload/i }).click();
 
@@ -470,7 +470,7 @@ test.describe('AI Upload on Projects Page', () => {
     test('modal is 90% width and height', async ({ page }) => {
         await loginAs(page, 'head_admin');
         await page.goto('/projects');
-        await page.waitForLoadState('networkidle');
+        await page.waitForLoadState('load');
 
         await page.getByRole('button', { name: /AI Upload/i }).click();
 
@@ -493,7 +493,7 @@ test.describe('AI Confirmation Modal', () => {
     test('submit button is disabled without project', async ({ page }) => {
         await loginAs(page, 'head_admin');
         await page.goto('/projects');
-        await page.waitForLoadState('networkidle');
+        await page.waitForLoadState('load');
 
         // We can't fully test the confirmation modal without real AI processing,
         // but we can verify the modal structure exists
@@ -506,7 +506,7 @@ test.describe('AI Confirmation Modal', () => {
     test('review records modal has correct header structure', async ({ page }) => {
         await loginAs(page, 'head_admin');
         await page.goto('/projects');
-        await page.waitForLoadState('networkidle');
+        await page.waitForLoadState('load');
 
         // Verify the upload modal structure
         await page.getByRole('button', { name: /AI Upload/i }).click();
@@ -520,7 +520,7 @@ test.describe('AI Confirmation Modal', () => {
     test('reject and submit buttons are hidden while editing a record', async ({ page }) => {
         await loginAs(page, 'head_admin');
         await page.goto('/projects');
-        await page.waitForLoadState('networkidle');
+        await page.waitForLoadState('load');
 
         // We can't fully test editing without real AI-processed records,
         // but we can verify the review modal structure and that
@@ -581,7 +581,7 @@ test.describe('AI Confirmation Modal — Reject Flow', () => {
 
         await loginAs(page, 'head_admin');
         await page.goto('/projects');
-        await page.waitForLoadState('networkidle');
+        await page.waitForLoadState('load');
 
         await page.getByRole('button', { name: /AI Upload/i }).click();
 
@@ -609,7 +609,7 @@ test.describe('AI Upload Dropzone Disabled While Processing', () => {
     test('upload dropzone is disabled during processing and re-enabled after cancel', async ({ page }) => {
         await loginAs(page, 'head_admin');
         await page.goto('/projects');
-        await page.waitForLoadState('networkidle');
+        await page.waitForLoadState('load');
 
         await page.getByRole('button', { name: /AI Upload/i }).click();
 
@@ -695,7 +695,7 @@ test.describe('AI Confirmation Modal — Accomplishment Foreman Assignment', () 
 
         await loginAs(page, 'head_admin');
         await page.goto('/projects');
-        await page.waitForLoadState('networkidle');
+        await page.waitForLoadState('load');
 
         await page.getByRole('button', { name: /AI Upload/i }).click();
 
@@ -804,7 +804,7 @@ test.describe('AI Confirmation Modal — Accomplishment Foreman Assignment', () 
 
         await loginAs(page, 'head_admin');
         await page.goto('/projects');
-        await page.waitForLoadState('networkidle');
+        await page.waitForLoadState('load');
 
         await page.getByRole('button', { name: /AI Upload/i }).click();
 
@@ -863,7 +863,7 @@ test.describe('AI Record Processing Modal — Window Toggle', () => {
     test('idle upload modal toggle only maximizes and restores (no pill)', async ({ page }) => {
         await loginAs(page, 'head_admin');
         await page.goto('/projects');
-        await page.waitForLoadState('networkidle');
+        await page.waitForLoadState('load');
 
         await page.getByRole('button', { name: /AI Upload/i }).click();
         await expect(page.locator('text=AI Record Processing')).toBeVisible();
@@ -919,7 +919,7 @@ test.describe('AI Record Processing Modal — Window Toggle', () => {
 
         await loginAs(page, 'head_admin');
         await page.goto('/projects');
-        await page.waitForLoadState('networkidle');
+        await page.waitForLoadState('load');
 
         await page.getByRole('button', { name: /AI Upload/i }).click();
 
@@ -953,7 +953,7 @@ test.describe('Projects Page AI Section', () => {
     test('AI Upload button is in the same toolbar row as search and create', async ({ page }) => {
         await loginAs(page, 'head_admin');
         await page.goto('/projects');
-        await page.waitForLoadState('networkidle');
+        await page.waitForLoadState('load');
 
         const searchInput = page.getByPlaceholder('Search projects...');
         const createButton = page.getByRole('button', { name: /\+ Create Project/i });
@@ -982,7 +982,7 @@ test.describe('Projects Page AI Section', () => {
     test('AI Upload button is not visible for foreman', async ({ page }) => {
         await loginAs(page, 'foreman');
         await page.goto('/projects');
-        await page.waitForLoadState('networkidle');
+        await page.waitForLoadState('load');
 
         await expect(page.getByRole('button', { name: /AI Upload/i })).not.toBeVisible();
     });
@@ -990,7 +990,7 @@ test.describe('Projects Page AI Section', () => {
     test('search bar and AI Upload are on the same horizontal row', async ({ page }) => {
         await loginAs(page, 'head_admin');
         await page.goto('/projects');
-        await page.waitForLoadState('networkidle');
+        await page.waitForLoadState('load');
 
         const searchInput = page.getByPlaceholder('Search projects...');
         const aiUploadButton = page.getByRole('button', { name: /AI Upload/i });
@@ -1011,7 +1011,7 @@ test.describe('Review Records action spinners', () => {
     test('reject shows loading in the reject button, not submit', async ({ page }) => {
         await loginAs(page, 'head_admin');
         await page.goto('/projects');
-        await page.waitForLoadState('networkidle');
+        await page.waitForLoadState('load');
 
         await page.route('**/processed-records', async (route) => {
             if (route.request().method() !== 'POST') return route.continue();
@@ -1089,7 +1089,7 @@ test.describe('AI Upload input locking', () => {
     test('clear all and notes are locked during processing, unlocked after', async ({ page }) => {
         await loginAs(page, 'head_admin');
         await page.goto('/projects');
-        await page.waitForLoadState('networkidle');
+        await page.waitForLoadState('load');
 
         // Hold the processing state briefly so the locked controls are observable.
         await page.route('**/processed-records', async (route) => {

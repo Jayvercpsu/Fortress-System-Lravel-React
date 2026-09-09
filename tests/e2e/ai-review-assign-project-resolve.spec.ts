@@ -40,7 +40,7 @@ const stubContext = {
 test('assigning a project triggers an AI scope check with loading state', async ({ page }) => {
     await loginAs(page, 'head_admin');
     await page.goto('/projects');
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('load');
 
     await page.route('**/processed-records', async (route) => {
         if (route.request().method() !== 'POST') return route.continue();

@@ -4,6 +4,10 @@ import { loginAs } from './support/auth';
 test('head_admin Design nav opens the monitoring board at /design', async ({ page }) => {
     await loginAs(page, 'head_admin');
 
+    // loginAs restores the session without navigating, so open the
+    // dashboard explicitly before using its sidebar links.
+    await page.goto('/head-admin');
+
     // The sidebar "Design" link should point to the new /design URL.
     await page.getByRole('link', { name: /Design/i }).first().click();
 

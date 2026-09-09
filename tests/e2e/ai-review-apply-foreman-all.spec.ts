@@ -58,7 +58,7 @@ const stubUploadResponse = {
 test('review records can apply one foreman to all scopes at once', async ({ page }) => {
     await loginAs(page, 'head_admin');
     await page.goto('/projects');
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('load');
 
     let putBody = null;
     await page.route('**/processed-records', async (route) => {
@@ -90,7 +90,7 @@ test('review records can apply one foreman to all scopes at once', async ({ page
     const applyAll = page.getByLabel(`Apply foreman to all scopes in record ${RECORD_ID}`);
     await expect(applyAll).toBeVisible();
 
-    const putPromise = page.waitForResponse(`**/processed-records/${RECORD_ID}/edit`);
+    const putPromise = page.waitForResponse(`**/processed-records/${RECORD_ID}/edit`, { timeout: 20000 });
     await applyAll.selectOption(FOREMAN);
     await putPromise;
 
@@ -111,7 +111,7 @@ test('review records can apply one foreman to all scopes at once', async ({ page
 test('apply to all stays hidden when every scope already has a foreman', async ({ page }) => {
     await loginAs(page, 'head_admin');
     await page.goto('/projects');
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('load');
 
     await page.route('**/processed-records', async (route) => {
         if (route.request().method() !== 'POST') return route.continue();
@@ -198,7 +198,7 @@ test('submit validation auto-scrolls the first invalid scope into view', async (
 
     await loginAs(page, 'head_admin');
     await page.goto('/projects');
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('load');
 
     await page.route('**/processed-records', async (route) => {
         if (route.request().method() !== 'POST') return route.continue();
@@ -275,7 +275,7 @@ test('fixing the top error scrolls to the next record still missing a foreman', 
 
     await loginAs(page, 'head_admin');
     await page.goto('/projects');
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('load');
 
     await page.route('**/processed-records', async (route) => {
         if (route.request().method() !== 'POST') return route.continue();

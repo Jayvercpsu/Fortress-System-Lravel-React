@@ -11,7 +11,7 @@ test.describe('Modal disableClose prop', () => {
     test('modal closes on outside click when disableClose is false', async ({ page }) => {
         await loginAs(page, 'head_admin');
         await page.goto('/projects');
-        await page.waitForLoadState('networkidle');
+        await page.waitForLoadState('load');
 
         await page.getByRole('button', { name: /AI Upload/i }).click();
         await expect(page.locator('text=AI Record Processing')).toBeVisible();
@@ -24,7 +24,7 @@ test.describe('Modal disableClose prop', () => {
     test('modal closes on Escape when disableClose is false', async ({ page }) => {
         await loginAs(page, 'head_admin');
         await page.goto('/projects');
-        await page.waitForLoadState('networkidle');
+        await page.waitForLoadState('load');
 
         await page.getByRole('button', { name: /AI Upload/i }).click();
         await expect(page.locator('text=AI Record Processing')).toBeVisible();
@@ -37,7 +37,7 @@ test.describe('Modal disableClose prop', () => {
     test('modal closes on header Close button when disableClose is false', async ({ page }) => {
         await loginAs(page, 'head_admin');
         await page.goto('/projects');
-        await page.waitForLoadState('networkidle');
+        await page.waitForLoadState('load');
 
         await page.getByRole('button', { name: /AI Upload/i }).click();
         await expect(page.locator('text=AI Record Processing')).toBeVisible();
@@ -50,7 +50,7 @@ test.describe('Modal disableClose prop', () => {
     test('modal stays open on outside click when disableClose is true', async ({ page }) => {
         await loginAs(page, 'head_admin');
         await page.goto('/projects');
-        await page.waitForLoadState('networkidle');
+        await page.waitForLoadState('load');
 
         await page.getByRole('button', { name: /AI Upload/i }).click();
 
@@ -74,7 +74,7 @@ test.describe('Modal disableClose prop', () => {
     test('modal stays open on Escape when disableClose is true', async ({ page }) => {
         await loginAs(page, 'head_admin');
         await page.goto('/projects');
-        await page.waitForLoadState('networkidle');
+        await page.waitForLoadState('load');
 
         await page.getByRole('button', { name: /AI Upload/i }).click();
 
@@ -97,7 +97,7 @@ test.describe('Modal disableClose prop', () => {
     test('header Close button is disabled when disableClose is true', async ({ page }) => {
         await loginAs(page, 'head_admin');
         await page.goto('/projects');
-        await page.waitForLoadState('networkidle');
+        await page.waitForLoadState('load');
 
         await page.getByRole('button', { name: /AI Upload/i }).click();
 

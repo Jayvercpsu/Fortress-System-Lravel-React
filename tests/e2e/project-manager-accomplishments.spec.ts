@@ -8,6 +8,10 @@ const SAVED_PERCENT = '77';
 test('project manager fills the weekly accomplishment % and it syncs with the foreman jotform', async ({ page }) => {
     await loginAs(page, 'project_manager');
 
+    // loginAs restores the session without navigating, so open the
+    // dashboard explicitly before using its sidebar links.
+    await page.goto('/project-manager');
+
     // Open the new Accomplishment page from the left sidebar.
     await page.getByRole('link', { name: 'Accomplishment' }).click();
     await expect(page).toHaveURL(/\/project-manager\/accomplishments(?:\?|$)/);

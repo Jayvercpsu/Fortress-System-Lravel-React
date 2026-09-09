@@ -8,10 +8,9 @@
     <title>Fortress System</title>
     <link rel="icon" type="image/png" href="/favicon.png">
     <link rel="alternate icon" href="/favicon.ico">
-    <link rel="stylesheet" href="https://cdn-uicons.flaticon.com/uicons-regular-rounded/css/uicons-regular-rounded.css">
-    <link rel="stylesheet" href="https://cdn-uicons.flaticon.com/uicons-solid-rounded/css/uicons-solid-rounded.css">
-    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&family=DM+Mono:wght@400;500&display=swap"
-        rel="stylesheet">
+    {{-- Fonts and icons are vendored via npm and bundled by Vite (see
+        resources/js/app.jsx), so page load never depends on third-party
+        CDNs or waits on them before firing load. --}}
     @viteReactRefresh
     @vite(['resources/js/app.jsx'])
     @inertiaHead

@@ -167,10 +167,10 @@ test.skip('hr can manage payroll deductions and manual payroll edits (payroll/ru
     // Select a cutoff via the SearchableDropdown to load payroll rows.
     // Navigate to payroll run with a specific cutoff to load the DataTable
     await page.goto('/payroll/run');
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('load');
     // Click on the cutoff row in the summary table to select it
     await page.locator('tr').filter({ hasText: '2026-03-02 to 2026-03-08' }).first().click();
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('load');
 
     // The DataTable with payroll rows and Edit buttons should now be visible.
     let payrollRow = page.locator('tr').filter({ hasText: 'Alex Manuel' }).first();
