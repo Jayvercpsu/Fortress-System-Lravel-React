@@ -152,8 +152,10 @@ test('head admin can preview delivery, progress photo, and weekly accomplishment
     await expect(page.locator('body')).toContainText('Uploaded by:');
     await page.getByRole('button', { name: 'Close' }).click();
 
-    await page.goto('/weekly-accomplishments?week_from=2026-02-23&week_to=2026-03-08');
-    await page.locator('table tbody button').first().click();
+    await page.goto('/weekly-accomplishments?week_from=2026-02-23&week_to=2026-03-08#foreman-submissions');
+    const accomplishmentsList = page.getByTestId('submissions-list');
+    await accomplishmentsList.getByTestId('accordion-group-toggle').first().click();
+    await accomplishmentsList.locator('table tbody button').first().click();
     await expect(page.locator('body')).toContainText('Scope:');
     await page.getByRole('button', { name: 'Close' }).click();
 });

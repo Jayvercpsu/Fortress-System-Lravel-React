@@ -106,6 +106,7 @@ class WeeklyAccomplishmentRepository implements WeeklyAccomplishmentRepositoryIn
                 'scope_photos.photo_path',
                 'scope_photos.caption',
                 'scope_photos.created_at',
+                'project_scopes.project_id',
                 'project_scopes.scope_name',
             ])
             ->join('project_scopes', 'project_scopes.id', '=', 'scope_photos.project_scope_id')

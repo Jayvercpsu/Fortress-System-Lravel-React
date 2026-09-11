@@ -277,8 +277,6 @@ export default function AiUploadModal({ projects = [], onClose }) {
                     💡 <strong>AI Auto-Detection:</strong> Upload up to {MAX_IMAGES} images at once. The AI will automatically detect:
                     <ul style={{ marginTop: 4, marginLeft: 16 }}>
                         <li>Record type (attendance, expense, or scope-of-works accomplishment)</li>
-                        <li>Which project it belongs to</li>
-                        <li>Extract all relevant data</li>
                     </ul>
                 </div>
 

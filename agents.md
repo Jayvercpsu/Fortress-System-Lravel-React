@@ -36,9 +36,18 @@ ship silently to the user.
      add or update a Playwright e2e spec in `tests/e2e/`. Assert the user-visible behavior and
      content the change affects.
    - **Both layers changed:** add both the backend and frontend test.
-   - If the change fixes a bug, write/update a test that reproduces the bug first (red), then
-     make it green with the fix.
-   - A change is only done when its new/updated tests pass alongside the full relevant suite.
+    - If the change fixes a bug, write/update a test that reproduces the bug first (red), then
+      make it green with the fix.
+    - A change is only done when its new/updated tests pass alongside the full relevant suite.
+5. **Playwright e2e is opt-in during development — do NOT execute it after every change:**
+    - Still write/update the Playwright spec when a frontend change requires it (Rule 4),
+      but do NOT run `npx playwright ...` unless the user explicitly asks (e.g. "run e2e",
+      "verify e2e").
+    - Per-change frontend verification is `npm run build` (Rule 1); per-change backend
+      verification is the PHPUnit suite (Rule 2), which is fast and safe.
+    - Playwright spins up its own servers (ports 8010/5180), takes minutes per run, and
+      leaves orphaned processes behind on failure — never run it unprompted, and never
+      run a second invocation while one is already running.
 
 ---
 

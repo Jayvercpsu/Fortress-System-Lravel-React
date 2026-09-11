@@ -232,9 +232,12 @@ export default function Layout({ children }) {
         };
     }, [currentPath]);
 
-    const skeletonVariant = DASHBOARD_PATHS.has(loadingTargetPath || currentPath)
-        ? 'dashboard'
-        : 'data';
+    const activeSkeletonPath = loadingTargetPath || currentPath;
+    const skeletonVariant = activeSkeletonPath.indexOf('/weekly-accomplishments') === 0
+        ? 'accomplishments'
+        : DASHBOARD_PATHS.has(activeSkeletonPath)
+            ? 'dashboard'
+            : 'data';
 
     const confirmLogout = () => {
         if (isLoggingOut) return;

@@ -341,7 +341,10 @@ test.describe('AI Upload on Projects Page', () => {
 
         await expect(page.locator('text=AI Auto-Detection')).toBeVisible();
         await expect(page.locator('text=Record type')).toBeVisible();
-        await expect(page.locator('text=Which project')).toBeVisible();
+        // Banner intentionally lists only the record type (project + data
+        // lines were removed from the modal copy).
+        await expect(page.locator('text=Which project')).toHaveCount(0);
+        await expect(page.locator('text=Extract all relevant data')).toHaveCount(0);
     });
 
     test('AI Upload modal shows max 5 images limit', async ({ page }) => {

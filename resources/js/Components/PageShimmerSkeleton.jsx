@@ -84,11 +84,53 @@ function DataSkeleton() {
     );
 }
 
+function AccomplishmentsSkeleton() {
+    return (
+        <div style={containerStyle}>
+            <div style={cardStyle}>
+                <ShimmerLine width="22%" height={18} radius={8} />
+                <div style={{ marginTop: 8 }}>
+                    <ShimmerLine width="48%" height={12} />
+                </div>
+                <div style={{ display: 'flex', gap: 18, marginTop: 12 }}>
+                    {['Overview', 'PM Submissions', 'Foreman Submissions', 'Comparison'].map((tab) => (
+                        <ShimmerLine key={`accomp-tab-${tab}`} width={90} height={12} radius={6} />
+                    ))}
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 12, marginTop: 14 }}>
+                    {Array.from({ length: 4 }).map((_, index) => (
+                        <div key={`accomp-card-${index}`} style={{ ...cardStyle, margin: 0, display: 'flex', gap: 12, alignItems: 'center' }}>
+                            <ShimmerLine width={36} height={36} radius={10} />
+                            <div style={{ flex: 1, display: 'grid', gap: 8 }}>
+                                <ShimmerLine width="60%" height={11} radius={6} />
+                                <ShimmerLine width="40%" height={24} radius={8} />
+                            </div>
+                        </div>
+                    ))}
+                </div>
+            </div>
+
+            <div style={{ ...cardStyle, display: 'grid', gap: 10 }}>
+                <ShimmerLine width="28%" height={15} radius={8} />
+                <div style={{ display: 'grid', gap: 8 }}>
+                    {Array.from({ length: 5 }).map((_, index) => (
+                        <div key={`accomp-row-${index}`} style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+                            <ShimmerLine width="18%" height={12} />
+                            <ShimmerLine width="100%" height={10} radius={999} />
+                            <ShimmerLine width="44px" height={12} />
+                        </div>
+                    ))}
+                </div>
+            </div>
+        </div>
+    );
+}
+
 export default function PageShimmerSkeleton({ variant = 'data' }) {
     return (
         <div style={containerStyle}>
             <style>{'@keyframes pageSkeletonShimmer{0%{background-position:100% 0}100%{background-position:-100% 0}}'}</style>
-            {variant === 'dashboard' ? <DashboardSkeleton /> : <DataSkeleton />}
+            {variant === 'dashboard' ? <DashboardSkeleton /> : variant === 'accomplishments' ? <AccomplishmentsSkeleton /> : <DataSkeleton />}
         </div>
     );
 }

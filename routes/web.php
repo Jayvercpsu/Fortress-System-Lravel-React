@@ -14,6 +14,7 @@ use App\Http\Controllers\HrWorkerController;
 use App\Http\Controllers\KpiController;
 use App\Http\Controllers\MaterialRequestController;
 use App\Http\Controllers\UserController;
+use App\Http\Controllers\AccomplishmentCommentController;
 use App\Http\Controllers\WeeklyAccomplishmentController;
 use App\Http\Controllers\PayrollController;
 use App\Http\Controllers\PaymentController;
@@ -181,6 +182,11 @@ Route::middleware(['auth', 'role:head_admin,admin,designer'])->group(function ()
 
     Route::get('/reports', [ReportsController::class, 'index'])->name('reports.index');
     Route::get('/weekly-accomplishments', [WeeklyAccomplishmentController::class, 'index'])->name('weekly-accomplishments.index');
+    Route::get('/weekly-accomplishments/submissions/{submission}/comments', [AccomplishmentCommentController::class, 'index'])->name('weekly-accomplishments.submissions.comments.index');
+    Route::post('/weekly-accomplishments/submissions/{submission}/comments', [AccomplishmentCommentController::class, 'store'])->name('weekly-accomplishments.submissions.comments.store');
+    Route::put('/weekly-accomplishments/submissions/{submission}/comments/{comment}', [AccomplishmentCommentController::class, 'update'])->name('weekly-accomplishments.submissions.comments.update');
+    Route::delete('/weekly-accomplishments/submissions/{submission}/comments/{comment}', [AccomplishmentCommentController::class, 'destroy'])->name('weekly-accomplishments.submissions.comments.destroy');
+    Route::get('/weekly-accomplishments/{project}', [WeeklyAccomplishmentController::class, 'show'])->name('weekly-accomplishments.show');
     Route::get('/materials', [MaterialRequestController::class, 'index'])->name('materials.index');
     Route::patch('/materials/{materialRequest}/status', [MaterialRequestController::class, 'updateStatus'])->name('materials.status');
     Route::get('/delivery', [DeliveryConfirmationController::class, 'index'])->name('delivery.index');

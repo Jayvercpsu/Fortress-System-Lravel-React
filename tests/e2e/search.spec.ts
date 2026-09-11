@@ -12,7 +12,7 @@ const headAdminSearchCases: SearchCase[] = [
     { name: 'Delivery confirmations', path: '/delivery', placeholder: 'Search deliveries...', queryParam: 'search', value: searchValue },
     { name: 'Issue reports', path: '/issues', placeholder: 'Search issues...', queryParam: 'search', value: searchValue },
     { name: 'Progress photos', path: '/progress-photos', placeholder: 'Search foreman, project, or caption...', queryParam: 'search', value: searchValue },
-    { name: 'Weekly accomplishments', path: '/weekly-accomplishments', placeholder: 'Search weekly accomplishments...', queryParam: 'search', value: searchValue },
+    { name: 'Weekly accomplishments', path: '/weekly-accomplishments#foreman-submissions', placeholder: 'Search weekly accomplishments...', queryParam: 'search', value: searchValue },
     { name: 'Users', path: '/users', placeholder: 'Search users...', queryParam: 'search', value: searchValue },
     { name: 'Worker rates', path: '/payroll/worker-rates', placeholder: 'Search workers / foreman...', queryParam: 'search', value: searchValue },
     // Payroll run no longer renders a searchable data table (replaced by cutoff buckets + history list).
@@ -30,7 +30,7 @@ const adminSearchCases: SearchCase[] = [
     { name: 'Delivery confirmations', path: '/delivery', placeholder: 'Search deliveries...', queryParam: 'search', value: searchValue },
     { name: 'Issue reports', path: '/issues', placeholder: 'Search issues...', queryParam: 'search', value: searchValue },
     { name: 'Progress photos', path: '/progress-photos', placeholder: 'Search foreman, project, or caption...', queryParam: 'search', value: searchValue },
-    { name: 'Weekly accomplishments', path: '/weekly-accomplishments', placeholder: 'Search weekly accomplishments...', queryParam: 'search', value: searchValue },
+    { name: 'Weekly accomplishments', path: '/weekly-accomplishments#foreman-submissions', placeholder: 'Search weekly accomplishments...', queryParam: 'search', value: searchValue },
     // Admin does not have access to project-specific pages (expenses, team, files, updates)
 ];
 

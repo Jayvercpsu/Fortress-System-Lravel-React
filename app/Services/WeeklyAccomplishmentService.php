@@ -2,6 +2,12 @@
 
 namespace App\Services;
 
+use App\Models\Attendance;
+use App\Models\DeliveryConfirmation;
+use App\Models\IssueReport;
+use App\Models\MaterialRequest;
+use App\Models\Project;
+use App\Models\ScopePhoto;
 use App\Models\User;
 use App\Models\WeeklyAccomplishment;
 use App\Repositories\Contracts\WeeklyAccomplishmentRepositoryInterface;
@@ -136,6 +142,7 @@ class WeeklyAccomplishmentService
 
             $weeklyScopePhotoMap[$scopeKey][] = [
                 'id' => (int) $scopePhoto->id,
+                'project_id' => (int) ($scopePhoto->project_id ?? 0),
                 'photo_path' => $scopePhoto->photo_path,
                 'caption' => $scopePhoto->caption,
                 'created_at' => optional($scopePhoto->created_at)?->toDateTimeString(),
@@ -157,6 +164,9 @@ class WeeklyAccomplishmentService
                     'submitted_by_name' => $submittedByName,
                     'submitted_by_role' => $submittedByRole,
                     'project_id' => $row->project_id,
+                    // Preserved through week-bucket regrouping (which rewrites
+                    // project_id) so photos can be matched to their project.
+                    'project_id_real' => $row->project_id !== null ? (int) $row->project_id : null,
                     'project_name' => $row->project?->name ?? 'Unassigned',
                 'week_start' => $row->week_start
                     ? Carbon::parse($row->week_start)->toDateString()
@@ -250,6 +260,8 @@ class WeeklyAccomplishmentService
             ? 'HeadAdmin/WeeklyAccomplishments/Index'
             : 'Admin/WeeklyAccomplishments/Index';
 
+        $comparison = $this->buildComparisonPayload($timelineAccomplishments, $nonNullProjectIds);
+
         return [
             'page' => $page,
             'props' => [
@@ -275,7 +287,502 @@ class WeeklyAccomplishmentService
                 'groupEmptyMessage' => $isHeadAdminView
                     ? 'No accomplishments created this week.'
                     : 'No accomplishments for this project.',
+                'comparisonRows' => $comparison['rows'],
+                'overviewStats' => $comparison['stats'],
+                'workInfoMap' => $comparison['workInfo'],
             ],
+        ];
+    }
+
+    /**
+     * Entire scope list per project for averaging: the project's scope plan
+     * (or the standard scope plan when it has none yet), plus any scope
+     * name that was actually submitted (manual scopes). Keyed by project id.
+     *
+     * @return array<int, string[]>
+     */
+    private function comparisonScopeUniverse(array $projectIds, Collection $grouped): array
+    {
+        $intIds = array_values(array_unique(array_map(
+            static fn ($id) => (int) $id,
+            array_filter($projectIds, fn ($id) => $id !== null && $id !== '')
+        )));
+
+        $repoMap = $intIds === []
+            ? []
+            : $this->weeklyAccomplishmentRepository->listScopeNamesByProjectIds($intIds);
+
+        $map = [];
+        foreach ($grouped as $projectId => $projectRows) {
+            $planned = $repoMap[(int) $projectId] ?? [];
+            $submitted = $projectRows
+                ->map(fn (array $row) => trim((string) ($row['scope_of_work'] ?? '')))
+                ->filter()
+                ->unique(fn (string $scope) => strtolower($scope))
+                ->values()
+                ->all();
+            $map[(int) $projectId] = array_values(array_unique(array_merge($planned, $submitted)));
+        }
+
+        return $map;
+    }
+
+    /**
+     * Latest submission wins per side: for each (side, scope) pair keeps the
+     * row with the highest id — PM rows never move Foreman values and vice
+     * versa, so each column moves only when its own side submits. Real
+     * submissions are preferred over auto-seeded placeholders.
+     *
+     * @return array{pm: array<string, array>, foreman: array<string, array>}
+     */
+    private function latestValuesBySide(Collection $rows): array
+    {
+        $sides = ['pm' => [], 'foreman' => []];
+
+        foreach ($rows as $row) {
+            $scope = trim((string) ($row['scope_of_work'] ?? ''));
+            if ($scope === '' || trim((string) ($row['week_start'] ?? '')) === '') {
+                continue;
+            }
+
+            $role = strtolower(trim((string) ($row['submitted_by_role'] ?? '')));
+            $side = ($role === 'project manager' || $role === 'project_manager') ? 'pm' : 'foreman';
+            $key = strtolower($scope);
+
+            $existing = $sides[$side][$key] ?? null;
+            if ($existing === null || (int) ($row['id'] ?? 0) > (int) ($existing['id'] ?? 0)) {
+                $placeholder = (bool) ($row['is_placeholder'] ?? false);
+                // A real submission always supersedes a placeholder, even an
+                // older one; otherwise the higher id wins.
+                if ($existing === null || ! ($existing['is_real'] ?? false) || ! $placeholder) {
+                    $sides[$side][$key] = [
+                        'id' => (int) ($row['id'] ?? 0),
+                        'scope' => $scope,
+                        'percent' => (float) ($row['percent_completed'] ?? 0),
+                        'week_start' => (string) $row['week_start'],
+                        'is_real' => ! $placeholder,
+                    ];
+                }
+            }
+        }
+
+        return $sides;
+    }
+
+    private function buildComparisonPayload(Collection $timelineRows, array $projectIds): array
+    {
+        $projectMeta = collect();
+        if (! empty($projectIds)) {
+            $projectMeta = Project::query()
+                ->whereIn('id', $projectIds)
+                ->get(['id', 'name', 'location', 'target', 'overall_progress', 'phase', 'status'])
+                ->keyBy(fn ($project) => (int) $project->id);
+        }
+
+        $isPmRow = static function (array $row): bool {
+            $role = strtolower(trim((string) ($row['submitted_by_role'] ?? '')));
+
+            return $role === 'project manager' || $role === 'project_manager';
+        };
+
+        $grouped = $timelineRows
+            ->filter(fn (array $row) => ($row['project_id'] ?? null) !== null
+                && trim((string) ($row['week_start'] ?? '')) !== ''
+                && ! ($row['empty_week'] ?? false))
+            ->groupBy(fn (array $row) => (int) $row['project_id']);
+
+        // Entire scope list per project (project scopes, defaulting to the
+        // standard scope plan, plus any manually-submitted scope names) so a
+        // newly-submitted low scope can never drag an average down: scopes
+        // nobody submitted yet count as 0 instead of being excluded.
+        $scopeUniverse = $this->comparisonScopeUniverse(
+            array_keys($grouped->toArray()),
+            $grouped
+        );
+
+        $rows = [];
+        foreach ($grouped as $projectId => $projectRows) {
+            // Side columns average each side's own latest-per-scope values
+            // over the ENTIRE scope list (missing = 0), so a submission moves
+            // only its own side's column and only ever upward-or-equal when
+            // raising a scope. Variance is computed ONLY over scopes both
+            // sides submitted — a scope one side never touched can't skew it.
+            $latest = $this->latestValuesBySide($projectRows);
+            $pmEntries = array_values($latest['pm']);
+            $foremanEntries = array_values($latest['foreman']);
+
+            if ($pmEntries === [] && $foremanEntries === []) {
+                continue;
+            }
+
+            $universe = $scopeUniverse[(int) $projectId] ?? [];
+            $universeCount = count($universe) > 0 ? count($universe) : 1;
+
+            $pmSum = 0.0;
+            $foremanSum = 0.0;
+            foreach ($universe as $scopeName) {
+                $scopeKey = strtolower(trim((string) $scopeName));
+                $pmSum += (float) ($latest['pm'][$scopeKey]['percent'] ?? 0);
+                $foremanSum += (float) ($latest['foreman'][$scopeKey]['percent'] ?? 0);
+            }
+
+            $pmProgress = $pmEntries !== [] ? round($pmSum / $universeCount, 2) : null;
+            $foremanProgress = $foremanEntries !== [] ? round($foremanSum / $universeCount, 2) : null;
+
+            $commonKeys = array_values(array_intersect(array_keys($latest['pm']), array_keys($latest['foreman'])));
+            $commonVariance = $commonKeys !== []
+                ? round(abs(
+                    collect($commonKeys)->avg(fn (string $key) => $latest['pm'][$key]['percent'])
+                    - collect($commonKeys)->avg(fn (string $key) => $latest['foreman'][$key]['percent'])
+                ), 2)
+                : null;
+
+            // A missing side (or no commonly-submitted scope) leaves variance
+            // missing too — never mirrored, never averaged across mismatched
+            // scope sets — so the row shows "—" / Pending instead of a fake gap.
+            $variance = ($pmProgress !== null && $foremanProgress !== null) ? $commonVariance : null;
+            $status = $variance === null
+                ? 'Pending'
+                : ($variance <= 5 ? 'On Track' : ($variance <= 10 ? 'Needs Review' : 'Investigate'));
+
+            $latestWeek = collect($commonKeys)
+                ->flatMap(fn (string $key) => [$latest['pm'][$key]['week_start'], $latest['foreman'][$key]['week_start']])
+                ->map(fn ($week) => (string) $week)->filter()->max()
+                ?: $projectRows->map(fn (array $row) => (string) $row['week_start'])->filter()->max();
+
+            $lastPm = $projectRows->filter(fn (array $row) => $isPmRow($row))
+                ->map(fn (array $row) => (string) ($row['submitted_at'] ?? ''))->filter()->max();
+            $lastForeman = $projectRows->filter(fn (array $row) => ! $isPmRow($row))
+                ->map(fn (array $row) => (string) ($row['submitted_at'] ?? ''))->filter()->max();
+
+            $meta = $projectMeta->get((int) $projectId);
+            $rows[] = [
+                'project_id' => (int) $projectId,
+                'project_name' => $meta?->name ?? (string) ($projectRows->first()['project_name'] ?? 'Unassigned'),
+                'location' => $meta?->location ? (string) $meta->location : null,
+                'target' => $meta?->target ? Carbon::parse($meta->target)->toDateString() : null,
+                'overall_progress' => $meta?->overall_progress !== null ? (int) $meta->overall_progress : null,
+                'pm_progress' => $pmProgress,
+                'foreman_progress' => $foremanProgress,
+                'variance' => $variance,
+                'status' => $status,
+                'week_start' => $latestWeek,
+                'last_pm_submission' => $lastPm ?: null,
+                'last_foreman_submission' => $lastForeman ?: null,
+            ];
+        }
+
+        usort($rows, fn (array $a, array $b) => strcmp((string) $a['project_name'], (string) $b['project_name']));
+
+        $total = count($rows);
+        $onTrack = count(array_filter($rows, fn (array $row) => $row['status'] === 'On Track'));
+        $needsReview = count(array_filter($rows, fn (array $row) => $row['status'] === 'Needs Review'));
+        $withDiscrepancy = count(array_filter($rows, fn (array $row) => $row['status'] === 'Investigate'));
+        $pending = count(array_filter($rows, fn (array $row) => $row['status'] === 'Pending'));
+
+        return [
+            'rows' => array_values($rows),
+            'stats' => [
+                'total_projects' => $total,
+                'on_track' => $onTrack,
+                'needs_review' => $needsReview,
+                'with_discrepancy' => $withDiscrepancy,
+                'pending' => $pending,
+                'on_track_percent' => $total > 0 ? round($onTrack / $total * 100) : 0,
+                'needs_review_percent' => $total > 0 ? round($needsReview / $total * 100) : 0,
+                'with_discrepancy_percent' => $total > 0 ? round($withDiscrepancy / $total * 100) : 0,
+                'pending_percent' => $total > 0 ? round($pending / $total * 100) : 0,
+            ],
+            'workInfo' => $this->buildWorkInfoMap($projectIds),
+        ];
+    }
+
+    /**
+     * Derive Work Information from existing tables (no migration):
+     * manpower from attendances, equipment/materials from deliveries +
+     * material requests, remarks from the latest issue report.
+     */
+    private function buildWorkInfoMap(array $projectIds): array
+    {
+        $ids = array_values(array_filter($projectIds, fn ($value) => $value !== null));
+        if ($ids === []) {
+            return [];
+        }
+
+        $attendances = Attendance::query()
+            ->whereIn('project_id', $ids)
+            ->whereNotNull('date')
+            ->get(['project_id', 'worker_name', 'date']);
+        $deliveries = DeliveryConfirmation::query()
+            ->whereIn('project_id', $ids)
+            ->get(['project_id', 'item_delivered', 'quantity', 'supplier', 'created_at']);
+        $materials = MaterialRequest::query()
+            ->whereIn('project_id', $ids)
+            ->get(['project_id', 'material_name', 'quantity', 'unit', 'created_at']);
+        $issues = IssueReport::query()
+            ->whereIn('project_id', $ids)
+            ->orderByDesc('created_at')
+            ->get(['project_id', 'description', 'issue_title', 'created_at']);
+
+        $weekKey = static function ($projectId, ?string $date): ?string {
+            if (! $date) {
+                return null;
+            }
+            try {
+                $week = Carbon::parse(substr($date, 0, 10))->startOfWeek(Carbon::MONDAY)->toDateString();
+            } catch (\Throwable) {
+                return null;
+            }
+
+            return (int) $projectId . '|' . $week;
+        };
+
+        $map = [];
+        $ensure = function (string $key, $projectId) use (&$map) {
+            if (! isset($map[$key])) {
+                $map[$key] = [
+                    'project_id' => (int) $projectId,
+                    'manpower' => 0,
+                    'worker_names' => [],
+                    'equipment' => [],
+                    'materials' => [],
+                    'remarks' => null,
+                ];
+            }
+        };
+
+        foreach ($attendances as $attendance) {
+            $key = $weekKey($attendance->project_id, (string) ($attendance->date ?? ''));
+            if (! $key) {
+                continue;
+            }
+            $ensure($key, $attendance->project_id);
+            $name = trim((string) ($attendance->worker_name ?? ''));
+            if ($name !== '' && ! in_array($name, $map[$key]['worker_names'], true)) {
+                $map[$key]['worker_names'][] = $name;
+            }
+        }
+
+        foreach ($deliveries as $delivery) {
+            $key = $weekKey($delivery->project_id, (string) ($delivery->created_at ?? ''));
+            if (! $key) {
+                continue;
+            }
+            $ensure($key, $delivery->project_id);
+            $label = trim((string) ($delivery->item_delivered ?? ''));
+            if ($label !== '') {
+                $quantity = trim((string) ($delivery->quantity ?? ''));
+                $map[$key]['materials'][] = $quantity !== '' ? $label . ' - ' . $quantity : $label;
+            }
+        }
+
+        foreach ($materials as $material) {
+            $key = $weekKey($material->project_id, (string) ($material->created_at ?? ''));
+            if (! $key) {
+                continue;
+            }
+            $ensure($key, $material->project_id);
+            $label = trim((string) ($material->material_name ?? ''));
+            if ($label !== '') {
+                $quantity = trim((string) ($material->quantity ?? ''));
+                $unit = trim((string) ($material->unit ?? ''));
+                $suffix = trim($quantity . ' ' . $unit);
+                $map[$key]['materials'][] = $suffix !== '' ? $label . ' - ' . $suffix : $label;
+            }
+        }
+
+        foreach ($issues as $issue) {
+            $key = $weekKey($issue->project_id, (string) ($issue->created_at ?? ''));
+            if (! $key) {
+                continue;
+            }
+            $ensure($key, $issue->project_id);
+            if ($map[$key]['remarks'] === null) {
+                $map[$key]['remarks'] = trim((string) ($issue->description ?? $issue->issue_title ?? ''));
+            }
+        }
+
+        return collect($map)->map(function (array $entry) {
+            $entry['manpower'] = count($entry['worker_names']);
+            $entry['equipment'] = array_values(array_unique(array_filter(array_map(
+                static fn ($item) => trim((string) $item),
+                $entry['materials']
+            ))));
+            $entry['materials_used'] = implode(', ', array_slice($entry['equipment'], 0, 6));
+            unset($entry['worker_names']);
+
+            return $entry;
+        })->all();
+    }
+
+    /**
+     * Detail payload for the standalone Project Detail page
+     * (GET /weekly-accomplishments/{project}). Additive only — the index
+     * payload and every other page are untouched.
+     */
+    public function detailPayload(Request $request, Project $project): array
+    {
+        $this->weeklyAccomplishmentRepository->generateSkippedWeeksToCurrent();
+
+        $timelineRows = WeeklyAccomplishment::query()
+            ->with('foreman:id,fullname', 'submitter:id,fullname,role', 'project:id,name')
+            ->where('project_id', $project->id)
+            ->latest('updated_at')
+            ->get()
+            ->map(fn (WeeklyAccomplishment $row) => $this->mapDetailRow($row))
+            ->values();
+
+        $scopePhotos = ScopePhoto::query()
+            ->select([
+                'scope_photos.id',
+                'scope_photos.photo_path',
+                'scope_photos.caption',
+                'scope_photos.created_at',
+                'project_scopes.project_id',
+                'project_scopes.scope_name',
+            ])
+            ->join('project_scopes', 'project_scopes.id', '=', 'scope_photos.project_scope_id')
+            ->where('project_scopes.project_id', $project->id)
+            ->orderByDesc('scope_photos.id')
+            ->get();
+
+        $weeklyScopePhotoMap = [];
+        foreach ($scopePhotos as $scopePhoto) {
+            $scopeName = trim((string) ($scopePhoto->scope_name ?? ''));
+            if ($scopeName === '') {
+                continue;
+            }
+
+            $scopeKey = Str::lower($scopeName);
+            if (! isset($weeklyScopePhotoMap[$scopeKey])) {
+                $weeklyScopePhotoMap[$scopeKey] = [];
+            }
+
+            if (count($weeklyScopePhotoMap[$scopeKey]) >= 40) {
+                continue;
+            }
+
+            $weeklyScopePhotoMap[$scopeKey][] = [
+                'id' => (int) $scopePhoto->id,
+                'project_id' => (int) ($scopePhoto->project_id ?? $project->id),
+                'photo_path' => $scopePhoto->photo_path,
+                'caption' => $scopePhoto->caption,
+                'created_at' => optional($scopePhoto->created_at)?->toDateTimeString(),
+                'week_start' => $this->extractWeekStartFromScopePhoto($scopePhoto->caption),
+            ];
+        }
+
+        $rows = $timelineRows
+            ->filter(function (array $row) use ($weeklyScopePhotoMap): bool {
+                $scopeKey = strtolower(trim((string) ($row['scope_of_work'] ?? '')));
+                $rowWeek = trim((string) ($row['week_start'] ?? ''));
+
+                if ($scopeKey === '' || $rowWeek === '') {
+                    return false;
+                }
+
+                if (! (bool) ($row['is_placeholder'] ?? false)) {
+                    return true;
+                }
+
+                $updatedAt = trim((string) ($row['submitted_at'] ?? ''));
+                $createdAt = trim((string) ($row['created_at'] ?? ''));
+                if ($updatedAt !== '' && $createdAt !== '' && $updatedAt !== $createdAt) {
+                    return true;
+                }
+
+                foreach ($weeklyScopePhotoMap[$scopeKey] ?? [] as $photo) {
+                    if (trim((string) ($photo['week_start'] ?? '')) === $rowWeek) {
+                        return true;
+                    }
+                }
+
+                return false;
+            })
+            ->values();
+
+        $comparison = $this->buildComparisonPayload($timelineRows, [$project->id]);
+
+        $isPmRow = static function (array $row): bool {
+            $role = strtolower(trim((string) ($row['submitted_by_role'] ?? '')));
+
+            return $role === 'project manager' || $role === 'project_manager';
+        };
+
+        $latest = $this->latestValuesBySide($rows);
+        $scopeKeys = array_unique(array_merge(array_keys($latest['pm']), array_keys($latest['foreman'])));
+
+        $scopeBreakdown = array_map(function (string $key) use ($latest) {
+            $pmEntry = $latest['pm'][$key] ?? null;
+            $foremanEntry = $latest['foreman'][$key] ?? null;
+            $pm = $pmEntry !== null ? (float) $pmEntry['percent'] : null;
+            $foreman = $foremanEntry !== null ? (float) $foremanEntry['percent'] : null;
+            $variance = ($pm !== null && $foreman !== null) ? round(abs($pm - $foreman), 2) : null;
+
+            return [
+                'scope' => (string) ($pmEntry['scope'] ?? $foremanEntry['scope'] ?? $key),
+                'pm' => $pm,
+                'foreman' => $foreman,
+                'variance' => $variance,
+                'status' => $variance === null
+                    ? 'Pending'
+                    : ($variance <= 5 ? 'On Track' : ($variance <= 10 ? 'Needs Review' : 'Investigate')),
+            ];
+        }, $scopeKeys);
+
+        usort($scopeBreakdown, fn (array $a, array $b) => strcmp($a['scope'], $b['scope']));
+
+        $pmRows = $rows->filter(fn (array $row) => $isPmRow($row))->values();
+        $foremanRows = $rows->filter(fn (array $row) => ! $isPmRow($row))->values();
+
+        $isHeadAdminView = in_array($request->user()->role, [User::ROLE_HEAD_ADMIN, User::ROLE_MASTER_ADMIN, User::ROLE_ADMIN], true);
+
+        return [
+            'page' => $isHeadAdminView
+                ? 'HeadAdmin/WeeklyAccomplishments/Show'
+                : 'Admin/WeeklyAccomplishments/Show',
+            'props' => [
+                'project' => [
+                    'id' => (int) $project->id,
+                    'name' => (string) $project->name,
+                    'location' => $project->location ? (string) $project->location : null,
+                    'target' => $project->target ? Carbon::parse($project->target)->toDateString() : null,
+                    'overall_progress' => $project->overall_progress !== null ? (int) $project->overall_progress : null,
+                    'phase' => (string) ($project->phase ?? ''),
+                    'status' => (string) ($project->status ?? ''),
+                ],
+                'comparison' => $comparison['rows'][0] ?? null,
+                'scopeBreakdown' => $scopeBreakdown,
+                'recentPmSubmission' => $pmRows->sortByDesc(fn (array $row) => (string) ($row['submitted_at'] ?? ''))->first(),
+                'recentForemanSubmission' => $foremanRows->sortByDesc(fn (array $row) => (string) ($row['submitted_at'] ?? ''))->first(),
+                'rows' => $rows->values(),
+                'weeklyScopePhotoMap' => $weeklyScopePhotoMap,
+                'workInfoMap' => $comparison['workInfo'],
+            ],
+        ];
+    }
+
+    private function mapDetailRow(WeeklyAccomplishment $row): array
+    {
+        $submitter = $row->submitter;
+
+        return [
+            'id' => $row->id,
+            'foreman_name' => $row->foreman?->fullname ?? 'Unknown',
+            'submitted_by_name' => $submitter?->fullname ?? $row->foreman?->fullname ?? 'Unknown',
+            'submitted_by_role' => $submitter
+                ? ucwords(str_replace('_', ' ', (string) $submitter->role))
+                : 'Foreman',
+            'project_id' => $row->project_id,
+            'project_name' => $row->project?->name ?? 'Unassigned',
+            'week_start' => $row->week_start
+                ? Carbon::parse($row->week_start)->toDateString()
+                : null,
+            'scope_of_work' => $row->scope_of_work,
+            'percent_completed' => $row->percent_completed,
+            'is_placeholder' => (bool) $row->is_placeholder,
+            'submitted_at' => optional($row->updated_at)?->toDateTimeString(),
+            'created_at' => optional($row->created_at)?->toDateTimeString(),
         ];
     }
 

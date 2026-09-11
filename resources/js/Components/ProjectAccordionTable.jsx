@@ -31,12 +31,16 @@ export default function ProjectAccordionTable({
     projects = [],
     rowKey = 'id',
     searchPlaceholder = 'Search...',
+    hideSearch = false,
     emptyMessage = 'No records found.',
     groupEmptyMessage = 'No records for this project.',
     routePath,
     table = {},
     groupPageSize = 5,
     expandAllGroups = false,
+    collapseAllByDefault = false,
+    singleOpen = false,
+    countNoun = { singular: 'record', plural: 'records' },
     statusOptions = [],
     showGroupId = true,
     filters = {},
@@ -134,7 +138,7 @@ export default function ProjectAccordionTable({
 
                 if (prev[group.key]) next[group.key] = true;
             });
-            if (!expandAllGroups && grouped.length > 0 && Object.keys(next).length === 0) {
+            if (!expandAllGroups && !collapseAllByDefault && grouped.length > 0 && Object.keys(next).length === 0) {
                 next[grouped[0].key] = true;
             }
             return next;
@@ -232,6 +236,12 @@ export default function ProjectAccordionTable({
     };
 
     const toggleGroup = (key) => {
+        // Single-open mode: opening one accordion automatically closes the
+        // others; clicking the open one closes everything.
+        if (singleOpen) {
+            setExpandedByGroup((prev) => (prev[key] ? {} : { [key]: true }));
+            return;
+        }
         setExpandedByGroup((prev) => ({ ...prev, [key]: !prev[key] }));
     };
 
@@ -239,7 +249,16 @@ export default function ProjectAccordionTable({
 
     return (
         <div style={{ display: 'grid', gap: 12 }}>
+            <style>{`
+                @keyframes accomp-accordion-expand {
+                    from { opacity: 0; transform: translateY(-4px); }
+                    to { opacity: 1; transform: translateY(0); }
+                }
+                .project-accordion-table tbody tr { transition: background-color 0.15s ease; }
+                .project-accordion-table tbody tr:hover { background-color: color-mix(in srgb, var(--text-main) 7%, transparent); }
+            `}</style>
             <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                {hideSearch ? null : (
                 <div className="flex w-full md:w-auto" style={{ flex: 1, minWidth: 0 }}>
                     <TextInput
                         className="w-full md:max-w-[420px]"
@@ -249,8 +268,9 @@ export default function ProjectAccordionTable({
                         style={{ ...controlStyle, minWidth: 0, width: '100%' }}
                     />
                 </div>
+                )}
 
-                <div className="flex flex-wrap items-center gap-2 w-full md:w-auto md:justify-end">
+                <div className="flex flex-wrap items-center gap-2 w-full md:w-auto md:justify-end md:ml-auto">
                     <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>Per page</span>
                     <SelectInput
                         value={tableState.perPage}
@@ -292,6 +312,7 @@ export default function ProjectAccordionTable({
                     {emptyMessage}
                 </div>
             ) : (
+                <>
                 <div style={{ display: 'grid', gap: 10 }}>
                     {grouped.map((group) => {
                         const currentGroupPage = Number(groupPageByKey[group.key] ?? 1);
@@ -305,6 +326,8 @@ export default function ProjectAccordionTable({
                             <div key={group.key} style={groupCardStyle}>
                                 <button
                                     type="button"
+                                    data-testid="accordion-group-toggle"
+                                    aria-expanded={isExpanded}
                                     onClick={() => toggleGroup(group.key)}
                                     style={{
                                         width: '100%',
@@ -323,17 +346,17 @@ export default function ProjectAccordionTable({
                                             {group.project_name}
                                             {showGroupId && group.project_id !== null && group.project_id !== undefined ? ` (ID: ${group.project_id})` : ''}
                                         </div>
-                                        <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>
-                                            {group.rows.length} record{group.rows.length === 1 ? '' : 's'}
-                                        </div>
+                                            <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+                                                {group.rows.length} {group.rows.length <= 1 ? countNoun.singular : countNoun.plural}
+                                            </div>
                                     </div>
                                     <span style={{ fontSize: 16, lineHeight: 1 }}>{isExpanded ? '▾' : '▸'}</span>
                                 </button>
 
                                 {isExpanded ? (
-                                    <div style={{ borderTop: '1px solid var(--border-color)', padding: 10, display: 'grid', gap: 10 }}>
+                                    <div style={{ borderTop: '1px solid var(--border-color)', padding: 10, display: 'grid', gap: 10, animation: 'accomp-accordion-expand 0.22s ease-out' }}>
                                         <div style={{ overflowX: 'auto', border: '1px solid var(--border-color)', borderRadius: 10 }}>
-                                            <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 760 }}>
+                                            <table className="project-accordion-table" style={{ width: '100%', borderCollapse: 'collapse', minWidth: 760 }}>
                                                 <thead>
                                                     <tr style={{ background: 'var(--surface-1)' }}>
                                                         {columns.map((column) => (
@@ -425,6 +448,7 @@ export default function ProjectAccordionTable({
                         );
                     })}
                 </div>
+                </>
             )}
 
             <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>

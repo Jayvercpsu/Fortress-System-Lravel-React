@@ -54,4 +54,5 @@ class WeeklyAccomplishment extends Model {
     public function foreman() { return $this->belongsTo(User::class, 'foreman_id'); }
     public function submitter() { return $this->belongsTo(User::class, 'submitted_by'); }
     public function project() { return $this->belongsTo(Project::class); }
+    public function comments() { return $this->hasMany(AccomplishmentComment::class, 'weekly_accomplishment_id'); }
 }

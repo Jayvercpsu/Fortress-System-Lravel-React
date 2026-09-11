@@ -66,14 +66,25 @@ test('head admin grouped tables honor per-page controls and status filters', asy
             statusValue: '',
             includeText: 'Structural Columns and Beams',
             excludeText: '',
+            // The grouped submissions table lives on the role tabs now, and its
+            // groups start collapsed.
+            tab: 'Foreman Submissions',
+            expandFirst: true,
         },
     ] as const;
 
     for (const tableCase of cases) {
         await test.step(tableCase.name, async () => {
             await page.goto(tableCase.path);
+            if ('tab' in tableCase && tableCase.tab) {
+                await page.getByRole('button', { name: tableCase.tab }).first().click();
+                await expect(page.getByTestId('submissions-list')).toBeVisible();
+            }
             await selectPerPage(page, '5');
             await expect(page).toHaveURL(/(?:\?|&)per_page=5(?:&|$)/);
+            if ('expandFirst' in tableCase && tableCase.expandFirst) {
+                await page.getByTestId('submissions-list').getByTestId('accordion-group-toggle').first().click();
+            }
 
             if (tableCase.statusValue) {
                 await selectStatus(page, tableCase.statusValue);
