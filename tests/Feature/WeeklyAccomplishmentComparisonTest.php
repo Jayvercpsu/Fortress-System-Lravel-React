@@ -423,6 +423,48 @@ class WeeklyAccomplishmentComparisonTest extends TestCase
         }
     }
 
+    public function test_project_without_submissions_still_appears_as_pending(): void
+    {
+        Carbon::setTestNow('2026-08-18 12:00:00');
+
+        try {
+            $headAdmin = $this->makeUser('head_admin');
+            $foreman = $this->makeUser('foreman');
+            $active = $this->makeProject('Active Project', $headAdmin->id);
+            $this->seedScope($active, 'Column Footing');
+            $this->makeProject('Unassigned Project', $headAdmin->id);
+
+            WeeklyAccomplishment::create([
+                'foreman_id' => $foreman->id,
+                'submitted_by' => $foreman->id,
+                'project_id' => $active->id,
+                'scope_of_work' => 'Column Footing',
+                'percent_completed' => 40,
+                'week_start' => '2026-08-17',
+            ]);
+
+            $this->actingAs($headAdmin)
+                ->get('/weekly-accomplishments')
+                ->assertOk()
+                ->assertInertia(fn ($page) => $page
+                    ->component('HeadAdmin/WeeklyAccomplishments/Index')
+                    ->has('comparisonRows', 2)
+                    ->where('comparisonRows.0.project_name', 'Active Project')
+                    ->where('comparisonRows.0.pm_progress', null)
+                    ->where('comparisonRows.0.foreman_progress', 40)
+                    ->where('comparisonRows.0.status', 'Pending')
+                    ->where('comparisonRows.1.project_name', 'Unassigned Project')
+                    ->where('comparisonRows.1.pm_progress', null)
+                    ->where('comparisonRows.1.foreman_progress', null)
+                    ->where('comparisonRows.1.variance', null)
+                    ->where('comparisonRows.1.status', 'Pending')
+                    ->where('overviewStats.total_projects', 2)
+                    ->where('overviewStats.pending', 2));
+        } finally {
+            Carbon::setTestNow();
+        }
+    }
+
     private function seedScope(Project $project, string $scope): void
     {
         ProjectScope::create([

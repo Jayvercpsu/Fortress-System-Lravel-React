@@ -371,10 +371,18 @@ class WeeklyAccomplishmentService
 
     private function buildComparisonPayload(Collection $timelineRows, array $projectIds): array
     {
+        // Every visible project gets a row — including projects with no
+        // submissions yet (no foreman assigned). Those render with missing
+        // sides (— / Pending) instead of vanishing from the table.
+        $allProjectIds = array_values(array_unique(array_map(
+            static fn ($id) => (int) $id,
+            array_filter($projectIds, fn ($id) => $id !== null && $id !== '')
+        )));
+
         $projectMeta = collect();
-        if (! empty($projectIds)) {
+        if (! empty($allProjectIds)) {
             $projectMeta = Project::query()
-                ->whereIn('id', $projectIds)
+                ->whereIn('id', $allProjectIds)
                 ->get(['id', 'name', 'location', 'target', 'overall_progress', 'phase', 'status'])
                 ->keyBy(fn ($project) => (int) $project->id);
         }
@@ -396,12 +404,13 @@ class WeeklyAccomplishmentService
         // newly-submitted low scope can never drag an average down: scopes
         // nobody submitted yet count as 0 instead of being excluded.
         $scopeUniverse = $this->comparisonScopeUniverse(
-            array_keys($grouped->toArray()),
+            $allProjectIds,
             $grouped
         );
 
         $rows = [];
-        foreach ($grouped as $projectId => $projectRows) {
+        foreach ($allProjectIds as $projectId) {
+            $projectRows = $grouped->get($projectId, collect());
             // Side columns average each side's own latest-per-scope values
             // over the ENTIRE scope list (missing = 0), so a submission moves
             // only its own side's column and only ever upward-or-equal when
@@ -410,10 +419,6 @@ class WeeklyAccomplishmentService
             $latest = $this->latestValuesBySide($projectRows);
             $pmEntries = array_values($latest['pm']);
             $foremanEntries = array_values($latest['foreman']);
-
-            if ($pmEntries === [] && $foremanEntries === []) {
-                continue;
-            }
 
             $universe = $scopeUniverse[(int) $projectId] ?? [];
             $universeCount = count($universe) > 0 ? count($universe) : 1;
