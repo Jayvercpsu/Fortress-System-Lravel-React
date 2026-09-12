@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test';
+import path from 'node:path';
 import { loginAs } from './support/auth';
 import { DEMO_ACTIVE_PROJECT_ID, DEMO_PROJECT_ID } from './support/constants';
 import { escapeRegExp } from './support/ui';
@@ -44,7 +45,7 @@ test('head admin can create, edit, and delete users from the users table flow', 
 });
 
 test('head admin can use project team, files, and updates table actions', async ({ page }) => {
-    const uploadPath = 'C:\\Users\\algad\\Projects\\Fortress-System-Lravel-React\\public\\images\\logo.jpg';
+    const uploadPath = path.resolve(process.cwd(), 'public/images/logo.jpg');
     const updateNote = `E2E project update ${Date.now()}`;
 
     await loginAs(page, 'head_admin');

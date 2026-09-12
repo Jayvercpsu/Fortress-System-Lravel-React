@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test';
+import path from 'node:path';
 import { loginAs } from './support/auth';
 import { DEMO_ACTIVE_PROJECT_LABEL } from './support/constants';
 import { selectDateInput, selectSearchableDropdownOption, selectTimeInput } from './support/ui';
@@ -36,7 +37,7 @@ test('reports receipt links open, download, and print correctly', async ({ page 
 });
 
 test('settings updates persist for profile fields and profile photo uploads', async ({ page }) => {
-    const replacementPhoto = 'C:\\Users\\algad\\Projects\\Fortress-System-Lravel-React\\public\\images\\logo.jpg';
+    const replacementPhoto = path.resolve(process.cwd(), 'public/images/logo.jpg');
     const uniqueSuffix = Date.now();
     const updatedValues = {
         fullname: `Fortress Demo Foreman ${uniqueSuffix}`,
