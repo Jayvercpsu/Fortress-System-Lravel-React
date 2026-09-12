@@ -55,7 +55,7 @@ class ForemanAuthController extends Controller
         if (!$user || !Hash::check($credentials['password'], $user->password)) {
             RateLimiter::hit($throttleKey, self::LOGIN_DECAY_SECONDS);
 
-            return response()->json(['message' => 'Invalid email or password.'], 422);
+            return response()->json(['message' => 'Invalid login credentials. Please try again.'], 422);
         }
 
         if ($user->role !== User::ROLE_FOREMAN) {
