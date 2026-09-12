@@ -16,6 +16,13 @@ const cardStyle = {
 
 const severityBadgeStyle = (severity) => {
     const key = String(severity || '').toLowerCase();
+    if (key === 'critical') {
+        return {
+            color: '#ef4444',
+            background: 'rgba(239, 68, 68, 0.12)',
+            border: '1px solid rgba(239, 68, 68, 0.25)',
+        };
+    }
     if (key === 'high') {
         return {
             color: '#f87171',
@@ -110,7 +117,7 @@ export default function IssueReportsPage({ issues = [], issueTable = {}, statusF
                         onClick={() => setPreviewPhoto({
                             path: row.photo_path,
                             caption: row.issue_title || 'Issue photo',
-                            meta: `${row.severity || 'normal'} issue | ${row.foreman_name || 'Unknown foreman'}`,
+                            meta: `${row.severity || 'medium'} issue | ${row.foreman_name || 'Unknown foreman'}`,
                         })}
                         style={{ border: 'none', background: 'transparent', padding: 0, cursor: 'pointer' }}
                     >

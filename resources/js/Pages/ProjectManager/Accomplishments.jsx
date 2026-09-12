@@ -2,6 +2,7 @@ import { useLayoutTitle } from '../../Components/Layout';
 import ActionButton from '../../Components/ActionButton';
 import DatePickerInput from '../../Components/DatePickerInput';
 import SearchableDropdown from '../../Components/SearchableDropdown';
+import TextInput from '../../Components/TextInput';
 import { Head, router } from '@inertiajs/react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import toast from 'react-hot-toast';
@@ -145,6 +146,7 @@ export default function ProjectManagerAccomplishments({
     const [weeklyRemovedScopesByWeek, setWeeklyRemovedScopesByWeek] = useState({});
     const [saving, setSaving] = useState(false);
     const [previewPhoto, setPreviewPhoto] = useState(null);
+    const [weeklyPhotoKey, setWeeklyPhotoKey] = useState(0);
 
     // Re-seed local drafts whenever the server payload or selection changes,
     // so the grid always reflects what the foreman's JotForm shows.
@@ -192,8 +194,10 @@ export default function ProjectManagerAccomplishments({
             .map((row) => ({
                 scope_of_work: String(row?.scope_of_work || '').trim(),
                 percent_completed: String(row?.percent_completed ?? '').trim(),
+                photo_caption: String(row?.weekly_photo_caption || '').trim(),
+                photos: Array.isArray(row?.weekly_photos) ? row.weekly_photos.filter(Boolean) : [],
             }))
-            .filter((row) => row.scope_of_work !== '' && row.percent_completed !== '');
+            .filter((row) => row.scope_of_work !== '' && (row.percent_completed !== '' || row.photos.length > 0));
 
         const removedWeeklyScopes = (weeklyRemovedScopesByWeek[weeklyWeekKey] || [])
             .filter((scope) => {
@@ -211,7 +215,18 @@ export default function ProjectManagerAccomplishments({
             removed_scopes: removedWeeklyScopes,
         }, {
             preserveScroll: true,
-            onSuccess: () => toast.success('Accomplishment updated successfully.'),
+            forceFormData: true,
+            onSuccess: () => {
+                setWeeklyWeekDrafts((prev) => {
+                    const next = {};
+                    Object.entries(prev || {}).forEach(([key, rows]) => {
+                        next[key] = (rows || []).map((row) => ({ ...row, weekly_photos: [] }));
+                    });
+                    return next;
+                });
+                setWeeklyPhotoKey((key) => key + 1);
+                toast.success('Accomplishment updated successfully.');
+            },
             onError: () => toast.error('Unable to update the accomplishment. Please review the form and try again.'),
             onFinish: () => setSaving(false),
         });
@@ -386,7 +401,7 @@ export default function ProjectManagerAccomplishments({
                                                     {existingScopePhotos.length === 0 ? (
                                                         <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>No existing scope photos.</div>
                                                     ) : (
-                                                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, 64px)', justifyContent: 'flex-start', gap: 6 }}>
+                                                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, 64px)', justifyContent: 'flex-start', gap: 6, marginBottom: 8 }}>
                                                             {existingScopePhotos.map((photo) => (
                                                                 <button
                                                                     key={photo?.id}
@@ -411,6 +426,31 @@ export default function ProjectManagerAccomplishments({
                                                                     />
                                                                 </button>
                                                             ))}
+                                                        </div>
+                                                    )}
+                                                    {weeklyLocked ? null : (
+                                                        <div style={{ display: 'grid', gap: 6 }}>
+                                                            <TextInput
+                                                                key={`${weeklyPhotoKey}-${row?.row_key || index}`}
+                                                                type="file"
+                                                                accept="image/*"
+                                                                multiple
+                                                                disabled={row?.is_unassigned}
+                                                                onChange={(e) => {
+                                                                    const files = Array.from(e.target.files || []);
+                                                                    setCurrentWeeklyRows((rows) => rows.map((r, idx) => idx === index ? { ...r, weekly_photos: files } : r));
+                                                                }}
+                                                            />
+                                                            <input
+                                                                style={inputStyle}
+                                                                placeholder="Caption for new photos (optional)"
+                                                                disabled={weeklyLocked || row?.is_unassigned}
+                                                                value={row?.weekly_photo_caption || ''}
+                                                                onChange={(e) => setCurrentWeeklyRows((rows) => rows.map((r, idx) => idx === index ? { ...r, weekly_photo_caption: e.target.value } : r))}
+                                                            />
+                                                            {Array.isArray(row?.weekly_photos) && row.weekly_photos.length > 0 ? (
+                                                                <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{row.weekly_photos.length} new photo(s) selected</div>
+                                                            ) : null}
                                                         </div>
                                                     )}
                                                 </td>

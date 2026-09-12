@@ -270,7 +270,7 @@ class PublicProgressSubmitTest extends TestCase
             ],
             'issue_title' => 'Leaking pipe',
             'issue_description' => 'Temporary water line is leaking near footing.',
-            'issue_urgency' => 'normal',
+            'issue_urgency' => 'medium',
             'issue_photo' => UploadedFile::fake()->create('issue2.jpg', 10, 'image/jpeg'),
         ])->assertRedirect("/progress-submit/{$token->token}");
 

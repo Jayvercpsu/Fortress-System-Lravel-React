@@ -4,10 +4,13 @@ namespace Tests\Feature;
 
 use App\Models\ProgressSubmitToken;
 use App\Models\Project;
+use App\Models\ProjectScope;
 use App\Models\User;
 use Carbon\Carbon;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
 
 class ProjectManagerAccomplishmentTest extends TestCase
@@ -159,6 +162,48 @@ class ProjectManagerAccomplishmentTest extends TestCase
                 ->where('weekly.weekly_saved_by_week', fn ($byWeek) => collect($byWeek[$weekStart] ?? [])
                     ->contains(fn ($row) => ($row['scope_of_work'] ?? '') === 'Column'
                         && (float) ($row['percent_completed'] ?? 0) === 62.0)));
+    }
+
+    public function test_project_manager_can_save_scope_photos_per_scope_like_the_jotform(): void
+    {
+        Storage::fake('public');
+        $weekStart = Carbon::now('Asia/Manila')->startOfWeek(Carbon::MONDAY)->toDateString();
+
+        ProjectScope::create([
+            'project_id' => $this->project->id,
+            'scope_name' => 'Slab on Fill',
+            'progress_percent' => 0,
+            'status' => 'NOT_STARTED',
+            'assigned_personnel' => $this->foreman->fullname,
+        ]);
+
+        $photo = UploadedFile::fake()->image('scope-proof.jpg');
+
+        $this->actingAs($this->projectManager)
+            ->post('/project-manager/accomplishments', [
+                'project_id' => $this->project->id,
+                'foreman_id' => $this->foreman->id,
+                'week_start' => $weekStart,
+                'scopes' => [
+                    [
+                        'scope_of_work' => 'Slab on Fill',
+                        'percent_completed' => 45,
+                        'photo_caption' => 'Slab poured',
+                        'photos' => [$photo],
+                    ],
+                ],
+            ])
+            ->assertRedirect();
+
+        $scope = ProjectScope::query()
+            ->where('project_id', $this->project->id)
+            ->where('scope_name', 'Slab on Fill')
+            ->firstOrFail();
+
+        $this->assertDatabaseHas('scope_photos', [
+            'project_scope_id' => $scope->id,
+        ]);
+        $this->assertSame(1, $scope->photos()->count());
     }
 
     public function test_pm_cannot_save_accomplishment_for_non_construction_project(): void

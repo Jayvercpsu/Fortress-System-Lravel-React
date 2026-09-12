@@ -89,6 +89,7 @@ const materialStatusBadge = (status) => {
 
 const issueSeverityBadge = (severity) => {
     const key = String(severity || '').toLowerCase();
+    if (key === 'critical') return badge('#ef4444', 'rgba(239,68,68,0.12)');
     if (key === 'high') return badge('#f87171', 'rgba(248,113,113,0.10)');
     if (key === 'medium') return badge('#fbbf24', 'rgba(251,191,36,0.10)');
     return badge('#60a5fa', 'rgba(96,165,250,0.10)');
@@ -338,7 +339,7 @@ export default function ForemanSubmissions({
                                                                 setPreviewPhoto({
                                                                     photo_path: row.photo_path,
                                                                     caption: row.issue_title || 'Issue photo',
-                                                                    meta: `Severity: ${row.severity || 'normal'}`,
+                                                                     meta: `Severity: ${row.severity || 'medium'}`,
                                                                     created_at: row.created_at,
                                                                     project_name: row.project_name || 'Unassigned',
                                                                     previewKind: 'issue',

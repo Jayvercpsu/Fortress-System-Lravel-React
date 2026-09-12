@@ -177,9 +177,22 @@ export default function ProgressSubmit({ submitToken }) {
     const lockedFormStyle = projectLocked ? { pointerEvents: 'none', opacity: 0.6 } : undefined;
     const workers = Array.isArray(submitToken?.workers) ? submitToken.workers : [];
     const assignedScopes = Array.isArray(submitToken?.weekly_scope_of_works) ? submitToken.weekly_scope_of_works : [];
+    const allProjectScopes = Array.isArray(submitToken?.weekly_scope_all) ? submitToken.weekly_scope_all : [];
     const defaultScopeFallbackEnabled = !!submitToken?.weekly_scope_defaults_enabled;
     const fallbackScopes = defaultScopeFallbackEnabled ? SCOPES : [];
-    const baseWeeklyScopes = assignedScopes.length ? assignedScopes : fallbackScopes;
+    // A foreman assigned to at least one scope sees every project scope so
+    // unedited scopes stay visible; scopes assigned to other foremen are
+    // read-only. With no assignment at all, fall back as before.
+    // Always use allProjectScopes when available; fall back to assignedScopes
+    // only when there are no project scopes at all.
+    const baseWeeklyScopes = allProjectScopes.length
+        ? allProjectScopes
+        : (assignedScopes.length ? assignedScopes : fallbackScopes);
+    const assignedWeeklyScopeKeys = useMemo(() => new Set(
+        assignedScopes
+            .map((scope) => String(scope || '').trim().toLowerCase())
+            .filter(Boolean)
+    ), [submitToken?.weekly_scope_of_works]);
     const weeklyScopePhotoMap = submitToken?.weekly_scope_photo_map && typeof submitToken.weekly_scope_photo_map === 'object'
         ? submitToken.weekly_scope_photo_map
         : {};
@@ -269,7 +282,7 @@ export default function ProgressSubmit({ submitToken }) {
     const [weeklyWeekDrafts, setWeeklyWeekDrafts] = useState(initialWeeklyDrafts);
     const [weeklyRemovedScopesByWeek, setWeeklyRemovedScopesByWeek] = useState({});
     const [photoForm, setPhotoForm] = useState({ category: '', description: '', photo: null });
-    const [issue, setIssue] = useState({ issue_title: '', description: '', urgency: 'normal', photo: null });
+    const [issue, setIssue] = useState({ issue_title: '', description: '', urgency: 'medium', photo: null });
     const [previewPhoto, setPreviewPhoto] = useState(null);
     const [showAiAttendanceUpload, setShowAiAttendanceUpload] = useState(false);
     const [submitting, setSubmitting] = useState(false);
@@ -377,7 +390,15 @@ export default function ProgressSubmit({ submitToken }) {
             ...merged.filter((row) => workerIdentity(row.worker_name, row.worker_role) !== foremanAttendanceId),
         ];
     }, [attendanceWeekDrafts, attendanceWeekKey, defaultAttendanceRows, attendanceWorkerPool, foremanAttendanceId]);
-    const weeklyRows = weeklyWeekDrafts[weeklyWeekKey] ?? defaultWeeklyRowsForWeek;
+    const weeklyRowsRaw = weeklyWeekDrafts[weeklyWeekKey] ?? defaultWeeklyRowsForWeek;
+    // Scopes assigned to other foremen stay visible but read-only, so they
+    // never disappear from the grid. Manually added rows stay editable.
+    const weeklyRows = useMemo(() => (weeklyRowsRaw || []).map((row) => {
+        if (row?.is_manual) return row;
+        const key = String(row?.scope_of_work || '').trim().toLowerCase();
+        if (key === '' || assignedWeeklyScopeKeys.has(key)) return row;
+        return { ...row, is_unassigned: true };
+    }), [weeklyRowsRaw, assignedWeeklyScopeKeys]);
 
     // Convert AI-detected attendance records to the JotForm grid format
     const mergeAiAttendanceToGrid = useCallback((savedRecords) => {
@@ -896,6 +917,7 @@ export default function ProgressSubmit({ submitToken }) {
         const safeAttendanceEntries = attendanceLocked ? [] : attendanceEntries;
 
         const weeklyScopes = weeklyRows
+            .filter((r) => !r.is_unassigned)
             .map((r) => ({
                 scope_of_work: String(r.scope_of_work || '').trim(),
                 percent_completed: String(r.percent_completed || '').trim(),
@@ -953,7 +975,7 @@ export default function ProgressSubmit({ submitToken }) {
                 setDelivery({ delivery_date: today(), status: 'complete', item_delivered: '', quantity: '', supplier: '', note: '', photo: null });
                 setMaterial({ material_name: '', quantity: '', unit: '', remarks: '', photo: null });
                 setPhotoForm({ category: '', description: '', photo: null });
-                setIssue({ issue_title: '', description: '', urgency: 'normal', photo: null });
+                setIssue({ issue_title: '', description: '', urgency: 'medium', photo: null });
                 setWeeklyWeekDrafts((prev) => {
                     const next = {};
                     Object.entries(prev || {}).forEach(([key, rows]) => {
@@ -1558,7 +1580,7 @@ export default function ProgressSubmit({ submitToken }) {
                 </div>
                 <div className="jf-note">{issue.photo?.name || 'No photo selected'}</div>
                 <div className="jf-radio-row">
-                    {['low', 'normal', 'high'].map((v) => (
+                    {['low', 'medium', 'high', 'critical'].map((v) => (
                         <label key={v}><input type="radio" name="urgency" value={v} disabled={projectLocked} checked={issue.urgency === v} onChange={(e) => setIssue((p) => ({ ...p, urgency: e.target.value }))} /> {v[0].toUpperCase() + v.slice(1)}</label>
                     ))}
                 </div>
@@ -1698,7 +1720,7 @@ export default function ProgressSubmit({ submitToken }) {
                     .jf-card-action{position:absolute;top:6px;right:6px;border:1px solid #e7b6b6;background:#fff7f7;color:#b02020;padding:4px;border-radius:6px;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;box-shadow:0 1px 3px rgba(0,0,0,.08);z-index:2}
                     .jf-card-action:disabled{opacity:.6;cursor:not-allowed}
                     .jf-recent-chip{display:inline-flex;align-items:center;justify-content:center;border-radius:999px;padding:2px 8px;font-size:11px;font-weight:700;background:#ece7db;border:1px solid #d1c7b4;color:#2f3a4a;text-transform:uppercase;white-space:nowrap}
-                    .jf-radio-row{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px;border:1px solid #cfd3db;border-radius:8px;background:#fff;padding:10px 8px}
+                    .jf-radio-row{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px;border:1px solid #cfd3db;border-radius:8px;background:#fff;padding:10px 8px}
                     .jf-radio-row label{display:inline-flex;align-items:center;justify-content:center;gap:6px;font-size:16px}
                     .jf-submit-wrap{max-width:760px;margin:14px auto 0;display:flex;justify-content:center}
                     .jf-submit-btn{width:100%;max-width:420px;border:none;border-radius:10px;min-height:50px;background:#2f70d4;color:#fff;font-size:18px;font-weight:800;cursor:pointer}

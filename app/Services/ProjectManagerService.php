@@ -6,6 +6,7 @@ use App\Models\Attendance;
 use App\Models\Project;
 use App\Models\User;
 use App\Models\WeeklyAccomplishment;
+use App\Support\Uploads\UploadManager;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -365,6 +366,9 @@ class ProjectManagerService
             'scopes' => ['nullable', 'array'],
             'scopes.*.scope_of_work' => ['required_with:scopes', 'string', 'max:255'],
             'scopes.*.percent_completed' => ['nullable', 'numeric', 'min:0', 'max:100'],
+            'scopes.*.photo_caption' => ['nullable', 'string', 'max:255'],
+            'scopes.*.photos' => ['nullable', 'array'],
+            'scopes.*.photos.*' => UploadManager::imageRules(),
             'removed_scopes' => ['nullable', 'array'],
             'removed_scopes.*' => ['nullable', 'string', 'max:255'],
         ]);

@@ -12,9 +12,11 @@ class IssueReport extends Model {
     public const SEVERITY_LOW = 'low';
     public const SEVERITY_MEDIUM = 'medium';
     public const SEVERITY_HIGH = 'high';
+    public const SEVERITY_CRITICAL = 'critical';
     public const URGENCY_LOW = 'low';
-    public const URGENCY_NORMAL = 'normal';
+    public const URGENCY_MEDIUM = 'medium';
     public const URGENCY_HIGH = 'high';
+    public const URGENCY_CRITICAL = 'critical';
 
     public const STATUS_OPTIONS = [
         self::STATUS_OPEN,
@@ -23,8 +25,9 @@ class IssueReport extends Model {
 
     public const URGENCY_OPTIONS = [
         self::URGENCY_LOW,
-        self::URGENCY_NORMAL,
+        self::URGENCY_MEDIUM,
         self::URGENCY_HIGH,
+        self::URGENCY_CRITICAL,
     ];
 
     protected $fillable = ['project_id','foreman_id','issue_title','description','severity','status','photo_path'];
@@ -41,9 +44,12 @@ class IssueReport extends Model {
 
     public static function urgencyToSeverity(string $urgency): string
     {
-        return $urgency === self::URGENCY_NORMAL
-            ? self::SEVERITY_MEDIUM
-            : $urgency;
+        // Legacy 'normal' input (renamed to 'medium') keeps mapping to medium.
+        if ($urgency === 'normal' || $urgency === self::URGENCY_MEDIUM) {
+            return self::SEVERITY_MEDIUM;
+        }
+
+        return $urgency;
     }
 
     public function project() { return $this->belongsTo(Project::class, 'project_id'); }

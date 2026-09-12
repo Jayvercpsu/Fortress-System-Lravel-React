@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\User;
 use App\Repositories\Contracts\SettingsRepositoryInterface;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Carbon;
 
 class SettingsService
@@ -30,6 +31,15 @@ class SettingsService
             'phone' => $detail?->phone ?? '',
             'address' => $detail?->address ?? '',
         ];
+    }
+
+    public function updateProfilePhoto(User $user, UploadedFile $photo): string
+    {
+        $resolvedUser = $this->settingsRepository->loadAccount($user);
+        $path = $this->settingsRepository->replaceProfilePhoto($resolvedUser, $photo);
+        $this->settingsRepository->upsertDetail($resolvedUser, ['profile_photo_path' => $path]);
+
+        return $path;
     }
 
     public function updateSettings(User $user, array $validated): void

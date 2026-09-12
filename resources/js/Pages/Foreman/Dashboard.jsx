@@ -387,7 +387,7 @@ export default function ForemanDashboard({
                                                             photo_path: item.photo_path,
                                                             caption: item.issue_title || 'Issue photo',
                                                             project_name: item.project_name || 'Unassigned',
-                                                            meta: `Severity: ${item.severity || 'normal'}`,
+                                                             meta: `Severity: ${item.severity || 'medium'}`,
                                                             created_at: item.created_at,
                                                         })
                                                     }

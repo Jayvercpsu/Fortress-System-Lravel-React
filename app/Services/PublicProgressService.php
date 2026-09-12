@@ -200,6 +200,12 @@ class PublicProgressService
         return [
             'current_week_start' => $currentWeekStart,
             'weekly_scope_of_works' => $weeklyScopeOfWorks,
+            'weekly_scope_all' => $projectScopeRows
+                ->map(fn (ProjectScope $scope) => trim((string) ($scope->scope_name ?? '')))
+                ->filter(fn (string $scope) => $scope !== '')
+                ->unique(fn (string $scope) => Str::lower($scope))
+                ->values()
+                ->all(),
             'weekly_scope_of_works_by_week' => $weeklyScopeOfWorksByWeek,
             'weekly_scope_defaults_enabled' => $weeklyScopeDefaultsEnabled,
             'weekly_scope_photo_map' => $weeklyScopePhotoMap,
@@ -526,6 +532,7 @@ class PublicProgressService
                 'receipt_url' => route('public.progress-receipt', ['token' => $submitToken->token]),
                 'workers' => $workers,
                 'weekly_scope_of_works' => $weeklyGrid['weekly_scope_of_works'],
+                'weekly_scope_all' => $weeklyGrid['weekly_scope_all'],
                 'weekly_scope_of_works_by_week' => $weeklyGrid['weekly_scope_of_works_by_week'],
                 'weekly_scope_defaults_enabled' => $weeklyGrid['weekly_scope_defaults_enabled'],
                 'weekly_scope_photo_map' => $weeklyGrid['weekly_scope_photo_map'],
@@ -1162,7 +1169,7 @@ class PublicProgressService
         if ($issueTouched) {
             $issueTitle = trim((string) ($validated['issue_title'] ?? ''));
             $issueDescription = trim((string) ($validated['issue_description'] ?? ''));
-            $issueUrgency = trim((string) ($validated['issue_urgency'] ?? IssueReport::URGENCY_NORMAL));
+            $issueUrgency = trim((string) ($validated['issue_urgency'] ?? IssueReport::URGENCY_MEDIUM));
 
             if ($issueTitle === '' || $issueDescription === '') {
                 throw ValidationException::withMessages([
