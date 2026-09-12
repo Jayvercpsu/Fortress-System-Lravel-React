@@ -59,6 +59,8 @@ export default function HeadAdminWeeklyAccomplishmentShow({
     recentPmSubmission = null,
     recentForemanSubmission = null,
     rows = [],
+    submissionTotals = {},
+    photoTotal = 0,
     weeklyScopePhotoMap = {},
     workInfoMap = {},
 }) {
@@ -92,18 +94,90 @@ export default function HeadAdminWeeklyAccomplishmentShow({
     const safeRows = useMemo(() => (Array.isArray(rows) ? rows : []), [rows]);
     const safeBreakdown = useMemo(() => (Array.isArray(scopeBreakdown) ? scopeBreakdown : []), [scopeBreakdown]);
 
-    const pmRows = useMemo(() => safeRows.filter((row) => isPmRole(row?.submitted_by_role)), [safeRows]);
-    const foremanRows = useMemo(() => safeRows.filter((row) => !isPmRole(row?.submitted_by_role)), [safeRows]);
+    const pmTotal = Number(submissionTotals?.pm ?? 0) || 0;
+    const foremanTotal = Number(submissionTotals?.foreman ?? 0) || 0;
+    const totalPhotoCount = Number(photoTotal ?? 0) || 0;
 
-    const allPhotos = useMemo(
-        () => Object.values(weeklyScopePhotoMap ?? {}).flat().filter(Boolean),
-        [weeklyScopePhotoMap],
-    );
+    // Server-paginated tab lists: page 1 is seeded from props, "Show more"
+    // fetches the next server page and appends it.
+    const SUBMISSION_PAGE_SIZE = 50;
+    const PHOTO_PAGE_SIZE = 21;
+
+    // Flat photo list in the SAME global newest-first order the server
+    // pages use. Seeding page 1 from any other order would make page 2
+    // overlap the seed, get deduped away, and leave a dead Show-more button.
+    const flatPhotosDesc = useMemo(() => Object.values(weeklyScopePhotoMap ?? {})
+        .flat()
+        .filter(Boolean)
+        .sort((a, b) => Number(b?.id ?? 0) - Number(a?.id ?? 0)), [weeklyScopePhotoMap]);
+
+    const seedSide = (list) => ({
+        items: Array.isArray(list) ? list : [],
+        page: 1,
+        loading: false,
+        error: null,
+    });
+    const [pmPage, setPmPage] = useState(() => seedSide(safeRows.filter((row) => isPmRole(row?.submitted_by_role))));
+    const [foremanPage, setForemanPage] = useState(() => seedSide(safeRows.filter((row) => !isPmRole(row?.submitted_by_role))));
+    const [photosPage, setPhotosPage] = useState(() => seedSide(flatPhotosDesc.slice(0, PHOTO_PAGE_SIZE)));
+
+    // Reseed whenever the project payload changes (navigation/refresh).
+    useEffect(() => {
+        setPmPage(seedSide(safeRows.filter((row) => isPmRole(row?.submitted_by_role))));
+        setForemanPage(seedSide(safeRows.filter((row) => !isPmRole(row?.submitted_by_role))));
+        setPhotosPage(seedSide(flatPhotosDesc.slice(0, PHOTO_PAGE_SIZE)));
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [project?.id, rows, weeklyScopePhotoMap]);
+
+    const fetchTabPage = async (side, nextPage, setState) => {
+        const url = side === 'photos'
+            ? `/weekly-accomplishments/${project?.id}/photos?page=${nextPage}`
+            : `/weekly-accomplishments/${project?.id}/submissions?side=${side}&page=${nextPage}`;
+        setState((prev) => ({ ...prev, loading: true, error: null }));
+        try {
+            const response = await fetch(url, { headers: { Accept: 'application/json' } });
+            if (!response.ok) throw new Error(`HTTP ${response.status}`);
+            const payload = await response.json();
+            const incoming = Array.isArray(payload?.data) ? payload.data : [];
+            setState((prev) => {
+                const seen = new Set(prev.items.map((item) => String(item?.id ?? item?.photo_path ?? '')));
+                const merged = [...prev.items, ...incoming.filter((item) => !seen.has(String(item?.id ?? item?.photo_path ?? '')))];
+                return { items: merged, page: Number(payload?.current_page ?? nextPage), loading: false, error: null };
+            });
+        } catch (err) {
+            setState((prev) => ({
+                ...prev,
+                loading: false,
+                error: `Could not load more (${err?.message || 'network error'}). Tap Show more to retry.`,
+            }));
+        }
+    };
+
+    const showMoreSubmissions = (side) => {
+        if (side === 'pm') {
+            if (pmPage.items.length < pmTotal && !pmPage.loading) fetchTabPage('pm', pmPage.page + 1, setPmPage);
+        } else if (foremanPage.items.length < foremanTotal && !foremanPage.loading) {
+            fetchTabPage('foreman', foremanPage.page + 1, setForemanPage);
+        }
+    };
+
+    const showMorePhotos = () => {
+        if (photosPage.items.length < totalPhotoCount && !photosPage.loading) {
+            fetchTabPage('photos', photosPage.page + 1, setPhotosPage);
+        }
+    };
+
+    const pmRows = pmPage.items;
+    const foremanRows = foremanPage.items;
+    const allPhotos = photosPage.items;
+    const remainingPmCount = Math.max(0, pmTotal - pmRows.length);
+    const remainingForemanCount = Math.max(0, foremanTotal - foremanRows.length);
+    const remainingPhotoCount = Math.max(0, totalPhotoCount - allPhotos.length);
 
     const selectedSubmission = useMemo(() => {
         if (selectedSubmissionId === null || selectedSubmissionId === undefined) return null;
-        return safeRows.find((row) => String(row?.id) === String(selectedSubmissionId)) ?? null;
-    }, [safeRows, selectedSubmissionId]);
+        return [...pmRows, ...foremanRows].find((row) => String(row?.id) === String(selectedSubmissionId)) ?? null;
+    }, [pmRows, foremanRows, selectedSubmissionId]);
 
     const workInfoFor = (projectId, weekStart) => {
         const direct = workInfoMap?.[`${projectId}|${weekStart}`];
@@ -247,6 +321,10 @@ export default function HeadAdminWeeklyAccomplishmentShow({
     const animatedBreakdownBar = (value) => (value === null || value === undefined ? null : (breakdownBarsLive ? value : 0));
 
     const viewRows = detailView === 'PM Submissions' ? pmRows : detailView === 'Foreman Submissions' ? foremanRows : [];
+    const viewSide = detailView === 'PM Submissions' ? 'pm' : 'foreman';
+    const remainingViewCount = detailView === 'PM Submissions' ? remainingPmCount : remainingForemanCount;
+    const viewLoading = detailView === 'PM Submissions' ? pmPage.loading : foremanPage.loading;
+    const viewError = detailView === 'PM Submissions' ? pmPage.error : foremanPage.error;
 
     // Shared by the visible breakdown (Overview/Work Items tabs) and the
     // always-rendered print copy, so Export Report never prints empty
@@ -517,6 +595,7 @@ export default function HeadAdminWeeklyAccomplishmentShow({
                     {detailView === 'Work Items' && renderBreakdownTable()}
 
                     {(detailView === 'PM Submissions' || detailView === 'Foreman Submissions') && (
+                        <>
                         <div style={{ overflowX: 'auto' }}>
                             <table className="accomp-hover-table" style={{ width: '100%', minWidth: 640, borderCollapse: 'collapse' }}>
                                 <thead>
@@ -554,14 +633,31 @@ export default function HeadAdminWeeklyAccomplishmentShow({
                                 </tbody>
                             </table>
                         </div>
+                        {remainingViewCount > 0 && (
+                            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8, marginTop: 12 }}>
+                                {viewError ? (
+                                    <div style={{ fontSize: 12, color: '#dc2626', textAlign: 'center' }}>{viewError}</div>
+                                ) : null}
+                                <ActionButton
+                                    type="button"
+                                    variant="neutral"
+                                    disabled={viewLoading}
+                                    onClick={() => showMoreSubmissions(viewSide)}
+                                >
+                                    {viewLoading ? 'Loading…' : `Show more (${remainingViewCount} more)`}
+                                </ActionButton>
+                            </div>
+                        )}
+                        </>
                     )}
 
                     {detailView === 'Progress Photos' && (
                         allPhotos.length === 0 ? (
                             <div style={{ fontSize: 13, color: 'var(--ac-muted, #64748b)' }}>No progress photos for this project yet.</div>
                         ) : (
+                            <>
                             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: 8 }}>
-                                {allPhotos.slice(0, 24).map((photo) => {
+                                {allPhotos.map((photo) => {
                                     const scopeLabel = photoScopeName(photo);
                                     return (
                                     <button
@@ -589,13 +685,29 @@ export default function HeadAdminWeeklyAccomplishmentShow({
                                     );
                                 })}
                             </div>
+                            {remainingPhotoCount > 0 && (
+                                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8, marginTop: 12 }}>
+                                    {photosPage.error ? (
+                                        <div style={{ fontSize: 12, color: '#dc2626', textAlign: 'center' }}>{photosPage.error}</div>
+                                    ) : null}
+                                    <ActionButton
+                                        type="button"
+                                        variant="neutral"
+                                        disabled={photosPage.loading}
+                                        onClick={showMorePhotos}
+                                    >
+                                        {photosPage.loading ? 'Loading…' : `Show more (${remainingPhotoCount} more)`}
+                                    </ActionButton>
+                                </div>
+                            )}
+                            </>
                         )
                     )}
 
                     {detailView === 'Reports' && (
                         <div style={{ display: 'grid', gap: 10, fontSize: 13, color: 'var(--ac-text-2, #334155)' }}>
                             <div><strong>{project?.name}</strong> — PM {comparison?.pm_progress ?? '-'}% vs Foreman {comparison?.foreman_progress ?? '-'}% (variance {comparison?.variance ?? '-'}%, {comparison?.status ?? '-'})</div>
-                            <div>{safeBreakdown.length} work items tracked · {safeRows.length} submissions in scope.</div>
+                            <div>{safeBreakdown.length} work items tracked · {pmTotal + foremanTotal} submissions in scope.</div>
                             <div>
                                 <ActionButton type="button" variant="view" onClick={() => window.print()}>
                                     ⤓ Export Report
@@ -755,12 +867,19 @@ export default function HeadAdminWeeklyAccomplishmentShow({
                                 ) : (
                                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: 8 }}>
                                         {(showAllPhotos ? submissionPhotos : submissionPhotos.slice(0, 4)).map((photo) => (
-                                            <OptimizedImage
+                                            <button
                                                 key={photo.id || photo.photo_path}
-                                                src={`/files/${photo.photo_path}`}
-                                                alt={photo.caption || selectedSubmission.scope_of_work || 'Scope photo'}
-                                                style={{ width: '100%', height: 120, objectFit: 'cover', borderRadius: 8, border: '1px solid var(--ac-border, #e8edf3)' }}
-                                            />
+                                                type="button"
+                                                title="Click to preview"
+                                                onClick={() => openPhotoPreview(photo)}
+                                                style={{ position: 'relative', overflow: 'hidden', border: 'none', background: 'transparent', padding: 0, cursor: 'pointer', borderRadius: 8 }}
+                                            >
+                                                <OptimizedImage
+                                                    src={`/files/${photo.photo_path}`}
+                                                    alt={photo.caption || selectedSubmission.scope_of_work || 'Scope photo'}
+                                                    style={{ width: '100%', height: 120, objectFit: 'cover', borderRadius: 8, border: '1px solid var(--ac-border, #e8edf3)', display: 'block' }}
+                                                />
+                                            </button>
                                         ))}
                                     </div>
                                 )}

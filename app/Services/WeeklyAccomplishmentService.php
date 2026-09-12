@@ -21,6 +21,10 @@ class WeeklyAccomplishmentService
 {
     private const ALLOWED_PER_PAGE = [5, 10, 25, 50];
 
+    public const DETAIL_SUBMISSIONS_PER_PAGE = 50;
+
+    public const DETAIL_PHOTOS_PER_PAGE = 21;
+
     public function __construct(
         private readonly WeeklyAccomplishmentRepositoryInterface $weeklyAccomplishmentRepository
     ) {
@@ -624,11 +628,170 @@ class WeeklyAccomplishmentService
      * Detail payload for the standalone Project Detail page
      * (GET /weekly-accomplishments/{project}). Additive only — the index
      * payload and every other page are untouched.
+     *
+     * The submissions table carries page 1 (50/side) plus totals; older
+     * pages load through detailSubmissions(). The photo map stays complete
+     * because the sidebar detail and preview resolve per-scope photos
+     * from it.
      */
     public function detailPayload(Request $request, Project $project): array
     {
         $this->weeklyAccomplishmentRepository->generateSkippedWeeksToCurrent();
 
+        [$timelineRows, $weeklyScopePhotoMap, $rows, $photoTotal] = $this->detailRowsData($project);
+
+        $comparison = $this->buildComparisonPayload($timelineRows, [$project->id]);
+
+        $pmRows = $rows->filter(fn (array $row) => self::isPmDetailRow($row))->values();
+        $foremanRows = $rows->filter(fn (array $row) => ! self::isPmDetailRow($row))->values();
+
+        $latest = $this->latestValuesBySide($rows);
+        $scopeKeys = array_unique(array_merge(array_keys($latest['pm']), array_keys($latest['foreman'])));
+
+        $scopeBreakdown = array_map(function (string $key) use ($latest) {
+            $pmEntry = $latest['pm'][$key] ?? null;
+            $foremanEntry = $latest['foreman'][$key] ?? null;
+            $pm = $pmEntry !== null ? (float) $pmEntry['percent'] : null;
+            $foreman = $foremanEntry !== null ? (float) $foremanEntry['percent'] : null;
+            $variance = ($pm !== null && $foreman !== null) ? round(abs($pm - $foreman), 2) : null;
+
+            return [
+                'scope' => (string) ($pmEntry['scope'] ?? $foremanEntry['scope'] ?? $key),
+                'pm' => $pm,
+                'foreman' => $foreman,
+                'variance' => $variance,
+                'status' => $variance === null
+                    ? 'Pending'
+                    : ($variance <= 5 ? 'On Track' : ($variance <= 10 ? 'Needs Review' : 'Investigate')),
+            ];
+        }, $scopeKeys);
+
+        usort($scopeBreakdown, fn (array $a, array $b) => strcmp($a['scope'], $b['scope']));
+
+        $pmRows = $rows->filter(fn (array $row) => self::isPmDetailRow($row))->values();
+        $foremanRows = $rows->filter(fn (array $row) => ! self::isPmDetailRow($row))->values();
+
+        $isHeadAdminView = in_array($request->user()->role, [User::ROLE_HEAD_ADMIN, User::ROLE_MASTER_ADMIN, User::ROLE_ADMIN], true);
+
+        return [
+            'page' => $isHeadAdminView
+                ? 'HeadAdmin/WeeklyAccomplishments/Show'
+                : 'Admin/WeeklyAccomplishments/Show',
+            'props' => [
+                'project' => [
+                    'id' => (int) $project->id,
+                    'name' => (string) $project->name,
+                    'location' => $project->location ? (string) $project->location : null,
+                    'target' => $project->target ? Carbon::parse($project->target)->toDateString() : null,
+                    'overall_progress' => $project->overall_progress !== null ? (int) $project->overall_progress : null,
+                    'phase' => (string) ($project->phase ?? ''),
+                    'status' => (string) ($project->status ?? ''),
+                ],
+                'comparison' => $comparison['rows'][0] ?? null,
+                'scopeBreakdown' => $scopeBreakdown,
+                'recentPmSubmission' => $pmRows->sortByDesc(fn (array $row) => (string) ($row['submitted_at'] ?? ''))->first(),
+                'recentForemanSubmission' => $foremanRows->sortByDesc(fn (array $row) => (string) ($row['submitted_at'] ?? ''))->first(),
+                'rows' => $pmRows->take(self::DETAIL_SUBMISSIONS_PER_PAGE)
+                    ->merge($foremanRows->take(self::DETAIL_SUBMISSIONS_PER_PAGE))
+                    ->values(),
+                'submissionTotals' => [
+                    'pm' => $pmRows->count(),
+                    'foreman' => $foremanRows->count(),
+                ],
+                'photoTotal' => $photoTotal,
+                'weeklyScopePhotoMap' => $weeklyScopePhotoMap,
+                'workInfoMap' => $comparison['workInfo'],
+            ],
+        ];
+    }
+
+    /**
+     * Server-paginated submissions for one side of the detail page
+     * (GET /weekly-accomplishments/{project}/submissions?side=pm|foreman&page=N).
+     */
+    public function detailSubmissions(Request $request, Project $project): array
+    {
+        $this->ensureAuthorized($request->user());
+
+        $side = strtolower(trim((string) $request->query('side', 'foreman')));
+        if (! in_array($side, ['pm', 'foreman'], true)) {
+            $side = 'foreman';
+        }
+        $page = max(1, (int) $request->query('page', 1));
+
+        [, , $rows] = $this->detailRowsData($project);
+        $filtered = $rows->filter(fn (array $row) => $side === 'pm'
+            ? self::isPmDetailRow($row)
+            : ! self::isPmDetailRow($row))->values();
+
+        $total = $filtered->count();
+        $data = $filtered->forPage($page, self::DETAIL_SUBMISSIONS_PER_PAGE)->values();
+
+        return [
+            'data' => $data->all(),
+            'current_page' => $page,
+            'per_page' => self::DETAIL_SUBMISSIONS_PER_PAGE,
+            'total' => $total,
+            'last_page' => (int) max(1, ceil($total / self::DETAIL_SUBMISSIONS_PER_PAGE)),
+        ];
+    }
+
+    /**
+     * Server-paginated flat progress photos for the detail page
+     * (GET /weekly-accomplishments/{project}/photos?page=N).
+     */
+    public function detailPhotos(Request $request, Project $project): array
+    {
+        $this->ensureAuthorized($request->user());
+
+        $page = max(1, (int) $request->query('page', 1));
+
+        $baseQuery = ScopePhoto::query()
+            ->select([
+                'scope_photos.id',
+                'scope_photos.photo_path',
+                'scope_photos.caption',
+                'scope_photos.created_at',
+                'project_scopes.project_id',
+                'project_scopes.scope_name',
+            ])
+            ->join('project_scopes', 'project_scopes.id', '=', 'scope_photos.project_scope_id')
+            ->where('project_scopes.project_id', $project->id)
+            ->orderByDesc('scope_photos.id');
+
+        $total = (clone $baseQuery)->count();
+        $photos = $baseQuery
+            ->forPage($page, self::DETAIL_PHOTOS_PER_PAGE)
+            ->get()
+            ->map(fn ($photo) => [
+                'id' => (int) $photo->id,
+                'project_id' => (int) ($photo->project_id ?? $project->id),
+                'photo_path' => $photo->photo_path,
+                'caption' => $photo->caption,
+                'created_at' => optional($photo->created_at)?->toDateTimeString(),
+                'week_start' => $this->extractWeekStartFromScopePhoto($photo->caption),
+                'scope_name' => trim((string) ($photo->scope_name ?? '')),
+            ])
+            ->values();
+
+        return [
+            'data' => $photos->all(),
+            'current_page' => $page,
+            'per_page' => self::DETAIL_PHOTOS_PER_PAGE,
+            'total' => $total,
+            'last_page' => (int) max(1, ceil($total / self::DETAIL_PHOTOS_PER_PAGE)),
+        ];
+    }
+
+    /**
+     * Shared rows pipeline for the detail page: mapped timeline rows, the
+     * per-scope photo map, the filtered display rows, and the uncapped
+     * photo total.
+     *
+     * @return array{0: \Illuminate\Support\Collection, 1: array, 2: \Illuminate\Support\Collection, 3: int}
+     */
+    private function detailRowsData(Project $project): array
+    {
         $timelineRows = WeeklyAccomplishment::query()
             ->with('foreman:id,fullname', 'submitter:id,fullname,role', 'project:id,name')
             ->where('project_id', $project->id)
@@ -706,65 +869,19 @@ class WeeklyAccomplishmentService
             })
             ->values();
 
-        $comparison = $this->buildComparisonPayload($timelineRows, [$project->id]);
+        $photoTotal = ScopePhoto::query()
+            ->join('project_scopes', 'project_scopes.id', '=', 'scope_photos.project_scope_id')
+            ->where('project_scopes.project_id', $project->id)
+            ->count();
 
-        $isPmRow = static function (array $row): bool {
-            $role = strtolower(trim((string) ($row['submitted_by_role'] ?? '')));
+        return [$timelineRows, $weeklyScopePhotoMap, $rows, $photoTotal];
+    }
 
-            return $role === 'project manager' || $role === 'project_manager';
-        };
+    private static function isPmDetailRow(array $row): bool
+    {
+        $role = strtolower(trim((string) ($row['submitted_by_role'] ?? '')));
 
-        $latest = $this->latestValuesBySide($rows);
-        $scopeKeys = array_unique(array_merge(array_keys($latest['pm']), array_keys($latest['foreman'])));
-
-        $scopeBreakdown = array_map(function (string $key) use ($latest) {
-            $pmEntry = $latest['pm'][$key] ?? null;
-            $foremanEntry = $latest['foreman'][$key] ?? null;
-            $pm = $pmEntry !== null ? (float) $pmEntry['percent'] : null;
-            $foreman = $foremanEntry !== null ? (float) $foremanEntry['percent'] : null;
-            $variance = ($pm !== null && $foreman !== null) ? round(abs($pm - $foreman), 2) : null;
-
-            return [
-                'scope' => (string) ($pmEntry['scope'] ?? $foremanEntry['scope'] ?? $key),
-                'pm' => $pm,
-                'foreman' => $foreman,
-                'variance' => $variance,
-                'status' => $variance === null
-                    ? 'Pending'
-                    : ($variance <= 5 ? 'On Track' : ($variance <= 10 ? 'Needs Review' : 'Investigate')),
-            ];
-        }, $scopeKeys);
-
-        usort($scopeBreakdown, fn (array $a, array $b) => strcmp($a['scope'], $b['scope']));
-
-        $pmRows = $rows->filter(fn (array $row) => $isPmRow($row))->values();
-        $foremanRows = $rows->filter(fn (array $row) => ! $isPmRow($row))->values();
-
-        $isHeadAdminView = in_array($request->user()->role, [User::ROLE_HEAD_ADMIN, User::ROLE_MASTER_ADMIN, User::ROLE_ADMIN], true);
-
-        return [
-            'page' => $isHeadAdminView
-                ? 'HeadAdmin/WeeklyAccomplishments/Show'
-                : 'Admin/WeeklyAccomplishments/Show',
-            'props' => [
-                'project' => [
-                    'id' => (int) $project->id,
-                    'name' => (string) $project->name,
-                    'location' => $project->location ? (string) $project->location : null,
-                    'target' => $project->target ? Carbon::parse($project->target)->toDateString() : null,
-                    'overall_progress' => $project->overall_progress !== null ? (int) $project->overall_progress : null,
-                    'phase' => (string) ($project->phase ?? ''),
-                    'status' => (string) ($project->status ?? ''),
-                ],
-                'comparison' => $comparison['rows'][0] ?? null,
-                'scopeBreakdown' => $scopeBreakdown,
-                'recentPmSubmission' => $pmRows->sortByDesc(fn (array $row) => (string) ($row['submitted_at'] ?? ''))->first(),
-                'recentForemanSubmission' => $foremanRows->sortByDesc(fn (array $row) => (string) ($row['submitted_at'] ?? ''))->first(),
-                'rows' => $rows->values(),
-                'weeklyScopePhotoMap' => $weeklyScopePhotoMap,
-                'workInfoMap' => $comparison['workInfo'],
-            ],
-        ];
+        return $role === 'project manager' || $role === 'project_manager';
     }
 
     private function mapDetailRow(WeeklyAccomplishment $row): array

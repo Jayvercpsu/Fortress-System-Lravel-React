@@ -152,6 +152,106 @@ class WeeklyAccomplishmentComparisonTest extends TestCase
         }
     }
 
+    public function test_detail_submissions_paginate_pm_side_by_fifty(): void
+    {
+        $headAdmin = $this->makeUser('head_admin');
+        $projectManager = $this->makeUser('project_manager');
+        $foreman = $this->makeUser('foreman');
+        $project = $this->makeProject('Paged Residences', $headAdmin->id);
+        $this->seedScope($project, 'Column Footing');
+
+        for ($i = 0; $i < 55; $i++) {
+            WeeklyAccomplishment::create([
+                'foreman_id' => $foreman->id,
+                'submitted_by' => $projectManager->id,
+                'project_id' => $project->id,
+                'scope_of_work' => 'Column Footing',
+                'percent_completed' => 10 + ($i % 80),
+                'week_start' => '2026-08-17',
+            ]);
+        }
+
+        // Page 1 ships inside the detail payload with server totals.
+        $this->actingAs($headAdmin)
+            ->get('/weekly-accomplishments/' . $project->id)
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page
+                ->component('HeadAdmin/WeeklyAccomplishments/Show')
+                ->where('submissionTotals.pm', 55)
+                ->where('submissionTotals.foreman', 0)
+                ->has('rows', 50));
+
+        // Older pages load through the JSON endpoint, 50 per page.
+        $this->actingAs($headAdmin)
+            ->getJson('/weekly-accomplishments/' . $project->id . '/submissions?side=pm&page=1')
+            ->assertOk()
+            ->assertJsonPath('total', 55)
+            ->assertJsonPath('per_page', 50)
+            ->assertJsonPath('last_page', 2)
+            ->assertJsonCount(50, 'data');
+
+        $this->actingAs($headAdmin)
+            ->getJson('/weekly-accomplishments/' . $project->id . '/submissions?side=pm&page=2')
+            ->assertOk()
+            ->assertJsonPath('current_page', 2)
+            ->assertJsonCount(5, 'data');
+
+        $this->actingAs($headAdmin)
+            ->getJson('/weekly-accomplishments/' . $project->id . '/submissions?side=foreman')
+            ->assertOk()
+            ->assertJsonPath('total', 0)
+            ->assertJsonCount(0, 'data');
+    }
+
+    public function test_detail_photos_paginate_by_twenty_one(): void
+    {
+        $headAdmin = $this->makeUser('head_admin');
+        $project = $this->makeProject('Photo Residences', $headAdmin->id);
+        $this->seedScope($project, 'Column Footing');
+        $scopeId = ProjectScope::where('project_id', $project->id)->value('id');
+
+        for ($i = 0; $i < 25; $i++) {
+            ScopePhoto::create([
+                'project_scope_id' => $scopeId,
+                'photo_path' => "photos/paged-{$i}.jpg",
+                'caption' => 'Progress photo',
+            ]);
+        }
+
+        $this->actingAs($headAdmin)
+            ->get('/weekly-accomplishments/' . $project->id)
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page
+                ->where('photoTotal', 25));
+
+        $this->actingAs($headAdmin)
+            ->getJson('/weekly-accomplishments/' . $project->id . '/photos?page=1')
+            ->assertOk()
+            ->assertJsonPath('total', 25)
+            ->assertJsonPath('per_page', 21)
+            ->assertJsonPath('last_page', 2)
+            ->assertJsonCount(21, 'data');
+
+        $this->actingAs($headAdmin)
+            ->getJson('/weekly-accomplishments/' . $project->id . '/photos?page=2')
+            ->assertOk()
+            ->assertJsonCount(4, 'data');
+    }
+
+    public function test_detail_paging_endpoints_forbid_foreman(): void
+    {
+        $foreman = $this->makeUser('foreman');
+        $project = $this->makeProject('Paged Residences', null);
+
+        $this->actingAs($foreman)
+            ->getJson('/weekly-accomplishments/' . $project->id . '/submissions?side=pm')
+            ->assertForbidden();
+
+        $this->actingAs($foreman)
+            ->getJson('/weekly-accomplishments/' . $project->id . '/photos')
+            ->assertForbidden();
+    }
+
     public function test_detail_page_forbidden_for_foreman(): void
     {
         $headAdmin = $this->makeUser('head_admin');

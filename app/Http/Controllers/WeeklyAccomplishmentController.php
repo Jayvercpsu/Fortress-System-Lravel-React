@@ -29,4 +29,18 @@ class WeeklyAccomplishmentController extends Controller
 
         return Inertia::render($payload['page'], $payload['props']);
     }
+
+    public function submissions(Request $request, Project $project)
+    {
+        return response()->json(
+            $this->weeklyAccomplishmentService->detailSubmissions($request, $project)
+        );
+    }
+
+    public function photos(Request $request, Project $project)
+    {
+        return response()->json(
+            $this->weeklyAccomplishmentService->detailPhotos($request, $project)
+        );
+    }
 }

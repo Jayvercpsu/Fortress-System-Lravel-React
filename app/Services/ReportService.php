@@ -6,6 +6,7 @@ use App\Models\Attendance;
 use App\Models\Payroll;
 use App\Models\Project;
 use App\Models\User;
+use App\Repositories\Contracts\ProjectRepositoryInterface;
 use App\Repositories\Contracts\ReportRepositoryInterface;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
@@ -14,7 +15,8 @@ use Illuminate\Support\Collection;
 class ReportService
 {
     public function __construct(
-        private readonly ReportRepositoryInterface $reportRepository
+        private readonly ReportRepositoryInterface $reportRepository,
+        private readonly ProjectRepositoryInterface $projectRepository
     ) {
     }
 
@@ -99,7 +101,14 @@ class ReportService
         $scopeAggregates = $this->reportRepository->scopeAggregatesByProject()
             ->keyBy(fn ($row) => (int) $row->project_id);
 
-        $rows = $projects->map(function (Project $project) use ($expenseByProject, $allocatedPayrollByProject, $scopeAggregates) {
+        // Same computation as the web /projects kanban (ProjectRepository::
+        // weightedProgressByProjectIds): per-row rounded weighted sum,
+        // clamped to 0-100.
+        $weightedByProject = $this->projectRepository->weightedProgressByProjectIds(
+            $projects->map(fn (Project $project) => (int) $project->id)->all()
+        );
+
+        $rows = $projects->map(function (Project $project) use ($expenseByProject, $allocatedPayrollByProject, $scopeAggregates, $weightedByProject) {
             $projectId = (int) $project->id;
             $contractAmount = round((float) $project->contract_amount, 2);
             $collectedAmount = round((float) $project->total_client_payment, 2);
@@ -111,7 +120,7 @@ class ReportService
             $profitContractBasis = round($contractAmount - $totalCost, 2);
             $scopeInfo = $scopeAggregates->get($projectId);
             $scopeContractTotal = round((float) ($scopeInfo->total_scope_contract ?? 0), 2);
-            $weightedProgressPct = $scopeInfo ? round((float) ($scopeInfo->weighted_progress ?? 0), 2) : 0.0;
+            $weightedProgressPct = round(max(0, min(100, (float) ($weightedByProject[$projectId] ?? 0))), 2);
             $computedAmount = round((float) ($scopeInfo->accomplished_amount ?? 0), 2);
 
             return [

@@ -186,6 +186,8 @@ Route::middleware(['auth', 'role:head_admin,admin,designer'])->group(function ()
     Route::post('/weekly-accomplishments/submissions/{submission}/comments', [AccomplishmentCommentController::class, 'store'])->name('weekly-accomplishments.submissions.comments.store');
     Route::put('/weekly-accomplishments/submissions/{submission}/comments/{comment}', [AccomplishmentCommentController::class, 'update'])->name('weekly-accomplishments.submissions.comments.update');
     Route::delete('/weekly-accomplishments/submissions/{submission}/comments/{comment}', [AccomplishmentCommentController::class, 'destroy'])->name('weekly-accomplishments.submissions.comments.destroy');
+    Route::get('/weekly-accomplishments/{project}/submissions', [WeeklyAccomplishmentController::class, 'submissions'])->name('weekly-accomplishments.submissions.index');
+    Route::get('/weekly-accomplishments/{project}/photos', [WeeklyAccomplishmentController::class, 'photos'])->name('weekly-accomplishments.photos.index');
     Route::get('/weekly-accomplishments/{project}', [WeeklyAccomplishmentController::class, 'show'])->name('weekly-accomplishments.show');
     Route::get('/materials', [MaterialRequestController::class, 'index'])->name('materials.index');
     Route::patch('/materials/{materialRequest}/status', [MaterialRequestController::class, 'updateStatus'])->name('materials.status');
