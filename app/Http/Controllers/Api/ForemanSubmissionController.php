@@ -359,43 +359,17 @@ class ForemanSubmissionController extends Controller
         $weekStart = Carbon::parse($selectedWeekStart, 'Asia/Manila');
 
         foreach ($attendanceEntries as $entry) {
-            $deleteDates = [];
             foreach (Attendance::DAY_KEYS as $dayKey) {
                 $status = $entry['days'][$dayKey] ?? '';
                 $date = $weekStart->copy()->addDays(Attendance::DAY_OFFSETS[$dayKey])->toDateString();
-                if ($status === '') {
-                    $deleteDates[] = $date;
-                    continue;
-                }
-
-                $hours = (float) (Attendance::STATUS_HOURS[$status] ?? 0);
-
-                Attendance::updateOrCreate(
-                    [
-                        'foreman_id' => $user->id,
-                        'project_id' => $project->id,
-                        'worker_name' => $entry['worker_name'],
-                        'worker_role' => $entry['worker_role'],
-                        'date' => $date,
-                    ],
-                    [
-                        'hours' => $hours,
-                        'attendance_code' => $status,
-                        'time_in' => null,
-                        'time_out' => null,
-                        'selfie_path' => null,
-                    ]
+                Attendance::recordDay(
+                    (int) $user->id,
+                    (int) $project->id,
+                    $entry['worker_name'],
+                    $entry['worker_role'],
+                    $date,
+                    $status
                 );
-            }
-
-            if (!empty($deleteDates)) {
-                Attendance::query()
-                    ->where('foreman_id', $user->id)
-                    ->where('project_id', $project->id)
-                    ->where('worker_name', $entry['worker_name'])
-                    ->where('worker_role', $entry['worker_role'])
-                    ->whereIn('date', $deleteDates)
-                    ->delete();
             }
         }
 
@@ -418,6 +392,7 @@ class ForemanSubmissionController extends Controller
 
         foreach ($normalizedNames as $workerName) {
             $worker = Worker::query()
+                ->withTrashed()
                 ->where('foreman_id', $user->id)
                 ->whereRaw('LOWER(name) = ?', [Str::lower($workerName)])
                 ->first();
@@ -429,6 +404,11 @@ class ForemanSubmissionController extends Controller
                     'name' => $workerName,
                 ]);
                 continue;
+            }
+
+            // A worker deleted in HR comes back instead of duplicating.
+            if ($worker->trashed()) {
+                $worker->restore();
             }
 
             if ($worker->project_id === null) {

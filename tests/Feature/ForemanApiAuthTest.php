@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Models\Project;
 use App\Models\ProjectAssignment;
 use App\Models\User;
+use Carbon\Carbon;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
 use Tests\TestCase;
@@ -113,6 +114,126 @@ class ForemanApiAuthTest extends TestCase
             'Authorization' => 'Bearer '.$token,
         ])->assertOk()
             ->assertJsonCount(1, 'projects');
+    }
+
+    public function test_foreman_projects_use_weighted_overall_progress_like_web(): void
+    {
+        $foreman = User::create([
+            'fullname' => 'Weighted Foreman',
+            'email' => 'api.foreman.weighted@example.test',
+            'password' => Hash::make('password123'),
+            'role' => User::ROLE_FOREMAN,
+        ]);
+
+        // Stored column holds a stale simple average (90); the weighted
+        // computation from /projects must win, unrounded: 15*25/100 = 3.75.
+        $project = Project::create([
+            'name' => 'Weighted API Project',
+            'client' => 'API Client',
+            'type' => 'Residential',
+            'location' => 'Cebu City',
+            'status' => 'ONGOING',
+            'phase' => 'CONSTRUCTION',
+            'overall_progress' => 90,
+        ]);
+
+        ProjectAssignment::create([
+            'project_id' => $project->id,
+            'user_id' => $foreman->id,
+            'role_in_project' => 'foreman',
+        ]);
+
+        \App\Models\ProjectScope::create([
+            'project_id' => $project->id,
+            'scope_name' => 'Weighted Scope A',
+            'progress_percent' => 25,
+            'status' => 'IN_PROGRESS',
+            'assigned_personnel' => 'Weighted Foreman',
+            'weight_percent' => 15,
+        ]);
+
+        $token = $this->postJson('/api/foreman/login', [
+            'email' => 'api.foreman.weighted@example.test',
+            'password' => 'password123',
+        ])->json('token');
+
+        $this->getJson('/api/foreman/projects', [
+            'Authorization' => 'Bearer '.$token,
+        ])->assertOk()
+            ->assertJsonPath('projects.0.overall_progress', 3.75)
+            ->assertJsonPath('projects.0.location', 'Cebu City');
+    }
+
+    public function test_mobile_attendance_collapses_variant_roles_like_web(): void
+    {
+        $foreman = User::create([
+            'fullname' => 'Attendance Foreman',
+            'email' => 'api.foreman.attendance@example.test',
+            'password' => Hash::make('password123'),
+            'role' => User::ROLE_FOREMAN,
+        ]);
+
+        $project = Project::create([
+            'name' => 'Attendance API Project',
+            'client' => 'API Client',
+            'type' => 'Residential',
+            'location' => 'Antipolo City',
+            'status' => 'ONGOING',
+            'phase' => 'CONSTRUCTION',
+            'overall_progress' => 0,
+        ]);
+
+        ProjectAssignment::create([
+            'project_id' => $project->id,
+            'user_id' => $foreman->id,
+            'role_in_project' => 'foreman',
+        ]);
+
+        \App\Models\Worker::create([
+            'foreman_id' => $foreman->id,
+            'project_id' => $project->id,
+            'name' => 'Dup Worker',
+            'job_type' => 'Mason',
+        ]);
+
+        $monday = Carbon::now('Asia/Manila')->startOfWeek(Carbon::MONDAY);
+        $tuesday = $monday->copy()->addDay();
+
+        // Same worker saved under two different roles (e.g. AI-extracted
+        // position vs registered job type): the payload must collapse them
+        // into one row with the registered role, like the web jotform.
+        \App\Models\Attendance::create([
+            'foreman_id' => $foreman->id,
+            'project_id' => $project->id,
+            'worker_name' => 'Dup Worker',
+            'worker_role' => 'Field',
+            'date' => $monday->toDateString(),
+            'hours' => 8,
+            'attendance_code' => 'P',
+        ]);
+        \App\Models\Attendance::create([
+            'foreman_id' => $foreman->id,
+            'project_id' => $project->id,
+            'worker_name' => 'Dup Worker',
+            'worker_role' => 'Mason',
+            'date' => $tuesday->toDateString(),
+            'hours' => 8,
+            'attendance_code' => 'P',
+        ]);
+
+        $token = $this->postJson('/api/foreman/login', [
+            'email' => 'api.foreman.attendance@example.test',
+            'password' => 'password123',
+        ])->json('token');
+
+        $this->getJson("/api/foreman/projects/{$project->id}/jotform", [
+            'Authorization' => 'Bearer '.$token,
+        ])->assertOk()
+            ->assertJsonPath('attendance_saved_by_week.'.$monday->toDateString().'.0.worker_name', 'Dup Worker')
+            ->assertJsonPath('attendance_saved_by_week.'.$monday->toDateString().'.0.worker_role', 'Mason')
+            ->assertJsonPath('attendance_saved_by_week.'.$monday->toDateString().'.0.days.mon', 'P')
+            ->assertJsonPath('attendance_saved_by_week.'.$monday->toDateString().'.0.days.tue', 'P')
+            ->assertJsonCount(1, 'attendance_saved_by_week.'.$monday->toDateString());
     }
 
     public function test_foreman_api_rejects_missing_or_invalid_token(): void
@@ -621,9 +742,8 @@ class ForemanApiAuthTest extends TestCase
         $this->getJson("/api/foreman/projects/{$project->id}/jotform", [
             'Authorization' => 'Bearer '.$token,
         ])->assertOk()
-            ->assertJsonCount(2, 'scopes')
+            ->assertJsonCount(1, 'scopes')
             ->assertJsonPath('scopes.0.scope_name', 'Assigned Scope')
-            ->assertJsonPath('scopes.1.scope_name', 'Unassigned Scope')
             ->assertJsonPath('weekly_scope_defaults_enabled', false);
     }
 
@@ -762,6 +882,44 @@ class ForemanApiAuthTest extends TestCase
         $this->assertSame(
             'submitted',
             \App\Models\ProcessedRecord::find($record->id)->status
+        );
+    }
+
+    public function test_ai_edit_updates_own_record_and_enforces_ownership(): void
+    {
+        $owner = $this->makeAiForeman('api.foreman.ai.edit@example.test');
+        $other = $this->makeAiForeman('api.foreman.ai.edit.other@example.test');
+        $project = $this->makeAiProject();
+
+        $record = \App\Models\ProcessedRecord::create([
+            'project_id' => $project->id,
+            'user_id' => $owner->id,
+            'record_type' => 'attendance',
+            'status' => 'pending',
+            'ai_parsed_data' => ['workers' => [['name' => 'Old Name']]],
+        ]);
+
+        $ownerToken = $this->aiLogin('api.foreman.ai.edit@example.test');
+        $otherToken = $this->aiLogin('api.foreman.ai.edit.other@example.test');
+
+        $this->putJson("/api/foreman/ai-attendance/records/{$record->id}/edit", [
+            'ai_parsed_data' => ['workers' => [['name' => 'Hacker']]],
+        ], [
+            'Authorization' => 'Bearer '.$otherToken,
+            'Accept' => 'application/json',
+        ])->assertNotFound();
+
+        $this->putJson("/api/foreman/ai-attendance/records/{$record->id}/edit", [
+            'ai_parsed_data' => ['workers' => [['name' => 'New Name']]],
+        ], [
+            'Authorization' => 'Bearer '.$ownerToken,
+            'Accept' => 'application/json',
+        ])->assertOk()
+            ->assertJsonPath('record.id', $record->id);
+
+        $this->assertSame(
+            'New Name',
+            \App\Models\ProcessedRecord::find($record->id)->ai_parsed_data['workers'][0]['name']
         );
     }
 

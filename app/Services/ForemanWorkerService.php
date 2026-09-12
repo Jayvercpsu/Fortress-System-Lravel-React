@@ -84,6 +84,22 @@ class ForemanWorkerService
         $this->assertProjectAllowed((int) $validated['project_id'], $allowedProjectIds);
         $this->assertUniqueWorkerName((int) $foreman->id, (string) ($validated['name'] ?? ''));
 
+        // Re-adding a deleted worker restores it instead of duplicating.
+        $trashed = \App\Models\Worker::onlyTrashed()
+            ->where('foreman_id', (int) $foreman->id)
+            ->whereRaw('LOWER(name) = ?', [mb_strtolower(trim((string) ($validated['name'] ?? '')))])
+            ->first();
+
+        if ($trashed) {
+            $trashed->restore();
+            $this->foremanWorkerRepository->updateWorker($trashed, [
+                'foreman_id' => $foreman->id,
+                ...$validated,
+            ]);
+
+            return;
+        }
+
         $this->foremanWorkerRepository->createWorker([
             'foreman_id' => $foreman->id,
             ...$validated,

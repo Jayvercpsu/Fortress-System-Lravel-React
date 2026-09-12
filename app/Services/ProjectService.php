@@ -6,9 +6,12 @@ use App\Enums\ProjectStatus;
 use App\Models\DesignProject;
 use App\Models\Project;
 use App\Models\ProjectAssignment;
+use App\Models\ProjectScope;
 use App\Models\ProjectWorker;
 use App\Models\User;
 use App\Models\Worker;
+use App\Models\WeeklyAccomplishment;
+use App\Repositories\Contracts\BuildRepositoryInterface;
 use App\Repositories\Contracts\ProjectRepositoryInterface;
 use App\Support\DesignComputation;
 use App\Support\Projects\ProjectFlow;
@@ -23,7 +26,8 @@ class ProjectService
     private const ALLOWED_PER_PAGE = [5, 10, 25, 50];
 
     public function __construct(
-        private readonly ProjectRepositoryInterface $projectRepository
+        private readonly ProjectRepositoryInterface $projectRepository,
+        private readonly BuildRepositoryInterface $buildRepository
     ) {
     }
 
@@ -38,8 +42,31 @@ class ProjectService
         $project = $this->projectRepository->createProject($validated);
         $this->projectRepository->syncLegacyForemanAssignments($project);
         $this->syncClientAssignmentFromProject($project->fresh());
+        $this->seedInitialScopes($project->fresh());
 
         return $project;
+    }
+
+    /**
+     * Guarantee the weekly-grid invariant from day one: a Construction
+     * project starts with the full default scope list, each assigned to
+     * the initially-assigned foreman, so assigned scopes are permanently
+     * displayed (edited or not) and never vanish after the first submit.
+     */
+    private function seedInitialScopes(Project $project): void
+    {
+        if ($project->phase !== Project::PHASE_CONSTRUCTION) {
+            return;
+        }
+
+        if (ProjectScope::query()->where('project_id', $project->id)->exists()) {
+            return;
+        }
+
+        $this->buildRepository->insertDefaultScopes(
+            $project,
+            WeeklyAccomplishment::defaultScopeOfWorks()
+        );
     }
 
     public function foremanOptionsPayload(): array

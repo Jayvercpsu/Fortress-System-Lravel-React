@@ -96,6 +96,8 @@ export default function ProjectManagerAccomplishments({
     };
 
     // ---- Weekly grid (same resolution logic as the JotForm page) ----
+    // Rule: a scope assigned to the foreman is permanently displayed
+    // (edited or not, even at 0%). Unassigned scopes are never listed.
     const assignedScopes = Array.isArray(weekly?.weekly_scope_of_works) ? weekly.weekly_scope_of_works : [];
     const baseWeeklyScopes = assignedScopes.length ? assignedScopes : [];
     const weeklyScopePhotoMap = collection(weekly?.weekly_scope_photo_map);

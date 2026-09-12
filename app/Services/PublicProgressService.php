@@ -377,6 +377,24 @@ class PublicProgressService
             ])
             ->all();
 
+        // Names of workers deleted in HR (soft-deleted) with NO active
+        // record left: their leftover attendance rows are hidden from the
+        // grids. A name that still has an active worker record keeps
+        // showing (e.g. an older duplicate), so edits keep persisting.
+        $deletedWorkerNames = array_values(array_diff(
+            Worker::onlyTrashed()
+                ->where('foreman_id', $submitToken->foreman_id)
+                ->where(function ($query) use ($submitToken) {
+                    $query->whereNull('project_id')->orWhere('project_id', $submitToken->project_id);
+                })
+                ->pluck('name')
+                ->map(fn ($name) => Str::lower(trim((string) $name)))
+                ->filter(fn (string $name) => $name !== '')
+                ->values()
+                ->all(),
+            array_keys($workerRoleLookup)
+        ));
+
         $workers = $workerRows
             ->map(fn (Worker $worker) => [
                 'id' => $worker->id,
@@ -472,11 +490,17 @@ class PublicProgressService
             ->groupBy(function (Attendance $attendance) {
                 return Carbon::parse($attendance->date)->startOfWeek(Carbon::MONDAY)->toDateString();
             })
-            ->map(function ($weekRows) use ($workerRoleLookup) {
+            ->map(function ($weekRows) use ($workerRoleLookup, $deletedWorkerNames) {
                 $workers = [];
                 foreach ($weekRows as $row) {
                     $workerName = trim((string) $row->worker_name);
                     if ($workerName === '') {
+                        continue;
+                    }
+
+                    // Workers deleted in HR stay out of every attendance
+                    // grid (history rows themselves are kept).
+                    if (in_array(Str::lower($workerName), $deletedWorkerNames, true)) {
                         continue;
                     }
 
@@ -921,43 +945,17 @@ class PublicProgressService
             $weekStart = Carbon::parse($selectedWeekStart, 'Asia/Manila');
 
             foreach ($attendanceEntries as $entry) {
-                $deleteDates = [];
                 foreach (Attendance::DAY_KEYS as $dayKey) {
                     $status = $entry['days'][$dayKey] ?? '';
                     $date = $weekStart->copy()->addDays(Attendance::DAY_OFFSETS[$dayKey])->toDateString();
-                    if ($status === '') {
-                        $deleteDates[] = $date;
-                        continue;
-                    }
-
-                    $hours = (float) (Attendance::STATUS_HOURS[$status] ?? 0);
-
-                    $this->foremanProgressRepository->attendances()->updateOrCreate(
-                        [
-                            'foreman_id' => $submitToken->foreman_id,
-                            'project_id' => $submitToken->project_id,
-                            'worker_name' => $entry['worker_name'],
-                            'worker_role' => $entry['worker_role'],
-                            'date' => $date,
-                        ],
-                        [
-                            'hours' => $hours,
-                            'attendance_code' => $status,
-                            'time_in' => null,
-                            'time_out' => null,
-                            'selfie_path' => null,
-                        ]
+                    Attendance::recordDay(
+                        (int) $submitToken->foreman_id,
+                        (int) $submitToken->project_id,
+                        $entry['worker_name'],
+                        $entry['worker_role'],
+                        $date,
+                        $status
                     );
-                }
-
-                if (!empty($deleteDates)) {
-                    $this->foremanProgressRepository->attendances()
-                        ->where('foreman_id', $submitToken->foreman_id)
-                        ->where('project_id', $submitToken->project_id)
-                        ->where('worker_name', $entry['worker_name'])
-                        ->where('worker_role', $entry['worker_role'])
-                        ->whereIn('date', $deleteDates)
-                        ->delete();
                 }
             }
 
@@ -1923,6 +1921,7 @@ class PublicProgressService
 
         foreach ($normalizedNames as $workerName) {
             $worker = $this->foremanProgressRepository->workers()
+                ->withTrashed()
                 ->where('foreman_id', $submitToken->foreman_id)
                 ->whereRaw('LOWER(name) = ?', [Str::lower($workerName)])
                 ->first();
@@ -1934,6 +1933,11 @@ class PublicProgressService
                     'name' => $workerName,
                 ]);
                 continue;
+            }
+
+            // A worker deleted in HR comes back instead of duplicating.
+            if ($worker->trashed()) {
+                $worker->restore();
             }
 
             if ($worker->project_id === null) {

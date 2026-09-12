@@ -177,17 +177,13 @@ export default function ProgressSubmit({ submitToken }) {
     const lockedFormStyle = projectLocked ? { pointerEvents: 'none', opacity: 0.6 } : undefined;
     const workers = Array.isArray(submitToken?.workers) ? submitToken.workers : [];
     const assignedScopes = Array.isArray(submitToken?.weekly_scope_of_works) ? submitToken.weekly_scope_of_works : [];
-    const allProjectScopes = Array.isArray(submitToken?.weekly_scope_all) ? submitToken.weekly_scope_all : [];
     const defaultScopeFallbackEnabled = !!submitToken?.weekly_scope_defaults_enabled;
     const fallbackScopes = defaultScopeFallbackEnabled ? SCOPES : [];
-    // A foreman assigned to at least one scope sees every project scope so
-    // unedited scopes stay visible; scopes assigned to other foremen are
-    // read-only. With no assignment at all, fall back as before.
-    // Always use allProjectScopes when available; fall back to assignedScopes
-    // only when there are no project scopes at all.
-    const baseWeeklyScopes = allProjectScopes.length
-        ? allProjectScopes
-        : (assignedScopes.length ? assignedScopes : fallbackScopes);
+    // Rule: a scope assigned to this foreman is permanently displayed in
+    // the weekly grid (edited or not, even at 0%). Scopes not assigned to
+    // this foreman are never listed. Fallbacks apply only when the project
+    // has no scopes at all.
+    const baseWeeklyScopes = assignedScopes.length ? assignedScopes : fallbackScopes;
     const assignedWeeklyScopeKeys = useMemo(() => new Set(
         assignedScopes
             .map((scope) => String(scope || '').trim().toLowerCase())
@@ -391,12 +387,14 @@ export default function ProgressSubmit({ submitToken }) {
         ];
     }, [attendanceWeekDrafts, attendanceWeekKey, defaultAttendanceRows, attendanceWorkerPool, foremanAttendanceId]);
     const weeklyRowsRaw = weeklyWeekDrafts[weeklyWeekKey] ?? defaultWeeklyRowsForWeek;
-    // Scopes assigned to other foremen stay visible but read-only, so they
-    // never disappear from the grid. Manually added rows stay editable.
+    // Scopes outside the foreman's assignment stay visible but read-only.
+    // Manually added rows stay editable. When nothing is assigned yet
+    // (e.g. the fallback list on a project with no scopes), rows stay
+    // editable so the foreman can claim them by submitting.
     const weeklyRows = useMemo(() => (weeklyRowsRaw || []).map((row) => {
         if (row?.is_manual) return row;
         const key = String(row?.scope_of_work || '').trim().toLowerCase();
-        if (key === '' || assignedWeeklyScopeKeys.has(key)) return row;
+        if (key === '' || assignedWeeklyScopeKeys.size === 0 || assignedWeeklyScopeKeys.has(key)) return row;
         return { ...row, is_unassigned: true };
     }), [weeklyRowsRaw, assignedWeeklyScopeKeys]);
 

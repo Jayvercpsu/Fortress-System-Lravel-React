@@ -391,7 +391,10 @@ class ProjectManagerService
             $weekStart,
             $validated['scopes'] ?? [],
             $validated['removed_scopes'] ?? [],
-            true,
+            // No assignment restriction: the manager records progress on
+            // behalf of the foreman, so every submitted scope must persist
+            // instead of being silently dropped.
+            false,
             (int) $request->user()->id
         );
     }
@@ -403,6 +406,7 @@ class ProjectManagerService
                 ->startOfWeek(Carbon::MONDAY)
                 ->toDateString(),
             'weekly_scope_of_works' => [],
+            'weekly_scope_all' => [],
             'weekly_scope_of_works_by_week' => [],
             'weekly_scope_defaults_enabled' => false,
             'weekly_scope_photo_map' => [],

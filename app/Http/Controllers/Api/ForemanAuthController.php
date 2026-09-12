@@ -209,6 +209,27 @@ class ForemanAuthController extends Controller
         return app(ProcessedRecordController::class)->reject($record);
     }
 
+    public function editAiRecord(Request $request, ProcessedRecord $record)
+    {
+        if ((int) $record->user_id !== (int) $request->user()->id) {
+            return response()->json(['message' => 'Record not found.'], 404);
+        }
+
+        $request->validate([
+            'ai_parsed_data' => 'required|array',
+        ]);
+
+        $record->update([
+            'ai_parsed_data' => $request->ai_parsed_data,
+        ]);
+
+        $record->load(['user:id,fullname', 'project:id,name']);
+
+        return response()->json([
+            'record' => $record,
+        ]);
+    }
+
     public function jotform(Request $request, Project $project)
     {
         $user = $request->user();
@@ -256,9 +277,6 @@ class ForemanAuthController extends Controller
             return $personnel->contains($normalizedForemanName);
         };
 
-        // Same rule as the web jotform: a foreman with at least one assigned
-        // scope sees every project scope (others read-only) so unedited
-        // scopes never disappear from the grid.
         $mapScope = fn (ProjectScope $scope) => [
             'id' => $scope->id,
             'scope_name' => $scope->scope_name,
@@ -266,21 +284,24 @@ class ForemanAuthController extends Controller
             'status' => $scope->status,
         ];
 
-        $allScopes = $projectScopeRows->map($mapScope)->values();
-
-        $assignedScopeNames = $projectScopeRows
+        // Rule: a scope assigned to this foreman is permanently listed in
+        // the weekly grid (edited or not, even at 0%). Scopes not assigned
+        // to this foreman are never listed. Only projects with no scopes
+        // at all return an empty list (fallback applies client-side).
+        $scopes = $projectScopeRows
             ->filter($scopeAssignedToForeman)
-            ->map(fn (ProjectScope $scope) => trim((string) ($scope->scope_name ?? '')))
+            ->map($mapScope)
+            ->values();
+
+        $assignedScopeNames = $scopes
+            ->map(fn (array $scope) => trim((string) ($scope['scope_name'] ?? '')))
             ->filter(fn (string $name) => $name !== '')
             ->unique(fn (string $name) => Str::lower($name))
             ->values()
             ->all();
 
-        $scopes = $assignedScopeNames !== [] ? $allScopes : collect();
-
         // Same as the web jotform: when the project has no scopes at all,
-        // the default scope list applies; otherwise an unassigned foreman
-        // sees no scopes.
+        // the default scope list applies.
         $weeklyScopeDefaultsEnabled = $projectScopeRows->isEmpty();
 
         $attendanceCurrentWeek = $this->attendanceWeekPayload($user->id, $project->id, $weekStart);
@@ -402,6 +423,39 @@ class ForemanAuthController extends Controller
             ->orderBy('worker_name')
             ->get(['worker_name', 'worker_role', 'date', 'hours', 'attendance_code']);
 
+        // Same as the web jotform: remap every saved row to the worker's
+        // registered role so history rows saved under variant roles
+        // (e.g. AI-extracted positions) collapse into one row per worker
+        // instead of showing duplicates.
+        $workerRoleLookup = Worker::query()
+            ->where('foreman_id', $foremanId)
+            ->where(function ($query) use ($projectId) {
+                $query->whereNull('project_id')->orWhere('project_id', $projectId);
+            })
+            ->get(['name', 'job_type'])
+            ->mapWithKeys(fn (Worker $worker) => [
+                Str::lower(trim((string) $worker->name)) => trim((string) ($worker->job_type ?: Worker::JOB_TYPE_WORKER)) ?: Worker::JOB_TYPE_WORKER,
+            ])
+            ->all();
+
+        // Names of workers deleted in HR (soft-deleted) with NO active
+        // record left: their leftover attendance rows are hidden from the
+        // grid (history kept). A name that still has an active worker
+        // record keeps showing, so edits keep persisting.
+        $deletedWorkerNames = array_values(array_diff(
+            Worker::onlyTrashed()
+                ->where('foreman_id', $foremanId)
+                ->where(function ($query) use ($projectId) {
+                    $query->whereNull('project_id')->orWhere('project_id', $projectId);
+                })
+                ->pluck('name')
+                ->map(fn ($name) => Str::lower(trim((string) $name)))
+                ->filter(fn (string $name) => $name !== '')
+                ->values()
+                ->all(),
+            array_keys($workerRoleLookup)
+        ));
+
         $byWeek = [];
         foreach ($rows as $row) {
             if (!$row->date) {
@@ -413,9 +467,15 @@ class ForemanAuthController extends Controller
                 continue;
             }
 
+            if (in_array(Str::lower($workerName), $deletedWorkerNames, true)) {
+                continue;
+            }
+
             $workerRole = trim((string) ($row->worker_role ?? Worker::JOB_TYPE_WORKER));
-            if ($workerRole === '') {
-                $workerRole = Worker::JOB_TYPE_WORKER;
+            $workerRole = $workerRole !== '' ? $workerRole : Worker::JOB_TYPE_WORKER;
+            $lookupKey = Str::lower($workerName);
+            if (isset($workerRoleLookup[$lookupKey])) {
+                $workerRole = $workerRoleLookup[$lookupKey];
             }
             if (Str::lower($workerRole) === Str::lower(Attendance::ROLE_FOREMAN)) {
                 continue;
@@ -666,19 +726,38 @@ class ForemanAuthController extends Controller
             return [];
         }
 
+        // Same computation as the web /projects kanban (see below).
+        $weightedByProjectId = ProjectScope::query()
+            ->whereIn('project_id', $assignedIds)
+            ->selectRaw('project_id, COALESCE(SUM(ROUND(weight_percent * progress_percent / 100.0, 2)), 0) as weighted_progress')
+            ->groupBy('project_id')
+            ->get()
+            ->mapWithKeys(fn ($row) => [(int) $row->project_id => (float) $row->weighted_progress]);
+
         return Project::query()
             ->whereIn('id', $assignedIds)
             ->orderBy('name')
-            ->get(['id', 'name', 'client', 'phase', 'status', 'overall_progress'])
-            ->map(fn (Project $project) => [
-                'id' => $project->id,
-                'name' => $project->name,
-                'location' => $project->client,
-                'client' => $project->client,
-                'phase' => $project->phase,
-                'status' => $project->status,
-                'overall_progress' => (int) ($project->overall_progress ?? 0),
-            ])
+            ->get(['id', 'name', 'client', 'location', 'phase', 'status', 'overall_progress'])
+            ->map(function (Project $project) use ($weightedByProjectId) {
+                $location = trim((string) ($project->location ?? ''));
+                if ($location === '') {
+                    $location = trim((string) ($project->client ?? ''));
+                }
+
+                return [
+                    'id' => $project->id,
+                    'name' => $project->name,
+                    'location' => $location,
+                    'client' => $project->client,
+                    'phase' => $project->phase,
+                    'status' => $project->status,
+                // Same computation as the web /projects kanban: weighted overall
+                // progress = SUM(weight_percent * progress_percent / 100) over the
+                // project's scopes, clamped to 0-100. Returned unrounded (2
+                // decimals like the web) so clients never round 3.75% up to 4%.
+                'overall_progress' => round(max(0, min(100, (float) ($weightedByProjectId[(int) $project->id] ?? 0))), 2),
+                ];
+            })
             ->values()
             ->all();
     }

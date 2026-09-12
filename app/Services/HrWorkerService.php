@@ -223,6 +223,19 @@ class HrWorkerService
         $foremanId = (int) ($validated['foreman_id'] ?? 0);
         $this->assertUniqueWorkerName($foremanId, (string) ($validated['name'] ?? ''));
 
+        // Re-adding a deleted worker restores it instead of duplicating.
+        $trashed = \App\Models\Worker::onlyTrashed()
+            ->where('foreman_id', $foremanId)
+            ->whereRaw('LOWER(name) = ?', [mb_strtolower(trim((string) ($validated['name'] ?? '')))])
+            ->first();
+
+        if ($trashed) {
+            $trashed->restore();
+            $this->foremanWorkerRepository->updateWorker($trashed, $validated);
+
+            return;
+        }
+
         $this->foremanWorkerRepository->createWorker($validated);
     }
 

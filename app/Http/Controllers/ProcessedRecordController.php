@@ -627,14 +627,15 @@ class ProcessedRecordController extends Controller
                     $statusCode = strtoupper(trim($status));
                     if ($statusCode !== 'P' && $statusCode !== '1') continue;
 
-                    Attendance::create([
-                        'foreman_id'  => $foremanId,
-                        'project_id' => $projectId,
-                        'worker_name' => $workerName,
-                        'worker_role' => $workerRole,
-                        'date'        => $dayDate,
-                        'hours'       => 8,
-                    ]);
+                    Attendance::recordDay(
+                        (int) $foremanId,
+                        (int) $projectId,
+                        $workerName,
+                        $workerRole,
+                        $dayDate,
+                        'P',
+                        8.0
+                    );
                     $recordsCreated++;
                 }
             }
@@ -656,14 +657,15 @@ class ProcessedRecordController extends Controller
                     $hours = 8;
                 }
 
-                Attendance::create([
-                    'foreman_id'  => $foremanId,
-                    'project_id' => $projectId,
-                    'worker_name' => $workerName,
-                    'worker_role' => $workerRole,
-                    'date'        => $date,
-                    'hours'       => (float) $hours,
-                ]);
+                Attendance::recordDay(
+                    (int) $foremanId,
+                    (int) $projectId,
+                    $workerName,
+                    $workerRole,
+                    $date,
+                    '',
+                    (float) $hours
+                );
             }
         }
     }
@@ -710,13 +712,19 @@ class ProcessedRecordController extends Controller
 
             $workerRole = $worker['position'] ?? null;
 
-            // Check if worker already exists in the workers table (case-insensitive name match)
+            // Check if worker already exists in the workers table (case-insensitive name match,
+            // including soft-deleted ones so a rescan restores instead of duplicating)
             $existingWorker = Worker::query()
+                ->withTrashed()
                 ->whereRaw('LOWER(name) = ?', [strtolower($workerName)])
                 ->where('project_id', $projectId)
                 ->first();
 
             if ($existingWorker) {
+                // A worker deleted in HR comes back instead of duplicating.
+                if ($existingWorker->trashed()) {
+                    $existingWorker->restore();
+                }
                 // Only update rate if AI detected one — never overwrite existing rate with null
                 if ($hasRate && (float) $existingWorker->default_rate_per_hour !== $rate) {
                     $existingWorker->update(['default_rate_per_hour' => $rate]);

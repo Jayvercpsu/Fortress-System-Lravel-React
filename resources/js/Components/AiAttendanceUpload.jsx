@@ -274,9 +274,13 @@ function InlineAttendanceConfirmation({ records, imagePreviews, projectId, proje
     const [loadingId, setLoadingId] = useState(null);
     const [removedIds, setRemovedIds] = useState(new Set());
     const [savedIds, setSavedIds] = useState(new Set());
+    const [editingId, setEditingId] = useState(null);
+    const [editData, setEditData] = useState({});
+    const [editedRecords, setEditedRecords] = useState({});
 
     const visibleRecords = records.filter((r) => !removedIds.has(r.id));
     const allDone = visibleRecords.filter((r) => r.status !== 'submitted').length === 0;
+    const dataFor = (record) => editedRecords[record.id] ?? record.ai_parsed_data;
 
     const handleSubmit = async (record) => {
         setLoadingId(record.id);
@@ -349,6 +353,65 @@ function InlineAttendanceConfirmation({ records, imagePreviews, projectId, proje
         onConfirmed(savedRecords);
     };
 
+    // Same edit flow as the /projects review records modal: edit the
+    // extracted data inline, then persist via PUT /processed-records/{id}/edit.
+    const startEdit = (record) => {
+        setEditingId(record.id);
+        setEditData(JSON.parse(JSON.stringify(dataFor(record) || {})));
+    };
+
+    const saveEdit = async (record) => {
+        setLoadingId(record.id);
+        try {
+            const response = await fetch(`/processed-records/${record.id}/edit`, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content'),
+                    'Accept': 'application/json',
+                },
+                body: JSON.stringify({ ai_parsed_data: editData }),
+            });
+
+            if (!response.ok) throw new Error('Failed to save edits');
+
+            await response.json();
+            toast.success('Record updated');
+            setEditedRecords((prev) => ({ ...prev, [record.id]: editData }));
+            setEditingId(null);
+        } catch (err) {
+            toast.error(err.message);
+        } finally {
+            setLoadingId(null);
+        }
+    };
+
+    const updateEditField = (field, value) => {
+        setEditData((prev) => ({ ...prev, [field]: value }));
+    };
+
+    const updateEditWorker = (i, field, value) => {
+        setEditData((prev) => {
+            const workers = [...(prev.workers || [])];
+            workers[i] = { ...workers[i], [field]: value };
+            return { ...prev, workers };
+        });
+    };
+
+    const addEditWorker = () => {
+        setEditData((prev) => ({
+            ...prev,
+            workers: [...(prev.workers || []), { name: '', position: 'Worker', time_in: '', time_out: '', hours: 8 }],
+        }));
+    };
+
+    const removeEditWorker = (i) => {
+        setEditData((prev) => ({
+            ...prev,
+            workers: (prev.workers || []).filter((_, idx) => idx !== i),
+        }));
+    };
+
     if (allDone || visibleRecords.length === 0) {
         return (
             <div style={{ marginTop: 16, background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 8, padding: 16, textAlign: 'center' }}>
@@ -373,7 +436,8 @@ function InlineAttendanceConfirmation({ records, imagePreviews, projectId, proje
 
             {visibleRecords.map((record) => {
                 const isLoading = loadingId === record.id;
-                const data = record.ai_parsed_data;
+                const isEditing = editingId === record.id;
+                const data = dataFor(record);
                 const workers = data?.workers || [];
 
                 return (
@@ -388,9 +452,75 @@ function InlineAttendanceConfirmation({ records, imagePreviews, projectId, proje
                                 />
                             )}
 
-                            {/* Workers */}
-                            {workers.length > 0 && (
+                            {/* Workers (view or edit) */}
+                            {isEditing ? (
+                                <div style={{ background: '#eff6ff', borderRadius: 6, padding: 8 }}>
+                                    <div className="grid grid-cols-2 gap-2" style={{ marginBottom: 8 }}>
+                                        <input
+                                            type="text"
+                                            placeholder="Date (YYYY-MM-DD)"
+                                            value={editData.date || editData.date_range_start || ''}
+                                            onChange={(e) => updateEditField('date', e.target.value)}
+                                            className="border rounded p-1 text-xs w-full"
+                                        />
+                                        <input
+                                            type="text"
+                                            placeholder="Location"
+                                            value={editData.location || ''}
+                                            onChange={(e) => updateEditField('location', e.target.value)}
+                                            className="border rounded p-1 text-xs w-full"
+                                        />
+                                    </div>
+                                    <div className="flex items-center justify-between" style={{ marginBottom: 6 }}>
+                                        <span style={{ fontSize: 12, fontWeight: 600 }}>Workers ({(editData.workers || []).length})</span>
+                                        <button
+                                            type="button"
+                                            onClick={addEditWorker}
+                                            style={{ fontSize: 12, color: '#2563eb', background: 'none', border: 'none', cursor: 'pointer' }}
+                                        >
+                                            + Add Worker
+                                        </button>
+                                    </div>
+                                    {(editData.workers || []).map((w, i) => (
+                                        <div key={i} className="grid grid-cols-[1fr_80px_60px_60px_44px_20px] gap-1 items-center" style={{ marginBottom: 4 }}>
+                                            <input type="text" placeholder="Name" value={w.name || ''} onChange={(e) => updateEditWorker(i, 'name', e.target.value)} className="border rounded p-1 text-xs" />
+                                            <input type="text" placeholder="Position" value={w.position || ''} onChange={(e) => updateEditWorker(i, 'position', e.target.value)} className="border rounded p-1 text-xs" />
+                                            <input type="text" placeholder="In" value={w.time_in || ''} onChange={(e) => updateEditWorker(i, 'time_in', e.target.value)} className="border rounded p-1 text-xs" />
+                                            <input type="text" placeholder="Out" value={w.time_out || ''} onChange={(e) => updateEditWorker(i, 'time_out', e.target.value)} className="border rounded p-1 text-xs" />
+                                            <input type="number" placeholder="Hrs" value={w.hours || ''} onChange={(e) => updateEditWorker(i, 'hours', parseFloat(e.target.value) || 0)} className="border rounded p-1 text-xs" />
+                                            <button type="button" onClick={() => removeEditWorker(i)} style={{ color: '#f87171', background: 'none', border: 'none', cursor: 'pointer', fontSize: 12 }}>✕</button>
+                                        </div>
+                                    ))}
+                                    <div className="flex gap-2" style={{ marginTop: 8 }}>
+                                        <button
+                                            type="button"
+                                            onClick={() => saveEdit(record)}
+                                            disabled={isLoading}
+                                            style={{ padding: '4px 12px', background: '#2563eb', color: '#fff', borderRadius: 4, fontSize: 12, border: 'none', cursor: 'pointer' }}
+                                        >
+                                            Save
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => setEditingId(null)}
+                                            style={{ padding: '4px 12px', background: '#e5e7eb', color: '#374151', borderRadius: 4, fontSize: 12, border: 'none', cursor: 'pointer' }}
+                                        >
+                                            Cancel
+                                        </button>
+                                    </div>
+                                </div>
+                            ) : workers.length > 0 && (
                                 <div style={{ background: '#f9fafb', borderRadius: 6, padding: 8 }}>
+                                    <div className="flex items-center justify-between" style={{ marginBottom: 4 }}>
+                                        <span style={{ fontSize: 12, fontWeight: 600 }}>Workers ({workers.length})</span>
+                                        <button
+                                            type="button"
+                                            onClick={() => startEdit(record)}
+                                            style={{ fontSize: 12, color: '#2563eb', background: 'none', border: 'none', cursor: 'pointer' }}
+                                        >
+                                            Edit
+                                        </button>
+                                    </div>
                                     {workers.map((w, i) => (
                                         <div key={i} style={{ fontSize: 12, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                             <span className="font-medium" style={{ color: '#1f2937' }}>{w.name} ({w.position || 'Worker'})</span>
@@ -407,8 +537,8 @@ function InlineAttendanceConfirmation({ records, imagePreviews, projectId, proje
                                 </div>
                             )}
 
-                            {/* Actions */}
-                            {record.status !== 'submitted' && (
+                            {/* Actions (hidden while editing so stale data can't be confirmed) */}
+                            {record.status !== 'submitted' && !isEditing && (
                                 <div className="flex justify-end gap-2">
                                     <button
                                         onClick={() => handleReject(record)}

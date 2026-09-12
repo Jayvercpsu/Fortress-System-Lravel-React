@@ -457,7 +457,7 @@ class ProjectRepository implements ProjectRepositoryInterface
     {
         return (float) (ProjectScope::query()
             ->where('project_id', $projectId)
-            ->selectRaw('COALESCE(SUM(ROUND(weight_percent * progress_percent / 100, 2)), 0) as weighted_progress')
+            ->selectRaw('COALESCE(SUM(ROUND(weight_percent * progress_percent / 100.0, 2)), 0) as weighted_progress')
             ->value('weighted_progress') ?? 0);
     }
 
@@ -469,7 +469,7 @@ class ProjectRepository implements ProjectRepositoryInterface
 
         return ProjectScope::query()
             ->whereIn('project_id', $projectIds)
-            ->selectRaw('project_id, COALESCE(SUM(ROUND(weight_percent * progress_percent / 100, 2)), 0) as weighted_progress')
+            ->selectRaw('project_id, COALESCE(SUM(ROUND(weight_percent * progress_percent / 100.0, 2)), 0) as weighted_progress')
             ->groupBy('project_id')
             ->get()
             ->mapWithKeys(fn ($row) => [(int) $row->project_id => (float) $row->weighted_progress]);

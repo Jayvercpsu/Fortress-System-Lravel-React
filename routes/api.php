@@ -21,6 +21,7 @@ Route::middleware('foreman.api')->group(function () {
     Route::delete('/foreman/scope-photos/{scopePhoto}', [ForemanSubmissionController::class, 'destroyScopePhoto'])->name('api.foreman.scope_photo.delete');
     Route::post('/foreman/ai-attendance/records/{record}/confirm', [ForemanAuthController::class, 'confirmAiRecord'])->name('api.foreman.ai_confirm');
     Route::post('/foreman/ai-attendance/records/{record}/reject', [ForemanAuthController::class, 'rejectAiRecord'])->name('api.foreman.ai_reject');
+    Route::put('/foreman/ai-attendance/records/{record}/edit', [ForemanAuthController::class, 'editAiRecord'])->name('api.foreman.ai_edit');
     Route::get('/foreman/settings', [ForemanAuthController::class, 'settings'])->name('api.foreman.settings');
     Route::put('/foreman/settings', [ForemanAuthController::class, 'updateSettings'])->name('api.foreman.settings.update');
     Route::post('/foreman/settings/photo', [ForemanAuthController::class, 'updatePhoto'])->name('api.foreman.settings.photo');
