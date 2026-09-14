@@ -20,6 +20,7 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->alias([
             'role' => \App\Http\Middleware\RoleMiddleware::class,
             'foreman.api' => \App\Http\Middleware\ForemanApiTokenAuth::class,
+            'pm.api' => \App\Http\Middleware\ProjectManagerApiTokenAuth::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {

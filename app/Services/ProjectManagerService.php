@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\Attendance;
 use App\Models\Project;
+use App\Models\ProjectScope;
 use App\Models\User;
 use App\Models\WeeklyAccomplishment;
 use App\Support\Uploads\UploadManager;
@@ -35,8 +36,16 @@ class ProjectManagerService
         $projects = Project::query()
             ->where('phase', 'Construction')
             ->orderBy('name')
-            ->get(['id', 'name', 'client', 'phase', 'status', 'overall_progress', 'assigned'])
-            ->map(fn (Project $project) => $this->projectListItem($project))
+            ->get(['id', 'name', 'client', 'phase', 'status', 'overall_progress', 'assigned']);
+
+        // Same weighted computation as the web /projects kanban so the
+        // progress shown here always matches the kanban cards exactly.
+        $weightedByProjectId = $this->weightedProgressByProjectIds(
+            $projects->pluck('id')->all()
+        );
+
+        $projects = $projects
+            ->map(fn (Project $project) => $this->projectListItem($project, $weightedByProjectId))
             ->values();
 
         $foremen = User::query()
@@ -94,7 +103,15 @@ class ProjectManagerService
 
     public function projectPayload(Request $request, Project $project): array
     {
-        $perPage = 50;
+        $allowedPerPage = [10, 20, 25, 50, 100];
+        $accPerPage = (int) $request->query('acc_per_page', 50);
+        if (!in_array($accPerPage, $allowedPerPage, true)) {
+            $accPerPage = 50;
+        }
+        $attPerPage = (int) $request->query('att_per_page', 50);
+        if (!in_array($attPerPage, $allowedPerPage, true)) {
+            $attPerPage = 50;
+        }
 
         // Counter-check the foreman's weekly accomplishments submitted via JotForm.
         $accomplishmentsQuery = WeeklyAccomplishment::query()
@@ -103,7 +120,7 @@ class ProjectManagerService
             ->orderByDesc('created_at');
 
         $accomplishmentsPaginator = $accomplishmentsQuery
-            ->paginate($perPage, ['*'], 'acc_page', $request->query('acc_page', 1));
+            ->paginate($accPerPage, ['*'], 'acc_page', $request->query('acc_page', 1));
 
         $accomplishments = collect($accomplishmentsPaginator->items())
             ->map(fn (WeeklyAccomplishment $row) => [
@@ -125,7 +142,7 @@ class ProjectManagerService
             ->orderByDesc('latest_submit');
 
         $attendanceSummaryPaginator = $attendanceSummaryQuery
-            ->paginate($perPage, ['*'], 'att_page', $request->query('att_page', 1));
+            ->paginate($attPerPage, ['*'], 'att_page', $request->query('att_page', 1));
 
         $attendanceSummary = collect($attendanceSummaryPaginator->items())
             ->map(fn ($row) => [
@@ -160,7 +177,7 @@ class ProjectManagerService
                 'location' => $project->location,
                 'phase' => $project->phase,
                 'status' => $project->status,
-                'overall_progress' => (int) ($project->overall_progress ?? 0),
+                'overall_progress' => $this->weightedProgressForProject($project),
                 'target' => optional($project->target)->toDateString(),
                 'assigned' => $project->assigned,
             ],
@@ -173,7 +190,7 @@ class ProjectManagerService
                 'unique_foremen' => $uniqueForemen,
             ],
             'accomplishmentsTable' => [
-                'per_page' => $perPage,
+                'per_page' => $accPerPage,
                 'current_page' => $accomplishmentsPaginator->currentPage(),
                 'last_page' => max(1, $accomplishmentsPaginator->lastPage()),
                 'total' => $accomplishmentsPaginator->total(),
@@ -181,7 +198,7 @@ class ProjectManagerService
                 'to' => $accomplishmentsPaginator->lastItem(),
             ],
             'attendanceSummaryTable' => [
-                'per_page' => $perPage,
+                'per_page' => $attPerPage,
                 'current_page' => $attendanceSummaryPaginator->currentPage(),
                 'last_page' => max(1, $attendanceSummaryPaginator->lastPage()),
                 'total' => $attendanceSummaryPaginator->total(),
@@ -198,7 +215,7 @@ class ProjectManagerService
         $foremanId = trim((string) $request->query('foreman_id', ''));
         $date = trim((string) $request->query('date', ''));
 
-        $allowedPerPage = [5, 10, 25, 50, 100];
+        $allowedPerPage = [5, 10, 20, 25, 50, 100];
         $perPage = (int) $request->query('per_page', 50);
         if (!in_array($perPage, $allowedPerPage, true)) {
             $perPage = 50;
@@ -254,8 +271,14 @@ class ProjectManagerService
             ->map(fn (Project $p) => ['id' => $p->id, 'name' => $p->name])
             ->values();
 
-        $foremen = User::query()
-            ->where('role', User::ROLE_FOREMAN)
+        // The foreman filter only offers foremen assigned to the selected
+        // project (same assignment rules as the accomplishments page).
+        $foremenQuery = User::query()->where('role', User::ROLE_FOREMAN);
+        if ($projectId !== '' && ($project = Project::query()->find((int) $projectId))) {
+            $foremenQuery->whereIn('id', $this->projectService->assignedForemanIds($project));
+        }
+
+        $foremen = $foremenQuery
             ->orderBy('fullname')
             ->get(['id', 'fullname'])
             ->map(fn (User $u) => ['id' => $u->id, 'fullname' => $u->fullname])
@@ -414,7 +437,7 @@ class ProjectManagerService
         ];
     }
 
-    private function projectListItem(Project $project): array
+    private function projectListItem(Project $project, array $weightedByProjectId = []): array
     {
         return [
             'id' => $project->id,
@@ -422,8 +445,45 @@ class ProjectManagerService
             'client' => $project->client,
             'phase' => $project->phase,
             'status' => $project->status,
-            'overall_progress' => (int) ($project->overall_progress ?? 0),
+            'overall_progress' => $this->weightedProgressForProject($project, $weightedByProjectId),
             'assigned' => $project->assigned,
         ];
+    }
+
+    /**
+     * Weighted overall progress = SUM(weight_percent * progress_percent /
+     * 100) over the project's scopes, clamped to 0-100 — the exact formula
+     * the web /projects kanban uses for its cards.
+     */
+    private function weightedProgressForProject(Project $project, array $weightedByProjectId = []): float
+    {
+        $raw = $weightedByProjectId[(int) $project->id] ?? null;
+        if ($raw === null) {
+            $raw = $this->weightedProgressByProjectIds([(int) $project->id])[(int) $project->id] ?? 0;
+        }
+
+        return round(max(0, min(100, (float) $raw)), 2);
+    }
+
+    private function weightedProgressByProjectIds(array $projectIds): array
+    {
+        $ids = collect($projectIds)
+            ->map(fn ($id) => (int) $id)
+            ->filter(fn (int $id) => $id > 0)
+            ->unique()
+            ->values()
+            ->all();
+
+        if (empty($ids)) {
+            return [];
+        }
+
+        return ProjectScope::query()
+            ->whereIn('project_id', $ids)
+            ->selectRaw('project_id, COALESCE(SUM(ROUND(weight_percent * progress_percent / 100.0, 2)), 0) as weighted_progress')
+            ->groupBy('project_id')
+            ->get()
+            ->mapWithKeys(fn ($row) => [(int) $row->project_id => (float) $row->weighted_progress])
+            ->all();
     }
 }

@@ -122,7 +122,7 @@ export default function ProjectManagerAttendance({ attendances = [], projects = 
                         <div style={{ fontSize: 12, marginBottom: 6 }}>Project</div>
                         <SelectInput
                             value={table.projectId}
-                            onChange={(e) => navigateTable({ project_id: e.target.value, page: 1 })}
+                            onChange={(e) => navigateTable({ project_id: e.target.value, foreman_id: '', page: 1 })}
                             style={filterControlStyle}
                         >
                             <option value="">All Projects</option>

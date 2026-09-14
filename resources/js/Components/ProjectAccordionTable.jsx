@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from 'react';
 import ActionButton from './ActionButton';
 import TextInput from './TextInput';
 import SelectInput from './SelectInput';
+import { useIsMobile } from './AccomplishmentWidgets';
 
 const controlStyle = {
     background: 'var(--surface-2)',
@@ -49,6 +50,7 @@ export default function ProjectAccordionTable({
     const [expandedByGroup, setExpandedByGroup] = useState({});
     const [groupPageByKey, setGroupPageByKey] = useState({});
     const [statusValue, setStatusValue] = useState(String(table?.status ?? ''));
+    const isMobile = useIsMobile();
 
     const tableState = {
         search: String(table?.search ?? ''),
@@ -355,6 +357,40 @@ export default function ProjectAccordionTable({
 
                                 {isExpanded ? (
                                     <div style={{ borderTop: '1px solid var(--border-color)', padding: 10, display: 'grid', gap: 10, animation: 'accomp-accordion-expand 0.22s ease-out' }}>
+                                        {isMobile ? (
+                                            <div style={{ display: 'grid', gap: 8 }}>
+                                                {pagedRows.length === 0 ? (
+                                                    <div style={{ padding: 14, fontSize: 13, color: 'var(--text-muted)' }}>
+                                                        {groupEmptyMessage}
+                                                    </div>
+                                                ) : (
+                                                    pagedRows.map((row, index) => (
+                                                        <div
+                                                            key={resolveRowKey(rowKey, row, index)}
+                                                            style={{
+                                                                border: '1px solid var(--border-color)',
+                                                                borderRadius: 10,
+                                                                background: 'var(--surface-1)',
+                                                                padding: 12,
+                                                                display: 'grid',
+                                                                gap: 10,
+                                                            }}
+                                                        >
+                                                            {columns.map((column) => (
+                                                                <div key={`${resolveRowKey(rowKey, row, index)}-${column.key}`}>
+                                                                    <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: 0.4, marginBottom: 4 }}>
+                                                                        {column.label}
+                                                                    </div>
+                                                                    <div style={{ fontSize: 13, minWidth: 0, overflowWrap: 'anywhere' }}>
+                                                                        {column.render ? column.render(row) : row?.[column.key] ?? '-'}
+                                                                    </div>
+                                                                </div>
+                                                            ))}
+                                                        </div>
+                                                    ))
+                                                )}
+                                            </div>
+                                        ) : (
                                         <div style={{ overflowX: 'auto', border: '1px solid var(--border-color)', borderRadius: 10 }}>
                                             <table className="project-accordion-table" style={{ width: '100%', borderCollapse: 'collapse', minWidth: 760 }}>
                                                 <thead>
@@ -412,6 +448,7 @@ export default function ProjectAccordionTable({
                                                 </tbody>
                                             </table>
                                         </div>
+                                        )}
 
                                         {groupLastPage > 1 ? (
                                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>

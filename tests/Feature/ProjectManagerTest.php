@@ -115,6 +115,28 @@ class ProjectManagerTest extends TestCase
                 ->where('lowProgressProjects.0.id', $this->project->id));
     }
 
+    public function test_dashboard_progress_matches_projects_kanban(): void
+    {
+        // Stored column holds a stale 90; the weighted kanban value
+        // (15*25/100 = 3.75) must win in both dashboard sections.
+        $this->project->update(['overall_progress' => 90]);
+        \App\Models\ProjectScope::create([
+            'project_id' => $this->project->id,
+            'scope_name' => 'Parity Scope',
+            'progress_percent' => 25,
+            'status' => 'IN_PROGRESS',
+            'weight_percent' => 15,
+        ]);
+
+        $this->actingAs($this->projectManager)
+            ->get('/project-manager')
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page
+                ->where('projects.0.overall_progress', 3.75)
+                ->where('lowProgressProjects.0.overall_progress', 3.75)
+                ->where('stats.low_progress_projects', 1));
+    }
+
     public function test_project_manager_can_view_attendance_read_only(): void
     {
         Attendance::create([

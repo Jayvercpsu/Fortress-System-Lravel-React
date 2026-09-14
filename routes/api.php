@@ -2,9 +2,12 @@
 
 use App\Http\Controllers\Api\ForemanAuthController;
 use App\Http\Controllers\Api\ForemanSubmissionController;
+use App\Http\Controllers\Api\ProjectManagerApiController;
+use App\Http\Controllers\Api\ProjectManagerAuthController;
 use Illuminate\Support\Facades\Route;
 
 Route::post('/foreman/login', [ForemanAuthController::class, 'login'])->name('api.foreman.login');
+Route::post('/project-manager/login', [ProjectManagerAuthController::class, 'login'])->name('api.pm.login');
 Route::get('/server-time', [ForemanAuthController::class, 'serverTime'])->name('api.server_time');
 
 Route::middleware('foreman.api')->group(function () {
@@ -26,4 +29,19 @@ Route::middleware('foreman.api')->group(function () {
     Route::put('/foreman/settings', [ForemanAuthController::class, 'updateSettings'])->name('api.foreman.settings.update');
     Route::post('/foreman/settings/photo', [ForemanAuthController::class, 'updatePhoto'])->name('api.foreman.settings.photo');
     Route::post('/foreman/logout', [ForemanAuthController::class, 'logout'])->name('api.foreman.logout');
+});
+
+Route::middleware('pm.api')->group(function () {
+    Route::get('/project-manager/me', [ProjectManagerAuthController::class, 'me'])->name('api.pm.me');
+    Route::get('/project-manager/projects', [ProjectManagerAuthController::class, 'projects'])->name('api.pm.projects');
+    Route::get('/project-manager/dashboard', [ProjectManagerApiController::class, 'dashboard'])->name('api.pm.dashboard');
+    Route::get('/project-manager/accomplishments', [ProjectManagerApiController::class, 'accomplishments'])->name('api.pm.accomplishments');
+    Route::post('/project-manager/accomplishments', [ProjectManagerApiController::class, 'storeAccomplishments'])->name('api.pm.accomplishments.store');
+    Route::get('/project-manager/attendance', [ProjectManagerApiController::class, 'attendance'])->name('api.pm.attendance');
+    Route::get('/project-manager/payroll', [ProjectManagerApiController::class, 'payroll'])->name('api.pm.payroll');
+    Route::get('/project-manager/projects/{project}', [ProjectManagerApiController::class, 'project'])->name('api.pm.project');
+    Route::get('/project-manager/settings', [ProjectManagerAuthController::class, 'settings'])->name('api.pm.settings');
+    Route::put('/project-manager/settings', [ProjectManagerAuthController::class, 'updateSettings'])->name('api.pm.settings.update');
+    Route::post('/project-manager/settings/photo', [ProjectManagerAuthController::class, 'updatePhoto'])->name('api.pm.settings.photo');
+    Route::post('/project-manager/logout', [ProjectManagerAuthController::class, 'logout'])->name('api.pm.logout');
 });

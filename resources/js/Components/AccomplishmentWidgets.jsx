@@ -1,3 +1,45 @@
+import { useEffect, useState } from 'react';
+
+export const MOBILE_BREAKPOINT = 640;
+
+// Reactive mobile flag shared by the weekly-accomplishments pages.
+// Desktop rendering stays pixel-identical; mobile swaps wide tables for
+// stacked cards and lets tab/filter bars scroll or stack.
+export function useIsMobile(breakpoint = MOBILE_BREAKPOINT) {
+    const query = `(max-width: ${breakpoint}px)`;
+    const [isMobile, setIsMobile] = useState(() =>
+        typeof window !== 'undefined' && window.matchMedia(query).matches);
+    useEffect(() => {
+        if (typeof window === 'undefined') return undefined;
+        const media = window.matchMedia(query);
+        const onChange = (event) => setIsMobile(event.matches);
+        setIsMobile(media.matches);
+        if (media.addEventListener) media.addEventListener('change', onChange);
+        else media.addListener(onChange);
+        return () => {
+            if (media.removeEventListener) media.removeEventListener('change', onChange);
+            else media.removeListener(onChange);
+        };
+    }, [query]);
+    return isMobile;
+}
+
+// Mobile-only overrides applied through shared class names so inline
+// desktop styles never change. Pages inject this into their <style> block.
+export const accompMobileCss = `
+@media (max-width: ${MOBILE_BREAKPOINT}px) {
+    .accomp-page-root { overflow-x: clip; }
+    .accomp-page-root > * { min-width: 0; }
+    .accomp-filter-bar > * { flex: 1 1 100% !important; max-width: none !important; min-width: 0 !important; width: 100%; }
+    .accomp-tabs-scroll { overflow-x: auto !important; flex-wrap: nowrap !important; scrollbar-width: thin; }
+    .accomp-tabs-scroll > button { white-space: nowrap !important; flex-shrink: 0 !important; }
+    .accomp-details-grid { grid-template-columns: 1fr !important; row-gap: 2px !important; }
+    .accomp-trend-grid { grid-template-columns: 1fr !important; }
+    .accomp-sidebar-photos { grid-template-columns: repeat(2, 1fr) !important; }
+    .accomp-show-photos { grid-template-columns: repeat(2, 1fr) !important; }
+}
+`;
+
 export const cardStyle = {
     background: 'var(--ac-bg, #ffffff)',
     border: '1px solid var(--ac-border, #e8edf3)',

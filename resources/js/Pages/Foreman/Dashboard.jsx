@@ -7,6 +7,7 @@ import Modal from '../../Components/Modal';
 import { Head, Link, router } from '@inertiajs/react';
 import { Fragment, useEffect, useMemo, useState } from 'react';
 import OptimizedImage from '../../Components/OptimizedImage';
+import { useIsMobile } from '../../Components/AccomplishmentWidgets';
 import { formatYmd, formatYmdHmAmPm } from '../../Utils/dateTimeFormat';
 
 const cardStyle = {
@@ -62,6 +63,7 @@ export default function ForemanDashboard({
     weeklyAccomplishmentsByProjectFilters = null,
 }) {
     const [dashboardPreviewPhoto, setDashboardPreviewPhoto] = useState(null);
+    const isMobile = useIsMobile();
 
     const projectFilterOptions = useMemo(
         () => (Array.isArray(projectFilters) ? projectFilters.map((project) => ({ id: String(project.id), name: project.label || project.name })) : []),
@@ -246,7 +248,7 @@ export default function ForemanDashboard({
 
                     <div className="grid grid-cols-1 lg:[grid-template-columns:1.1fr_0.9fr] gap-3">
                         <div style={cardStyle}>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, marginBottom: 10, flexWrap: 'wrap' }}>
                                 <div style={{ fontWeight: 700 }}>Assigned Projects</div>
                                 <ActionButton href="/foreman/submissions" variant="view" style={{ padding: '6px 10px' }}>
                                     Go to Submissions
@@ -287,7 +289,7 @@ export default function ForemanDashboard({
                                                 variant="success"
                                                 target="_blank"
                                                 rel="noreferrer"
-                                                style={{ padding: '6px 10px', textAlign: 'center' }}
+                                                style={{ padding: '6px 10px', textAlign: 'center', ...(isMobile ? { width: '100%' } : {}) }}
                                             >
                                                 Open Jotform
                                             </ActionButton>
@@ -511,8 +513,103 @@ export default function ForemanDashboard({
                             <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>
                                 No weekly accomplishment submissions yet.
                             </div>
+                        ) : isMobile ? (
+                            <div data-testid="weekly-projects-cards" style={{ display: 'grid', gap: 10 }}>
+                                {weeklyAccomplishmentProjectRows.map((row, index) => {
+                                    const rowKey = weeklyProjectRowKey(row, index);
+                                    const isExpanded = expandedWeeklyProjectKey === rowKey;
+                                    const latestScopeEntries = Array.isArray(row.latest_scope_entries) ? row.latest_scope_entries : [];
+
+                                    return (
+                                        <div
+                                            key={rowKey}
+                                            style={{
+                                                border: '1px solid var(--border-color)',
+                                                borderRadius: 10,
+                                                padding: 12,
+                                                background: 'var(--surface-2)',
+                                                display: 'grid',
+                                                gap: 8,
+                                            }}
+                                        >
+                                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8, flexWrap: 'wrap' }}>
+                                                <div style={{ minWidth: 0 }}>
+                                                    <div style={{ fontWeight: 700, fontSize: 13 }}>{row.project_name || 'Unassigned'}</div>
+                                                    <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>ID: {row.project_id ?? '-'}</div>
+                                                </div>
+                                                <button
+                                                    type="button"
+                                                    style={{
+                                                        border: '1px solid var(--border-color)',
+                                                        borderRadius: 8,
+                                                        padding: '6px 10px',
+                                                        fontSize: 12,
+                                                        fontWeight: 700,
+                                                        background: 'var(--button-bg)',
+                                                        color: 'var(--text-main)',
+                                                        cursor: 'pointer',
+                                                        flexShrink: 0,
+                                                    }}
+                                                    onClick={() => setExpandedWeeklyProjectKey((prev) => prev === rowKey ? '' : rowKey)}
+                                                >
+                                                    {isExpanded ? 'Hide details' : 'View details'}
+                                                </button>
+                                            </div>
+                                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                                                <div style={{ minWidth: 0 }}>
+                                                    <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>Weeks Submitted</div>
+                                                    <div style={{ fontSize: 14, fontWeight: 700, ...mono }}>{row.submitted_weeks ?? 0}</div>
+                                                </div>
+                                                <div style={{ minWidth: 0 }}>
+                                                    <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>Scope Entries</div>
+                                                    <div style={{ fontSize: 14, fontWeight: 700, ...mono }}>{row.scope_entries ?? 0}</div>
+                                                </div>
+                                                <div style={{ minWidth: 0 }}>
+                                                    <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>Avg % Complete</div>
+                                                    <div style={{ fontSize: 14, fontWeight: 700, ...mono }}>
+                                                        {Number(row.avg_percent_completed ?? 0).toFixed(1)}%
+                                                    </div>
+                                                </div>
+                                                <div style={{ minWidth: 0 }}>
+                                                    <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>Latest Week</div>
+                                                    <div style={{ fontSize: 12, fontWeight: 700, overflowWrap: 'anywhere', ...mono }}>{formatYmd(row.latest_week_start)}</div>
+                                                </div>
+                                            </div>
+                                            <div style={{ fontSize: 11, color: 'var(--text-muted)', ...mono }}>
+                                                Last submitted (PH): {formatYmdHmAmPm(row.last_submitted_at)}
+                                            </div>
+                                            {isExpanded ? (
+                                                <div style={{ borderTop: '1px solid var(--border-color)', paddingTop: 8 }}>
+                                                    <div style={{ fontSize: 12, fontWeight: 700, marginBottom: 8 }}>
+                                                        Latest Week Scope Entries {row.latest_week_start ? `(${formatYmd(row.latest_week_start)})` : ''}
+                                                    </div>
+                                                    {latestScopeEntries.length === 0 ? (
+                                                        <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+                                                            No scope entries found for the latest week.
+                                                        </div>
+                                                    ) : (
+                                                        <div style={{ display: 'grid', gap: 8 }}>
+                                                            {latestScopeEntries.map((entry, entryIndex) => (
+                                                                <div key={`${rowKey}-entry-${entryIndex}`} style={{ display: 'grid', gap: 2, borderTop: '1px solid var(--border-color)', paddingTop: 6 }}>
+                                                                    <div style={{ fontSize: 12, fontWeight: 600 }}>{entry.scope_of_work || '-'}</div>
+                                                                    <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, fontSize: 12 }}>
+                                                                        <span style={{ ...mono }}>{Number(entry.percent_completed ?? 0).toFixed(1)}%</span>
+                                                                        <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+                                                                            Photos: {Number(entry.scope_photo_count ?? 0)}
+                                                                        </span>
+                                                                    </div>
+                                                                </div>
+                                                            ))}
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            ) : null}
+                                        </div>
+                                    );
+                                })}
+                            </div>
                         ) : (
-                            <div style={{ width: '100%', overflowX: 'auto' }}>
+                            <div data-testid="weekly-projects-table" style={{ width: '100%', overflowX: 'auto' }}>
                                 <table style={{ width: '100%', minWidth: 860, borderCollapse: 'collapse' }}>
                                     <thead>
                                         <tr>

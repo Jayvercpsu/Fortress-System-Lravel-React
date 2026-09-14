@@ -120,8 +120,8 @@ export default function Modal({ open, onClose, title, headerContent, children, w
                     ...transitionStyle,
                 }}
                 >
-                    <div style={{ fontWeight: 700, fontSize: 14, color: 'var(--text-main)' }}>{title}</div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <div style={{ fontWeight: 700, fontSize: 14, color: 'var(--text-main)', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{title}</div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
                         {showMaximize && (
                             <button
                                 type="button"

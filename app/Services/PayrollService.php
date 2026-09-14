@@ -22,7 +22,7 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class PayrollService
 {
-    private const ALLOWED_PER_PAGE = [5, 10, 25, 50];
+    private const ALLOWED_PER_PAGE = [5, 10, 20, 25, 50];
 
     public function __construct(
         private readonly PayrollRepositoryInterface $payrollRepository

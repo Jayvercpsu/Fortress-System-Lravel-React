@@ -15,6 +15,7 @@ import { formatYmdHmAmPm } from '../Utils/dateTimeFormat';
 
 import {
     ProgressBar,
+    accompMobileCss,
     cardStyle,
     initialsOf,
     innerCardStyle,
@@ -29,6 +30,7 @@ import {
     statusForVariance,
     statusStyle,
     tabStyle,
+    useIsMobile,
     varianceStyle,
 } from './AccomplishmentWidgets';
 
@@ -88,6 +90,7 @@ export default function WeeklyAccomplishmentsPage({    weeklyAccomplishments = [
 
     // ---- Comparison (Panels 1, 2, 4) state — local only, no new routes ----
     const [activeTab, setActiveTab] = useState(() => tabFromHash());
+    const isMobile = useIsMobile();
 
     const switchTab = (key) => {
         setActiveTab(key);
@@ -465,7 +468,7 @@ export default function WeeklyAccomplishmentsPage({    weeklyAccomplishments = [
     };
 
     const filterBar = (
-        <div className="flex flex-wrap items-end gap-3" style={{ marginBottom: 12 }}>
+        <div className="flex flex-wrap items-end gap-3 accomp-filter-bar" style={{ marginBottom: 12 }}>
             <label style={{ minWidth: 220, maxWidth: 360, flex: '1 1 240px' }}>
                 <div style={{ fontSize: 12, marginBottom: 6 }}>Search</div>
                 <TextInput
@@ -792,8 +795,9 @@ export default function WeeklyAccomplishmentsPage({    weeklyAccomplishments = [
                 .accomp-hover-table tbody tr { transition: background-color 0.15s ease; }
                 .accomp-hover-table tbody tr:hover { background-color: var(--ac-rowhover, #f1f5f9); }
                 html[data-theme="dark"] .accomp-stat-card { background: var(--surface-1, #161b22) !important; border-color: var(--border-color, #30363d) !important; }
+                ${accompMobileCss}
             `}</style>
-                <div style={{ display: 'grid', gap: 16, background: 'var(--ac-page, #f4f6fb)', margin: -16, padding: 16 }}>
+                <div className="accomp-page-root" style={{ display: 'grid', gap: 16, background: 'var(--ac-page, #f4f6fb)', margin: -16, padding: 16 }}>
                     <div style={cardStyle}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, flexWrap: 'wrap' }}>
                             <div>
@@ -802,7 +806,7 @@ export default function WeeklyAccomplishmentsPage({    weeklyAccomplishments = [
                                     Track and compare submissions from Project Managers and Foremen
                                 </div>
                             </div>
-                            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+                            <div className="accomp-filter-bar" style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
                                 <div style={{ minWidth: 170, maxWidth: 240 }}>
                                     <SearchableDropdown
                                         options={filterProjects}
@@ -822,7 +826,7 @@ export default function WeeklyAccomplishmentsPage({    weeklyAccomplishments = [
                                 />
                             </div>
                         </div>
-                        <div style={{ display: 'flex', borderBottom: '1px solid var(--ac-border, #e8edf3)', marginTop: 8 }}>
+                        <div className="accomp-tabs-scroll" style={{ display: 'flex', borderBottom: '1px solid var(--ac-border, #e8edf3)', marginTop: 8 }}>
                             {tabs.map((tab) => (
                                 <button
                                     key={tab.key}
@@ -885,6 +889,50 @@ export default function WeeklyAccomplishmentsPage({    weeklyAccomplishments = [
                                     </SelectInput>
                                 </label>
                             </div>
+                            {isMobile ? (
+                                <div style={{ display: 'grid', gap: 10 }}>
+                                    {visibleComparisonRows.length === 0 ? (
+                                        <div style={{ padding: 24, textAlign: 'center', color: 'var(--text-muted)' }}>
+                                            No project comparison data yet.
+                                        </div>
+                                    ) : visibleComparisonRows.map((row, index) => (
+                                        <div key={row.project_id} style={{ ...innerCardStyle, margin: 0, display: 'grid', gap: 10 }}>
+                                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => openProjectDetail(row.project_id)}
+                                                    style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', fontWeight: 700, fontSize: 13, color: 'var(--ac-text, #0f172a)', textAlign: 'left' }}
+                                                >
+                                                    {index + 1}. {row.project_name}
+                                                </button>
+                                                <span style={{ ...pillStyle, ...statusStyle(row.status) }}>{row.status}</span>
+                                            </div>
+                                            <div>
+                                                <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--ac-muted, #64748b)', marginBottom: 4 }}>PM PROGRESS</div>
+                                                <ProgressBar value={animatedBar(overviewBarsLive, row.pm_progress)} color="#2563eb" />
+                                            </div>
+                                            <div>
+                                                <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--ac-muted, #64748b)', marginBottom: 4 }}>FOREMAN PROGRESS</div>
+                                                <ProgressBar value={animatedBar(overviewBarsLive, row.foreman_progress)} color="#16a34a" />
+                                            </div>
+                                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, flexWrap: 'wrap', fontSize: 12 }}>
+                                                {row.variance === null || row.variance === undefined ? (
+                                                    <span style={{ ...pillStyle, background: 'var(--ac-border-soft, #f1f5f9)', color: 'var(--ac-muted, #64748b)' }}>Variance —</span>
+                                                ) : (
+                                                    <span style={{ ...pillStyle, ...varianceStyle(row.variance) }}>Variance {Number(row.variance)}%</span>
+                                                )}
+                                                <ActionButton type="button" variant="neutral" onClick={() => openProjectDetail(row.project_id)} aria-label={`View ${row.project_name} details`}>
+                                                    •••
+                                                </ActionButton>
+                                            </div>
+                                            <div style={{ display: 'grid', gap: 2, fontSize: 12, color: 'var(--ac-text-2, #334155)' }}>
+                                                <span>PM: {row.last_pm_submission ? formatYmdHmAmPm(row.last_pm_submission) : '-'}</span>
+                                                <span>Foreman: {row.last_foreman_submission ? formatYmdHmAmPm(row.last_foreman_submission) : '-'}</span>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            ) : (
                             <div style={{ overflowX: 'auto' }}>
                                 <table className="accomp-hover-table" style={{ width: '100%', minWidth: 980, borderCollapse: 'collapse' }}>
                                     <thead>
@@ -965,6 +1013,7 @@ export default function WeeklyAccomplishmentsPage({    weeklyAccomplishments = [
                                     </tbody>
                                 </table>
                             </div>
+                            )}
                             <div style={{ display: 'flex', gap: 20, flexWrap: 'wrap', marginTop: 14, paddingTop: 12, borderTop: '1px solid var(--ac-border-soft, #f1f5f9)', fontSize: 12, color: 'var(--ac-text-2, #334155)' }}>
                                 <span style={{ fontWeight: 800, color: 'var(--ac-text, #0f172a)' }}>Variance Legend</span>
                                 <span><span style={{ color: '#16a34a' }}>●</span> 0 – 5% &nbsp; On Track</span>
@@ -993,6 +1042,32 @@ export default function WeeklyAccomplishmentsPage({    weeklyAccomplishments = [
                                 </div>
                                 {analyticsMatrix.length === 0 ? (
                                     <div style={{ fontSize: 13, color: 'var(--ac-muted, #64748b)' }}>No scope comparison for this project yet.</div>
+                                ) : isMobile ? (
+                                    <div style={{ display: 'grid', gap: 8 }}>
+                                        {analyticsMatrix.map((item) => (
+                                            <div key={item.scope} style={{ ...innerCardStyle, margin: 0, display: 'grid', gap: 8 }}>
+                                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
+                                                    <span style={{ fontWeight: 700, fontSize: 13, color: 'var(--ac-text, #0f172a)' }}>{item.scope}</span>
+                                                    <span style={{ ...pillStyle, ...statusStyle(item.status) }}>{item.status}</span>
+                                                </div>
+                                                <div>
+                                                    <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--ac-muted, #64748b)', marginBottom: 4 }}>PM PROGRESS</div>
+                                                    {item.pm === null ? <span style={{ fontSize: 12, color: '#94a3b8' }}>—</span> : <ProgressBar value={animatedBar(comparisonBarsLive, item.pm)} color="#2563eb" />}
+                                                </div>
+                                                <div>
+                                                    <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--ac-muted, #64748b)', marginBottom: 4 }}>FOREMAN PROGRESS</div>
+                                                    {item.foreman === null ? <span style={{ fontSize: 12, color: '#94a3b8' }}>—</span> : <ProgressBar value={animatedBar(comparisonBarsLive, item.foreman)} color="#16a34a" />}
+                                                </div>
+                                                <div>
+                                                    {item.variance === null || item.variance === undefined ? (
+                                                        <span style={{ ...pillStyle, background: 'var(--ac-border-soft, #f1f5f9)', color: 'var(--ac-muted, #64748b)' }}>Variance —</span>
+                                                    ) : (
+                                                        <span style={{ ...pillStyle, ...varianceStyle(item.variance) }}>Variance {item.variance}%</span>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
                                 ) : (
                                     <div style={{ overflowX: 'auto' }}>
                                         <table className="accomp-hover-table" style={{ width: '100%', minWidth: 760, borderCollapse: 'collapse' }}>
@@ -1041,7 +1116,7 @@ export default function WeeklyAccomplishmentsPage({    weeklyAccomplishments = [
                                             {analyticsTrend.map((point) => (
                                                 <div key={point.week}>
                                                     <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--ac-text, #0f172a)', marginBottom: 4 }}>Week of {point.week}</div>
-                                                    <div style={{ display: 'grid', gridTemplateColumns: '110px 1fr', gap: '6px 10px', alignItems: 'center', fontSize: 12, color: 'var(--ac-text-2, #334155)' }}>
+                                                    <div className="accomp-trend-grid" style={{ display: 'grid', gridTemplateColumns: '110px 1fr', gap: '6px 10px', alignItems: 'center', fontSize: 12, color: 'var(--ac-text-2, #334155)' }}>
                                                         <span>Project Manager</span>
                                                         {point.pm === null ? <span style={{ color: '#94a3b8' }}>—</span> : <ProgressBar value={animatedBar(comparisonBarsLive, point.pm)} color="#2563eb" />}
                                                         <span>Foreman</span>
@@ -1079,6 +1154,30 @@ export default function WeeklyAccomplishmentsPage({    weeklyAccomplishments = [
                                 <div style={{ fontWeight: 800, fontSize: 15, color: 'var(--ac-text, #0f172a)', marginBottom: 10 }}>Submission Freshness Board</div>
                                 {safeComparisonRows.length === 0 ? (
                                     <div style={{ fontSize: 13, color: 'var(--ac-muted, #64748b)' }}>No projects to track yet.</div>
+                                ) : isMobile ? (
+                                    <div style={{ display: 'grid', gap: 8 }}>
+                                        {safeComparisonRows.map((row) => {
+                                            const pmSilent = daysSince(row.last_pm_submission);
+                                            const foremanSilent = daysSince(row.last_foreman_submission);
+                                            return (
+                                                <div key={row.project_id} style={{ ...innerCardStyle, margin: 0, display: 'grid', gap: 8 }}>
+                                                    <div style={{ fontWeight: 700, fontSize: 13, color: 'var(--ac-text, #0f172a)' }}>{row.project_name}</div>
+                                                    <div style={{ display: 'grid', gap: 2, fontSize: 12, color: 'var(--ac-text-2, #334155)' }}>
+                                                        <span>Last PM: {row.last_pm_submission ? formatYmdHmAmPm(row.last_pm_submission) : '-'}</span>
+                                                        <span>
+                                                            PM silent: {pmSilent === null ? '—' : `${pmSilent}d`}
+                                                            {pmSilent !== null && pmSilent > 7 ? <span style={{ ...pillStyle, background: '#fee2e2', color: '#b91c1c', marginLeft: 6 }}>stale</span> : null}
+                                                        </span>
+                                                        <span>Last Foreman: {row.last_foreman_submission ? formatYmdHmAmPm(row.last_foreman_submission) : '-'}</span>
+                                                        <span>
+                                                            Foreman silent: {foremanSilent === null ? '—' : `${foremanSilent}d`}
+                                                            {foremanSilent !== null && foremanSilent > 7 ? <span style={{ ...pillStyle, background: '#fee2e2', color: '#b91c1c', marginLeft: 6 }}>stale</span> : null}
+                                                        </span>
+                                                    </div>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
                                 ) : (
                                     <div style={{ overflowX: 'auto' }}>
                                         <table className="accomp-hover-table" style={{ width: '100%', minWidth: 760, borderCollapse: 'collapse' }}>
@@ -1148,7 +1247,7 @@ export default function WeeklyAccomplishmentsPage({    weeklyAccomplishments = [
                                                             <span style={{ ...pillStyle, ...varianceStyle(delta) }}>Δ {delta}%</span>
                                                         )}
                                                     </div>
-                                                    <div style={{ display: 'grid', gridTemplateColumns: '110px 1fr', gap: '6px 10px', alignItems: 'center', fontSize: 12, color: 'var(--ac-text-2, #334155)' }}>
+                                                    <div className="accomp-trend-grid" style={{ display: 'grid', gridTemplateColumns: '110px 1fr', gap: '6px 10px', alignItems: 'center', fontSize: 12, color: 'var(--ac-text-2, #334155)' }}>
                                                         <span>Project Manager</span>
                                                         <ProgressBar value={animatedBar(comparisonBarsLive, row.pm_progress)} color="#2563eb" />
                                                         <span>Foreman</span>
@@ -1213,7 +1312,8 @@ export default function WeeklyAccomplishmentsPage({    weeklyAccomplishments = [
                                 top: 0,
                                 right: 0,
                                 bottom: 0,
-                                width: sidebarMaximized ? 'min(960px, 96vw)' : 'min(480px, 94vw)',
+                                width: isMobile ? '100vw' : (sidebarMaximized ? 'min(960px, 96vw)' : 'min(480px, 94vw)'),
+                                maxWidth: '100vw',
                                 background: 'var(--ac-bg, #ffffff)',
                                 zIndex: 1095,
                                 boxShadow: '-12px 0 32px rgba(15,23,42,0.18)',
@@ -1241,7 +1341,7 @@ export default function WeeklyAccomplishmentsPage({    weeklyAccomplishments = [
                                     borderRight: 'none',
                                     background: 'var(--ac-bg, #ffffff)',
                                     color: 'var(--ac-muted, #64748b)',
-                                    display: 'inline-flex',
+                                    display: isMobile ? 'none' : 'inline-flex',
                                     alignItems: 'center',
                                     justifyContent: 'center',
                                     cursor: 'pointer',
@@ -1293,7 +1393,7 @@ export default function WeeklyAccomplishmentsPage({    weeklyAccomplishments = [
                                     </div>
                                 </div>
                             </div>
-                            <div style={{ display: 'flex', borderBottom: '1px solid var(--ac-border, #e8edf3)', marginBottom: 12 }}>
+                            <div className="accomp-tabs-scroll" style={{ display: 'flex', borderBottom: '1px solid var(--ac-border, #e8edf3)', marginBottom: 12 }}>
                                 {['Details', 'Photos', 'Location', 'Comments'].map((tab) => (
                                     <button
                                         key={tab}
@@ -1308,7 +1408,7 @@ export default function WeeklyAccomplishmentsPage({    weeklyAccomplishments = [
                             {detailTab === 'Details' && (
                                 <div>
                                     <div style={{ fontWeight: 800, fontSize: 13, color: 'var(--ac-text, #0f172a)', marginBottom: 8 }}>Work Information</div>
-                                    <div style={{ border: '1px solid var(--ac-border, #eef2f7)', borderRadius: 8, padding: 12, display: 'grid', gridTemplateColumns: '130px 1fr', gap: '8px 12px', fontSize: 13 }}>
+                                    <div className="accomp-details-grid" style={{ border: '1px solid var(--ac-border, #eef2f7)', borderRadius: 8, padding: 12, display: 'grid', gridTemplateColumns: '130px 1fr', gap: '8px 12px', fontSize: 13 }}>
                                         <span style={{ color: 'var(--ac-muted, #64748b)' }}>Scope of Work</span><span style={{ color: 'var(--ac-text, #0f172a)', fontWeight: 500 }}>{selectedSubmission.scope_of_work || '-'}</span>
                                         <span style={{ color: 'var(--ac-muted, #64748b)' }}>Accomplishment</span><span style={{ color: 'var(--ac-text, #0f172a)', fontWeight: 500 }}>{selectedSubmission.percent_completed ?? '-'}%</span>
                                         <span style={{ color: 'var(--ac-muted, #64748b)' }}>Manpower</span><span style={{ color: 'var(--ac-text, #0f172a)', fontWeight: 500 }}>{submissionWorkInfo ? `${submissionWorkInfo.manpower} workers` : '-'}</span>
@@ -1327,7 +1427,7 @@ export default function WeeklyAccomplishmentsPage({    weeklyAccomplishments = [
                                     {submissionPhotos.length === 0 ? (
                                         <div style={{ fontSize: 13, color: 'var(--ac-muted, #64748b)' }}>No photos uploaded yet.</div>
                                     ) : (
-                                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8 }}>
+                                        <div className="accomp-sidebar-photos" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8 }}>
                                             {submissionPhotos.slice(0, 3).map((photo) => (
                                                 <button
                                                     key={photo.id || photo.photo_path}

@@ -8,6 +8,7 @@ import SubmissionComments from '../../../Components/SubmissionComments';
 import OptimizedImage from '../../../Components/OptimizedImage';
 import {
     ProgressBar,
+    accompMobileCss,
     cardStyle,
     initialsOf,
     innerCardStyle,
@@ -19,6 +20,7 @@ import {
     pillStyle,
     sameProject,
     statusStyle,
+    useIsMobile,
     varianceStyle,
 } from '../../../Components/AccomplishmentWidgets';
 import { formatYmdHmAmPm } from '../../../Utils/dateTimeFormat';
@@ -67,6 +69,7 @@ export default function HeadAdminWeeklyAccomplishmentShow({
     useLayoutTitle('Accomplishments');
 
     const [detailView, setDetailView] = useState(() => detailViewFromHash());
+    const isMobile = useIsMobile();
 
     const switchDetailView = (view) => {
         setDetailView(view);
@@ -339,6 +342,37 @@ export default function HeadAdminWeeklyAccomplishmentShow({
                     </span>
                 </span>
             </div>
+            {isMobile ? (
+                <div style={{ display: 'grid', gap: 8 }}>
+                    {safeBreakdown.length === 0 ? (
+                        <div style={{ padding: 20, textAlign: 'center', color: 'var(--ac-muted, #64748b)', fontSize: 13 }}>
+                            No scope breakdown for this project yet.
+                        </div>
+                    ) : safeBreakdown.map((item) => (
+                        <div key={item.scope} style={{ ...innerCardStyle, margin: 0, display: 'grid', gap: 8 }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
+                                <span style={{ fontWeight: 700, fontSize: 13, color: 'var(--ac-text, #0f172a)' }}>{item.scope}</span>
+                                <span className="accomplishment-status-pill" style={{ ...pillStyle, ...statusStyle(item.status) }}>{item.status}</span>
+                            </div>
+                            <div>
+                                <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--ac-muted, #64748b)', marginBottom: 4 }}>PM PROGRESS</div>
+                                <ProgressBar value={animatedBreakdownBar(item.pm)} color="#2563eb" />
+                            </div>
+                            <div>
+                                <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--ac-muted, #64748b)', marginBottom: 4 }}>FOREMAN PROGRESS</div>
+                                <ProgressBar value={animatedBreakdownBar(item.foreman)} color="#16a34a" />
+                            </div>
+                            <div>
+                                {item.variance === null || item.variance === undefined ? (
+                                    <span style={{ ...pillStyle, background: 'var(--ac-border-soft, #f1f5f9)', color: 'var(--ac-muted, #64748b)' }}>Variance —</span>
+                                ) : (
+                                    <span style={{ ...pillStyle, ...varianceStyle(item.variance) }}>Variance {item.variance}%</span>
+                                )}
+                            </div>
+                        </div>
+                    ))}
+                </div>
+            ) : (
             <div style={{ overflowX: 'auto' }}>
                 <table className="accomp-hover-table" style={{ width: '100%', minWidth: 760, borderCollapse: 'collapse' }}>
                     <thead>
@@ -382,6 +416,7 @@ export default function HeadAdminWeeklyAccomplishmentShow({
                     </tbody>
                 </table>
             </div>
+            )}
         </>
     );
 
@@ -427,6 +462,7 @@ export default function HeadAdminWeeklyAccomplishmentShow({
                 }
                 .accomp-photo-label { background: linear-gradient(transparent, rgba(15,23,42,0.75)); }
                 html[data-theme="dark"] .accomp-photo-label { background: #000; }
+                ${accompMobileCss}
                 .accomp-hover-table tbody tr { transition: background-color 0.15s ease; }
                 .accomp-hover-table tbody tr:hover { background-color: var(--ac-rowhover, #f1f5f9); }
                 .accomplishment-print-only { display: none; }
@@ -448,7 +484,7 @@ export default function HeadAdminWeeklyAccomplishmentShow({
                     .accomplishment-status-pill { background: none !important; border: none !important; color: #000 !important; padding-left: 0 !important; padding-right: 0 !important; }
                 }
             `}</style>
-            <div style={{ display: 'grid', gap: 16, background: 'var(--ac-page, #f4f6fb)', margin: -16, padding: 16 }}>
+            <div className="accomp-page-root" style={{ display: 'grid', gap: 16, background: 'var(--ac-page, #f4f6fb)', margin: -16, padding: 16 }}>
                 <div style={cardStyle} data-testid="project-detail">
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
                         <span style={{ width: 22, height: 22, borderRadius: 999, background: '#2563eb', color: '#fff', fontSize: 12, fontWeight: 800, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>3</span>
@@ -476,7 +512,7 @@ export default function HeadAdminWeeklyAccomplishmentShow({
                             ⤓ Export Report
                         </ActionButton>
                     </div>
-                    <div style={{ display: 'flex', borderBottom: '1px solid var(--ac-border, #e8edf3)', marginBottom: 12, overflowX: 'auto' }}>
+                    <div className="accomp-tabs-scroll" style={{ display: 'flex', borderBottom: '1px solid var(--ac-border, #e8edf3)', marginBottom: 12, overflowX: 'auto' }}>
                         {detailViews.map((tab) => (
                             <button
                                 key={tab}
@@ -527,7 +563,7 @@ export default function HeadAdminWeeklyAccomplishmentShow({
                                     </div>
                                     <div style={innerCardStyle}>
                                         <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--ac-text, #0f172a)', marginBottom: 10 }}>Progress Comparison</div>
-                                        <div style={{ display: 'grid', gridTemplateColumns: '110px 1fr', gap: '8px 10px', alignItems: 'center', fontSize: 12, color: 'var(--ac-text-2, #334155)' }}>
+                                        <div className="accomp-trend-grid" style={{ display: 'grid', gridTemplateColumns: '110px 1fr', gap: '8px 10px', alignItems: 'center', fontSize: 12, color: 'var(--ac-text-2, #334155)' }}>
                                             <span>Project Manager</span>
                                             {progressAnimated.pm === null || progressAnimated.pm === undefined ? (
                                                 <span style={{ color: '#94a3b8' }}>No PM submission yet.</span>
@@ -596,6 +632,32 @@ export default function HeadAdminWeeklyAccomplishmentShow({
 
                     {(detailView === 'PM Submissions' || detailView === 'Foreman Submissions') && (
                         <>
+                        {isMobile ? (
+                            <div style={{ display: 'grid', gap: 8 }}>
+                                {viewRows.length === 0 ? (
+                                    <div style={{ padding: 20, textAlign: 'center', color: 'var(--ac-muted, #64748b)', fontSize: 13 }}>
+                                        No {detailView === 'PM Submissions' ? 'PM' : 'foreman'} submissions yet.
+                                    </div>
+                                ) : viewRows.map((row) => (
+                                    <div key={row.id} style={{ ...innerCardStyle, margin: 0, display: 'grid', gap: 8 }}>
+                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
+                                            <span style={{ fontWeight: 700, fontSize: 13, color: 'var(--ac-text, #0f172a)' }}>{row.scope_of_work || '-'}</span>
+                                            <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 13, fontWeight: 700, color: 'var(--ac-text, #0f172a)' }}>{row.percent_completed ?? '-'}%</span>
+                                        </div>
+                                        <div style={{ fontSize: 12, color: 'var(--ac-text-2, #334155)', display: 'grid', gap: 2 }}>
+                                            <span style={{ fontWeight: 600 }}>{row.submitted_by_name || '-'}</span>
+                                            <span style={{ color: 'var(--ac-muted, #64748b)' }}>{row.submitted_by_role || '-'}</span>
+                                            <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 11, color: 'var(--ac-muted, #64748b)' }}>
+                                                {formatYmdHmAmPm(row.submitted_at || row.created_at)}
+                                            </span>
+                                        </div>
+                                        <ActionButton type="button" variant="neutral" onClick={() => openSubmission(row)} aria-label={`View ${row.scope_of_work || 'submission'} details`}>
+                                            ••• View details
+                                        </ActionButton>
+                                    </div>
+                                ))}
+                            </div>
+                        ) : (
                         <div style={{ overflowX: 'auto' }}>
                             <table className="accomp-hover-table" style={{ width: '100%', minWidth: 640, borderCollapse: 'collapse' }}>
                                 <thead>
@@ -633,6 +695,7 @@ export default function HeadAdminWeeklyAccomplishmentShow({
                                 </tbody>
                             </table>
                         </div>
+                        )}
                         {remainingViewCount > 0 && (
                             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8, marginTop: 12 }}>
                                 {viewError ? (
@@ -656,7 +719,7 @@ export default function HeadAdminWeeklyAccomplishmentShow({
                             <div style={{ fontSize: 13, color: 'var(--ac-muted, #64748b)' }}>No progress photos for this project yet.</div>
                         ) : (
                             <>
-                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: 8 }}>
+                            <div className="accomp-show-photos" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: 8 }}>
                                 {allPhotos.map((photo) => {
                                     const scopeLabel = photoScopeName(photo);
                                     return (
@@ -750,7 +813,8 @@ export default function HeadAdminWeeklyAccomplishmentShow({
                                 top: 0,
                                 right: 0,
                                 bottom: 0,
-                                width: sidebarMaximized ? 'min(960px, 96vw)' : 'min(480px, 94vw)',
+                                width: isMobile ? '100vw' : (sidebarMaximized ? 'min(960px, 96vw)' : 'min(480px, 94vw)'),
+                                maxWidth: '100vw',
                                 background: 'var(--ac-bg, #ffffff)',
                                 zIndex: 1095,
                                 boxShadow: '-12px 0 32px rgba(15,23,42,0.18)',
@@ -778,7 +842,7 @@ export default function HeadAdminWeeklyAccomplishmentShow({
                                     borderRight: 'none',
                                     background: 'var(--ac-bg, #ffffff)',
                                     color: 'var(--ac-muted, #64748b)',
-                                    display: 'inline-flex',
+                                    display: isMobile ? 'none' : 'inline-flex',
                                     alignItems: 'center',
                                     justifyContent: 'center',
                                     cursor: 'pointer',
@@ -827,7 +891,7 @@ export default function HeadAdminWeeklyAccomplishmentShow({
                                 </div>
                             </div>
                         </div>
-                        <div style={{ display: 'flex', borderBottom: '1px solid var(--ac-border, #e8edf3)', marginBottom: 12 }}>
+                        <div className="accomp-tabs-scroll" style={{ display: 'flex', borderBottom: '1px solid var(--ac-border, #e8edf3)', marginBottom: 12 }}>
                             {['Details', 'Photos', 'Location', 'Comments'].map((tab) => (
                                 <button
                                     key={tab}
@@ -841,8 +905,8 @@ export default function HeadAdminWeeklyAccomplishmentShow({
                         </div>
                         {detailTab === 'Details' && (
                             <div>
-                                <div style={{ fontWeight: 800, fontSize: 13, color: 'var(--ac-text, #0f172a)', marginBottom: 8 }}>Work Information</div>
-                                <div style={{ border: '1px solid var(--ac-border, #eef2f7)', borderRadius: 8, padding: 12, display: 'grid', gridTemplateColumns: '130px 1fr', gap: '8px 12px', fontSize: 13 }}>
+                                    <div style={{ fontWeight: 800, fontSize: 13, color: 'var(--ac-text, #0f172a)', marginBottom: 8 }}>Work Information</div>
+                                    <div className="accomp-details-grid" style={{ border: '1px solid var(--ac-border, #eef2f7)', borderRadius: 8, padding: 12, display: 'grid', gridTemplateColumns: '130px 1fr', gap: '8px 12px', fontSize: 13 }}>
                                     <span style={{ color: 'var(--ac-muted, #64748b)' }}>Scope of Work</span><span style={{ color: 'var(--ac-text, #0f172a)', fontWeight: 500 }}>{selectedSubmission.scope_of_work || '-'}</span>
                                     <span style={{ color: 'var(--ac-muted, #64748b)' }}>Accomplishment</span><span style={{ color: 'var(--ac-text, #0f172a)', fontWeight: 500 }}>{selectedSubmission.percent_completed ?? '-'}%</span>
                                     <span style={{ color: 'var(--ac-muted, #64748b)' }}>Manpower</span><span style={{ color: 'var(--ac-text, #0f172a)', fontWeight: 500 }}>{submissionWorkInfo ? `${submissionWorkInfo.manpower} workers` : '-'}</span>
