@@ -5,10 +5,11 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Settings\UpdateSettingsRequest;
 use App\Models\Project;
-use App\Models\ProjectScope;
 use App\Models\User;
 use App\Models\UserDetail;
+use App\Services\PmProgressService;
 use App\Services\ProjectManagerApiTokenService;
+use App\Services\ProjectService;
 use App\Services\SettingsService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
@@ -21,7 +22,9 @@ class ProjectManagerAuthController extends Controller
     private const LOGIN_DECAY_SECONDS = 60;
 
     public function __construct(
-        private readonly ProjectManagerApiTokenService $tokens
+        private readonly ProjectManagerApiTokenService $tokens,
+        private readonly ProjectService $projectService,
+        private readonly PmProgressService $pmProgressService
     ) {
     }
 
@@ -64,7 +67,7 @@ class ProjectManagerAuthController extends Controller
             'expires_at' => $expiresAt->toIso8601String(),
             'server_time' => now()->toIso8601String(),
             'user' => $this->userPayload($user),
-            'projects' => $this->visibleProjects(),
+            'projects' => $this->visibleProjects((int) $user->id),
         ]);
     }
 
@@ -74,15 +77,15 @@ class ProjectManagerAuthController extends Controller
 
         return response()->json([
             'user' => $this->userPayload($user),
-            'projects' => $this->visibleProjects(),
+            'projects' => $this->visibleProjects((int) $user->id),
             'server_time' => now()->toIso8601String(),
         ]);
     }
 
-    public function projects()
+    public function projects(Request $request)
     {
         return response()->json([
-            'projects' => $this->visibleProjects(),
+            'projects' => $this->visibleProjects((int) $request->user()->id),
         ]);
     }
 
@@ -169,31 +172,30 @@ class ProjectManagerAuthController extends Controller
     }
 
     /**
-     * Projects visible to a project manager: every construction-phase
-     * project, same weighted overall progress as the web /projects kanban.
+     * Projects assigned to the PM: construction-phase projects carrying a
+     * project_manager assignment for this user, with strictly PM-based
+     * overall progress (0 when the PM side has no data yet).
      */
-    private function visibleProjects(): array
+    private function visibleProjects(int $pmUserId): array
     {
+        $assignedIds = $this->projectService->assignedProjectIdsForPm($pmUserId);
+
         $projects = Project::query()
             ->where('phase', Project::PHASE_CONSTRUCTION)
+            ->whereIn('id', $assignedIds)
             ->orderBy('name')
-            ->get(['id', 'name', 'client', 'location', 'phase', 'status', 'overall_progress']);
+            ->get(['id', 'name', 'client', 'location', 'phase', 'status']);
 
         if ($projects->isEmpty()) {
             return [];
         }
 
-        $ids = $projects->pluck('id')->map(fn ($id) => (int) $id)->all();
-
-        $weightedByProjectId = ProjectScope::query()
-            ->whereIn('project_id', $ids)
-            ->selectRaw('project_id, COALESCE(SUM(ROUND(weight_percent * progress_percent / 100.0, 2)), 0) as weighted_progress')
-            ->groupBy('project_id')
-            ->get()
-            ->mapWithKeys(fn ($row) => [(int) $row->project_id => (float) $row->weighted_progress]);
+        $pmProgressByProject = $this->pmProgressService->progressByProjectIds(
+            $projects->pluck('id')->all()
+        );
 
         return $projects
-            ->map(function (Project $project) use ($weightedByProjectId) {
+            ->map(function (Project $project) use ($pmProgressByProject) {
                 $location = trim((string) ($project->location ?? ''));
                 if ($location === '') {
                     $location = trim((string) ($project->client ?? ''));
@@ -206,7 +208,7 @@ class ProjectManagerAuthController extends Controller
                     'client' => $project->client,
                     'phase' => $project->phase,
                     'status' => $project->status,
-                    'overall_progress' => round(max(0, min(100, (float) ($weightedByProjectId[(int) $project->id] ?? 0))), 2),
+                    'overall_progress' => $pmProgressByProject[(int) $project->id] ?? 0.0,
                 ];
             })
             ->values()

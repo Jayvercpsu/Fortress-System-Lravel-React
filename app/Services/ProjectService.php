@@ -27,7 +27,8 @@ class ProjectService
 
     public function __construct(
         private readonly ProjectRepositoryInterface $projectRepository,
-        private readonly BuildRepositoryInterface $buildRepository
+        private readonly BuildRepositoryInterface $buildRepository,
+        private readonly PmProgressService $pmProgressService
     ) {
     }
 
@@ -38,8 +39,11 @@ class ProjectService
         $validated['phase'] = ProjectFlow::normalizePhase($validated['phase'] ?? null);
         $validated['overall_progress'] = 0;
         $validated['user_id'] = $userId;
+        $pmUserId = (int) ($validated['assigned_pm_id'] ?? 0);
+        unset($validated['assigned_pm_id']);
 
         $project = $this->projectRepository->createProject($validated);
+        $this->updateAssignedPm($project, $pmUserId > 0 ? $pmUserId : null);
         $this->projectRepository->syncLegacyForemanAssignments($project);
         $this->syncClientAssignmentFromProject($project->fresh());
         $this->seedInitialScopes($project->fresh());
@@ -73,6 +77,20 @@ class ProjectService
     {
         return $this->projectRepository
             ->foremanOptions()
+            ->map(fn ($user) => [
+                'id' => (int) $user->id,
+                'fullname' => (string) $user->fullname,
+            ])
+            ->values()
+            ->all();
+    }
+
+    public function pmOptionsPayload(): array
+    {
+        return User::query()
+            ->where('role', User::ROLE_PROJECT_MANAGER)
+            ->orderBy('fullname')
+            ->get(['id', 'fullname'])
             ->map(fn ($user) => [
                 'id' => (int) $user->id,
                 'fullname' => (string) $user->fullname,
@@ -349,6 +367,8 @@ class ProjectService
             'props' => [
                 'project' => $this->projectPayload($project),
                 'foremen' => $this->foremanOptionsPayload(),
+                'pmOptions' => $this->pmOptionsPayload(),
+                'assignedPmId' => $this->assignedPmId($project),
                 'designers' => $this->designerOptionsPayload(),
                 'clientOptions' => $this->clientOptionsPayload((int) $project->id),
             ],
@@ -706,7 +726,7 @@ class ProjectService
         ))->appends($request->query());
     }
 
-    private function projectIndexCardPayload(Project $project, ?array $weightedByProjectId = null, array $foremanNamesByProjectId = []): array
+    private function projectIndexCardPayload(Project $project, ?array $weightedByProjectId = null, array $foremanNamesByProjectId = [], array $pmNamesByProjectId = []): array
     {
         $phase = ProjectFlow::normalizePhase($project->phase);
         $designProgress = DesignComputation::computeProgress(
@@ -743,6 +763,7 @@ class ProjectService
             'location' => $project->location,
             'assigned_role' => ProjectFlow::normalizeAssignedRoleList($project->assigned_role ?? null),
             'assigned' => $assigned,
+            'assigned_pm' => $pmNamesByProjectId[(int) $project->id] ?? null,
             'target' => optional($project->target)->toDateString(),
             'status' => $status,
             'phase' => $phase,
@@ -824,15 +845,65 @@ class ProjectService
         return $grouped;
     }
 
+    /**
+     * Assigned PM fullname per project (at most one PM per project).
+     *
+     * @return array<int, string>
+     */
+    private function pmNamesByProjectId(array $projectIds): array
+    {
+        $ids = collect($projectIds)
+            ->map(fn ($id) => (int) $id)
+            ->filter(fn (int $id) => $id > 0)
+            ->unique()
+            ->values();
+
+        if ($ids->isEmpty()) {
+            return [];
+        }
+
+        $assignments = ProjectAssignment::query()
+            ->whereIn('project_id', $ids->all())
+            ->where('role_in_project', ProjectAssignment::ROLE_PROJECT_MANAGER)
+            ->get(['project_id', 'user_id']);
+
+        if ($assignments->isEmpty()) {
+            return [];
+        }
+
+        $namesByUserId = User::query()
+            ->where('role', User::ROLE_PROJECT_MANAGER)
+            ->whereIn('id', $assignments->pluck('user_id')->all())
+            ->pluck('fullname', 'id')
+            ->map(fn ($name) => trim((string) $name))
+            ->filter(fn ($name) => $name !== '')
+            ->all();
+
+        $grouped = [];
+        foreach ($assignments as $assignment) {
+            $name = $namesByUserId[(int) $assignment->user_id] ?? '';
+            if ($name !== '') {
+                $grouped[(int) $assignment->project_id] = $name;
+            }
+        }
+
+        return $grouped;
+    }
+
+    /**
+     * Strictly PM-based progress: independent PM accomplishment rows only
+     * (PmProgressService). Null (no PM data yet) reads as 0 so cards show
+     * 0/Pending instead of leaking Foreman numbers.
+     */
     private function weightedProgressForProject(Project $project, ?array $weightedByProjectId = null): float
     {
-        $raw = $weightedByProjectId !== null
-            ? ($weightedByProjectId[(int) $project->id] ?? null)
-            : null;
-
-        if ($raw === null) {
-            $raw = $this->projectRepository->weightedProgressByProjectId((int) $project->id);
+        if ($weightedByProjectId !== null) {
+            $raw = $weightedByProjectId[(int) $project->id] ?? null;
+            $numeric = (float) ($raw ?? 0);
+            return round(max(0, min(100, $numeric)), 2);
         }
+
+        $raw = $this->pmProgressService->progressForProject((int) $project->id);
 
         $numeric = (float) ($raw ?? 0);
         $clamped = max(0, min(100, $numeric));
@@ -897,13 +968,13 @@ class ProjectService
             ->limit($visibleLimit)
             ->get();
 
-        $weightedByProjectId = $this->projectRepository
-            ->weightedProgressByProjectIds($items->pluck('id')->all())
-            ->all();
+        $weightedByProjectId = $this->pmProgressService
+            ->progressByProjectIds($items->pluck('id')->all());
         $foremanNamesByProjectId = $this->foremanNamesByProjectId($items->pluck('id')->all());
+        $pmNamesByProjectId = $this->pmNamesByProjectId($items->pluck('id')->all());
 
         $items = $items
-            ->map(fn (Project $project) => $this->projectIndexCardPayload($project, $weightedByProjectId, $foremanNamesByProjectId))
+            ->map(fn (Project $project) => $this->projectIndexCardPayload($project, $weightedByProjectId, $foremanNamesByProjectId, $pmNamesByProjectId))
             ->values();
 
         $visibleCount = $items->count();
@@ -941,8 +1012,11 @@ class ProjectService
         $validated['assigned_role'] = ProjectFlow::normalizeAssignedRoleList($validated['assigned_role'] ?? null);
         $validated['status'] = ProjectFlow::normalizeStatus($validated['status'] ?? null);
         $validated['phase'] = ProjectFlow::normalizePhase($validated['phase'] ?? null);
+        $pmUserId = (int) ($validated['assigned_pm_id'] ?? 0);
+        unset($validated['assigned_pm_id']);
 
         $this->projectRepository->updateProject($project, $validated);
+        $this->updateAssignedPm($project, $pmUserId > 0 ? $pmUserId : null);
         $freshProject = $project->fresh();
         $this->projectRepository->syncLegacyForemanAssignments($freshProject);
         $this->syncClientAssignmentFromProject($freshProject);
@@ -1095,6 +1169,95 @@ class ProjectService
         }
 
         return $ids;
+    }
+
+    /**
+     * Assigned PM user id for a project. A project has at most one PM —
+     * enforced by updateAssignedPm().
+     */
+    public function assignedPmId(Project $project): ?int
+    {
+        $id = ProjectAssignment::query()
+            ->where('project_id', $project->id)
+            ->where('role_in_project', ProjectAssignment::ROLE_PROJECT_MANAGER)
+            ->orderByDesc('id')
+            ->value('user_id');
+
+        return $id !== null ? (int) $id : null;
+    }
+
+    /**
+     * Project ids assigned to a PM user (for server-side PM scoping),
+     * ordered by project name for stable defaults.
+     *
+     * @return int[]
+     */
+    public function assignedProjectIdsForPm(int $userId): array
+    {
+        return ProjectAssignment::query()
+            ->where('project_assignments.user_id', $userId)
+            ->where('project_assignments.role_in_project', ProjectAssignment::ROLE_PROJECT_MANAGER)
+            ->join('projects', 'projects.id', '=', 'project_assignments.project_id')
+            ->whereNull('projects.deleted_at')
+            ->orderBy('projects.name')
+            ->pluck('project_assignments.project_id')
+            ->map(fn ($id) => (int) $id)
+            ->values()
+            ->all();
+    }
+
+    /**
+     * Replace the project's single PM assignment. Returns an error message
+     * on failure, null on success.
+     */
+    public function updateAssignedPm(Project $project, ?int $pmUserId): ?string
+    {
+        if ($pmUserId !== null) {
+            $pmUser = User::query()
+                ->where('id', $pmUserId)
+                ->where('role', User::ROLE_PROJECT_MANAGER)
+                ->first(['id']);
+
+            if (!$pmUser) {
+                return __('messages.projects.assigned_pm_invalid');
+            }
+        }
+
+        // Remove other PM assignments (soft-delete). The unique key is
+        // (project_id, user_id) across all roles and still covers trashed
+        // rows, so the upsert below must reuse trashed rows.
+        ProjectAssignment::query()
+            ->where('project_id', $project->id)
+            ->where('role_in_project', ProjectAssignment::ROLE_PROJECT_MANAGER)
+            ->when($pmUserId !== null, fn ($query) => $query->where('user_id', '!=', $pmUserId))
+            ->delete();
+
+        if ($pmUserId === null) {
+            return null;
+        }
+
+        $assignment = ProjectAssignment::withTrashed()->updateOrCreate(
+            [
+                'project_id' => (int) $project->id,
+                'user_id' => $pmUserId,
+            ],
+            [
+                'role_in_project' => ProjectAssignment::ROLE_PROJECT_MANAGER,
+            ]
+        );
+
+        if ($assignment->trashed()) {
+            $assignment->restore();
+        }
+
+        // Enforce a single PM: drop any other PM row for this project.
+        ProjectAssignment::query()
+            ->where('project_id', $project->id)
+            ->where('role_in_project', ProjectAssignment::ROLE_PROJECT_MANAGER)
+            ->where('user_id', '!=', $pmUserId)
+            ->forceDelete();
+
+        return null;
     }
 
     public function updateProjectPhase(Project $project, string $phase): void

@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\Project;
 use App\Models\ProjectAssignment;
+use App\Models\ProjectScope;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
@@ -91,6 +92,53 @@ class HrForemanAssignmentsTest extends TestCase
                 ->where('user_id', $foreman->id)
                 ->count()
         );
+    }
+
+    public function test_rename_foreman_syncs_denormalized_assignment_names(): void
+    {
+        $hr = $this->makeUser('hr');
+        $foreman = $this->makeUser('foreman');
+        $foreman->update(['fullname' => 'Foreman']);
+        $project = $this->makeProject();
+        $project->update(['assigned' => 'Foreman']);
+
+        $scope = ProjectScope::create([
+            'project_id' => $project->id,
+            'scope_name' => 'Foundation',
+            'progress_percent' => 0,
+            'status' => 'NOT_STARTED',
+            'assigned_personnel' => 'Foreman',
+        ]);
+
+        $otherScope = ProjectScope::create([
+            'project_id' => $project->id,
+            'scope_name' => 'Columns',
+            'progress_percent' => 0,
+            'status' => 'NOT_STARTED',
+            'assigned_personnel' => 'Foreman Joe',
+        ]);
+
+        $this->actingAs($hr)
+            ->patch("/hr/foremen/{$foreman->id}", [
+                'fullname' => 'Joshua Foreman Main',
+                'email' => $foreman->email,
+                'phone' => '09170000001',
+                'project_ids' => [],
+            ])
+            ->assertRedirect('/hr/foremen');
+
+        $this->assertDatabaseHas('projects', [
+            'id' => $project->id,
+            'assigned' => 'Joshua Foreman Main',
+        ]);
+        $this->assertDatabaseHas('project_scopes', [
+            'id' => $scope->id,
+            'assigned_personnel' => 'Joshua Foreman Main',
+        ]);
+        $this->assertDatabaseHas('project_scopes', [
+            'id' => $otherScope->id,
+            'assigned_personnel' => 'Foreman Joe',
+        ]);
     }
 
     private function makeUser(string $role): User

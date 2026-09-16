@@ -87,6 +87,13 @@ const currentMonday = () => {
     const normalizedDay = String(date.getDate()).padStart(2, '0');
     return `${normalizedYear}-${normalizedMonth}-${normalizedDay}`;
 };
+const normalizeIntPercentInput = (value) => {
+    if (value === '' || value === null || value === undefined) return 0;
+    const text = String(value).trim();
+    if (text === '') return 0;
+    if (/^-?0+\d+$/.test(text)) return parseInt(text, 10);
+    return value;
+};
 
 export default function MonitoringBoardPage({
     project,
@@ -95,6 +102,8 @@ export default function MonitoringBoardPage({
     weekly_history: weeklyHistory = {},
     embedded = false,
     readOnly = false,
+    usePmProgress = false,
+    photoSideSelect = false,
 }) {
     const [orderedScopes, setOrderedScopes] = useState(scopes);
     const [reordering, setReordering] = useState(false);
@@ -175,6 +184,9 @@ export default function MonitoringBoardPage({
     const [showHistoryModal, setShowHistoryModal] = useState(false);
     const [historyWeekStart, setHistoryWeekStart] = useState('');
     const showBackButton = !embedded;
+    const scopeColumnLabels = usePmProgress
+        ? ['Scope', 'Contract', 'Weight', 'WT %', 'Accomp Amount', 'Assigned', 'PM Progress', 'Foreman Progress', 'Status', 'Remarks', 'Photos', 'Updated', 'Actions']
+        : ['Scope', 'Contract', 'Weight', 'WT %', 'Accomp Amount', 'Assigned', 'Progress', 'Status', 'Remarks', 'Photos', 'Updated', 'Actions'];
     useEffect(() => {
         setOrderedScopes(Array.isArray(scopes) ? scopes : []);
     }, [scopes]);
@@ -410,6 +422,7 @@ export default function MonitoringBoardPage({
     } = useForm({
         photo: null,
         caption: '',
+        ...(photoSideSelect ? { photo_side: 'pm' } : {}),
     });
 
     const submitCreate = (event) => {
@@ -420,6 +433,7 @@ export default function MonitoringBoardPage({
             onSuccess: () => {
                 resetCreateData();
                 setCreateData('progress_percent', 0);
+                setCreateData('pm_progress_percent', '');
                 setCreateData('status', STATUS_OPTIONS[0]);
                 setCreateData('contract_amount', '');
                 setCreateData('weight_percent', '');
@@ -436,10 +450,14 @@ export default function MonitoringBoardPage({
         if (readOnly) return;
         setEditScope(scope);
         if (clearEditErrors) clearEditErrors();
+        const pmValue = scope.pm_progress_percent ?? null;
         setEditData({
             scope_name: scope.scope_name ?? '',
             assigned_personnel: scope.assigned_personnel ?? '',
             progress_percent: Number(scope.progress_percent ?? 0),
+            ...(usePmProgress
+                ? { pm_progress_percent: Number(pmValue !== null && pmValue !== undefined ? pmValue : (scope.progress_percent ?? 0)) }
+                : {}),
             status: scope.status ?? STATUS_OPTIONS[0],
             remarks: scope.remarks ?? '',
             contract_amount: scope.contract_amount ?? '',
@@ -537,6 +555,9 @@ export default function MonitoringBoardPage({
         if (uploadingPhoto) return;
         setUploadScopeId(scopeId);
         resetPhotoData();
+        if (photoSideSelect) {
+            setPhotoData('photo_side', 'pm');
+        }
         setPhotoInputKey((value) => value + 1);
     };
 
@@ -922,7 +943,7 @@ export default function MonitoringBoardPage({
                                         aria-label="Select all scopes on this page"
                                     />
                                 </th>
-                        {['Scope', 'Contract', 'Weight', 'WT %', 'Accomp Amount', 'Assigned', 'Progress', 'Status', 'Remarks', 'Photos', 'Updated', 'Actions'].map((label) => (
+                        {scopeColumnLabels.map((label) => (
                             <th
                                 key={label}
                                 style={{
@@ -954,7 +975,7 @@ export default function MonitoringBoardPage({
                                             }}
                                         />
                                     </td>
-                                    {['Scope', 'Contract', 'Weight', 'WT %', 'Accomp Amount', 'Assigned', 'Progress', 'Status', 'Remarks', 'Photos', 'Updated', 'Actions'].map((label, colIndex) => (
+                                    {scopeColumnLabels.map((label, colIndex) => (
                                         <td
                                             key={`scope-skeleton-${rowIndex}-${colIndex}`}
                                             style={{ padding: '10px 8px', borderBottom: '1px solid var(--border-color)' }}
@@ -975,7 +996,7 @@ export default function MonitoringBoardPage({
                             ))}
                             {!scopeTableLoading && visibleScopes.length === 0 && (
                                 <tr>
-                                    <td colSpan={13} style={{ padding: '14px 8px', color: 'var(--text-muted)' }}>
+                                    <td colSpan={scopeColumnLabels.length + 1} style={{ padding: '14px 8px', color: 'var(--text-muted)' }}>
                                         No scope rows yet.
                                     </td>
                                 </tr>
@@ -1001,20 +1022,38 @@ export default function MonitoringBoardPage({
                                     </td>
                                     <td style={{ padding: '10px 8px', borderBottom: '1px solid var(--border-color)', whiteSpace: 'nowrap' }}>
                                     {scope.weight_percent
-                                        ? formatPercent(weightedScopePercent(scope.weight_percent, scope.progress_percent, scope.computed_percent))
+                                        ? formatPercent(usePmProgress
+                                            ? ((Number(scope.weight_percent) || 0) * (Number(scope.pm_progress_percent ?? 0) || 0)) / 100
+                                            : weightedScopePercent(scope.weight_percent, scope.progress_percent, scope.computed_percent))
                                         : '-'}
                                     </td>
                                     <td style={{ padding: '10px 8px', borderBottom: '1px solid var(--border-color)', whiteSpace: 'nowrap' }}>
                                     {scope.contract_amount
-                                        ? money((Number(scope.contract_amount) || 0) * (Number(scope.progress_percent) || 0) / 100)
+                                        ? money((Number(scope.contract_amount) || 0) * (Number(usePmProgress ? (scope.pm_progress_percent ?? 0) : scope.progress_percent) || 0) / 100)
                                         : '-'}
                                     </td>
                                     <td style={{ padding: '10px 8px', borderBottom: '1px solid var(--border-color)' }}>
-                                        {scope.assigned_personnel || '-'}
+                                        <div>{scope.assigned_personnel || '-'}</div>
+                                        {usePmProgress && scope.assigned_pm ? (
+                                            <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>PM: {scope.assigned_pm}</div>
+                                        ) : null}
                                     </td>
-                                    <td style={{ padding: '10px 8px', borderBottom: '1px solid var(--border-color)', whiteSpace: 'nowrap' }}>
-                                        {`${scope.progress_percent}%`}
-                                    </td>
+                                    {usePmProgress ? (
+                                        <>
+                                            <td style={{ padding: '10px 8px', borderBottom: '1px solid var(--border-color)', whiteSpace: 'nowrap' }}>
+                                                {scope.pm_progress_percent !== null && scope.pm_progress_percent !== undefined
+                                                    ? `${scope.pm_progress_percent}%`
+                                                    : '-'}
+                                            </td>
+                                            <td style={{ padding: '10px 8px', borderBottom: '1px solid var(--border-color)', whiteSpace: 'nowrap' }}>
+                                                {`${scope.progress_percent}%`}
+                                            </td>
+                                        </>
+                                    ) : (
+                                        <td style={{ padding: '10px 8px', borderBottom: '1px solid var(--border-color)', whiteSpace: 'nowrap' }}>
+                                            {`${scope.progress_percent}%`}
+                                        </td>
+                                    )}
                                     <td style={{ padding: '10px 8px', borderBottom: '1px solid var(--border-color)', whiteSpace: 'nowrap' }}>
                                         {scope.status}
                                     </td>
@@ -1135,6 +1174,18 @@ export default function MonitoringBoardPage({
                                                             disabled={readOnly || uploadingPhoto}
                                                             onChange={(event) => setPhotoData('photo', event.target.files?.[0] ?? null)}
                                                         />
+                                                        {photoSideSelect ? (
+                                                            <SelectInput
+                                                                value={photoData.photo_side || 'pm'}
+                                                                onChange={(event) => setPhotoData('photo_side', event.target.value)}
+                                                                disabled={readOnly || uploadingPhoto}
+                                                                style={inputStyle}
+                                                                aria-label="Photo destination"
+                                                            >
+                                                                <option value="pm">Save to PM</option>
+                                                                <option value="foreman">Save to Foreman</option>
+                                                            </SelectInput>
+                                                        ) : null}
                                                         <TextInput
                                                             value={photoData.caption}
                                                             onChange={(event) => setPhotoData('caption', event.target.value)}
@@ -1265,14 +1316,29 @@ export default function MonitoringBoardPage({
                             {editErrors.assigned_personnel && <div style={{ color: '#f87171', fontSize: 12, marginTop: 4 }}>{editErrors.assigned_personnel}</div>}
                         </label>
 
+                        {usePmProgress ? (
+                            <label>
+                                <div style={{ fontSize: 12, marginBottom: 6 }}>Progress (%) — PM</div>
+                                <TextInput
+                                    type="number"
+                                    min="0"
+                                    max="100"
+                                    value={editData.pm_progress_percent ?? ''}
+                                    onChange={(event) => setEditData('pm_progress_percent', normalizeIntPercentInput(event.target.value))}
+                                    disabled={readOnly || updating}
+                                    style={inputStyle}
+                                />
+                                {editErrors.pm_progress_percent && <div style={{ color: '#f87171', fontSize: 12, marginTop: 4 }}>{editErrors.pm_progress_percent}</div>}
+                            </label>
+                        ) : null}
                         <label>
-                            <div style={{ fontSize: 12, marginBottom: 6 }}>Progress (%)</div>
+                            <div style={{ fontSize: 12, marginBottom: 6 }}>Progress (%){usePmProgress ? ' — Foreman' : ''}</div>
                             <TextInput
                                 type="number"
                                 min="0"
                                 max="100"
                                 value={editData.progress_percent}
-                                onChange={(event) => setEditData('progress_percent', event.target.value)}
+                                onChange={(event) => setEditData('progress_percent', normalizeIntPercentInput(event.target.value))}
                                 disabled={readOnly || updating}
                                 style={inputStyle}
                             />
@@ -1406,14 +1472,29 @@ export default function MonitoringBoardPage({
                             {createErrors.assigned_personnel && <div style={{ color: '#f87171', fontSize: 12, marginTop: 4 }}>{createErrors.assigned_personnel}</div>}
                         </label>
 
+                        {usePmProgress ? (
+                            <label>
+                                <div style={{ fontSize: 12, marginBottom: 6 }}>Progress (%) — PM</div>
+                                <TextInput
+                                    type="number"
+                                    min="0"
+                                    max="100"
+                                    value={createData.pm_progress_percent ?? ''}
+                                    onChange={(event) => setCreateData('pm_progress_percent', normalizeIntPercentInput(event.target.value))}
+                                    disabled={readOnly || creating}
+                                    style={inputStyle}
+                                />
+                                {createErrors.pm_progress_percent && <div style={{ color: '#f87171', fontSize: 12, marginTop: 4 }}>{createErrors.pm_progress_percent}</div>}
+                            </label>
+                        ) : null}
                         <label>
-                            <div style={{ fontSize: 12, marginBottom: 6 }}>Progress (%)</div>
+                            <div style={{ fontSize: 12, marginBottom: 6 }}>Progress (%){usePmProgress ? ' — Foreman' : ''}</div>
                             <TextInput
                                 type="number"
                                 min="0"
                                 max="100"
                                 value={createData.progress_percent}
-                                onChange={(event) => setCreateData('progress_percent', event.target.value)}
+                                onChange={(event) => setCreateData('progress_percent', normalizeIntPercentInput(event.target.value))}
                                 disabled={readOnly || creating}
                                 style={inputStyle}
                             />
@@ -1885,6 +1966,13 @@ export default function MonitoringBoardPage({
                                 {previewScope?.scope_name && previewPhoto.created_at ? ' | ' : ''}
                                 {formatYmdHmAmPm(previewPhoto.created_at)}
                             </div>
+                            {previewPhoto.submitted_by_name || previewPhoto.submitted_by_type ? (
+                                <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+                                    {String(previewPhoto.submitted_by_name || '').trim().toLowerCase() === String(previewPhoto.submitted_by_type || '').trim().toLowerCase() && previewPhoto.submitted_by_name
+                                        ? `Submitted by: ${previewPhoto.submitted_by_name}`
+                                        : `Submitted by: ${previewPhoto.submitted_by_name || '—'}${previewPhoto.submitted_by_type ? ` (${previewPhoto.submitted_by_type})` : ''}`}
+                                </div>
+                            ) : null}
                         </div>
                     )}
                 </Modal>

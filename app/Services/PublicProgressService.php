@@ -31,7 +31,8 @@ use Inertia\Inertia;
 class PublicProgressService
 {
     public function __construct(
-        private readonly ForemanProgressRepositoryInterface $foremanProgressRepository
+        private readonly ForemanProgressRepositoryInterface $foremanProgressRepository,
+        private readonly PmProgressService $pmProgressService
     ) {
     }
 
@@ -63,7 +64,7 @@ class PublicProgressService
         $projectScopeRows = $this->applyScopeOrdering(
             $this->foremanProgressRepository->projectScopes()
                 ->where('project_id', $projectId)
-        )->get(['id', 'scope_name', 'assigned_personnel']);
+        )->get(['id', 'scope_name', 'assigned_personnel', 'progress_percent']);
 
         $assignedPersonnelForScope = function (ProjectScope $scopeRow) {
             return collect(preg_split('/[,;]+/', (string) ($scopeRow->assigned_personnel ?? '')))
@@ -133,6 +134,11 @@ class PublicProgressService
         if ($projectScopesById->isNotEmpty()) {
             $scopePhotos = $this->foremanProgressRepository->scopePhotos()
                 ->whereIn('project_scope_id', $projectScopesById->keys()->all())
+                // PM uploads stay on the PM side only — never listed here.
+                ->where(function ($query) {
+                    $query->whereNull('scope_photos.caption')
+                        ->orWhere('scope_photos.caption', 'not like', '[PM Weekly]%');
+                })
                 ->orderByDesc('id')
                 ->get(['id', 'project_scope_id', 'photo_path', 'caption', 'created_at']);
 
@@ -184,6 +190,52 @@ class PublicProgressService
                 })->values()->all();
             })
             ->all();
+
+        // Display fallback: a scope assigned to this foreman that has no
+        // weekly row yet for the current week (e.g. created on the build page
+        // with 30% before any foreman submission) must still open on the plan
+        // value instead of 0%. Only non-zero plans are injected — zero-plan
+        // scopes stay absent (frontend already renders missing as 0%), so
+        // foreman/PM data separation stays intact. Display-only — the first
+        // real foreman submit persists it via saveWeeklyProgress.
+        $planPercentsByScopeKey = $projectScopes
+            ->mapWithKeys(function (ProjectScope $scope) {
+                $name = trim((string) ($scope->scope_name ?? ''));
+                if ($name === '') {
+                    return [];
+                }
+                $plan = (float) ($scope->progress_percent ?? 0);
+                if ($plan <= 0) {
+                    return [];
+                }
+
+                return [Str::lower($name) => [
+                    'scope_of_work' => $name,
+                    'percent_completed' => (string) ($plan + 0),
+                ]];
+            })
+            ->all();
+        if (!empty($planPercentsByScopeKey)) {
+            $currentWeekRows = $weeklySavedByWeek[$currentWeekStart] ?? [];
+            $existingKeys = collect($currentWeekRows)
+                ->map(fn ($row) => Str::lower(trim((string) ($row['scope_of_work'] ?? ''))))
+                ->filter(fn (string $key) => $key !== '')
+                ->values()
+                ->all();
+            $existingLookup = array_fill_keys($existingKeys, true);
+            foreach ($planPercentsByScopeKey as $scopeKey => $planRow) {
+                if (!isset($existingLookup[$scopeKey])) {
+                    $currentWeekRows[] = [
+                        'scope_of_work' => $planRow['scope_of_work'],
+                        'percent_completed' => $planRow['percent_completed'],
+                        'is_manual' => false,
+                    ];
+                }
+            }
+            if (!empty($currentWeekRows)) {
+                $weeklySavedByWeek[$currentWeekStart] = array_values($currentWeekRows);
+            }
+        }
 
         $weeklyScopeOfWorksByWeek = collect($weeklySavedByWeek)
             ->map(function ($rows) {
@@ -272,7 +324,15 @@ class PublicProgressService
                 })
                 ->all();
 
-            if (!empty($assignedScopeKeys)) {
+            // A project that already has scopes filters strictly: a foreman
+            // with no assigned scopes submits nothing (an empty key set is
+            // not a pass). Only a project with no scopes at all skips the
+            // filter so the foreman can claim scopes by submitting.
+            $projectHasScopes = $this->foremanProgressRepository->projectScopes()
+                ->where('project_id', $projectId)
+                ->exists();
+
+            if ($projectHasScopes) {
                 $weeklyScopes = $weeklyScopes
                     ->filter(fn (array $scope) => isset($assignedScopeKeys[Str::lower($scope['scope_of_work'])]))
                     ->values();
@@ -347,7 +407,7 @@ class PublicProgressService
         }
 
         $this->syncProjectScopesFromWeeklyEntries($projectId, trim((string) $foremanFullname), $weeklyScopes->all());
-        $this->storeScopePhotosFromWeeklyEntries($projectId, $weeklyScopes->all(), $weekStart, trim((string) $foremanFullname));
+        $this->storeScopePhotosFromWeeklyEntries($projectId, $weeklyScopes->all(), $weekStart, trim((string) $foremanFullname), $submittedBy);
         $this->syncProjectOverallProgressFromWeekly($projectId);
     }
 
@@ -624,14 +684,123 @@ class PublicProgressService
         return $this->renderReceiptResponse($project, $submitToken, $isClientPortal);
     }
 
+    /**
+     * Assigned PM fullname for the receipt (at most one PM per project).
+     */
+    private function receiptAssignedPmName(int $projectId): ?string
+    {
+        $userId = \App\Models\ProjectAssignment::query()
+            ->where('project_id', $projectId)
+            ->where('role_in_project', \App\Models\ProjectAssignment::ROLE_PROJECT_MANAGER)
+            ->orderByDesc('id')
+            ->value('user_id');
+
+        if ($userId === null) {
+            return null;
+        }
+
+        $name = trim((string) (User::query()
+            ->where('id', $userId)
+            ->where('role', User::ROLE_PROJECT_MANAGER)
+            ->value('fullname') ?? ''));
+
+        return $name !== '' ? $name : null;
+    }
+
+    /**
+     * Submitted-by label for a receipt scope photo: the recorded uploader
+     * wins, otherwise the caption tag resolves to the assigned PM / token
+     * foreman (or assigned foreman).
+     *
+     * @return array{name: string|null, type: string|null}
+     */
+    private function receiptPhotoSubmitter(int $projectId, ?string $caption, ?\App\Models\ProgressSubmitToken $submitToken = null, ?\App\Models\User $submitter = null): array
+    {
+        if ($submitter !== null) {
+            return \App\Support\ScopePhotoAttribution::resolve($submitter, $caption);
+        }
+
+        $pmName = $this->receiptAssignedPmName($projectId);
+        $foremanName = trim((string) ($submitToken?->foreman?->fullname ?? ''));
+        if ($foremanName === '') {
+            $foremanName = trim((string) (User::query()
+                ->whereIn('id', \App\Models\ProjectAssignment::query()
+                    ->where('project_id', $projectId)
+                    ->where('role_in_project', \App\Models\ProjectAssignment::ROLE_FOREMAN)
+                    ->pluck('user_id'))
+                ->where('role', User::ROLE_FOREMAN)
+                ->orderBy('fullname')
+                ->value('fullname') ?? ''));
+            $foremanName = $foremanName !== '' ? $foremanName : null;
+        }
+
+        return \App\Support\ScopePhotoAttribution::resolve(null, $caption, $pmName, $foremanName);
+    }
+
+    /**
+     * Project-level assignees for the receipt: the assigned PM first, then
+     * assigned foremen — shown in every scope's Assignee column.
+     *
+     * @return string[]
+     */
+    private function receiptProjectAssignees(int $projectId): array
+    {
+        $assignments = \App\Models\ProjectAssignment::query()
+            ->where('project_id', $projectId)
+            ->whereIn('role_in_project', [
+                \App\Models\ProjectAssignment::ROLE_PROJECT_MANAGER,
+                \App\Models\ProjectAssignment::ROLE_FOREMAN,
+            ])
+            ->orderBy('id')
+            ->get(['user_id', 'role_in_project']);
+
+        if ($assignments->isEmpty()) {
+            return [];
+        }
+
+        $namesByUserId = User::query()
+            ->whereIn('id', $assignments->pluck('user_id')->all())
+            ->pluck('fullname', 'id')
+            ->map(fn ($name) => trim((string) $name))
+            ->filter(fn ($name) => $name !== '')
+            ->all();
+
+        $pmNames = [];
+        $foremanNames = [];
+        foreach ($assignments as $assignment) {
+            $name = $namesByUserId[(int) $assignment->user_id] ?? '';
+            if ($name === '') {
+                continue;
+            }
+            if ($assignment->role_in_project === \App\Models\ProjectAssignment::ROLE_PROJECT_MANAGER) {
+                $pmNames[] = $name;
+            } else {
+                $foremanNames[] = $name;
+            }
+        }
+
+        return collect(array_merge($pmNames, $foremanNames))
+            ->unique(fn ($name) => $this->normalizeNameKey($name))
+            ->values()
+            ->all();
+    }
+
     private function renderReceiptResponse(Project $project, ?ProgressSubmitToken $submitToken, bool $isClientPortal)
     {
         $scopes = $this->applyScopeOrdering(
-            $project->scopes()->with(['photos' => fn ($query) => $query->latest('id')->limit(4)])
+            $project->scopes()->with([
+                'photos' => fn ($query) => $query->latest('id')->limit(4),
+                'photos.submitter' => fn ($query) => $query->select('id', 'fullname', 'role'),
+            ])
         )->get();
+
+        // Receipt photos combine both sides; assignees always include the
+        // project-level assigned PM and foremen.
+        $projectAssignees = $this->receiptProjectAssignees((int) $project->id);
 
         $assigneeNames = $scopes
             ->flatMap(fn (ProjectScope $scope) => preg_split('/[,;|]+/', (string) ($scope->assigned_personnel ?? '')))
+            ->merge($projectAssignees)
             ->map(fn ($name) => Str::squish((string) $name))
             ->filter(fn (string $name) => $name !== '')
             ->unique(fn (string $name) => $this->normalizeNameKey($name))
@@ -653,16 +822,24 @@ class PublicProgressService
                 })
                 ->all();
 
-        $scopeRows = $scopes->map(function (ProjectScope $scope) use ($assigneePhotoMap) {
-            $progress = (float) ($scope->progress_percent ?? 0);
+        // Receipt progress is strictly PM-based: the PM's own latest percent
+        // per scope (independent PM rows only), weighted by the planned
+        // scope weights — the same source of truth as /projects cards.
+        $pmPercents = $this->pmProgressService->latestPercentsByProject((int) $project->id);
+
+        $scopeRows = $scopes->map(function (ProjectScope $scope) use ($assigneePhotoMap, $pmPercents, $projectAssignees, $project, $submitToken) {
+            $scopeKey = strtolower(trim((string) ($scope->scope_name ?? '')));
+            $progress = (float) ($pmPercents[$scopeKey]['percent'] ?? 0);
             $weight = (float) ($scope->weight_percent ?? 0);
             $contract = (float) ($scope->contract_amount ?? 0);
             $computedPercent = round($weight * $progress / 100, 2);
             $amountToDate = round($contract * min(100, $progress) / 100, 2);
 
             $assignees = collect(preg_split('/[,;|]+/', (string) ($scope->assigned_personnel ?? '')))
+                ->merge($projectAssignees)
                 ->map(fn ($name) => Str::squish((string) $name))
                 ->filter(fn (string $name) => $name !== '')
+                ->unique(fn (string $name) => $this->normalizeNameKey($name))
                 ->map(fn (string $name) => [
                     'name' => $name,
                     'photo_path' => $assigneePhotoMap[$this->normalizeNameKey($name)] ?? null,
@@ -675,7 +852,7 @@ class PublicProgressService
                 'scope_name' => $scope->scope_name,
                 'contract_amount' => $contract,
                 'weight_percent' => $weight,
-                'progress_percent' => (int) $scope->progress_percent,
+                'progress_percent' => $progress,
                 'computed_percent' => $computedPercent,
                 'amount_to_date' => $amountToDate,
                 'status' => $scope->status,
@@ -683,12 +860,18 @@ class PublicProgressService
                 'target_completion' => optional($scope->target_completion)?->toDateString(),
                 'assigned_personnel' => $scope->assigned_personnel,
                 'assignees' => $assignees,
-                'photos' => $scope->photos->map(fn ($photo) => [
-                    'id' => $photo->id,
-                    'photo_path' => $photo->photo_path,
-                    'caption' => $photo->caption,
-                    'created_at' => optional($photo->created_at)?->toDateTimeString(),
-                ])->values(),
+                'photos' => $scope->photos->map(function ($photo) use ($project, $submitToken) {
+                    $submitter = $this->receiptPhotoSubmitter((int) $project->id, $photo->caption, $submitToken, $photo->submitter);
+
+                    return [
+                        'id' => $photo->id,
+                        'photo_path' => $photo->photo_path,
+                        'caption' => $photo->caption,
+                        'created_at' => optional($photo->created_at)?->toDateTimeString(),
+                        'submitted_by_name' => $submitter['name'],
+                        'submitted_by_type' => $submitter['type'],
+                    ];
+                })->values(),
             ];
         })->values();
 
@@ -739,14 +922,19 @@ class PublicProgressService
             $project->scopes()->with(['photos' => fn ($query) => $query->latest('id')->limit(4)])
         )->get();
 
-        $scopeRows = $scopes->map(function (ProjectScope $scope) {
-            $progress = (float) ($scope->progress_percent ?? 0);
+        $pmPercents = $this->pmProgressService->latestPercentsByProject((int) $project->id);
+        $projectAssignees = $this->receiptProjectAssignees((int) $project->id);
+
+        $scopeRows = $scopes->map(function (ProjectScope $scope) use ($pmPercents, $projectAssignees) {
+            $scopeKey = strtolower(trim((string) ($scope->scope_name ?? '')));
+            $progress = (float) ($pmPercents[$scopeKey]['percent'] ?? 0);
             $weight = (float) ($scope->weight_percent ?? 0);
             $contract = (float) ($scope->contract_amount ?? 0);
             $computedPercent = round($weight * $progress / 100, 2);
             $amountToDate = round($contract * min(100, $progress) / 100, 2);
 
             $assigneeLabel = collect(preg_split('/[,;|]+/', (string) ($scope->assigned_personnel ?? '')))
+                ->merge($projectAssignees)
                 ->map(fn ($name) => trim((string) $name))
                 ->filter(fn (string $name) => $name !== '')
                 ->unique(fn (string $name) => Str::lower($name))
@@ -1518,8 +1706,10 @@ class PublicProgressService
             abort(403);
         }
 
-        $scopeName = trim((string) ($scope->scope_name ?? ''));
-        $scopeKey = Str::lower($scopeName);
+        // PM uploads are invisible (and untouchable) from the foreman side.
+        if (str_starts_with(trim((string) ($scopePhoto->caption ?? '')), '[PM Weekly]')) {
+            abort(404);
+        }
 
         $normalizedForemanName = Str::lower(trim((string) ($submitToken->foreman->fullname ?? '')));
         $assignedPersonnel = collect(preg_split('/[,;]+/', (string) ($scope->assigned_personnel ?? '')))
@@ -1528,18 +1718,12 @@ class PublicProgressService
             ->map(fn (string $name) => Str::lower($name))
             ->values();
 
-        $weeklySavedScopeKeys = $this->foremanProgressRepository->weeklyAccomplishments()
-            ->where('foreman_id', $submitToken->foreman_id)
-            ->where('project_id', $submitToken->project_id)
-            ->pluck('scope_of_work')
-            ->map(fn ($name) => Str::lower(trim((string) $name)))
-            ->filter(fn (string $name) => $name !== '')
-            ->unique();
-
+        // Only the currently assigned foreman may delete scope photos.
+        // Past submissions alone grant nothing: once a scope is reassigned
+        // away, the previous foreman loses delete access with it.
         $isAssigned = $normalizedForemanName !== '' && $assignedPersonnel->contains($normalizedForemanName);
-        $isInWeekly = $scopeKey !== '' && $weeklySavedScopeKeys->contains($scopeKey);
 
-        if (!$isAssigned && !$isInWeekly) {
+        if (!$isAssigned) {
             abort(403);
         }
 
@@ -1714,11 +1898,19 @@ class PublicProgressService
         $scopes = $this->applyScopeOrdering(
             $this->foremanProgressRepository->projectScopes()
                 ->where('project_id', $project->id)
-                ->with(['photos' => fn ($query) => $query->latest('id')])
+                ->with([
+                    'photos' => fn ($query) => $query->latest('id')->limit(4),
+                    'photos.submitter' => fn ($query) => $query->select('id', 'fullname', 'role'),
+                ])
         )->get();
+
+        // Receipt photos combine both sides; assignees always include the
+        // project-level assigned PM and foremen.
+        $projectAssignees = $this->receiptProjectAssignees((int) $project->id);
 
         $assigneeNames = $scopes
             ->flatMap(fn (ProjectScope $scope) => preg_split('/[,;|]+/', (string) ($scope->assigned_personnel ?? '')))
+            ->merge($projectAssignees)
             ->map(fn ($name) => Str::squish((string) $name))
             ->filter(fn (string $name) => $name !== '')
             ->unique(fn (string $name) => $this->normalizeNameKey($name))
@@ -1740,7 +1932,10 @@ class PublicProgressService
                 })
                 ->all();
 
-        $weights = $this->receiptWeightDistribution($scopes->count());
+        // Strictly PM-based: planned scope weights with the PM's own latest
+        // percent per scope — identical inputs to PmProgressService so the
+        // receipt Weighted Progress always equals the /projects card value.
+        $pmPercents = $this->pmProgressService->latestPercentsByProject((int) $project?->id);
         $contractAmount = (float) ($project?->contract_amount ?? 0);
         $rows = [];
         $totalWeightPercent = 0.0;
@@ -1748,8 +1943,9 @@ class PublicProgressService
         $computedAmount = 0.0;
 
         foreach ($scopes->values() as $index => $scope) {
-            $weightPercent = (float) ($weights[$index] ?? 0);
-            $progressPercent = (float) ($scope->progress_percent ?? 0);
+            $scopeKey = strtolower(trim((string) ($scope->scope_name ?? '')));
+            $weightPercent = (float) ($scope->weight_percent ?? 0);
+            $progressPercent = (float) ($pmPercents[$scopeKey]['percent'] ?? 0);
             $scopeContractAmount = round(($contractAmount * $weightPercent) / 100, 2);
             $computedPercent = round(($weightPercent * $progressPercent) / 100, 2);
             $scopeComputedAmount = round(($contractAmount * $computedPercent) / 100, 2);
@@ -1771,8 +1967,10 @@ class PublicProgressService
                 'status' => $scope->status,
                 'assignee' => $scope->assigned_personnel,
             'assignees' => collect(preg_split('/[,;|]+/', (string) ($scope->assigned_personnel ?? '')))
+                ->merge($projectAssignees)
                 ->map(fn ($name) => Str::squish((string) $name))
                 ->filter(fn (string $name) => $name !== '')
+                ->unique(fn (string $name) => $this->normalizeNameKey($name))
                 ->map(fn (string $name) => [
                     'name' => $name,
                     'photo_path' => $assigneePhotoMap[$this->normalizeNameKey($name)] ?? null,
@@ -1782,11 +1980,17 @@ class PublicProgressService
                 'remarks' => $scope->remarks,
                 'photos' => $scope->photos
                     ->take(4)
-                    ->map(fn ($photo) => [
-                        'id' => $photo->id,
-                        'photo_path' => $photo->photo_path,
-                        'caption' => $photo->caption,
-                    ])
+                    ->map(function ($photo) use ($project, $submitToken) {
+                        $submitter = $this->receiptPhotoSubmitter((int) $project?->id, $photo->caption, $submitToken, $photo->submitter);
+
+                        return [
+                            'id' => $photo->id,
+                            'photo_path' => $photo->photo_path,
+                            'caption' => $photo->caption,
+                            'submitted_by_name' => $submitter['name'],
+                            'submitted_by_type' => $submitter['type'],
+                        ];
+                    })
                     ->values()
                     ->all(),
                 'issues' => [
@@ -1814,30 +2018,6 @@ class PublicProgressService
             'computed_amount' => round($computedAmount, 2),
             'scopes' => $rows,
         ];
-    }
-
-    private function receiptWeightDistribution(int $count): array
-    {
-        if ($count <= 0) {
-            return [];
-        }
-
-        $weights = [];
-        $remaining = 100.0;
-
-        for ($index = 0; $index < $count; $index++) {
-            if ($index === $count - 1) {
-                $weights[] = round($remaining, 2);
-                continue;
-            }
-
-            $slotsLeft = $count - $index;
-            $weight = round($remaining / $slotsLeft, 2);
-            $weights[] = $weight;
-            $remaining = round($remaining - $weight, 2);
-        }
-
-        return $weights;
     }
 
     private function formattedProgressNote(string $foremanName, string $progressNote, string $caption): string
@@ -1951,11 +2131,19 @@ class PublicProgressService
         int $projectId,
         iterable $weeklyScopes,
         ?string $weekStart = null,
-        string $fallbackAssignee = ''
+        string $fallbackAssignee = '',
+        ?int $submittedBy = null
     ): void
     {
         if ($projectId <= 0) {
             return;
+        }
+
+        $submittedByRole = $submittedBy !== null
+            ? (string) (User::query()->where('id', $submittedBy)->value('role') ?? '')
+            : '';
+        if ($submittedByRole === '') {
+            $submittedByRole = null;
         }
 
         $assignee = trim($fallbackAssignee);
@@ -2011,11 +2199,13 @@ class PublicProgressService
             foreach ($uploadedPhotos as $photo) {
                 $path = UploadManager::store($photo, 'scope-photos/' . $projectScope->id);
 
-                $this->foremanProgressRepository->scopePhotos()->create([
+                $this->foremanProgressRepository->scopePhotos()->create(array_filter([
                     'project_scope_id' => $projectScope->id,
                     'photo_path' => $path,
                     'caption' => $this->weeklyScopePhotoCaption($scopeName, $photoCaption, $weekStart),
-                ]);
+                    'submitted_by' => $submittedBy,
+                    'submitted_by_role' => $submittedByRole,
+                ], fn ($value) => $value !== null));
             }
         }
     }

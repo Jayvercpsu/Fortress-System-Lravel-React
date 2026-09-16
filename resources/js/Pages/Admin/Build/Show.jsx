@@ -429,6 +429,8 @@ export default function AdminBuildShow({
                                     foreman_options={monitoringForemen}
                                     weekly_history={monitoringWeeklyHistory}
                                     readOnly={isLocked}
+                                    usePmProgress
+                                    photoSideSelect
                                 />
                             </div>
                         )}

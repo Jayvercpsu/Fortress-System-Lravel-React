@@ -33,6 +33,11 @@ class StoreProjectRequest extends FormRequest
                 },
             ],
             'assigned' => ['required', 'string', 'max:255'],
+            'assigned_pm_id' => [
+                'required',
+                'integer',
+                Rule::exists('users', 'id')->where(fn ($query) => $query->where('role', User::ROLE_PROJECT_MANAGER)),
+            ],
             'target' => ['nullable', 'date'],
             'status' => ['required', 'string', 'max:50', Rule::in(ProjectFlow::statuses())],
             'phase' => ['required', 'string', 'max:50', Rule::in(ProjectFlow::phases())],

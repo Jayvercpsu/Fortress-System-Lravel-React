@@ -87,7 +87,7 @@ export default function ProjectManagerDashboard({
                                 alignItems: 'center',
                             }}
                         >
-                            <span>Recent Foreman Submissions — counter-check</span>
+                            <span>Recent PM Submission</span>
                             <span style={{ fontSize: 12, color: 'var(--text-muted)', fontWeight: 400 }}>Last 10</span>
                         </div>
 
@@ -97,7 +97,6 @@ export default function ProjectManagerDashboard({
                                     <tr style={{ textAlign: 'left', color: 'var(--text-muted)' }}>
                                         <th style={{ padding: '8px 10px' }}>Week</th>
                                         <th style={{ padding: '8px 10px' }}>Project</th>
-                                        <th style={{ padding: '8px 10px' }}>Foreman</th>
                                         <th style={{ padding: '8px 10px' }}>Scope of Work</th>
                                         <th style={{ padding: '8px 10px' }}>% Done</th>
                                         <th style={{ padding: '8px 10px' }}>Submitted</th>
@@ -115,7 +114,6 @@ export default function ProjectManagerDashboard({
                                                     {row.project_name || '—'}
                                                 </Link>
                                             </td>
-                                            <td style={{ padding: '8px 10px' }}>{row.foreman_name || '—'}</td>
                                             <td style={{ padding: '8px 10px', color: 'var(--text-muted)' }}>{row.scope_of_work}</td>
                                             <td style={{ padding: '8px 10px', ...mono, fontWeight: 700 }}>
                                                 {Number(row.percent_completed || 0).toFixed(1)}%
@@ -200,7 +198,7 @@ export default function ProjectManagerDashboard({
                             gap: 10,
                         }}
                     >
-                        <span>Foreman Jotform Submissions — counter-check per project</span>
+                        <span>Assigned Projects</span>
                         <span style={{ fontStyle: 'italic' }}>View only</span>
                     </div>
 

@@ -56,8 +56,11 @@ class ReportRepository implements ReportRepositoryInterface
 
     public function scopeAggregatesByProject(): Collection
     {
+        // Progress and earned amounts are PM-based (PmProgressService) —
+        // this stays limited to the progress-independent scope contract
+        // total so no foreman-driven figure can leak back into reports.
         return ProjectScope::query()
-            ->selectRaw('project_id, SUM(contract_amount) as total_scope_contract, SUM(weight_percent) as total_weight_percent, SUM(contract_amount * progress_percent / 100) as accomplished_amount, SUM(weight_percent * progress_percent / 100) as weighted_progress')
+            ->selectRaw('project_id, SUM(contract_amount) as total_scope_contract')
             ->groupBy('project_id')
             ->get();
     }

@@ -168,6 +168,33 @@ test('accomplishments project row opens the standalone detail page', async ({ pa
     await expect(page.getByTestId('breakdown-title').first()).toBeHidden();
 });
 
+test('detail overview variance message names the actually-higher side', async ({ page }) => {
+    await loginAs(page, 'head_admin');
+    await page.goto('/weekly-accomplishments/1');
+    await expect(page.getByTestId('project-detail')).toBeVisible();
+    await page.getByRole('button', { name: 'Overview', exact: true }).click();
+
+    // No variance alert without submissions on both sides — nothing to assert.
+    const alert = page.getByText(/progress is higher than .* progress by/);
+    if ((await alert.count()) === 0) {
+        return;
+    }
+
+    // The message direction must match the Progress Comparison bars:
+    // "Project Manager <pm>% ... Foreman <foreman>% ... <H> progress is
+    // higher than <L> progress".
+    const cardText = await page.getByTestId('project-detail').innerText();
+    const match = cardText.match(
+        /Project Manager\s*([\d.]+)%\s*Foreman\s*([\d.]+)%.*?(\w+) progress is higher than (\w+) progress/s,
+    );
+    expect(match).not.toBeNull();
+    const [, pmRaw, foremanRaw, higher, lower] = match as RegExpMatchArray;
+    const expectedHigher = Number(pmRaw) >= Number(foremanRaw) ? 'PM' : 'Foreman';
+    const expectedLower = expectedHigher === 'PM' ? 'Foreman' : 'PM';
+    expect(higher).toBe(expectedHigher);
+    expect(lower).toBe(expectedLower);
+});
+
 test('accomplishments tabs persist through hash deep links and refresh', async ({ page }) => {
     await loginAs(page, 'head_admin');
     await page.goto('/weekly-accomplishments#foreman-submissions');

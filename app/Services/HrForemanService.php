@@ -6,6 +6,7 @@ use App\Enums\ProjectStatus;
 use App\Models\Project;
 use App\Models\ProjectAssignment;
 use App\Models\User;
+use App\Support\AssignmentNameSync;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use App\Support\Projects\ProjectFlow;
@@ -152,6 +153,9 @@ class HrForemanService
     {
         $this->ensureAuthorized($user);
 
+        $oldName = trim((string) ($foreman->fullname ?? ''));
+        $newName = trim((string) ($validated['fullname'] ?? $oldName));
+
         $payload = [
             'fullname' => $validated['fullname'],
             'email' => $validated['email'],
@@ -169,6 +173,13 @@ class HrForemanService
                 'phone' => $validated['phone'] ?? null,
             ]
         );
+
+        // Same as UserService: a rename must follow the foreman into the
+        // denormalized assignment-name columns, otherwise the web jotform
+        // and the mobile daily-submission weekly grid keep matching
+        // against the old name and every scope except manually-fixed ones
+        // renders "Assigned to another foreman."
+        AssignmentNameSync::sync($oldName, $newName);
 
         $this->syncForemanAssignments($foreman->id, $validated['project_ids'] ?? []);
     }

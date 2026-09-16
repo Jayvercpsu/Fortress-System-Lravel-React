@@ -6,7 +6,6 @@ use App\Models\Attendance;
 use App\Models\Payroll;
 use App\Models\Project;
 use App\Models\User;
-use App\Repositories\Contracts\ProjectRepositoryInterface;
 use App\Repositories\Contracts\ReportRepositoryInterface;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
@@ -16,7 +15,7 @@ class ReportService
 {
     public function __construct(
         private readonly ReportRepositoryInterface $reportRepository,
-        private readonly ProjectRepositoryInterface $projectRepository
+        private readonly PmProgressService $pmProgressService
     ) {
     }
 
@@ -101,14 +100,24 @@ class ReportService
         $scopeAggregates = $this->reportRepository->scopeAggregatesByProject()
             ->keyBy(fn ($row) => (int) $row->project_id);
 
-        // Same computation as the web /projects kanban (ProjectRepository::
-        // weightedProgressByProjectIds): per-row rounded weighted sum,
-        // clamped to 0-100.
-        $weightedByProject = $this->projectRepository->weightedProgressByProjectIds(
+        // Single source of truth with the /projects cards
+        // (ProjectService::weightedProgressForProject): strictly PM-based
+        // progress (PmProgressService). The old scope-plan computation
+        // (weight x foreman-driven progress_percent) drifted from the cards
+        // — e.g. card 6.44% vs Weighted 15.31% — so both report columns now
+        // read the same PM value. Null (no PM rows yet) reads as 0, exactly
+        // like the cards' 0/Pending rule.
+        $pmProgressByProject = $this->pmProgressService->progressByProjectIds(
             $projects->map(fn (Project $project) => (int) $project->id)->all()
         );
 
-        $rows = $projects->map(function (Project $project) use ($expenseByProject, $allocatedPayrollByProject, $scopeAggregates, $weightedByProject) {
+        // Earned amounts read the same PM percents (per-scope receipt
+        // formula), never the foreman-driven scope plan.
+        $pmAmountsByProject = $this->pmProgressService->accomplishedAmountsByProjectIds(
+            $projects->map(fn (Project $project) => (int) $project->id)->all()
+        );
+
+        $rows = $projects->map(function (Project $project) use ($expenseByProject, $allocatedPayrollByProject, $scopeAggregates, $pmProgressByProject, $pmAmountsByProject) {
             $projectId = (int) $project->id;
             $contractAmount = round((float) $project->contract_amount, 2);
             $collectedAmount = round((float) $project->total_client_payment, 2);
@@ -120,8 +129,8 @@ class ReportService
             $profitContractBasis = round($contractAmount - $totalCost, 2);
             $scopeInfo = $scopeAggregates->get($projectId);
             $scopeContractTotal = round((float) ($scopeInfo->total_scope_contract ?? 0), 2);
-            $weightedProgressPct = round(max(0, min(100, (float) ($weightedByProject[$projectId] ?? 0))), 2);
-            $computedAmount = round((float) ($scopeInfo->accomplished_amount ?? 0), 2);
+            $cardProgress = round(max(0, min(100, (float) ($pmProgressByProject[$projectId] ?? 0))), 2);
+            $computedAmount = round((float) ($pmAmountsByProject[$projectId] ?? 0), 2);
 
             return [
                 'id' => $projectId,
@@ -129,7 +138,7 @@ class ReportService
                 'client' => $project->client,
                 'status' => $project->status,
                 'phase' => $project->phase,
-                'overall_progress' => (int) ($project->overall_progress ?? 0),
+                'overall_progress' => $cardProgress,
                 'contract_amount' => $contractAmount,
                 'collected_amount' => $collectedAmount,
                 'remaining_balance' => $remainingBalance,
@@ -140,7 +149,7 @@ class ReportService
                 'profit_contract_basis' => $profitContractBasis,
                 'scope_contract_total' => $scopeContractTotal,
                 'computed_amount_to_date' => $computedAmount,
-                'weighted_progress_percent' => $weightedProgressPct,
+                'weighted_progress_percent' => $cardProgress,
                 'profit_margin_collected_percent' => $collectedAmount > 0
                     ? round(($profitCollectedBasis / $collectedAmount) * 100, 1)
                     : null,

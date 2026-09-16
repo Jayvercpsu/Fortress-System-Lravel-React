@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\Project;
+use App\Models\ProjectAssignment;
 use App\Models\ProjectScope;
 use App\Models\Expense;
 use App\Models\User;
@@ -17,7 +18,8 @@ class BuildService
     private const ALLOWED_PER_PAGE = [5, 10, 25, 50];
 
     public function __construct(
-        private readonly BuildRepositoryInterface $buildRepository
+        private readonly BuildRepositoryInterface $buildRepository,
+        private readonly PmProgressService $pmProgressService
     ) {
     }
 
@@ -95,40 +97,59 @@ class BuildService
             $scopesQuery = $this->buildRepository->scopesWithPhotos($project);
         }
 
-        $weightedProgress = round(
-            $scopesQuery->sum(fn (ProjectScope $scope) => round(
-                ((float) ($scope->weight_percent ?? 0)) * ((float) ($scope->progress_percent ?? 0)) / 100,
-                2
-            )),
-            2
-        );
-        $weightedProgress = max(0, min(100, $weightedProgress));
+        // Overall + per-scope progress are strictly PM-based (the PM's own
+        // accomplishment rows via PmProgressService) — same source of truth
+        // as the /projects cards. Plan progress_percent stays for editing.
+        $pmProgress = $this->pmProgressService->progressForProject((int) $project->id) ?? 0.0;
+        $pmPercents = $this->pmProgressService->latestPercentsByProject((int) $project->id);
+        $assignedPmName = $this->assignedPmName((int) $project->id);
+        $assignedForemanName = $this->firstAssignedForemanName((int) $project->id);
 
         $scopes = $scopesQuery
-            ->map(fn (ProjectScope $scope) => [
-                'id' => $scope->id,
-                'project_id' => $scope->project_id,
-                'scope_name' => $scope->scope_name,
-                'assigned_personnel' => $scope->assigned_personnel,
-                'progress_percent' => (int) $scope->progress_percent,
-                'status' => $scope->status,
-                'remarks' => $scope->remarks,
-                'contract_amount' => (float) ($scope->contract_amount ?? 0),
-                'weight_percent' => (float) ($scope->weight_percent ?? 0),
-                'computed_percent' => round(
-                    ((float) ($scope->weight_percent ?? 0)) * ((float) ($scope->progress_percent ?? 0)) / 100,
-                    2
-                ),
-                'start_date' => optional($scope->start_date)?->toDateString(),
-                'target_completion' => optional($scope->target_completion)?->toDateString(),
-                'updated_at' => optional($scope->updated_at)?->toDateTimeString(),
-                'photos' => $scope->photos->map(fn ($photo) => [
-                    'id' => $photo->id,
-                    'photo_path' => $photo->photo_path,
-                    'caption' => $photo->caption,
-                    'created_at' => optional($photo->created_at)?->toDateTimeString(),
-                ])->values(),
-            ])
+            ->map(function (ProjectScope $scope) use ($pmPercents, $assignedPmName, $assignedForemanName) {
+                $scopeKey = strtolower(trim((string) ($scope->scope_name ?? '')));
+                $pmPercent = $pmPercents[$scopeKey]['percent'] ?? null;
+
+                return [
+                    'id' => $scope->id,
+                    'project_id' => $scope->project_id,
+                    'scope_name' => $scope->scope_name,
+                    'assigned_personnel' => $scope->assigned_personnel,
+                    'assigned_pm' => $assignedPmName,
+                    'progress_percent' => (int) $scope->progress_percent,
+                    'pm_progress_percent' => $pmPercent !== null ? (float) $pmPercent : null,
+                    'status' => $scope->status,
+                    'remarks' => $scope->remarks,
+                    'contract_amount' => (float) ($scope->contract_amount ?? 0),
+                    'weight_percent' => (float) ($scope->weight_percent ?? 0),
+                    'computed_percent' => round(
+                        ((float) ($scope->weight_percent ?? 0)) * ((float) ($scope->progress_percent ?? 0)) / 100,
+                        2
+                    ),
+                    'start_date' => optional($scope->start_date)?->toDateString(),
+                    'target_completion' => optional($scope->target_completion)?->toDateString(),
+                    'updated_at' => optional($scope->updated_at)?->toDateTimeString(),
+                    'photos' => $scope->photos->map(function ($photo) use ($assignedPmName, $assignedForemanName, $scope) {
+                        $submitter = $this->photoSubmitter(
+                            $photo->caption,
+                            $assignedPmName,
+                            trim((string) ($scope->assigned_personnel ?? '')) !== ''
+                                ? trim((string) $scope->assigned_personnel)
+                                : $assignedForemanName,
+                            $photo->submitter
+                        );
+
+                        return [
+                            'id' => $photo->id,
+                            'photo_path' => $photo->photo_path,
+                            'caption' => $photo->caption,
+                            'created_at' => optional($photo->created_at)?->toDateTimeString(),
+                            'submitted_by_name' => $submitter['name'],
+                            'submitted_by_type' => $submitter['type'],
+                        ];
+                    })->values(),
+                ];
+            })
             ->values();
 
         $weeklyHistory = $this->buildWeeklyHistoryPayload($project, $scopes);
@@ -159,7 +180,7 @@ class BuildService
                 'project' => [
                     'id' => $project->id,
                     'name' => $project->name,
-                    'overall_progress' => $weightedProgress,
+                    'overall_progress' => round(max(0, min(100, $pmProgress)), 2),
                     'status' => $project->status,
                     'phase' => $project->phase,
                 ],
@@ -168,6 +189,48 @@ class BuildService
                 'weekly_history' => $weeklyHistory,
             ],
         ];
+    }
+
+    private function assignedPmName(int $projectId): ?string
+    {
+        $userId = ProjectAssignment::query()
+            ->where('project_id', $projectId)
+            ->where('role_in_project', ProjectAssignment::ROLE_PROJECT_MANAGER)
+            ->orderByDesc('id')
+            ->value('user_id');
+
+        if ($userId === null) {
+            return null;
+        }
+
+        $name = trim((string) (User::query()
+            ->where('id', $userId)
+            ->where('role', User::ROLE_PROJECT_MANAGER)
+            ->value('fullname') ?? ''));
+
+        return $name !== '' ? $name : null;
+    }
+
+    private function firstAssignedForemanName(int $projectId): ?string
+    {
+        $name = trim((string) (User::query()
+            ->whereIn('id', ProjectAssignment::query()
+                ->where('project_id', $projectId)
+                ->where('role_in_project', ProjectAssignment::ROLE_FOREMAN)
+                ->pluck('user_id'))
+            ->where('role', User::ROLE_FOREMAN)
+            ->orderBy('fullname')
+            ->value('fullname') ?? ''));
+
+        return $name !== '' ? $name : null;
+    }
+
+    /**
+     * @return array{name: string|null, type: string|null}
+     */
+    private function photoSubmitter(?string $caption, ?string $pmName, ?string $foremanName, ?User $submitter = null): array
+    {
+        return \App\Support\ScopePhotoAttribution::resolve($submitter, $caption, $pmName, $foremanName);
     }
 
     public function updateBuild(string $projectId, array $validated): void

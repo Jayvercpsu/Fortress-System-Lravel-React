@@ -9,11 +9,19 @@ class WeeklyAccomplishmentObserver
 {
     public function created(WeeklyAccomplishment $weeklyAccomplishment): void
     {
+        // Independent PM rows (foreman_id NULL) never move the snapshot —
+        // it stays foreman-driven.
+        if ($weeklyAccomplishment->foreman_id === null) {
+            return;
+        }
         $this->syncProjectOverallProgressFromWeekly((int) $weeklyAccomplishment->project_id);
     }
 
     public function updated(WeeklyAccomplishment $weeklyAccomplishment): void
     {
+        if ($weeklyAccomplishment->foreman_id === null) {
+            return;
+        }
         $this->syncProjectOverallProgressFromWeekly((int) $weeklyAccomplishment->project_id);
 
         if ($weeklyAccomplishment->wasChanged('project_id')) {
@@ -23,6 +31,9 @@ class WeeklyAccomplishmentObserver
 
     public function deleted(WeeklyAccomplishment $weeklyAccomplishment): void
     {
+        if ($weeklyAccomplishment->foreman_id === null) {
+            return;
+        }
         $this->syncProjectOverallProgressFromWeekly((int) $weeklyAccomplishment->project_id);
     }
 
@@ -44,8 +55,10 @@ class WeeklyAccomplishmentObserver
 
         // Average over the latest submission per (foreman, scope) so that
         // superseded history rows don't drag the project progress.
+        // Independent PM rows (foreman_id NULL) are excluded.
         $progressPercent = WeeklyAccomplishment::query()
             ->where('project_id', $projectId)
+            ->whereNotNull('foreman_id')
             ->whereIn('id', function ($query) use ($projectId) {
                 $query->selectRaw('MAX(id)')
                     ->from('weekly_accomplishments')

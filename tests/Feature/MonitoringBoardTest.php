@@ -210,16 +210,23 @@ class MonitoringBoardTest extends TestCase
             ->assertOk()
             ->assertInertia(fn ($page) => $page->has('weeklyAccomplishments', 0));
 
-        // ...but the PM grid opens on the edited value (under the current
-        // Monday week once the grid seeds the week forward).
+        // ...but the PM grid stays independent: foreman placeholder edits
+        // never appear as PM data (the plan scope is listed for reference).
         $mondayWeek = Carbon::now()->startOfWeek(Carbon::MONDAY)->toDateString();
-        $this->actingAs($this->makeUser('project_manager'))
-            ->get('/project-manager/accomplishments?project_id=' . $project->id . '&foreman_id=' . $foreman->id)
+        $pm = $this->makeUser('project_manager');
+        \App\Models\ProjectAssignment::create([
+            'project_id' => $project->id,
+            'user_id' => $pm->id,
+            'role_in_project' => \App\Models\ProjectAssignment::ROLE_PROJECT_MANAGER,
+        ]);
+        $this->actingAs($pm)
+            ->get('/project-manager/accomplishments?project_id=' . $project->id)
             ->assertOk()
             ->assertInertia(fn ($page) => $page
-                ->where('weekly.weekly_saved_by_week', fn ($byWeek) => collect($byWeek[$mondayWeek] ?? [])
-                    ->contains(fn ($row) => ($row['scope_of_work'] ?? '') === 'Slab on Fill'
-                        && (float) ($row['percent_completed'] ?? 0) === 15.0)));
+                ->where('selectedProjectId', $project->id)
+                ->where('savedScopes', fn ($scopes) => $scopes->isEmpty())
+                ->where('planScopes', fn ($scopes) => collect($scopes)
+                    ->contains(fn ($scope) => ($scope['scope_of_work'] ?? '') === 'Slab on Fill')));
     }
 
     public function test_build_scope_edit_seeds_placeholder_when_scope_has_no_weekly_rows(): void
@@ -268,15 +275,20 @@ class MonitoringBoardTest extends TestCase
             ->assertOk()
             ->assertInertia(fn ($page) => $page->has('weeklyAccomplishments', 0));
 
-        // ...but the PM grid opens on the edited value.
+        // ...but the PM grid stays independent of the foreman placeholder.
         $mondayWeek = Carbon::now()->startOfWeek(Carbon::MONDAY)->toDateString();
-        $this->actingAs($this->makeUser('project_manager'))
-            ->get('/project-manager/accomplishments?project_id=' . $project->id . '&foreman_id=' . $foreman->id)
+        $pm = $this->makeUser('project_manager');
+        \App\Models\ProjectAssignment::create([
+            'project_id' => $project->id,
+            'user_id' => $pm->id,
+            'role_in_project' => \App\Models\ProjectAssignment::ROLE_PROJECT_MANAGER,
+        ]);
+        $this->actingAs($pm)
+            ->get('/project-manager/accomplishments?project_id=' . $project->id)
             ->assertOk()
             ->assertInertia(fn ($page) => $page
-                ->where('weekly.weekly_saved_by_week', fn ($byWeek) => collect($byWeek[$mondayWeek] ?? [])
-                    ->contains(fn ($row) => ($row['scope_of_work'] ?? '') === 'Slab on Fill'
-                        && (float) ($row['percent_completed'] ?? 0) === 15.0)));
+                ->where('selectedProjectId', $project->id)
+                ->where('savedScopes', fn ($scopes) => $scopes->isEmpty()));
     }
 
     public function test_build_scope_edit_without_percent_change_leaves_weekly_rows_alone(): void
@@ -1122,6 +1134,614 @@ class MonitoringBoardTest extends TestCase
                 ->where('department_meta.Completed.total', 0)
                 ->where('department_meta.Completed.page', 1)
                 ->has('items', 0));
+    }
+
+    public function test_edit_scope_links_pm_and_foreman_progress_independently(): void
+    {
+        $headAdmin = $this->makeUser('head_admin');
+        $pm = $this->makeUser('project_manager');
+        $foreman = $this->makeUser('foreman');
+        $project = $this->makeProject($headAdmin->id);
+
+        \App\Models\ProjectAssignment::create([
+            'project_id' => $project->id,
+            'user_id' => $pm->id,
+            'role_in_project' => \App\Models\ProjectAssignment::ROLE_PROJECT_MANAGER,
+        ]);
+
+        $scope = \App\Models\ProjectScope::create([
+            'project_id' => $project->id,
+            'scope_name' => 'Masonry',
+            'weight_percent' => 50,
+            'progress_percent' => 10,
+            'status' => 'IN_PROGRESS',
+            'assigned_personnel' => $foreman->fullname,
+        ]);
+
+        WeeklyAccomplishment::create([
+            'project_id' => $project->id,
+            'foreman_id' => $foreman->id,
+            'submitted_by' => $foreman->id,
+            'scope_of_work' => 'Masonry',
+            'percent_completed' => 10,
+            'week_start' => now()->startOfWeek()->toDateString(),
+            'is_placeholder' => false,
+        ]);
+
+        $this->actingAs($headAdmin)
+            ->patch("/scopes/{$scope->id}", [
+                'scope_name' => 'Masonry',
+                'assigned_personnel' => $foreman->fullname,
+                'progress_percent' => 30,
+                'pm_progress_percent' => 60,
+                'status' => 'IN_PROGRESS',
+                'remarks' => '',
+                'contract_amount' => 100000,
+                'weight_percent' => 50,
+                'start_date' => null,
+                'target_completion' => null,
+            ])
+            ->assertRedirect();
+
+        // Foreman field drives the plan; PM field files a PM-side row
+        // attributed to the assigned PM (surfaces in PM web/mobile grids).
+        $this->assertSame(30, (int) $scope->refresh()->progress_percent);
+        $this->assertDatabaseHas('weekly_accomplishments', [
+            'project_id' => $project->id,
+            'foreman_id' => null,
+            'submitted_by' => $pm->id,
+            'scope_of_work' => 'Masonry',
+            'percent_completed' => 60,
+        ]);
+        // Foreman latest row follows the plan edit.
+        $this->assertSame(30, (int) WeeklyAccomplishment::query()
+            ->where('project_id', $project->id)
+            ->where('foreman_id', $foreman->id)
+            ->orderByDesc('id')
+            ->value('percent_completed'));
+    }
+
+    public function test_plan_edit_never_touches_pm_rows(): void
+    {
+        $headAdmin = $this->makeUser('head_admin');
+        $pm = $this->makeUser('project_manager');
+        $foreman = $this->makeUser('foreman');
+        $project = $this->makeProject($headAdmin->id);
+
+        $scope = \App\Models\ProjectScope::create([
+            'project_id' => $project->id,
+            'scope_name' => 'Masonry',
+            'weight_percent' => 50,
+            'progress_percent' => 10,
+            'status' => 'IN_PROGRESS',
+            'assigned_personnel' => $foreman->fullname,
+        ]);
+
+        WeeklyAccomplishment::create([
+            'project_id' => $project->id,
+            'foreman_id' => null,
+            'submitted_by' => $pm->id,
+            'scope_of_work' => 'Masonry',
+            'percent_completed' => 90,
+            'week_start' => now()->startOfWeek()->toDateString(),
+            'is_placeholder' => false,
+        ]);
+
+        // Design-page style edit (no PM field): plan + foreman move, PM stays 90.
+        $this->actingAs($headAdmin)
+            ->patch("/scopes/{$scope->id}", [
+                'scope_name' => 'Masonry',
+                'assigned_personnel' => $foreman->fullname,
+                'progress_percent' => 40,
+                'status' => 'IN_PROGRESS',
+                'remarks' => '',
+                'contract_amount' => 100000,
+                'weight_percent' => 50,
+                'start_date' => null,
+                'target_completion' => null,
+            ])
+            ->assertRedirect();
+
+        $this->assertSame(40, (int) $scope->refresh()->progress_percent);
+        $this->assertSame(90, (int) WeeklyAccomplishment::query()
+            ->where('project_id', $project->id)
+            ->whereNull('foreman_id')
+            ->orderByDesc('id')
+            ->value('percent_completed'));
+    }
+
+    public function test_scope_weights_cannot_exceed_100_total(): void
+    {
+        $headAdmin = $this->makeUser('head_admin');
+        $project = $this->makeProject($headAdmin->id);
+
+        $base = [
+            'assigned_personnel' => null,
+            'progress_percent' => 0,
+            'status' => 'NOT_STARTED',
+            'remarks' => '',
+            'contract_amount' => 0,
+            'start_date' => null,
+            'target_completion' => null,
+        ];
+
+        $this->actingAs($headAdmin)
+            ->post("/projects/{$project->id}/scopes", [...$base, 'scope_name' => 'Scope A', 'weight_percent' => 60])
+            ->assertRedirect();
+
+        // 60 + 50 > 100: rejected, nothing created.
+        $this->actingAs($headAdmin)
+            ->post("/projects/{$project->id}/scopes", [...$base, 'scope_name' => 'Scope B', 'weight_percent' => 50])
+            ->assertSessionHasErrors('weight_percent');
+
+        $this->assertDatabaseMissing('project_scopes', [
+            'project_id' => $project->id,
+            'scope_name' => 'Scope B',
+        ]);
+
+        // Exactly 100 total is allowed.
+        $this->actingAs($headAdmin)
+            ->post("/projects/{$project->id}/scopes", [...$base, 'scope_name' => 'Scope B', 'weight_percent' => 40])
+            ->assertRedirect();
+
+        $scopeA = \App\Models\ProjectScope::where('project_id', $project->id)->where('scope_name', 'Scope A')->firstOrFail();
+
+        // Raising A to 61 would exceed: rejected, unchanged.
+        $this->actingAs($headAdmin)
+            ->patch("/scopes/{$scopeA->id}", [
+                'scope_name' => 'Scope A',
+                'assigned_personnel' => null,
+                'progress_percent' => 0,
+                'status' => 'NOT_STARTED',
+                'remarks' => '',
+                'contract_amount' => 0,
+                'weight_percent' => 61,
+                'start_date' => null,
+                'target_completion' => null,
+            ])
+            ->assertSessionHasErrors('weight_percent');
+
+        $this->assertSame(60.0, (float) $scopeA->refresh()->weight_percent);
+    }
+
+    public function test_add_scope_with_pm_progress_links_to_pm_side(): void
+    {
+        $headAdmin = $this->makeUser('head_admin');
+        $pm = $this->makeUser('project_manager');
+        $project = $this->makeProject($headAdmin->id);
+
+        \App\Models\ProjectAssignment::create([
+            'project_id' => $project->id,
+            'user_id' => $pm->id,
+            'role_in_project' => \App\Models\ProjectAssignment::ROLE_PROJECT_MANAGER,
+        ]);
+
+        $this->actingAs($headAdmin)
+            ->post("/projects/{$project->id}/scopes", [
+                'scope_name' => 'Masonry',
+                'assigned_personnel' => null,
+                'progress_percent' => 30,
+                'pm_progress_percent' => 55,
+                'status' => 'IN_PROGRESS',
+                'remarks' => '',
+                'contract_amount' => 50000,
+                'weight_percent' => 25,
+                'start_date' => null,
+                'target_completion' => null,
+            ])
+            ->assertRedirect();
+
+        // Plan keeps the foreman value; PM field files a PM-side row for the PM.
+        $this->assertSame(30, (int) \App\Models\ProjectScope::where('project_id', $project->id)->where('scope_name', 'Masonry')->value('progress_percent'));
+        $this->assertDatabaseHas('weekly_accomplishments', [
+            'project_id' => $project->id,
+            'foreman_id' => null,
+            'submitted_by' => $pm->id,
+            'scope_of_work' => 'Masonry',
+            'percent_completed' => 55,
+        ]);
+    }
+
+    public function test_add_scope_without_pm_progress_creates_no_pm_row(): void
+    {
+        $headAdmin = $this->makeUser('head_admin');
+        $project = $this->makeProject($headAdmin->id);
+
+        $this->actingAs($headAdmin)
+            ->post("/projects/{$project->id}/scopes", [
+                'scope_name' => 'Masonry',
+                'assigned_personnel' => null,
+                'progress_percent' => 30,
+                'status' => 'IN_PROGRESS',
+                'remarks' => '',
+                'contract_amount' => 50000,
+                'weight_percent' => 25,
+                'start_date' => null,
+                'target_completion' => null,
+            ])
+            ->assertRedirect();
+
+        $this->assertSame(0, (int) \App\Models\WeeklyAccomplishment::where('project_id', $project->id)->whereNull('foreman_id')->count());
+    }
+
+    public function test_add_scope_with_foreman_progress_seeds_placeholder_for_assigned_foreman(): void
+    {
+        $headAdmin = $this->makeUser('head_admin');
+        $project = $this->makeProject($headAdmin->id);
+        $foreman = $this->makeUser('foreman');
+
+        \App\Models\ProjectAssignment::create([
+            'project_id' => $project->id,
+            'user_id' => $foreman->id,
+            'role_in_project' => \App\Models\ProjectAssignment::ROLE_FOREMAN,
+        ]);
+
+        $this->actingAs($headAdmin)
+            ->post("/projects/{$project->id}/scopes", [
+                'scope_name' => 'Test Scope',
+                'assigned_personnel' => $foreman->fullname,
+                'progress_percent' => 30,
+                'status' => 'IN_PROGRESS',
+                'remarks' => '',
+                'contract_amount' => 50000,
+                'weight_percent' => 25,
+                'start_date' => null,
+                'target_completion' => null,
+            ])
+            ->assertRedirect();
+
+        $this->assertDatabaseHas('weekly_accomplishments', [
+            'project_id' => $project->id,
+            'foreman_id' => $foreman->id,
+            'scope_of_work' => 'Test Scope',
+            'percent_completed' => 30,
+            'is_placeholder' => true,
+        ]);
+    }
+
+    public function test_scope_progress_accepts_leading_zero_input_like_060(): void
+    {
+        $headAdmin = $this->makeUser('head_admin');
+        $project = $this->makeProject($headAdmin->id);
+        $foreman = $this->makeUser('foreman');
+
+        \App\Models\ProjectAssignment::create([
+            'project_id' => $project->id,
+            'user_id' => $foreman->id,
+            'role_in_project' => \App\Models\ProjectAssignment::ROLE_FOREMAN,
+        ]);
+
+        $pm = $this->makeUser('project_manager');
+        \App\Models\ProjectAssignment::create([
+            'project_id' => $project->id,
+            'user_id' => $pm->id,
+            'role_in_project' => \App\Models\ProjectAssignment::ROLE_PROJECT_MANAGER,
+        ]);
+
+        // Add scope modal with leading-zero strings must not raise
+        // "must be an integer" errors — 060 means 60.
+        $this->actingAs($headAdmin)
+            ->post("/projects/{$project->id}/scopes", [
+                'scope_name' => 'Leading Zero Scope',
+                'assigned_personnel' => $foreman->fullname,
+                'progress_percent' => '060',
+                'pm_progress_percent' => '060',
+                'status' => 'IN_PROGRESS',
+                'remarks' => '',
+                'contract_amount' => 50000,
+                'weight_percent' => 25,
+                'start_date' => null,
+                'target_completion' => null,
+            ])
+            ->assertRedirect()
+            ->assertSessionHasNoErrors();
+
+        $this->assertSame(60, (int) \App\Models\ProjectScope::where('project_id', $project->id)->where('scope_name', 'Leading Zero Scope')->value('progress_percent'));
+
+        $scope = \App\Models\ProjectScope::where('project_id', $project->id)->where('scope_name', 'Leading Zero Scope')->firstOrFail();
+
+        // Edit scope modal with leading-zero strings must also pass.
+        $this->actingAs($headAdmin)
+            ->patch("/scopes/{$scope->id}", [
+                'scope_name' => 'Leading Zero Scope',
+                'assigned_personnel' => $foreman->fullname,
+                'progress_percent' => '060',
+                'pm_progress_percent' => '060',
+                'status' => 'IN_PROGRESS',
+                'remarks' => '',
+                'contract_amount' => 50000,
+                'weight_percent' => 25,
+                'start_date' => null,
+                'target_completion' => null,
+            ])
+            ->assertRedirect()
+            ->assertSessionHasNoErrors();
+
+        $this->assertSame(60, (int) $scope->refresh()->progress_percent);
+    }
+
+    public function test_foreman_jotform_shows_plan_value_when_weekly_row_missing(): void
+    {
+        $headAdmin = $this->makeUser('head_admin');
+        $project = $this->makeProject($headAdmin->id);
+        $foreman = $this->makeUser('foreman');
+
+        \App\Models\ProjectAssignment::create([
+            'project_id' => $project->id,
+            'user_id' => $foreman->id,
+            'role_in_project' => \App\Models\ProjectAssignment::ROLE_FOREMAN,
+        ]);
+
+        // Legacy scope created directly (no foreman weekly row), e.g. before
+        // seeding existed — plan says 30%.
+        \App\Models\ProjectScope::create([
+            'project_id' => $project->id,
+            'scope_name' => 'Test Scope',
+            'assigned_personnel' => $foreman->fullname,
+            'progress_percent' => 30,
+            'status' => 'IN_PROGRESS',
+            'remarks' => null,
+            'contract_amount' => 50000,
+            'weight_percent' => 25,
+        ]);
+
+        $token = \App\Models\ProgressSubmitToken::create([
+            'project_id' => $project->id,
+            'foreman_id' => $foreman->id,
+            'token' => 'plan-fallback-token',
+        ]);
+
+        $monday = Carbon::now('Asia/Manila')->startOfWeek(Carbon::MONDAY)->toDateString();
+
+        // Public jotform surfaces the plan value for the current week.
+        $saved = [];
+        $this->get("/progress-submit/{$token->token}")
+            ->assertOk()
+            ->assertInertia(function ($page) use (&$saved, $monday) {
+                $page->component('Public/ProgressSubmit')
+                    ->where('submitToken.weekly_saved_by_week', function ($byWeek) use (&$saved, $monday) {
+                        $saved = collect($byWeek[$monday] ?? [])
+                            ->mapWithKeys(fn ($row) => [
+                                trim((string) ($row['scope_of_work'] ?? '')) => (string) ($row['percent_completed'] ?? ''),
+                            ])
+                            ->all();
+
+                        return true;
+                    });
+            });
+
+        $this->assertSame('30', $saved['Test Scope'] ?? null);
+
+        // Foreman mobile surfaces the same plan value.
+        $mobileToken = (string) $this->postJson('/api/foreman/login', [
+            'email' => $foreman->email,
+            'password' => 'password',
+        ])->json('token');
+
+        $payload = $this->getJson(
+            "/api/foreman/projects/{$project->id}/jotform",
+            ['Authorization' => 'Bearer '.$mobileToken, 'Accept' => 'application/json']
+        )->assertOk()->json();
+
+        $current = collect($payload['weekly_current_week'] ?? [])
+            ->mapWithKeys(fn ($row) => [
+                trim((string) ($row['scope_of_work'] ?? '')) => (float) ($row['percent_completed'] ?? 0),
+            ])
+            ->all();
+
+        $this->assertSame(30.0, $current['Test Scope'] ?? null);
+    }
+
+    public function test_monitoring_payload_exposes_photo_submitter_keys(): void
+    {
+        $headAdmin = $this->makeUser('head_admin');
+        $project = $this->makeProject($headAdmin->id);
+
+        $scope = \App\Models\ProjectScope::create([
+            'project_id' => $project->id,
+            'scope_name' => 'Masonry',
+            'weight_percent' => 50,
+            'progress_percent' => 0,
+            'status' => 'NOT_STARTED',
+        ]);
+
+        \App\Models\ScopePhoto::create([
+            'project_scope_id' => $scope->id,
+            'photo_path' => 'scope-photos/monitor-label.jpg',
+            'caption' => 'Manual site shot',
+            'submitted_by' => $headAdmin->id,
+            'submitted_by_role' => 'head_admin',
+        ]);
+
+        $this->actingAs($headAdmin)
+            ->get("/projects/{$project->id}/monitoring")
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page
+                ->where('scopes.0.photos.0.photo_path', 'scope-photos/monitor-label.jpg')
+                ->where('scopes.0.photos.0.submitted_by_name', $headAdmin->fullname)
+                ->where('scopes.0.photos.0.submitted_by_type', 'Head Admin'));
+    }
+
+    public function test_scope_save_from_build_page_redirects_back_to_build(): void
+    {
+        $headAdmin = $this->makeUser('head_admin');
+        $project = $this->makeProject($headAdmin->id);
+
+        $scope = \App\Models\ProjectScope::create([
+            'project_id' => $project->id,
+            'scope_name' => 'Masonry',
+            'weight_percent' => 50,
+            'progress_percent' => 0,
+            'status' => 'NOT_STARTED',
+        ]);
+
+        $headers = ['Referer' => "/projects/{$project->id}/build"];
+
+        $this->actingAs($headAdmin)
+            ->post("/projects/{$project->id}/scopes", [
+                'scope_name' => 'Footing',
+                'assigned_personnel' => null,
+                'progress_percent' => 0,
+                'status' => 'NOT_STARTED',
+                'remarks' => '',
+                'contract_amount' => 0,
+                'weight_percent' => 10,
+                'start_date' => null,
+                'target_completion' => null,
+            ], $headers)
+            ->assertRedirect("/projects/{$project->id}/build");
+
+        $this->actingAs($headAdmin)
+            ->patch("/scopes/{$scope->id}", [
+                'scope_name' => 'Masonry',
+                'assigned_personnel' => null,
+                'progress_percent' => 0,
+                'status' => 'NOT_STARTED',
+                'remarks' => '',
+                'contract_amount' => 0,
+                'weight_percent' => 50,
+                'start_date' => null,
+                'target_completion' => null,
+            ], $headers)
+            ->assertRedirect("/projects/{$project->id}/build");
+    }
+
+    public function test_build_page_deletes_and_photos_stay_on_build(): void
+    {
+        \Illuminate\Support\Facades\Storage::fake('public');
+
+        $headAdmin = $this->makeUser('head_admin');
+        $project = $this->makeProject($headAdmin->id);
+        $headers = ['Referer' => "/projects/{$project->id}/build"];
+
+        $scope = \App\Models\ProjectScope::create([
+            'project_id' => $project->id,
+            'scope_name' => 'Masonry',
+            'weight_percent' => 50,
+            'progress_percent' => 0,
+            'status' => 'NOT_STARTED',
+        ]);
+        $photo = \App\Models\ScopePhoto::create([
+            'project_scope_id' => $scope->id,
+            'photo_path' => 'scope-photos/build-stay.jpg',
+            'caption' => 'Site shot',
+        ]);
+
+        // Photo upload from build stays on build.
+        $this->actingAs($headAdmin)
+            ->post("/scopes/{$scope->id}/photos", [
+                'photo' => \Illuminate\Http\UploadedFile::fake()->image('build-stay.jpg'),
+                'caption' => 'Another angle',
+            ], $headers)
+            ->assertRedirect("/projects/{$project->id}/build");
+
+        // Photo delete from build stays on build.
+        $this->actingAs($headAdmin)
+            ->delete("/scope-photos/{$photo->id}", [], $headers)
+            ->assertRedirect("/projects/{$project->id}/build");
+
+        // Scope delete from build stays on build.
+        $this->actingAs($headAdmin)
+            ->delete("/scopes/{$scope->id}", [], $headers)
+            ->assertRedirect("/projects/{$project->id}/build");
+    }
+
+    public function test_scope_rename_follows_pm_rows_without_touching_percents(): void
+    {
+        $headAdmin = $this->makeUser('head_admin');
+        $pm = $this->makeUser('project_manager');
+        $foreman = $this->makeUser('foreman');
+        $project = $this->makeProject($headAdmin->id);
+
+        $scope = \App\Models\ProjectScope::create([
+            'project_id' => $project->id,
+            'scope_name' => 'Old Name',
+            'weight_percent' => 50,
+            'progress_percent' => 10,
+            'status' => 'IN_PROGRESS',
+            'assigned_personnel' => $foreman->fullname,
+        ]);
+
+        WeeklyAccomplishment::create([
+            'project_id' => $project->id,
+            'foreman_id' => null,
+            'submitted_by' => $pm->id,
+            'scope_of_work' => 'Old Name',
+            'percent_completed' => 46,
+            'week_start' => now()->startOfWeek()->toDateString(),
+            'is_placeholder' => false,
+        ]);
+
+        $this->actingAs($headAdmin)
+            ->patch("/scopes/{$scope->id}", [
+                'scope_name' => 'New Name',
+                'assigned_personnel' => $foreman->fullname,
+                'progress_percent' => 10,
+                'status' => 'IN_PROGRESS',
+                'remarks' => '',
+                'contract_amount' => 0,
+                'weight_percent' => 50,
+                'start_date' => null,
+                'target_completion' => null,
+            ])
+            ->assertRedirect();
+
+        // PM row renamed, percent preserved.
+        $this->assertDatabaseMissing('weekly_accomplishments', [
+            'project_id' => $project->id,
+            'foreman_id' => null,
+            'scope_of_work' => 'Old Name',
+        ]);
+        $this->assertDatabaseHas('weekly_accomplishments', [
+            'project_id' => $project->id,
+            'foreman_id' => null,
+            'scope_of_work' => 'New Name',
+            'percent_completed' => 46,
+        ]);
+    }
+
+    public function test_scope_delete_removes_all_weekly_rows_for_the_scope(): void
+    {
+        $headAdmin = $this->makeUser('head_admin');
+        $pm = $this->makeUser('project_manager');
+        $foreman = $this->makeUser('foreman');
+        $project = $this->makeProject($headAdmin->id);
+
+        $scope = \App\Models\ProjectScope::create([
+            'project_id' => $project->id,
+            'scope_name' => 'Doomed Scope',
+            'weight_percent' => 50,
+            'progress_percent' => 10,
+            'status' => 'IN_PROGRESS',
+            'assigned_personnel' => $foreman->fullname,
+        ]);
+
+        WeeklyAccomplishment::create([
+            'project_id' => $project->id,
+            'foreman_id' => null,
+            'submitted_by' => $pm->id,
+            'scope_of_work' => 'Doomed Scope',
+            'percent_completed' => 46,
+            'week_start' => now()->startOfWeek()->toDateString(),
+            'is_placeholder' => false,
+        ]);
+        WeeklyAccomplishment::create([
+            'project_id' => $project->id,
+            'foreman_id' => $foreman->id,
+            'submitted_by' => $foreman->id,
+            'scope_of_work' => 'Doomed Scope',
+            'percent_completed' => 10,
+            'week_start' => now()->startOfWeek()->toDateString(),
+            'is_placeholder' => false,
+        ]);
+
+        $this->actingAs($headAdmin)
+            ->delete("/scopes/{$scope->id}")
+            ->assertRedirect();
+
+        $this->assertSame(0, (int) WeeklyAccomplishment::query()
+            ->where('project_id', $project->id)
+            ->count());
     }
 
     private function makeProject(?int $userId = null): Project

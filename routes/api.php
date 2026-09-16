@@ -37,6 +37,7 @@ Route::middleware('pm.api')->group(function () {
     Route::get('/project-manager/dashboard', [ProjectManagerApiController::class, 'dashboard'])->name('api.pm.dashboard');
     Route::get('/project-manager/accomplishments', [ProjectManagerApiController::class, 'accomplishments'])->name('api.pm.accomplishments');
     Route::post('/project-manager/accomplishments', [ProjectManagerApiController::class, 'storeAccomplishments'])->name('api.pm.accomplishments.store');
+    Route::delete('/project-manager/scope-photos/{scopePhoto}', [ProjectManagerApiController::class, 'destroyScopePhoto'])->name('api.pm.scope_photo.delete');
     Route::get('/project-manager/attendance', [ProjectManagerApiController::class, 'attendance'])->name('api.pm.attendance');
     Route::get('/project-manager/payroll', [ProjectManagerApiController::class, 'payroll'])->name('api.pm.payroll');
     Route::get('/project-manager/projects/{project}', [ProjectManagerApiController::class, 'project'])->name('api.pm.project');

@@ -1170,6 +1170,13 @@ export default function ProgressReceipt({
                                 {previewScope?.scopeName && previewPhoto.created_at ? ' | ' : ''}
                                 {previewPhoto.created_at ? `${formatDateTime(previewPhoto.created_at)}` : ''}
                             </div>
+                            {previewPhoto.submitted_by_name || previewPhoto.submitted_by_type ? (
+                                <div className="receipt-muted">
+                                    {String(previewPhoto.submitted_by_name || '').trim().toLowerCase() === String(previewPhoto.submitted_by_type || '').trim().toLowerCase() && previewPhoto.submitted_by_name
+                                        ? `Submitted by: ${previewPhoto.submitted_by_name}`
+                                        : `Submitted by: ${previewPhoto.submitted_by_name || '—'}${previewPhoto.submitted_by_type ? ` (${previewPhoto.submitted_by_type})` : ''}`}
+                                </div>
+                            ) : null}
                         </div>
                     ) : null}
                 </Modal>

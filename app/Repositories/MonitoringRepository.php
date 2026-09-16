@@ -20,7 +20,10 @@ class MonitoringRepository implements MonitoringRepositoryInterface
     public function scopesWithPhotos(Project $project): Collection
     {
         $query = $project->scopes()
-            ->with(['photos' => fn ($query) => $query->latest('id')]);
+            ->with([
+                'photos' => fn ($query) => $query->latest('id'),
+                'photos.submitter' => fn ($query) => $query->select('id', 'fullname', 'role'),
+            ]);
 
         if (Schema::hasColumn('project_scopes', 'sort_order')) {
             $query->orderByRaw('sort_order is null')
@@ -149,8 +152,11 @@ class MonitoringRepository implements MonitoringRepositoryInterface
             ->where('project_id', $projectId)
             ->whereRaw('LOWER(scope_of_work) = ?', [Str::lower($previousScopeName)]);
 
+        // Foreman side only — PM rows (foreman_id NULL) are never touched
+        // here; the PM side moves exclusively through PM writes.
         $latestIds = WeeklyAccomplishment::query()
             ->where($scopeFilter)
+            ->whereNotNull('foreman_id')
             ->where('is_placeholder', false)
             ->groupBy('foreman_id')
             ->pluck(DB::raw('MAX(id)'))
@@ -169,12 +175,20 @@ class MonitoringRepository implements MonitoringRepositoryInterface
 
         WeeklyAccomplishment::query()
             ->where($scopeFilter)
+            ->whereNotNull('foreman_id')
             ->where('is_placeholder', true)
             ->update([
                 'scope_of_work' => $newScopeName,
                 'percent_completed' => $progressPercent,
                 'updated_at' => DB::raw('created_at'),
             ]);
+
+        // Renames follow PM-side rows too (name only — percents are the
+        // PM's own data and are never overwritten from here).
+        WeeklyAccomplishment::query()
+            ->where($scopeFilter)
+            ->whereNull('foreman_id')
+            ->update(['scope_of_work' => $newScopeName]);
 
         if (!WeeklyAccomplishment::query()->where($scopeFilter)->exists()
             && !WeeklyAccomplishment::query()
@@ -183,6 +197,19 @@ class MonitoringRepository implements MonitoringRepositoryInterface
                 ->exists()) {
             $this->seedScopePlaceholderForAssignedForemen($projectId, $newScopeName, $progressPercent, $assignedPersonnel);
         }
+    }
+
+    public function hasWeeklyRowsForScope(int $projectId, string $scopeName): bool
+    {
+        $scopeName = trim($scopeName);
+        if ($projectId <= 0 || $scopeName === '') {
+            return false;
+        }
+
+        return WeeklyAccomplishment::query()
+            ->where('project_id', $projectId)
+            ->whereRaw('LOWER(scope_of_work) = ?', [Str::lower($scopeName)])
+            ->exists();
     }
 
     /**

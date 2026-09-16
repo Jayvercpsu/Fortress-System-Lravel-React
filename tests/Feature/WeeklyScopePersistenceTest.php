@@ -155,6 +155,12 @@ class WeeklyScopePersistenceTest extends TestCase
             'password' => Hash::make('password123'),
             'role' => User::ROLE_HEAD_ADMIN,
         ]);
+        $pm = User::create([
+            'fullname' => 'Seed PM',
+            'email' => 'seed.pm@example.test',
+            'password' => Hash::make('password123'),
+            'role' => User::ROLE_PROJECT_MANAGER,
+        ]);
 
         $this->actingAs($headAdmin)
             ->post('/projects', [
@@ -163,6 +169,7 @@ class WeeklyScopePersistenceTest extends TestCase
                 'type' => 'Residential',
                 'location' => 'QC',
                 'assigned' => 'Persistence Foreman',
+                'assigned_pm_id' => $pm->id,
                 'target' => '2026-12-31',
                 'status' => 'PLANNING',
                 'phase' => 'Construction',
@@ -193,6 +200,12 @@ class WeeklyScopePersistenceTest extends TestCase
             'password' => Hash::make('password123'),
             'role' => User::ROLE_HEAD_ADMIN,
         ]);
+        $pm = User::create([
+            'fullname' => 'Seed PM 2',
+            'email' => 'seed.pm.2@example.test',
+            'password' => Hash::make('password123'),
+            'role' => User::ROLE_PROJECT_MANAGER,
+        ]);
 
         $this->actingAs($headAdmin)
             ->post('/projects', [
@@ -201,6 +214,7 @@ class WeeklyScopePersistenceTest extends TestCase
                 'type' => 'Residential',
                 'location' => 'QC',
                 'assigned' => 'Persistence Foreman',
+                'assigned_pm_id' => $pm->id,
                 'target' => '2026-12-31',
                 'status' => 'PLANNING',
                 'phase' => 'Design',
@@ -237,14 +251,19 @@ class WeeklyScopePersistenceTest extends TestCase
                 }));
     }
 
-    public function test_pm_accomplishments_permanently_lists_assigned_scopes_after_partial_submit(): void
+    public function test_pm_accomplishments_keep_saved_scopes_and_list_plan_scopes(): void
     {
         $this->seedScopes('Persistence Foreman');
+        \App\Models\ProjectAssignment::create([
+            'project_id' => $this->project->id,
+            'user_id' => $this->projectManager->id,
+            'role_in_project' => 'project_manager',
+        ]);
 
+        // PM saves one scope independently (no foreman involved).
         $this->actingAs($this->projectManager)
             ->post('/project-manager/accomplishments', [
                 'project_id' => $this->project->id,
-                'foreman_id' => $this->foreman->id,
                 'week_start' => $this->monday(),
                 'scopes' => [
                     ['scope_of_work' => 'Scope Gamma', 'percent_completed' => 60],
@@ -253,12 +272,18 @@ class WeeklyScopePersistenceTest extends TestCase
             ->assertRedirect();
 
         $this->actingAs($this->projectManager)
-            ->get("/project-manager/accomplishments?project_id={$this->project->id}&foreman_id={$this->foreman->id}")
+            ->get("/project-manager/accomplishments?project_id={$this->project->id}")
             ->assertOk()
             ->assertInertia(fn ($page) => $page
                 ->component('ProjectManager/Accomplishments')
-                ->where('weekly.weekly_scope_of_works', function ($assigned) {
-                    return collect($assigned)->sort()->values()->all() === collect($this->scopeNames)->sort()->values()->all();
+                // Saved PM scope persists on reload.
+                ->where('savedScopes', fn ($saved) => collect($saved)
+                    ->contains(fn ($row) => ($row['scope_of_work'] ?? '') === 'Scope Gamma'
+                        && (float) ($row['percent_completed'] ?? 0) === 60.0))
+                // Plan scopes stay listed as reference.
+                ->where('planScopes', function ($plan) {
+                    return collect($plan)->map(fn ($row) => $row['scope_of_work'] ?? null)
+                        ->sort()->values()->all() === collect($this->scopeNames)->sort()->values()->all();
                 }));
     }
 }

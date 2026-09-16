@@ -561,6 +561,8 @@ class ForemanService
             $scope->photos()->create([
                 'photo_path' => $path,
                 'caption' => $request->caption,
+                'submitted_by' => (int) $request->user()->id,
+                'submitted_by_role' => (string) $request->user()->role,
             ]);
         }
 

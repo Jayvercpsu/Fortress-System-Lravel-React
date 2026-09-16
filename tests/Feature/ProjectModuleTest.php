@@ -16,6 +16,7 @@ class ProjectModuleTest extends TestCase
     public function test_head_admin_can_create_and_edit_project(): void
     {
         $headAdmin = $this->makeUser('head_admin');
+        $pm = $this->makeUser('project_manager');
 
         $this->actingAs($headAdmin)->get('/projects')->assertOk();
         $this->actingAs($headAdmin)->get('/projects/create')->assertOk();
@@ -26,6 +27,7 @@ class ProjectModuleTest extends TestCase
             'type' => 'Residential',
             'location' => 'QC',
             'assigned' => 'Team 1',
+            'assigned_pm_id' => $pm->id,
             'target' => '2026-12-31',
             'status' => 'PLANNING',
             'phase' => 'Design',
@@ -42,6 +44,7 @@ class ProjectModuleTest extends TestCase
             'type' => 'Residential',
             'location' => 'QC',
             'assigned' => 'Team 1',
+            'assigned_pm_id' => $pm->id,
             'target' => '2026-12-31',
             'status' => 'ACTIVE',
             'phase' => 'Design',
@@ -57,6 +60,7 @@ class ProjectModuleTest extends TestCase
     public function test_updating_a_project_requires_assigned_foremen(): void
     {
         $headAdmin = $this->makeUser('head_admin');
+        $pm = $this->makeUser('project_manager');
 
         $this->actingAs($headAdmin)->post('/projects', [
             'name' => 'Project A',
@@ -64,6 +68,7 @@ class ProjectModuleTest extends TestCase
             'type' => 'Residential',
             'location' => 'QC',
             'assigned' => 'Team 1',
+            'assigned_pm_id' => $pm->id,
             'target' => '2026-12-31',
             'status' => 'PLANNING',
             'phase' => 'Design',

@@ -50,6 +50,24 @@ class ProjectManagerApiDataTest extends TestCase
         ]);
     }
 
+    private function assignPm(User $pm, Project $project): void
+    {
+        ProjectAssignment::create([
+            'project_id' => $project->id,
+            'user_id' => $pm->id,
+            'role_in_project' => ProjectAssignment::ROLE_PROJECT_MANAGER,
+        ]);
+    }
+
+    private function assignForeman(User $foreman, Project $project): void
+    {
+        ProjectAssignment::create([
+            'project_id' => $project->id,
+            'user_id' => $foreman->id,
+            'role_in_project' => 'foreman',
+        ]);
+    }
+
     private function pmToken(string $email = 'api.pm.data@example.test'): string
     {
         return (string) $this->postJson('/api/project-manager/login', [
@@ -60,16 +78,28 @@ class ProjectManagerApiDataTest extends TestCase
 
     public function test_dashboard_returns_stats_projects_and_submissions(): void
     {
-        $this->makePm();
+        $pm = $this->makePm();
         $foreman = $this->makeForeman('api.pm.data.foreman@example.test');
         $project = $this->makeProject();
+        $this->assignPm($pm, $project);
+        $this->assignForeman($foreman, $project);
 
+        WeeklyAccomplishment::create([
+            'foreman_id' => null,
+            'submitted_by' => $pm->id,
+            'project_id' => $project->id,
+            'scope_of_work' => 'Foundation',
+            'percent_completed' => 25,
+            'week_start' => now()->startOfWeek()->toDateString(),
+            'is_placeholder' => false,
+        ]);
+        // Foreman JotForm rows never surface in the PM's recent list.
         WeeklyAccomplishment::create([
             'foreman_id' => $foreman->id,
             'submitted_by' => $foreman->id,
             'project_id' => $project->id,
-            'scope_of_work' => 'Foundation',
-            'percent_completed' => 25,
+            'scope_of_work' => 'Foreman Foundation',
+            'percent_completed' => 80,
             'week_start' => now()->startOfWeek()->toDateString(),
             'is_placeholder' => false,
         ]);
@@ -86,68 +116,96 @@ class ProjectManagerApiDataTest extends TestCase
             ->assertJsonStructure(['stats', 'projects', 'recent_submissions', 'low_progress_projects', 'foremen']);
     }
 
-    public function test_accomplishments_returns_weekly_grid_for_project_and_foreman(): void
+    public function test_accomplishments_returns_pm_grid_for_assigned_project(): void
     {
-        $this->makePm();
+        $pm = $this->makePm();
         $foreman = $this->makeForeman('api.pm.data.acc@example.test');
         $project = $this->makeProject('PM Acc Project');
-        ProjectAssignment::create([
-            'project_id' => $project->id,
-            'user_id' => $foreman->id,
-            'role_in_project' => 'foreman',
-        ]);
+        $this->assignPm($pm, $project);
+        $this->assignForeman($foreman, $project);
 
+        $weekStart = now()->startOfWeek()->toDateString();
         WeeklyAccomplishment::create([
-            'foreman_id' => $foreman->id,
-            'submitted_by' => $foreman->id,
+            'foreman_id' => null,
+            'submitted_by' => $pm->id,
             'project_id' => $project->id,
             'scope_of_work' => 'Foundation',
             'percent_completed' => 30,
-            'week_start' => now()->startOfWeek()->toDateString(),
+            'week_start' => $weekStart,
             'is_placeholder' => false,
         ]);
 
         $headers = ['Authorization' => 'Bearer '.$this->pmToken()];
 
-        // Without selection: first project auto-selected with its foremen.
+        // Without selection: first assigned project auto-selected.
         $this->getJson('/api/project-manager/accomplishments', $headers)
             ->assertOk()
             ->assertJsonPath('selectedProjectId', $project->id)
-            ->assertJsonPath('foremen.0.fullname', 'Data Foreman')
-            ->assertJsonStructure(['projects', 'foremen', 'weekly']);
+            ->assertJsonPath('selectedProjectName', 'PM Acc Project')
+            ->assertJsonPath('savedScopes.0.scope_of_work', 'Foundation')
+            ->assertJsonPath('savedScopes.0.percent_completed', 30)
+            ->assertJsonStructure(['projects', 'selectedProjectId', 'planScopes', 'savedScopes', 'pmProgress']);
 
-        $response = $this->getJson(
-            "/api/project-manager/accomplishments?project_id={$project->id}&foreman_id={$foreman->id}",
+        $this->getJson(
+            "/api/project-manager/accomplishments?project_id={$project->id}&week_start={$weekStart}",
             $headers
-        );
-
-        $response->assertOk()
+        )->assertOk()
             ->assertJsonPath('selectedProjectId', $project->id)
-            ->assertJsonPath('selectedForemanId', $foreman->id);
-
-        $weekStart = now()->startOfWeek()->toDateString();
-        $response->assertJsonPath(
-            "weekly.weekly_saved_by_week.{$weekStart}.0.scope_of_work",
-            'Foundation'
-        );
+            ->assertJsonPath('savedScopes.0.scope_of_work', 'Foundation');
     }
 
-    public function test_pm_can_save_accomplishment_like_foreman_submission(): void
+    public function test_accomplishments_payload_includes_foreman_compare_data(): void
     {
-        $this->makePm();
-        $foreman = $this->makeForeman('api.pm.data.save@example.test');
-        $project = $this->makeProject('PM Save Project');
-        ProjectAssignment::create([
+        $pm = $this->makePm('api.pm.data.compare@example.test');
+        $foreman = $this->makeForeman('api.pm.data.compare.foreman@example.test', 'Compare Foreman');
+        $project = $this->makeProject('PM Compare Project');
+        $this->assignPm($pm, $project);
+        $this->assignForeman($foreman, $project);
+
+        $weekStart = now()->startOfWeek()->toDateString();
+        WeeklyAccomplishment::create([
+            'foreman_id' => null,
+            'submitted_by' => $pm->id,
             'project_id' => $project->id,
-            'user_id' => $foreman->id,
-            'role_in_project' => 'foreman',
+            'scope_of_work' => 'Foundation',
+            'percent_completed' => 30,
+            'week_start' => $weekStart,
+            'is_placeholder' => false,
         ]);
+        WeeklyAccomplishment::create([
+            'foreman_id' => $foreman->id,
+            'submitted_by' => $foreman->id,
+            'project_id' => $project->id,
+            'scope_of_work' => 'Foundation',
+            'percent_completed' => 80,
+            'week_start' => $weekStart,
+            'is_placeholder' => false,
+        ]);
+
+        $this->getJson(
+            "/api/project-manager/accomplishments?project_id={$project->id}&week_start={$weekStart}",
+            ['Authorization' => 'Bearer '.$this->pmToken('api.pm.data.compare@example.test')]
+        )->assertOk()
+            // PM rows never leak into the foreman compare slice.
+            ->assertJsonCount(1, 'foremanScopes')
+            ->assertJsonPath('foremanScopes.0.scope_of_work', 'Foundation')
+            ->assertJsonPath('foremanScopes.0.percent_completed', 80)
+            ->assertJsonPath('foremanScopes.0.foreman_name', 'Compare Foreman')
+            ->assertJsonCount(1, 'assignedForemen')
+            ->assertJsonPath('assignedForemen.0.fullname', 'Compare Foreman')
+            ->assertJsonStructure(['foremanScopes', 'assignedForemen']);
+    }
+
+    public function test_pm_can_save_independent_accomplishment(): void
+    {
+        $pm = $this->makePm();
+        $project = $this->makeProject('PM Save Project');
+        $this->assignPm($pm, $project);
 
         $weekStart = now()->startOfWeek()->toDateString();
 
         $this->postJson('/api/project-manager/accomplishments', [
             'project_id' => $project->id,
-            'foreman_id' => $foreman->id,
             'week_start' => $weekStart,
             'scopes' => [
                 ['scope_of_work' => 'Foundation', 'percent_completed' => 45],
@@ -159,7 +217,8 @@ class ProjectManagerApiDataTest extends TestCase
 
         $this->assertDatabaseHas('weekly_accomplishments', [
             'project_id' => $project->id,
-            'foreman_id' => $foreman->id,
+            'foreman_id' => null,
+            'submitted_by' => $pm->id,
             'scope_of_work' => 'Foundation',
         ]);
     }
@@ -168,27 +227,20 @@ class ProjectManagerApiDataTest extends TestCase
     {
         \Illuminate\Support\Facades\Storage::fake('public');
 
-        $this->makePm();
-        $foreman = $this->makeForeman('api.pm.data.save.photo@example.test', 'Photo Foreman');
+        $pm = $this->makePm();
         $project = $this->makeProject('PM Save Photo Project');
-        ProjectAssignment::create([
-            'project_id' => $project->id,
-            'user_id' => $foreman->id,
-            'role_in_project' => 'foreman',
-        ]);
+        $this->assignPm($pm, $project);
         \App\Models\ProjectScope::create([
             'project_id' => $project->id,
             'scope_name' => 'Foundation',
             'progress_percent' => 0,
             'status' => 'NOT_STARTED',
-            'assigned_personnel' => 'Photo Foreman',
         ]);
 
         $photo = \Illuminate\Http\UploadedFile::fake()->image('scope.jpg', 800, 600);
 
         $this->post('/api/project-manager/accomplishments', [
             'project_id' => $project->id,
-            'foreman_id' => $foreman->id,
             'week_start' => now()->startOfWeek()->toDateString(),
             'scopes' => [
                 [
@@ -206,24 +258,37 @@ class ProjectManagerApiDataTest extends TestCase
 
         $this->assertDatabaseHas('weekly_accomplishments', [
             'project_id' => $project->id,
-            'foreman_id' => $foreman->id,
+            'foreman_id' => null,
             'scope_of_work' => 'Foundation',
         ]);
         $this->assertDatabaseCount('scope_photos', 1);
     }
 
-    public function test_store_accomplishment_validates_input(): void
+    public function test_store_accomplishment_rejects_unassigned_project(): void
     {
         $this->makePm();
-
-        // Unassigned foreman must be rejected, same as the web page.
-        $foreman = $this->makeForeman('api.pm.data.save.invalid@example.test');
         $project = $this->makeProject('PM Save Invalid Project');
 
         $this->postJson('/api/project-manager/accomplishments', [
             'project_id' => $project->id,
-            'foreman_id' => $foreman->id,
             'week_start' => now()->startOfWeek()->toDateString(),
+            'scopes' => [
+                ['scope_of_work' => 'Foundation', 'percent_completed' => 45],
+            ],
+        ], [
+            'Authorization' => 'Bearer '.$this->pmToken(),
+        ])->assertForbidden();
+    }
+
+    public function test_store_accomplishment_validates_input(): void
+    {
+        $pm = $this->makePm();
+        $project = $this->makeProject('PM Save Validation Project');
+        $this->assignPm($pm, $project);
+
+        $this->postJson('/api/project-manager/accomplishments', [
+            'project_id' => $project->id,
+            'week_start' => 'not-a-date',
             'scopes' => [
                 ['scope_of_work' => 'Foundation', 'percent_completed' => 45],
             ],
@@ -234,9 +299,11 @@ class ProjectManagerApiDataTest extends TestCase
 
     public function test_attendance_returns_rows_with_filters(): void
     {
-        $this->makePm();
+        $pm = $this->makePm();
         $foreman = $this->makeForeman('api.pm.data.att@example.test');
         $project = $this->makeProject('PM Att Project');
+        $this->assignPm($pm, $project);
+        $this->assignForeman($foreman, $project);
 
         Attendance::create([
             'foreman_id' => $foreman->id,
@@ -271,6 +338,7 @@ class ProjectManagerApiDataTest extends TestCase
     {
         $pm = $this->makePm();
         $project = $this->makeProject('PM Payroll Project');
+        $this->assignPm($pm, $project);
 
         $cutoff = PayrollCutoff::create([
             'start_date' => now()->startOfMonth()->toDateString(),
@@ -309,9 +377,10 @@ class ProjectManagerApiDataTest extends TestCase
 
     public function test_project_detail_returns_accomplishments_and_attendance(): void
     {
-        $this->makePm();
+        $pm = $this->makePm();
         $foreman = $this->makeForeman('api.pm.data.proj@example.test');
         $project = $this->makeProject('PM Detail Project');
+        $this->assignPm($pm, $project);
 
         WeeklyAccomplishment::create([
             'foreman_id' => $foreman->id,
@@ -342,20 +411,32 @@ class ProjectManagerApiDataTest extends TestCase
             ->assertJsonStructure(['project', 'accomplishments', 'attendanceSummary', 'projectStats']);
     }
 
-    public function test_dashboard_progress_matches_projects_kanban(): void
+    public function test_dashboard_progress_is_pm_based(): void
     {
-        $this->makePm();
-        // Stored column holds a stale simple average (90); the weighted
-        // kanban computation (15*25/100 = 3.75) must win everywhere.
+        $pm = $this->makePm();
+        // Stored column holds a stale 90 and the plan carries its own
+        // progress — neither may leak in. Only the PM's independent rows
+        // count: 15 x 25 / 100 = 3.75.
         $project = $this->makeProject('PM Parity Project');
+        $this->assignPm($pm, $project);
         $project->update(['overall_progress' => 90]);
 
         \App\Models\ProjectScope::create([
             'project_id' => $project->id,
             'scope_name' => 'Parity Scope',
-            'progress_percent' => 25,
+            'progress_percent' => 100,
             'status' => 'IN_PROGRESS',
             'weight_percent' => 15,
+        ]);
+
+        WeeklyAccomplishment::create([
+            'foreman_id' => null,
+            'submitted_by' => $pm->id,
+            'project_id' => $project->id,
+            'scope_of_work' => 'Parity Scope',
+            'percent_completed' => 25,
+            'week_start' => now()->startOfWeek()->toDateString(),
+            'is_placeholder' => false,
         ]);
 
         $headers = ['Authorization' => 'Bearer '.$this->pmToken()];
@@ -368,6 +449,7 @@ class ProjectManagerApiDataTest extends TestCase
 
         $this->getJson('/api/project-manager/projects', $headers)
             ->assertOk()
+            ->assertJsonCount(1, 'projects')
             ->assertJsonPath('projects.0.overall_progress', 3.75);
 
         $this->getJson("/api/project-manager/projects/{$project->id}", $headers)
@@ -380,6 +462,8 @@ class ProjectManagerApiDataTest extends TestCase
         $this->makePm('api.pm.data.more@example.test');
         $foreman = $this->makeForeman('api.pm.data.more.foreman@example.test');
         $project = $this->makeProject('PM More Project');
+        $pm = User::where('email', 'api.pm.data.more@example.test')->firstOrFail();
+        $this->assignPm($pm, $project);
 
         for ($i = 0; $i < 25; $i++) {
             WeeklyAccomplishment::create([
@@ -421,12 +505,13 @@ class ProjectManagerApiDataTest extends TestCase
             ->assertJsonPath('accomplishmentsTable.per_page', 50);
     }
 
-    public function test_attendance_foremen_scoped_to_selected_project(): void
+    public function test_attendance_foremen_scoped_to_assigned_projects(): void
     {
-        $this->makePm('api.pm.data.scope@example.test');
+        $pm = $this->makePm('api.pm.data.scope@example.test');
         $assigned = $this->makeForeman('api.pm.data.scope.a@example.test', 'Scoped Foreman A');
         $this->makeForeman('api.pm.data.scope.b@example.test', 'Scoped Foreman B');
         $project = $this->makeProject('PM Scope Project');
+        $this->assignPm($pm, $project);
         ProjectAssignment::create([
             'project_id' => $project->id,
             'user_id' => $assigned->id,
@@ -435,26 +520,23 @@ class ProjectManagerApiDataTest extends TestCase
 
         $headers = ['Authorization' => 'Bearer '.$this->pmToken('api.pm.data.scope@example.test')];
 
-        // No project selected: every foreman is offered.
+        // No project selected: only foremen of assigned projects are offered.
         $this->getJson('/api/project-manager/attendance', $headers)
             ->assertOk()
-            ->assertJsonCount(2, 'foremen');
+            ->assertJsonCount(1, 'foremen')
+            ->assertJsonPath('foremen.0.fullname', 'Scoped Foreman A');
 
-        // With a project selected: only its assigned foreman is offered.
+        // With the assigned project selected: same single foreman.
         $this->getJson("/api/project-manager/attendance?project_id={$project->id}", $headers)
             ->assertOk()
             ->assertJsonCount(1, 'foremen')
             ->assertJsonPath('foremen.0.fullname', 'Scoped Foreman A');
     }
 
-    public function test_payroll_without_project_id_uses_default_project_like_web(): void
+    public function test_payroll_without_project_id_defaults_to_first_assigned_project(): void
     {
         $pm = $this->makePm('api.pm.data.nodefault@example.test');
-        // Alphabetically-first project has NO payroll; the latest payroll
-        // belongs to the second project. Without project_id the API must
-        // resolve the latest tagged project (like the web page), not the
-        // first option and not an empty list.
-        $other = $this->makeProject('AAA Empty Project');
+        $this->makeProject('AAA Empty Project');
 
         $cutoff = PayrollCutoff::create([
             'start_date' => now()->startOfMonth()->toDateString(),
@@ -463,6 +545,7 @@ class ProjectManagerApiDataTest extends TestCase
         ]);
 
         $project = $this->makeProject('ZZZ Payroll Project');
+        $this->assignPm($pm, $project);
         Payroll::create([
             'user_id' => $pm->id,
             'project_id' => $project->id,
@@ -490,6 +573,7 @@ class ProjectManagerApiDataTest extends TestCase
     {
         $pm = $this->makePm('api.pm.data.more20@example.test');
         $project = $this->makeProject('PM More20 Project');
+        $this->assignPm($pm, $project);
         $cutoff = PayrollCutoff::create([
             'start_date' => now()->startOfMonth()->toDateString(),
             'end_date' => now()->endOfMonth()->toDateString(),
@@ -531,6 +615,99 @@ class ProjectManagerApiDataTest extends TestCase
         )->assertOk()
             ->assertJsonCount(5, 'payrolls')
             ->assertJsonPath('table.current_page', 2);
+    }
+
+    public function test_pm_isolation_across_accounts_and_endpoints(): void
+    {
+        $pmA = $this->makePm('api.pm.iso.a@example.test');
+        $pmB = $this->makePm('api.pm.iso.b@example.test');
+        $projectA = $this->makeProject('Isolation Project A');
+        $projectB = $this->makeProject('Isolation Project B');
+        $this->assignPm($pmA, $projectA);
+        $this->assignPm($pmB, $projectB);
+
+        $headersA = ['Authorization' => 'Bearer '.$this->pmToken('api.pm.iso.a@example.test')];
+
+        // Login + projects endpoints only expose the assigned project.
+        $this->assertSame(
+            [$projectA->id],
+            collect($this->postJson('/api/project-manager/login', [
+                'email' => 'api.pm.iso.a@example.test',
+                'password' => 'password123',
+            ])->json('projects'))->pluck('id')->all()
+        );
+        $this->getJson('/api/project-manager/projects', $headersA)
+            ->assertOk()
+            ->assertJsonCount(1, 'projects')
+            ->assertJsonPath('projects.0.id', $projectA->id);
+        $this->getJson('/api/project-manager/me', $headersA)
+            ->assertOk()
+            ->assertJsonCount(1, 'projects');
+
+        // Cross-project access is forbidden on every data endpoint.
+        $this->getJson("/api/project-manager/projects/{$projectB->id}", $headersA)->assertForbidden();
+        $this->getJson("/api/project-manager/payroll?project_id={$projectB->id}", $headersA)->assertForbidden();
+        $this->getJson("/api/project-manager/attendance?project_id={$projectB->id}", $headersA)->assertForbidden();
+        $this->postJson('/api/project-manager/accomplishments', [
+            'project_id' => $projectB->id,
+            'week_start' => now()->startOfWeek()->toDateString(),
+            'scopes' => [['scope_of_work' => 'X', 'percent_completed' => 10]],
+        ], $headersA)->assertForbidden();
+        $this->getJson("/api/project-manager/accomplishments?project_id={$projectB->id}", $headersA)
+            ->assertOk()
+            ->assertJsonPath('selectedProjectId', 0)
+            ->assertJsonCount(0, 'savedScopes');
+    }
+
+    public function test_pm_can_delete_own_scope_photo_via_api(): void
+    {
+        $pm = $this->makePm('api.pm.data.delphoto@example.test');
+        $project = $this->makeProject('PM Del Photo Project');
+        $this->assignPm($pm, $project);
+        $scope = \App\Models\ProjectScope::create([
+            'project_id' => $project->id,
+            'scope_name' => 'Foundation',
+            'progress_percent' => 0,
+            'status' => 'NOT_STARTED',
+        ]);
+        $photo = \App\Models\ScopePhoto::create([
+            'project_scope_id' => $scope->id,
+            'photo_path' => 'scope-photos/pm-api-delete.jpg',
+            'caption' => '[PM Weekly] | Week: ' . now()->startOfWeek()->toDateString() . ' | Scope: Foundation',
+        ]);
+
+        $headers = ['Authorization' => 'Bearer ' . $this->pmToken('api.pm.data.delphoto@example.test')];
+
+        $this->deleteJson("/api/project-manager/scope-photos/{$photo->id}", [], $headers)
+            ->assertOk()
+            ->assertJsonPath('message', 'Photo deleted.');
+
+        $this->assertSoftDeleted('scope_photos', ['id' => $photo->id]);
+    }
+
+    public function test_pm_cannot_delete_unassigned_scope_photo_via_api(): void
+    {
+        $pm = $this->makePm('api.pm.data.delphoto2@example.test');
+        $project = $this->makeProject('PM Del Photo Other Project');
+        $scope = \App\Models\ProjectScope::create([
+            'project_id' => $project->id,
+            'scope_name' => 'Foundation',
+            'progress_percent' => 0,
+            'status' => 'NOT_STARTED',
+        ]);
+        $photo = \App\Models\ScopePhoto::create([
+            'project_scope_id' => $scope->id,
+            'photo_path' => 'scope-photos/pm-api-keep.jpg',
+            'caption' => '[PM Weekly] | Week: ' . now()->startOfWeek()->toDateString() . ' | Scope: Foundation',
+        ]);
+
+        // Not assigned to this project: 404, photo kept.
+        $headers = ['Authorization' => 'Bearer ' . $this->pmToken('api.pm.data.delphoto2@example.test')];
+
+        $this->deleteJson("/api/project-manager/scope-photos/{$photo->id}", [], $headers)
+            ->assertNotFound();
+
+        $this->assertDatabaseHas('scope_photos', ['id' => $photo->id]);
     }
 
     public function test_data_endpoints_reject_unauthenticated_and_foreman_tokens(): void

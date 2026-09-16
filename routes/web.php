@@ -165,6 +165,7 @@ Route::middleware(['auth', 'role:project_manager'])->group(function () {
     Route::get('/project-manager/payroll', [ProjectManagerController::class, 'payroll'])->name('project_manager.payroll');
     Route::get('/project-manager/accomplishments', [ProjectManagerController::class, 'accomplishments'])->name('project_manager.accomplishments');
     Route::post('/project-manager/accomplishments', [ProjectManagerController::class, 'storeAccomplishments'])->name('project_manager.accomplishments.store');
+    Route::delete('/project-manager/scope-photos/{scopePhoto}', [ProjectManagerController::class, 'destroyScopePhoto'])->name('project_manager.scope_photo.delete');
     Route::get('/project-manager/projects/{project}', [ProjectManagerController::class, 'project'])->name('project_manager.project');
     Route::get('/project-manager/settings', [ProjectManagerController::class, 'settings'])->name('project_manager.settings');
     Route::post('/project-manager/settings', [ProjectManagerController::class, 'updateSettings'])->name('project_manager.settings.update');
@@ -188,6 +189,7 @@ Route::middleware(['auth', 'role:head_admin,admin,designer'])->group(function ()
     Route::delete('/weekly-accomplishments/submissions/{submission}/comments/{comment}', [AccomplishmentCommentController::class, 'destroy'])->name('weekly-accomplishments.submissions.comments.destroy');
     Route::get('/weekly-accomplishments/{project}/submissions', [WeeklyAccomplishmentController::class, 'submissions'])->name('weekly-accomplishments.submissions.index');
     Route::get('/weekly-accomplishments/{project}/photos', [WeeklyAccomplishmentController::class, 'photos'])->name('weekly-accomplishments.photos.index');
+    Route::delete('/weekly-accomplishments/scope-photos/{scopePhoto}', [WeeklyAccomplishmentController::class, 'destroyScopePhoto'])->name('weekly-accomplishments.scope-photo.delete');
     Route::get('/weekly-accomplishments/{project}', [WeeklyAccomplishmentController::class, 'show'])->name('weekly-accomplishments.show');
     Route::get('/materials', [MaterialRequestController::class, 'index'])->name('materials.index');
     Route::patch('/materials/{materialRequest}/status', [MaterialRequestController::class, 'updateStatus'])->name('materials.status');

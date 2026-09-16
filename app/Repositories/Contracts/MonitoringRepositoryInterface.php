@@ -24,6 +24,8 @@ interface MonitoringRepositoryInterface
 
     public function propagateScopeProgressToLatestWeekly(int $projectId, string $previousScopeName, string $newScopeName, float $progressPercent, string $assignedPersonnel = ''): void;
 
+    public function hasWeeklyRowsForScope(int $projectId, string $scopeName): bool;
+
     public function saveProjectOverallProgress(Project $project, int $overallProgress): void;
 
     public function assignedForemanIdsForProject(int $projectId): Collection;

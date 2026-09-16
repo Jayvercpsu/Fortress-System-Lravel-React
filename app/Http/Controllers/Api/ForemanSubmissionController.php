@@ -210,6 +210,24 @@ class ForemanSubmissionController extends Controller
             return response()->json(['message' => 'Record not found.'], 404);
         }
 
+        // PM uploads are invisible (and untouchable) from the foreman side.
+        if (str_starts_with(trim((string) ($scopePhoto->caption ?? '')), '[PM Weekly]')) {
+            return response()->json(['message' => 'Record not found.'], 404);
+        }
+
+        // Only the currently assigned foreman may delete scope photos —
+        // past submissions alone grant nothing after a reassignment.
+        $scope = $scopePhoto->scope;
+        $assignedPersonnel = collect(preg_split('/[,;]+/', (string) ($scope->assigned_personnel ?? '')))
+            ->map(fn ($part) => Str::lower(trim((string) $part)))
+            ->filter()
+            ->values();
+        $foremanName = Str::lower(trim((string) ($user->fullname ?? '')));
+
+        if ($foremanName === '' || !$assignedPersonnel->contains($foremanName)) {
+            return response()->json(['message' => 'Record not found.'], 404);
+        }
+
         $path = $scopePhoto->photo_path;
         $scopePhoto->delete();
         UploadManager::delete($path);
@@ -253,10 +271,10 @@ class ForemanSubmissionController extends Controller
         }
 
         $names = collect(preg_split('/[,;]+/', (string) ($project->assigned ?? '')))
-            ->map(fn ($part) => trim((string) $part))
+            ->map(fn ($part) => Str::lower(trim((string) $part)))
             ->filter();
 
-        return $names->contains($fullname);
+        return $names->contains(Str::lower($fullname));
     }
 
     private function ensureProjectEditable(Project $project): void

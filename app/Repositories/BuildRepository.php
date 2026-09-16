@@ -94,7 +94,10 @@ class BuildRepository implements BuildRepositoryInterface
     public function scopesWithPhotos(Project $project): Collection
     {
         $query = $project->scopes()
-            ->with(['photos' => fn ($query) => $query->latest('id')]);
+            ->with([
+                'photos' => fn ($query) => $query->latest('id'),
+                'photos.submitter' => fn ($query) => $query->select('id', 'fullname', 'role'),
+            ]);
 
         if (Schema::hasColumn('project_scopes', 'sort_order')) {
             $query->orderByRaw('sort_order is null')

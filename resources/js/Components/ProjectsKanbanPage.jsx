@@ -500,6 +500,10 @@ export default function ProjectsKanbanPage({
                                                     <span title={project.assigned || '-'} style={{ textAlign: 'right', ...singleLineClampStyle }}>{project.assigned || '-'}</span>
                                                 </div>
                                                 <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, minWidth: 0 }}>
+                                                    <span style={{ color: 'var(--text-muted)' }}>PM</span>
+                                                    <span title={project.assigned_pm || '-'} style={{ textAlign: 'right', ...singleLineClampStyle }}>{project.assigned_pm || '-'}</span>
+                                                </div>
+                                                <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, minWidth: 0 }}>
                                                     <span style={{ color: 'var(--text-muted)' }}>Contract</span>
                                                     <span title={money(project.contract_amount)} style={{ textAlign: 'right', ...singleLineClampStyle }}>{money(project.contract_amount)}</span>
                                                 </div>

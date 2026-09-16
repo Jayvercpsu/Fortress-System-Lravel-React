@@ -7,6 +7,7 @@ use App\Models\DeliveryConfirmation;
 use App\Models\IssueReport;
 use App\Models\MaterialRequest;
 use App\Models\Project;
+use App\Models\ProjectScope;
 use App\Models\ScopePhoto;
 use App\Models\User;
 use App\Models\WeeklyAccomplishment;
@@ -26,7 +27,8 @@ class WeeklyAccomplishmentService
     public const DETAIL_PHOTOS_PER_PAGE = 21;
 
     public function __construct(
-        private readonly WeeklyAccomplishmentRepositoryInterface $weeklyAccomplishmentRepository
+        private readonly WeeklyAccomplishmentRepositoryInterface $weeklyAccomplishmentRepository,
+        private readonly PmProgressService $pmProgressService
     ) {
     }
 
@@ -167,6 +169,10 @@ class WeeklyAccomplishmentService
                     'foreman_name' => $row->foreman?->fullname ?? 'Unknown',
                     'submitted_by_name' => $submittedByName,
                     'submitted_by_role' => $submittedByRole,
+                    // Side rule input: PM side = foreman_id NULL (independent
+                    // PM rows); historical PM rows stored under a foreman_id
+                    // are frozen and ignored by both sides.
+                    'foreman_id' => $row->foreman_id !== null ? (int) $row->foreman_id : null,
                     'project_id' => $row->project_id,
                     // Preserved through week-bucket regrouping (which rewrites
                     // project_id) so photos can be matched to their project.
@@ -299,7 +305,7 @@ class WeeklyAccomplishmentService
     }
 
     /**
-     * Entire scope list per project for averaging: the project's scope plan
+     * Entire scope list per project for weighting: the project's scope plan
      * (or the standard scope plan when it has none yet), plus any scope
      * name that was actually submitted (manual scopes). Keyed by project id.
      *
@@ -332,6 +338,43 @@ class WeeklyAccomplishmentService
     }
 
     /**
+     * Planned scope weights per project, keyed by project id then
+     * lower-cased scope name. Same source/meaning as the /projects kanban
+     * weighted overall progress (project_scopes.weight_percent).
+     *
+     * @return array<int, array<string, float>>
+     */
+    private function comparisonScopeWeights(array $projectIds): array
+    {
+        $intIds = array_values(array_unique(array_map(
+            static fn ($id) => (int) $id,
+            array_filter($projectIds, fn ($id) => $id !== null && $id !== '')
+        )));
+
+        if ($intIds === []) {
+            return [];
+        }
+
+        $rows = ProjectScope::query()
+            ->whereIn('project_id', $intIds)
+            ->whereRaw("TRIM(COALESCE(scope_name, '')) != ?", [''])
+            ->get(['project_id', 'scope_name', 'weight_percent']);
+
+        $map = [];
+        foreach ($rows as $row) {
+            $scopeKey = strtolower(trim((string) $row->scope_name));
+            if ($scopeKey === '') {
+                continue;
+            }
+            $projectKey = (int) $row->project_id;
+            $map[$projectKey][$scopeKey] = ($map[$projectKey][$scopeKey] ?? 0.0)
+                + (float) ($row->weight_percent ?? 0);
+        }
+
+        return $map;
+    }
+
+    /**
      * Latest submission wins per side: for each (side, scope) pair keeps the
      * row with the highest id — PM rows never move Foreman values and vice
      * versa, so each column moves only when its own side submits. Real
@@ -349,8 +392,12 @@ class WeeklyAccomplishmentService
                 continue;
             }
 
-            $role = strtolower(trim((string) ($row['submitted_by_role'] ?? '')));
-            $side = ($role === 'project manager' || $role === 'project_manager') ? 'pm' : 'foreman';
+            // Frozen historical PM rows (foreman_id set, PM-submitted)
+            // belong to neither side and are skipped.
+            $side = self::rowSide(is_array($row) ? $row : []);
+            if ($side === null) {
+                continue;
+            }
             $key = strtolower($scope);
 
             $existing = $sides[$side][$key] ?? null;
@@ -391,11 +438,8 @@ class WeeklyAccomplishmentService
                 ->keyBy(fn ($project) => (int) $project->id);
         }
 
-        $isPmRow = static function (array $row): bool {
-            $role = strtolower(trim((string) ($row['submitted_by_role'] ?? '')));
-
-            return $role === 'project manager' || $role === 'project_manager';
-        };
+        $isPmRow = static fn (array $row): bool => self::rowSide($row) === 'pm';
+        $isForemanRow = static fn (array $row): bool => self::rowSide($row) === 'foreman';
 
         $grouped = $timelineRows
             ->filter(fn (array $row) => ($row['project_id'] ?? null) !== null
@@ -412,44 +456,57 @@ class WeeklyAccomplishmentService
             $grouped
         );
 
+        // Planned scope weights per project (same source as the /projects
+        // kanban weighted overall progress).
+        $scopeWeights = $this->comparisonScopeWeights($allProjectIds);
+
+        // PM column comes from the shared PmProgressService (independent PM
+        // rows only) so every page agrees on one PM number.
+        $pmProgressByProject = $this->pmProgressService->progressByProjectIds($allProjectIds);
+
         $rows = [];
         foreach ($allProjectIds as $projectId) {
             $projectRows = $grouped->get($projectId, collect());
-            // Side columns average each side's own latest-per-scope values
-            // over the ENTIRE scope list (missing = 0), so a submission moves
-            // only its own side's column and only ever upward-or-equal when
-            // raising a scope. Variance is computed ONLY over scopes both
-            // sides submitted — a scope one side never touched can't skew it.
+            // Foreman column weights the foreman side's own latest-per-scope
+            // values by the planned scope weights (missing = 0), so a
+            // submission moves only its own side's column. Variance is
+            // computed ONLY over scopes both sides submitted — a scope one
+            // side never touched can't skew it.
             $latest = $this->latestValuesBySide($projectRows);
-            $pmEntries = array_values($latest['pm']);
             $foremanEntries = array_values($latest['foreman']);
 
             $universe = $scopeUniverse[(int) $projectId] ?? [];
-            $universeCount = count($universe) > 0 ? count($universe) : 1;
 
-            $pmSum = 0.0;
-            $foremanSum = 0.0;
+            // Weighted progress ONLY, same computation as the /projects
+            // kanban (SUM of ROUND(weight × progress / 100, 2) per scope).
+            // Weights come from the project's scope plan; scopes nobody
+            // submitted yet count as 0, and submitted scopes with no planned
+            // weight contribute 0 — so a project whose plan has no weights
+            // reads 0, exactly like /projects does.
+            $weights = $scopeWeights[(int) $projectId] ?? [];
+            $foremanWeighted = 0.0;
             foreach ($universe as $scopeName) {
                 $scopeKey = strtolower(trim((string) $scopeName));
-                $pmSum += (float) ($latest['pm'][$scopeKey]['percent'] ?? 0);
-                $foremanSum += (float) ($latest['foreman'][$scopeKey]['percent'] ?? 0);
+                $weight = (float) ($weights[$scopeKey] ?? 0);
+                if ($weight == 0.0) {
+                    continue;
+                }
+                $foremanWeighted += round($weight * (float) ($latest['foreman'][$scopeKey]['percent'] ?? 0) / 100, 2);
             }
 
-            $pmProgress = $pmEntries !== [] ? round($pmSum / $universeCount, 2) : null;
-            $foremanProgress = $foremanEntries !== [] ? round($foremanSum / $universeCount, 2) : null;
+            $pmProgress = $pmProgressByProject[(int) $projectId] ?? null;
+            $foremanProgress = $foremanEntries !== [] ? round($foremanWeighted, 2) : null;
 
             $commonKeys = array_values(array_intersect(array_keys($latest['pm']), array_keys($latest['foreman'])));
-            $commonVariance = $commonKeys !== []
-                ? round(abs(
-                    collect($commonKeys)->avg(fn (string $key) => $latest['pm'][$key]['percent'])
-                    - collect($commonKeys)->avg(fn (string $key) => $latest['foreman'][$key]['percent'])
-                ), 2)
-                : null;
 
-            // A missing side (or no commonly-submitted scope) leaves variance
-            // missing too — never mirrored, never averaged across mismatched
-            // scope sets — so the row shows "—" / Pending instead of a fake gap.
-            $variance = ($pmProgress !== null && $foremanProgress !== null) ? $commonVariance : null;
+            // Variance is the gap between the two displayed progress columns
+            // (|PM progress − Foreman progress|), so the number and the
+            // status always agree with what the row shows. A missing side
+            // leaves variance missing too — so the row shows "—" / Pending
+            // instead of a fake gap.
+            $variance = ($pmProgress !== null && $foremanProgress !== null)
+                ? round(abs($pmProgress - $foremanProgress), 2)
+                : null;
             $status = $variance === null
                 ? 'Pending'
                 : ($variance <= 5 ? 'On Track' : ($variance <= 10 ? 'Needs Review' : 'Investigate'));
@@ -461,7 +518,7 @@ class WeeklyAccomplishmentService
 
             $lastPm = $projectRows->filter(fn (array $row) => $isPmRow($row))
                 ->map(fn (array $row) => (string) ($row['submitted_at'] ?? ''))->filter()->max();
-            $lastForeman = $projectRows->filter(fn (array $row) => ! $isPmRow($row))
+            $lastForeman = $projectRows->filter(fn (array $row) => $isForemanRow($row))
                 ->map(fn (array $row) => (string) ($row['submitted_at'] ?? ''))->filter()->max();
 
             $meta = $projectMeta->get((int) $projectId);
@@ -642,8 +699,17 @@ class WeeklyAccomplishmentService
 
         $comparison = $this->buildComparisonPayload($timelineRows, [$project->id]);
 
+        // The Overview donut must always equal the PM progress shown on
+        // /projects (strictly PM-based): the comparison's own pm_progress,
+        // or 0 when the PM side has no independent data yet.
+        $comparisonRow = $comparison['rows'][0] ?? null;
+        if (is_array($comparisonRow)) {
+            $comparisonRow['overall_progress'] = $comparisonRow['pm_progress'] ?? 0.0;
+            $comparison['rows'][0] = $comparisonRow;
+        }
+
         $pmRows = $rows->filter(fn (array $row) => self::isPmDetailRow($row))->values();
-        $foremanRows = $rows->filter(fn (array $row) => ! self::isPmDetailRow($row))->values();
+        $foremanRows = $rows->filter(fn (array $row) => self::isForemanDetailRow($row))->values();
 
         $latest = $this->latestValuesBySide($rows);
         $scopeKeys = array_unique(array_merge(array_keys($latest['pm']), array_keys($latest['foreman'])));
@@ -669,7 +735,7 @@ class WeeklyAccomplishmentService
         usort($scopeBreakdown, fn (array $a, array $b) => strcmp($a['scope'], $b['scope']));
 
         $pmRows = $rows->filter(fn (array $row) => self::isPmDetailRow($row))->values();
-        $foremanRows = $rows->filter(fn (array $row) => ! self::isPmDetailRow($row))->values();
+        $foremanRows = $rows->filter(fn (array $row) => self::isForemanDetailRow($row))->values();
 
         $isHeadAdminView = in_array($request->user()->role, [User::ROLE_HEAD_ADMIN, User::ROLE_MASTER_ADMIN, User::ROLE_ADMIN], true);
 
@@ -722,7 +788,7 @@ class WeeklyAccomplishmentService
         [, , $rows] = $this->detailRowsData($project);
         $filtered = $rows->filter(fn (array $row) => $side === 'pm'
             ? self::isPmDetailRow($row)
-            : ! self::isPmDetailRow($row))->values();
+            : self::isForemanDetailRow($row))->values();
 
         $total = $filtered->count();
         $data = $filtered->forPage($page, self::DETAIL_SUBMISSIONS_PER_PAGE)->values();
@@ -877,11 +943,40 @@ class WeeklyAccomplishmentService
         return [$timelineRows, $weeklyScopePhotoMap, $rows, $photoTotal];
     }
 
+    /**
+     * Data-source side of a mapped accomplishment row.
+     *
+     * - 'pm': independent PM rows (foreman_id NULL).
+     * - 'foreman': Foreman JotForm rows (foreman_id set, not PM-submitted).
+     * - null: frozen historical PM rows stored under a foreman_id — they
+     *   belong to neither side and are ignored everywhere.
+     */
+    public static function rowSide(array $row): ?string
+    {
+        if (!array_key_exists('foreman_id', $row)) {
+            return 'foreman';
+        }
+
+        if ($row['foreman_id'] === null || $row['foreman_id'] === '') {
+            return 'pm';
+        }
+
+        $role = strtolower(trim((string) ($row['submitted_by_role'] ?? '')));
+        if ($role === 'project manager' || $role === 'project_manager') {
+            return null;
+        }
+
+        return 'foreman';
+    }
+
     private static function isPmDetailRow(array $row): bool
     {
-        $role = strtolower(trim((string) ($row['submitted_by_role'] ?? '')));
+        return self::rowSide($row) === 'pm';
+    }
 
-        return $role === 'project manager' || $role === 'project_manager';
+    private static function isForemanDetailRow(array $row): bool
+    {
+        return self::rowSide($row) === 'foreman';
     }
 
     private function mapDetailRow(WeeklyAccomplishment $row): array
@@ -895,6 +990,7 @@ class WeeklyAccomplishmentService
             'submitted_by_role' => $submitter
                 ? ucwords(str_replace('_', ' ', (string) $submitter->role))
                 : 'Foreman',
+            'foreman_id' => $row->foreman_id !== null ? (int) $row->foreman_id : null,
             'project_id' => $row->project_id,
             'project_name' => $row->project?->name ?? 'Unassigned',
             'week_start' => $row->week_start

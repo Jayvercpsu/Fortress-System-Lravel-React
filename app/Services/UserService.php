@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\User;
 use App\Repositories\Contracts\UserRepositoryInterface;
+use App\Support\AssignmentNameSync;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Hash;
@@ -68,6 +69,9 @@ class UserService
 
     public function updateUser(User $user, array $validated): void
     {
+        $oldName = trim((string) ($user->fullname ?? ''));
+        $newName = trim((string) ($validated['fullname'] ?? $oldName));
+
         $payload = [
             'fullname' => $validated['fullname'],
             'email' => $validated['email'],
@@ -80,6 +84,28 @@ class UserService
 
         $this->userRepository->updateUser($user, $payload);
         $this->userRepository->upsertDetail($user, $this->detailPayloadFromValidated($validated));
+
+        // A rename must follow the user into the denormalized
+        // assignment-name columns. Otherwise project/scope assignment
+        // matching (project edit screens, the foreman jotform, and the
+        // foreman mobile weekly grid) keeps comparing against the old name
+        // and the user loses their scopes.
+        AssignmentNameSync::sync($oldName, $newName);
+    }
+
+    /**
+     * Replace one person's name inside `projects.assigned` and
+     * `project_scopes.assigned_personnel`. Matching is segment-wise and
+     * case-insensitive so "Foreman" never clobbers "Foreman Joe".
+     */
+    private function syncRenamedAssignmentNames(string $oldName, string $newName): void
+    {
+        AssignmentNameSync::sync($oldName, $newName);
+    }
+
+    private static function replaceNameSegment(?string $value, string $oldName, string $newName): ?string
+    {
+        return AssignmentNameSync::replaceNameSegment($value, $oldName, $newName);
     }
 
     public function deleteUser(User $user): void

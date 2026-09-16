@@ -387,16 +387,29 @@ export default function ProgressSubmit({ submitToken }) {
         ];
     }, [attendanceWeekDrafts, attendanceWeekKey, defaultAttendanceRows, attendanceWorkerPool, foremanAttendanceId]);
     const weeklyRowsRaw = weeklyWeekDrafts[weeklyWeekKey] ?? defaultWeeklyRowsForWeek;
-    // Scopes outside the foreman's assignment stay visible but read-only.
-    // Manually added rows stay editable. When nothing is assigned yet
-    // (e.g. the fallback list on a project with no scopes), rows stay
-    // editable so the foreman can claim them by submitting.
+    // Claim flow applies only when the project has no scopes at all. A
+    // foreman with zero assignments on a project that HAS scopes must not
+    // inherit other foremen's scopes as editable rows.
+    const hasProjectScopes = Array.isArray(submitToken?.weekly_scope_all) && submitToken.weekly_scope_all.length > 0;
+    // Scopes outside the foreman's assignment are flagged read-only.
+    // Manually added rows stay editable. When nothing is assigned yet on a
+    // project with no scopes (fallback list), rows stay editable so the
+    // foreman can claim them by submitting.
     const weeklyRows = useMemo(() => (weeklyRowsRaw || []).map((row) => {
         if (row?.is_manual) return row;
         const key = String(row?.scope_of_work || '').trim().toLowerCase();
-        if (key === '' || assignedWeeklyScopeKeys.size === 0 || assignedWeeklyScopeKeys.has(key)) return row;
+        if (key === '') return row;
+        if (assignedWeeklyScopeKeys.has(key)) return row;
+        if (!hasProjectScopes && assignedWeeklyScopeKeys.size === 0) return row;
         return { ...row, is_unassigned: true };
-    }), [weeklyRowsRaw, assignedWeeklyScopeKeys]);
+    }), [weeklyRowsRaw, assignedWeeklyScopeKeys, hasProjectScopes]);
+    // A scope reassigned away vanishes from the editable (current) week
+    // instead of lingering as "Assigned to another foreman". Locked
+    // past/future weeks keep such rows as read-only history.
+    const visibleWeeklyRows = useMemo(
+        () => (weeklyLocked ? weeklyRows : weeklyRows.filter((row) => !row?.is_unassigned)),
+        [weeklyRows, weeklyLocked],
+    );
 
     // Convert AI-detected attendance records to the JotForm grid format
     const mergeAiAttendanceToGrid = useCallback((savedRecords) => {
@@ -914,7 +927,7 @@ export default function ProgressSubmit({ submitToken }) {
             });
         const safeAttendanceEntries = attendanceLocked ? [] : attendanceEntries;
 
-        const weeklyScopes = weeklyRows
+        const weeklyScopes = visibleWeeklyRows
             .filter((r) => !r.is_unassigned)
             .map((r) => ({
                 scope_of_work: String(r.scope_of_work || '').trim(),
@@ -1306,7 +1319,7 @@ export default function ProgressSubmit({ submitToken }) {
                 />
             </label>
             {weeklyLocked ? <div className="jf-note" style={{ marginBottom: 8, fontWeight: 700 }}>Only the current week is editable. Previous and upcoming weeks are locked.</div> : null}
-            {weeklyRows.length === 0 ? (
+            {visibleWeeklyRows.length === 0 ? (
                 <div className="jf-note" style={{ marginBottom: 8, fontWeight: 700 }}>
                     {weeklyLocked
                         ? 'No scopes were assigned for the selected week.'
@@ -1317,7 +1330,7 @@ export default function ProgressSubmit({ submitToken }) {
                 <table className="jf-table" style={{ minWidth: 980 }}>
                     <thead><tr><th>SCOPE OF WORKS</th><th>% COMPLETE</th><th>SCOPE PHOTOS</th><th>ACTION</th></tr></thead>
                     <tbody>
-                        {weeklyRows.map((row, i) => (
+                        {visibleWeeklyRows.map((row, i) => (
                             <tr key={row.row_key || `${row.scope_of_work || 'scope'}-${i}`}>
                                 <td>
                                     {row.is_manual ? (

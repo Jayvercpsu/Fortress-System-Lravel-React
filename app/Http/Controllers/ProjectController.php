@@ -48,6 +48,7 @@ class ProjectController extends Controller
 
         return Inertia::render('HeadAdmin/Projects/Create', [
             'foremen' => $this->projectService->foremanOptionsPayload(),
+            'pmOptions' => $this->projectService->pmOptionsPayload(),
             'designers' => $this->projectService->designerOptionsPayload(),
             'clientOptions' => $this->projectService->clientOptionsPayload(),
         ]);

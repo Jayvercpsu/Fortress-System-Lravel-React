@@ -6,6 +6,7 @@ use App\Models\Attendance;
 use App\Models\Payroll;
 use App\Models\PayrollCutoff;
 use App\Models\Project;
+use App\Models\ProjectAssignment;
 use App\Models\User;
 use App\Models\WeeklyAccomplishment;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -36,6 +37,12 @@ class ProjectManagerTest extends TestCase
             'status' => 'ACTIVE',
             'phase' => 'Construction',
             'overall_progress' => 25,
+        ]);
+
+        ProjectAssignment::create([
+            'project_id' => $this->project->id,
+            'user_id' => $this->projectManager->id,
+            'role_in_project' => ProjectAssignment::ROLE_PROJECT_MANAGER,
         ]);
     }
 
@@ -88,11 +95,22 @@ class ProjectManagerTest extends TestCase
 
     public function test_dashboard_shows_recent_submissions(): void
     {
+        // Only the PM's own independent rows surface here — foreman
+        // JotForm rows never appear in the PM's recent list.
+        WeeklyAccomplishment::create([
+            'project_id' => $this->project->id,
+            'foreman_id' => null,
+            'submitted_by' => $this->projectManager->id,
+            'scope_of_work' => 'Flooring',
+            'percent_completed' => 50,
+            'week_start' => now()->subWeek()->toDateString(),
+            'is_placeholder' => false,
+        ]);
         WeeklyAccomplishment::create([
             'project_id' => $this->project->id,
             'foreman_id' => $this->foreman->id,
-            'scope_of_work' => 'Flooring',
-            'percent_completed' => 50,
+            'scope_of_work' => 'Foreman Flooring',
+            'percent_completed' => 80,
             'week_start' => now()->subWeek()->toDateString(),
             'is_placeholder' => false,
         ]);
@@ -101,6 +119,7 @@ class ProjectManagerTest extends TestCase
             ->get('/project-manager')
             ->assertOk()
             ->assertInertia(fn ($page) => $page
+                ->has('recentSubmissions', 1)
                 ->where('recentSubmissions.0.scope_of_work', 'Flooring')
                 ->where('recentSubmissions.0.percent_completed', 50));
     }
@@ -115,17 +134,27 @@ class ProjectManagerTest extends TestCase
                 ->where('lowProgressProjects.0.id', $this->project->id));
     }
 
-    public function test_dashboard_progress_matches_projects_kanban(): void
+    public function test_dashboard_progress_is_pm_based(): void
     {
-        // Stored column holds a stale 90; the weighted kanban value
-        // (15*25/100 = 3.75) must win in both dashboard sections.
+        // Stored column holds a stale 90 and the scope plan carries its own
+        // progress — neither may leak in. Only the PM's independent rows
+        // count: 15 x 25 / 100 = 3.75.
         $this->project->update(['overall_progress' => 90]);
         \App\Models\ProjectScope::create([
             'project_id' => $this->project->id,
             'scope_name' => 'Parity Scope',
-            'progress_percent' => 25,
+            'progress_percent' => 100,
             'status' => 'IN_PROGRESS',
             'weight_percent' => 15,
+        ]);
+        WeeklyAccomplishment::create([
+            'project_id' => $this->project->id,
+            'foreman_id' => null,
+            'submitted_by' => $this->projectManager->id,
+            'scope_of_work' => 'Parity Scope',
+            'percent_completed' => 25,
+            'week_start' => now()->subWeek()->toDateString(),
+            'is_placeholder' => false,
         ]);
 
         $this->actingAs($this->projectManager)
@@ -135,6 +164,88 @@ class ProjectManagerTest extends TestCase
                 ->where('projects.0.overall_progress', 3.75)
                 ->where('lowProgressProjects.0.overall_progress', 3.75)
                 ->where('stats.low_progress_projects', 1));
+    }
+
+    public function test_pm_only_sees_assigned_projects_everywhere(): void
+    {
+        $otherPm = $this->makeUser('project_manager');
+        $otherProject = Project::create([
+            'name' => 'Other PM Project',
+            'client' => 'Other Client',
+            'type' => 'Residential',
+            'location' => 'Makati',
+            'assigned' => $this->foreman->fullname,
+            'status' => 'ACTIVE',
+            'phase' => 'Construction',
+            'overall_progress' => 0,
+        ]);
+        ProjectAssignment::create([
+            'project_id' => $otherProject->id,
+            'user_id' => $otherPm->id,
+            'role_in_project' => ProjectAssignment::ROLE_PROJECT_MANAGER,
+        ]);
+
+        // Dashboard lists only the assigned project.
+        $this->actingAs($this->projectManager)
+            ->get('/project-manager')
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page
+                ->where('stats.total_projects', 1)
+                ->has('projects', 1)
+                ->where('projects.0.id', $this->project->id));
+
+        // Direct access to another PM's project is forbidden.
+        $this->actingAs($this->projectManager)
+            ->get("/project-manager/projects/{$otherProject->id}")
+            ->assertForbidden();
+
+        // Same for the other PM in reverse.
+        $this->actingAs($otherPm)
+            ->get("/project-manager/projects/{$this->project->id}")
+            ->assertForbidden();
+        $this->actingAs($otherPm)
+            ->get('/project-manager')
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page
+                ->where('stats.total_projects', 1)
+                ->where('projects.0.id', $otherProject->id));
+    }
+
+    public function test_pm_payroll_and_attendance_reject_unassigned_project(): void
+    {
+        $otherPm = $this->makeUser('project_manager');
+        $otherProject = Project::create([
+            'name' => 'Other PM Project',
+            'client' => 'Other Client',
+            'type' => 'Residential',
+            'location' => 'Makati',
+            'assigned' => $this->foreman->fullname,
+            'status' => 'ACTIVE',
+            'phase' => 'Construction',
+            'overall_progress' => 0,
+        ]);
+        ProjectAssignment::create([
+            'project_id' => $otherProject->id,
+            'user_id' => $otherPm->id,
+            'role_in_project' => ProjectAssignment::ROLE_PROJECT_MANAGER,
+        ]);
+
+        $this->actingAs($this->projectManager)
+            ->get('/project-manager/payroll?project_id=' . $otherProject->id)
+            ->assertForbidden();
+
+        $this->actingAs($this->projectManager)
+            ->get('/project-manager/attendance?project_id=' . $otherProject->id)
+            ->assertForbidden();
+
+        $this->actingAs($this->projectManager)
+            ->get('/project-manager/accomplishments?project_id=' . $otherProject->id)
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page
+                ->component('ProjectManager/Accomplishments')
+                // Unassigned project: nothing of it is shown.
+                ->where('selectedProjectId', 0)
+                ->has('savedScopes', 0));
     }
 
     public function test_project_manager_can_view_attendance_read_only(): void
@@ -240,6 +351,37 @@ class ProjectManagerTest extends TestCase
                 ->has('projectStats')
                 ->has('projectStats.total_accomplishments')
                 ->has('projectStats.total_attendance_hours'));
+    }
+
+    public function test_project_detail_accomplishments_show_only_foreman_rows(): void
+    {
+        WeeklyAccomplishment::create([
+            'project_id' => $this->project->id,
+            'foreman_id' => $this->foreman->id,
+            'submitted_by' => $this->foreman->id,
+            'scope_of_work' => 'Foreman Scope',
+            'percent_completed' => 40,
+            'week_start' => now()->subWeek()->toDateString(),
+            'is_placeholder' => false,
+        ]);
+        WeeklyAccomplishment::create([
+            'project_id' => $this->project->id,
+            'foreman_id' => null,
+            'submitted_by' => $this->projectManager->id,
+            'scope_of_work' => 'PM Scope',
+            'percent_completed' => 90,
+            'week_start' => now()->subWeek()->toDateString(),
+            'is_placeholder' => false,
+        ]);
+
+        $this->actingAs($this->projectManager)
+            ->get("/project-manager/projects/{$this->project->id}")
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page
+                ->component('ProjectManager/Project')
+                ->has('accomplishments', 1)
+                ->where('accomplishments.0.scope_of_work', 'Foreman Scope')
+                ->where('accomplishments.0.foreman_name', $this->foreman->fullname));
     }
 
     public function test_project_page_renders_with_attendance_records(): void

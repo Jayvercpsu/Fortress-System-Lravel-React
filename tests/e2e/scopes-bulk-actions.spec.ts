@@ -16,14 +16,12 @@ test('admin can bulk-select scopes and edit only a single selection', async ({ p
         await page.locator('label').filter({ hasText: 'Scope Name' }).locator('input').fill(name);
         await page.locator('label').filter({ hasText: 'Assigned Personnel' }).getByRole('button').first().click();
         await page.getByPlaceholder('Search foreman...').fill('Fortress Demo Foreman');
-        await page.getByRole('button', { name: 'Fortress Demo Foreman' }).first().click();
+        await page.getByRole('button', { name: 'Fortress Demo Foreman', exact: true }).click();
         await page.locator('label').filter({ hasText: 'Contract Amount' }).locator('input').fill('1000');
-        await page.locator('label').filter({ hasText: 'Weight %' }).locator('input').fill('5');
+        await page.locator('label').filter({ hasText: 'Weight %' }).locator('input').fill('0');
         await page.getByRole('button', { name: 'Add Scope' }).last().click();
-        // Scope creation redirects to the monitoring page; wait for it, then return to the build page.
-        await expect(page).toHaveURL(new RegExp(`/projects/${DEMO_PROJECT_ID}/monitoring`));
-        await expect(page.locator('body')).toContainText(name);
-        await page.goto(`/projects/${DEMO_PROJECT_ID}/build`);
+        // Scope creation from the build page redirects back to the build page.
+        await expect(page).toHaveURL(new RegExp(`/projects/${DEMO_PROJECT_ID}/build`));
         await expect(page.locator('body')).toContainText(name);
     }
 

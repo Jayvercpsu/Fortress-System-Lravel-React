@@ -18,6 +18,8 @@ class StoreScopePhotoRequest extends FormRequest
         return [
             'photo' => ['required', 'image', UploadManager::maxRule()],
             'caption' => ['nullable', 'string', 'max:255'],
+            'as_pm' => ['nullable', 'string', 'max:20'],
+            'photo_side' => ['nullable', 'string', 'max:20'],
         ];
     }
 }

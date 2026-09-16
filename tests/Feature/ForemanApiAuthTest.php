@@ -535,6 +535,62 @@ class ForemanApiAuthTest extends TestCase
             ]);
     }
 
+    public function test_foreman_mobile_map_hides_pm_photos_but_keeps_foreman_ones(): void
+    {
+        $foreman = User::create([
+            'fullname' => 'Map Foreman',
+            'email' => 'api.foreman.map@example.test',
+            'password' => Hash::make('password123'),
+            'role' => User::ROLE_FOREMAN,
+        ]);
+
+        $project = Project::create([
+            'name' => 'Map API Project',
+            'client' => 'API Client',
+            'type' => 'Residential',
+            'location' => 'Antipolo City',
+            'status' => 'ONGOING',
+            'phase' => 'CONSTRUCTION',
+            'overall_progress' => 0,
+        ]);
+
+        ProjectAssignment::create([
+            'project_id' => $project->id,
+            'user_id' => $foreman->id,
+            'role_in_project' => 'foreman',
+        ]);
+
+        $scope = \App\Models\ProjectScope::create([
+            'project_id' => $project->id,
+            'scope_name' => 'Foundation',
+            'progress_percent' => 0,
+            'status' => 'NOT_STARTED',
+            'assigned_personnel' => 'Map Foreman',
+        ]);
+
+        \App\Models\ScopePhoto::create([
+            'project_scope_id' => $scope->id,
+            'photo_path' => 'scope-photos/pm-mobile-hidden.jpg',
+            'caption' => '[PM Weekly] | Week: 2026-09-14 | Scope: Foundation',
+        ]);
+        \App\Models\ScopePhoto::create([
+            'project_scope_id' => $scope->id,
+            'photo_path' => 'scope-photos/foreman-mobile-shown.jpg',
+            'caption' => '[Jotform Weekly] | Week: 2026-09-14 | Scope: Foundation',
+        ]);
+
+        $token = $this->postJson('/api/foreman/login', [
+            'email' => 'api.foreman.map@example.test',
+            'password' => 'password123',
+        ])->json('token');
+
+        $this->getJson("/api/foreman/projects/{$project->id}/jotform", [
+            'Authorization' => 'Bearer ' . $token,
+        ])->assertOk()
+            ->assertJsonPath('scope_photo_map.foundation.0.photo_path', 'scope-photos/foreman-mobile-shown.jpg')
+            ->assertJsonCount(1, 'scope_photo_map.foundation');
+    }
+
     public function test_foreman_jotform_rejects_unassigned_project(): void
     {
         User::create([

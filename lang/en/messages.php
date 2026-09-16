@@ -85,6 +85,7 @@ return [
         'scopes_bulk_deleted' => 'Selected scopes deleted successfully.',
         'scope_reordered' => 'Scope order updated successfully.',
         'assigned_personnel_invalid' => 'Assigned personnel must be one assigned foreman.',
+        'weight_total_exceeded' => 'Current total weight is now :total% — this exceeds the 100% limit. Lower a weight first.',
     ],
     'payroll' => [
         'entry_added' => 'Payroll entry added successfully.',
@@ -105,6 +106,8 @@ return [
         'transferred_to_completed' => 'Project transferred to Completed successfully.',
         'assigned_foremen_updated' => 'Assigned foremen updated successfully.',
         'assigned_foremen_too_long' => 'Assigned foremen list is too long for one project. Reduce the number of names.',
+        'assigned_pm_updated' => 'Assigned project manager updated successfully.',
+        'assigned_pm_invalid' => 'Selected project manager is invalid.',
         'financials_updated' => 'Project financials updated successfully.',
         'deleted' => 'Project deleted successfully.',
         'assigned_role_invalid' => 'Assigned must use Architect, Engineer, or PM entries (optionally with names, e.g. Engineer: Juan).',

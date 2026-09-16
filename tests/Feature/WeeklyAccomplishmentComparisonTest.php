@@ -25,10 +25,10 @@ class WeeklyAccomplishmentComparisonTest extends TestCase
             $projectManager = $this->makeUser('project_manager');
             $foreman = $this->makeUser('foreman');
             $project = $this->makeProject('Aqua Residences', $headAdmin->id);
-            $this->seedScope($project, 'Column Footing');
+            $this->seedScope($project, 'Column Footing', 100);
 
             WeeklyAccomplishment::create([
-                'foreman_id' => $foreman->id,
+                'foreman_id' => null,
                 'submitted_by' => $projectManager->id,
                 'project_id' => $project->id,
                 'scope_of_work' => 'Column Footing',
@@ -80,9 +80,9 @@ class WeeklyAccomplishmentComparisonTest extends TestCase
             $onTrack = $this->makeProject('On Track Project', $headAdmin->id);
             $needsReview = $this->makeProject('Needs Review Project', $headAdmin->id);
             $investigate = $this->makeProject('Investigate Project', $headAdmin->id);
-            $this->seedScope($onTrack, 'Column Footing');
-            $this->seedScope($needsReview, 'Column Footing');
-            $this->seedScope($investigate, 'Column Footing');
+            $this->seedScope($onTrack, 'Column Footing', 100);
+            $this->seedScope($needsReview, 'Column Footing', 100);
+            $this->seedScope($investigate, 'Column Footing', 100);
 
             $this->seedPair($projectManager, $foreman, $onTrack, 49, 48); // 1% On Track
             $this->seedPair($projectManager, $foreman, $needsReview, 62, 55); // 7% Needs Review
@@ -125,7 +125,7 @@ class WeeklyAccomplishmentComparisonTest extends TestCase
             $projectManager = $this->makeUser('project_manager');
             $foreman = $this->makeUser('foreman');
             $project = $this->makeProject('Aqua Residences', $headAdmin->id);
-            $this->seedScope($project, 'Column Footing');
+            $this->seedScope($project, 'Column Footing', 100);
 
             $this->seedPair($projectManager, $foreman, $project, 62, 55);
 
@@ -162,7 +162,7 @@ class WeeklyAccomplishmentComparisonTest extends TestCase
 
         for ($i = 0; $i < 55; $i++) {
             WeeklyAccomplishment::create([
-                'foreman_id' => $foreman->id,
+                'foreman_id' => null,
                 'submitted_by' => $projectManager->id,
                 'project_id' => $project->id,
                 'scope_of_work' => 'Column Footing',
@@ -273,18 +273,20 @@ class WeeklyAccomplishmentComparisonTest extends TestCase
             $masterAdmin = $this->makeUser('master_admin');
             $foreman = $this->makeUser('foreman');
             $project = $this->makeProject('Latest Wins Project', $headAdmin->id);
-            $this->seedScope($project, 'Mobilization and Hauling');
+            $this->seedScope($project, 'Mobilization and Hauling', 100);
 
             // Mirrors the production report: stale 35s, then PM 40, then 0.
             // Latest per side must win — not the oldest, not the average.
+            // PM rows are independent (foreman_id NULL); the master-admin
+            // row stays foreman-side.
             foreach ([
-                [$foreman, 35],
-                [$projectManager, 35],
-                [$projectManager, 40],
-                [$masterAdmin, 0],
-            ] as [$submitter, $percent]) {
+                [$foreman, 35, false],
+                [$projectManager, 35, true],
+                [$projectManager, 40, true],
+                [$masterAdmin, 0, false],
+            ] as [$submitter, $percent, $isPmRow]) {
                 WeeklyAccomplishment::create([
-                    'foreman_id' => $foreman->id,
+                    'foreman_id' => $isPmRow ? null : $foreman->id,
                     'submitted_by' => $submitter->id,
                     'project_id' => $project->id,
                     'scope_of_work' => 'Mobilization and Hauling',
@@ -330,8 +332,8 @@ class WeeklyAccomplishmentComparisonTest extends TestCase
             $headAdmin = $this->makeUser('head_admin');
             $foreman = $this->makeUser('foreman');
             $project = $this->makeProject('Foreman Only Project', $headAdmin->id);
-            $this->seedScope($project, 'Column Footing');
-            $this->seedScope($project, 'Mobilization and Hauling');
+            $this->seedScope($project, 'Column Footing', 50);
+            $this->seedScope($project, 'Mobilization and Hauling', 50);
 
             // Fresh project: only JotForm (foreman) submissions, no PM save.
             // The PM side must stay missing — never a copy of foreman values.
@@ -375,7 +377,7 @@ class WeeklyAccomplishmentComparisonTest extends TestCase
         }
     }
 
-    public function test_variance_compares_only_common_scopes(): void
+    public function test_variance_is_gap_between_progress_columns(): void
     {
         Carbon::setTestNow('2026-08-18 12:00:00');
 
@@ -384,19 +386,19 @@ class WeeklyAccomplishmentComparisonTest extends TestCase
             $projectManager = $this->makeUser('project_manager');
             $foreman = $this->makeUser('foreman');
             $project = $this->makeProject('Partial Overlap Project', $headAdmin->id);
-            $this->seedScope($project, 'Mobilization and Hauling');
-            $this->seedScope($project, 'Foundation Preparation');
+            $this->seedScope($project, 'Mobilization and Hauling', 50);
+            $this->seedScope($project, 'Foundation Preparation', 50);
 
             // Foreman touches two scopes, PM reviews only one of them.
-            // Sides keep their own averages, but variance must come from the
-            // commonly-submitted scope only: |28 - 27| = 1, not |28 - 26|.
+            // Sides keep their own weighted values (PM 14, foreman 26), and
+            // variance is the gap between those columns: |14 - 26| = 12.
             foreach ([
-                [$foreman, 'Mobilization and Hauling', 27],
-                [$foreman, 'Foundation Preparation', 25],
-                [$projectManager, 'Mobilization and Hauling', 28],
-            ] as [$submitter, $scope, $percent]) {
+                [$foreman, 'Mobilization and Hauling', 27, false],
+                [$foreman, 'Foundation Preparation', 25, false],
+                [$projectManager, 'Mobilization and Hauling', 28, true],
+            ] as [$submitter, $scope, $percent, $isPmRow]) {
                 WeeklyAccomplishment::create([
-                    'foreman_id' => $foreman->id,
+                    'foreman_id' => $isPmRow ? null : $foreman->id,
                     'submitted_by' => $submitter->id,
                     'project_id' => $project->id,
                     'scope_of_work' => $scope,
@@ -413,23 +415,23 @@ class WeeklyAccomplishmentComparisonTest extends TestCase
                     ->has('comparisonRows', 1)
                     ->where('comparisonRows.0.pm_progress', 14)
                     ->where('comparisonRows.0.foreman_progress', 26)
-                    ->where('comparisonRows.0.variance', 1)
-                    ->where('comparisonRows.0.status', 'On Track'));
+                    ->where('comparisonRows.0.variance', 12)
+                    ->where('comparisonRows.0.status', 'Investigate'));
 
             $this->actingAs($headAdmin)
                 ->get('/weekly-accomplishments/' . $project->id)
                 ->assertOk()
                 ->assertInertia(fn ($page) => $page
                     ->component('HeadAdmin/WeeklyAccomplishments/Show')
-                    ->where('comparison.variance', 1)
-                    ->where('comparison.status', 'On Track')
+                    ->where('comparison.variance', 12)
+                    ->where('comparison.status', 'Investigate')
                     ->has('scopeBreakdown', 2));
         } finally {
             Carbon::setTestNow();
         }
     }
 
-    public function test_adding_a_low_scope_never_drags_the_average_down(): void
+    public function test_adding_a_low_scope_never_drags_the_progress_down(): void
     {
         Carbon::setTestNow('2026-08-18 12:00:00');
 
@@ -437,11 +439,12 @@ class WeeklyAccomplishmentComparisonTest extends TestCase
             $headAdmin = $this->makeUser('head_admin');
             $foreman = $this->makeUser('foreman');
             $project = $this->makeProject('Monotonic Project', $headAdmin->id);
-            $this->seedScope($project, 'Scope A');
-            $this->seedScope($project, 'Scope B');
-            $this->seedScope($project, 'Scope C');
+            $this->seedScope($project, 'Scope A', 50);
+            $this->seedScope($project, 'Scope B', 30);
+            $this->seedScope($project, 'Scope C', 20);
 
-            // Unsubmitted scopes count as 0 over the entire 3-scope plan.
+            // Unsubmitted scopes count as 0 over the weighted plan:
+            // 27×50/100 + 25×30/100 = 21.
             foreach ([['Scope A', 27], ['Scope B', 25]] as [$scope, $percent]) {
                 WeeklyAccomplishment::create([
                     'foreman_id' => $foreman->id,
@@ -458,10 +461,10 @@ class WeeklyAccomplishmentComparisonTest extends TestCase
                 ->assertOk()
                 ->assertInertia(fn ($page) => $page
                     ->component('HeadAdmin/WeeklyAccomplishments/Index')
-                    ->where('comparisonRows.0.foreman_progress', 17.33));
+                    ->where('comparisonRows.0.foreman_progress', 21));
 
-            // Submitting the remaining scope at 10 raises the average —
-            // previously it fell from 26 to 20.67 under submitted-only math.
+            // Submitting the remaining scope at 10 raises the weighted
+            // progress to 23.
             WeeklyAccomplishment::create([
                 'foreman_id' => $foreman->id,
                 'submitted_by' => $foreman->id,
@@ -476,7 +479,7 @@ class WeeklyAccomplishmentComparisonTest extends TestCase
                 ->assertOk()
                 ->assertInertia(fn ($page) => $page
                     ->component('HeadAdmin/WeeklyAccomplishments/Index')
-                    ->where('comparisonRows.0.foreman_progress', 20.67)
+                    ->where('comparisonRows.0.foreman_progress', 23)
                     ->where('comparisonRows.0.status', 'Pending'));
         } finally {
             Carbon::setTestNow();
@@ -531,7 +534,7 @@ class WeeklyAccomplishmentComparisonTest extends TestCase
             $headAdmin = $this->makeUser('head_admin');
             $foreman = $this->makeUser('foreman');
             $active = $this->makeProject('Active Project', $headAdmin->id);
-            $this->seedScope($active, 'Column Footing');
+            $this->seedScope($active, 'Column Footing', 100);
             $this->makeProject('Unassigned Project', $headAdmin->id);
 
             WeeklyAccomplishment::create([
@@ -565,18 +568,189 @@ class WeeklyAccomplishmentComparisonTest extends TestCase
         }
     }
 
-    private function seedScope(Project $project, string $scope): void
+    public function test_comparison_progress_uses_scope_weights_like_projects_kanban(): void
     {
-        ProjectScope::create([
+        Carbon::setTestNow('2026-08-18 12:00:00');
+
+        try {
+            $headAdmin = $this->makeUser('head_admin');
+            $projectManager = $this->makeUser('project_manager');
+            $foreman = $this->makeUser('foreman');
+            $project = $this->makeProject('Weighted Residences', $headAdmin->id);
+
+            // Planned scope plan with weights — the same source the
+            // /projects kanban uses for its weighted overall progress.
+            ProjectScope::create([
+                'project_id' => $project->id,
+                'scope_name' => 'Column Footing',
+                'weight_percent' => 70,
+            ]);
+            ProjectScope::create([
+                'project_id' => $project->id,
+                'scope_name' => 'Masonry',
+                'weight_percent' => 30,
+            ]);
+
+            WeeklyAccomplishment::create([
+                'foreman_id' => null,
+                'submitted_by' => $projectManager->id,
+                'project_id' => $project->id,
+                'scope_of_work' => 'Column Footing',
+                'percent_completed' => 100,
+                'week_start' => '2026-08-17',
+            ]);
+            WeeklyAccomplishment::create([
+                'foreman_id' => null,
+                'submitted_by' => $projectManager->id,
+                'project_id' => $project->id,
+                'scope_of_work' => 'Masonry',
+                'percent_completed' => 50,
+                'week_start' => '2026-08-17',
+            ]);
+            WeeklyAccomplishment::create([
+                'foreman_id' => $foreman->id,
+                'submitted_by' => $foreman->id,
+                'project_id' => $project->id,
+                'scope_of_work' => 'Column Footing',
+                'percent_completed' => 50,
+                'week_start' => '2026-08-17',
+            ]);
+
+            // Weighted like the kanban (not a simple average over scopes):
+            // PM = 70×100/100 + 30×50/100 = 85 (average would be 75),
+            // Foreman = 70×50/100 + 30×0/100 = 35 (average would be 25).
+            // Variance still uses the commonly-submitted scope: |100 − 50|.
+            $this->actingAs($headAdmin)
+                ->get('/weekly-accomplishments?week_from=2026-08-17&week_to=2026-08-23')
+                ->assertOk()
+                ->assertInertia(fn ($page) => $page
+                    ->component('HeadAdmin/WeeklyAccomplishments/Index')
+                    ->has('comparisonRows', 1)
+                    ->where('comparisonRows.0.project_name', 'Weighted Residences')
+                    ->where('comparisonRows.0.pm_progress', 85)
+                    ->where('comparisonRows.0.foreman_progress', 35)
+                    ->where('comparisonRows.0.variance', 50)
+                    ->where('comparisonRows.0.status', 'Investigate'));
+
+            // The detail page shares the same comparison payload.
+            $this->actingAs($headAdmin)
+                ->get('/weekly-accomplishments/' . $project->id)
+                ->assertOk()
+                ->assertInertia(fn ($page) => $page
+                    ->component('HeadAdmin/WeeklyAccomplishments/Show')
+                    ->where('comparison.pm_progress', 85)
+                    ->where('comparison.foreman_progress', 35));
+        } finally {
+            Carbon::setTestNow();
+        }
+    }
+
+    public function test_comparison_progress_is_zero_without_scope_weights(): void
+    {
+        Carbon::setTestNow('2026-08-18 12:00:00');
+
+        try {
+            $headAdmin = $this->makeUser('head_admin');
+            $projectManager = $this->makeUser('project_manager');
+            $foreman = $this->makeUser('foreman');
+            $project = $this->makeProject('Unweighted Residences', $headAdmin->id);
+
+            // Planned scopes but no weights — exactly like /projects, which
+            // reads 0 when the plan carries no weights.
+            $this->seedScope($project, 'Column Footing');
+            $this->seedScope($project, 'Masonry');
+
+            WeeklyAccomplishment::create([
+                'foreman_id' => null,
+                'submitted_by' => $projectManager->id,
+                'project_id' => $project->id,
+                'scope_of_work' => 'Column Footing',
+                'percent_completed' => 100,
+                'week_start' => '2026-08-17',
+            ]);
+            WeeklyAccomplishment::create([
+                'foreman_id' => $foreman->id,
+                'submitted_by' => $foreman->id,
+                'project_id' => $project->id,
+                'scope_of_work' => 'Column Footing',
+                'percent_completed' => 50,
+                'week_start' => '2026-08-17',
+            ]);
+
+            // No usable weights: both columns read 0 even with submissions,
+            // so the gap between them is 0 as well.
+            $this->actingAs($headAdmin)
+                ->get('/weekly-accomplishments?week_from=2026-08-17&week_to=2026-08-23')
+                ->assertOk()
+                ->assertInertia(fn ($page) => $page
+                    ->component('HeadAdmin/WeeklyAccomplishments/Index')
+                    ->has('comparisonRows', 1)
+                    ->where('comparisonRows.0.pm_progress', 0)
+                    ->where('comparisonRows.0.foreman_progress', 0)
+                    ->where('comparisonRows.0.variance', 0)
+                    ->where('comparisonRows.0.status', 'On Track'));
+        } finally {
+            Carbon::setTestNow();
+        }
+    }
+
+    public function test_detail_overall_progress_equals_pm_progress(): void
+    {
+        Carbon::setTestNow('2026-08-18 12:00:00');
+
+        try {
+            $headAdmin = $this->makeUser('head_admin');
+            $projectManager = $this->makeUser('project_manager');
+            $foreman = $this->makeUser('foreman');
+            // Column snapshot is 62 via makeProject — the detail Overview
+            // must ignore it and read the PM progress instead.
+            $project = $this->makeProject('Kanban Parity Residences', $headAdmin->id);
+            ProjectScope::create([
+                'project_id' => $project->id,
+                'scope_name' => 'Column Footing',
+                'weight_percent' => 70,
+                'progress_percent' => 50,
+            ]);
+            ProjectScope::create([
+                'project_id' => $project->id,
+                'scope_name' => 'Masonry',
+                'weight_percent' => 30,
+                'progress_percent' => 100,
+            ]);
+
+            $this->seedPair($projectManager, $foreman, $project, 62, 55);
+
+            // PM-weighted: 70×62/100 = 43.4 (Masonry unsubmitted counts 0).
+            // Overview Overall equals that same PM number.
+            $this->actingAs($headAdmin)
+                ->get('/weekly-accomplishments/' . $project->id)
+                ->assertOk()
+                ->assertInertia(fn ($page) => $page
+                    ->component('HeadAdmin/WeeklyAccomplishments/Show')
+                    ->where('comparison.overall_progress', 43.4)
+                    ->where('comparison.pm_progress', 43.4)
+                    ->where('comparison.foreman_progress', 38.5));
+        } finally {
+            Carbon::setTestNow();
+        }
+    }
+
+    private function seedScope(Project $project, string $scope, ?float $weight = null): void
+    {
+        ProjectScope::create(array_filter([
             'project_id' => $project->id,
             'scope_name' => $scope,
-        ]);
+            'weight_percent' => $weight,
+        ], fn ($value) => $value !== null));
     }
 
     private function seedPair(User $projectManager, User $foreman, Project $project, float $pm, float $foremanPercent): void
     {
+        // PM side is independent rows (foreman_id NULL); foreman side keeps
+        // the foreman_id. Historical PM rows stored under a foreman are
+        // frozen and ignored by both sides.
         WeeklyAccomplishment::create([
-            'foreman_id' => $foreman->id,
+            'foreman_id' => null,
             'submitted_by' => $projectManager->id,
             'project_id' => $project->id,
             'scope_of_work' => 'Column Footing',

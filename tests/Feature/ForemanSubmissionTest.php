@@ -65,6 +65,36 @@ class ForemanSubmissionTest extends TestCase
         return Carbon::now('Asia/Manila')->startOfWeek(Carbon::MONDAY)->toDateString();
     }
 
+    public function test_foreman_api_cannot_delete_pm_scope_photo(): void
+    {
+        $foreman = $this->foreman('delpm.foreman@example.test');
+        $project = $this->project();
+        $this->assign($foreman, $project);
+
+        $scope = \App\Models\ProjectScope::create([
+            'project_id' => $project->id,
+            'scope_name' => 'Foundation',
+            'progress_percent' => 0,
+            'status' => 'NOT_STARTED',
+            'assigned_personnel' => 'Submit Foreman',
+        ]);
+
+        $photo = \App\Models\ScopePhoto::create([
+            'project_scope_id' => $scope->id,
+            'photo_path' => 'scope-photos/pm-api-kept.jpg',
+            'caption' => '[PM Weekly] | Week: ' . $this->monday() . ' | Scope: Foundation',
+        ]);
+
+        $token = $this->login($foreman->email);
+
+        $this->deleteJson("/api/foreman/scope-photos/{$photo->id}", [], [
+            'Authorization' => 'Bearer ' . $token,
+            'Accept' => 'application/json',
+        ])->assertNotFound();
+
+        $this->assertDatabaseHas('scope_photos', ['id' => $photo->id]);
+    }
+
     public function test_submit_all_stores_attendance_for_current_week(): void
     {
         $foreman = $this->foreman();

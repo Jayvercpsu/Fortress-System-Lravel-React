@@ -320,6 +320,70 @@ class ForemanAuthController extends Controller
             ])
             ->values();
 
+        // Display fallback: assigned scopes with no weekly row yet for the
+        // current week (e.g. a scope just created on the build page with 30%)
+        // must still open on the plan value instead of 0% in Daily Project
+        // Submission. Only non-zero plans are injected — zero-plan scopes stay
+        // absent (client already renders missing as 0%), preserving
+        // foreman/PM separation. Display-only — the first real submit persists it.
+        $planByScopeKey = $scopes
+            ->mapWithKeys(function (array $scope) {
+                $name = trim((string) ($scope['scope_name'] ?? ''));
+                if ($name === '') {
+                    return [];
+                }
+                $plan = (float) ($scope['progress_percent'] ?? 0);
+                if ($plan <= 0) {
+                    return [];
+                }
+
+                return [Str::lower($name) => [
+                    'scope_of_work' => $name,
+                    'percent_completed' => round($plan, 1),
+                ]];
+            })
+            ->all();
+        if (!empty($planByScopeKey)) {
+            $existingCurrentKeys = $weeklyCurrentWeek
+                ->map(fn (array $row) => Str::lower(trim((string) ($row['scope_of_work'] ?? ''))))
+                ->filter(fn (string $key) => $key !== '')
+                ->values()
+                ->all();
+            $existingCurrentLookup = array_fill_keys($existingCurrentKeys, true);
+            $missingForCurrent = [];
+            foreach ($planByScopeKey as $scopeKey => $planRow) {
+                if (!isset($existingCurrentLookup[$scopeKey])) {
+                    $missingForCurrent[] = $planRow;
+                }
+            }
+            if (!empty($missingForCurrent)) {
+                $weeklyCurrentWeek = $weeklyCurrentWeek
+                    ->concat($missingForCurrent)
+                    ->sortBy(fn (array $row) => Str::lower((string) ($row['scope_of_work'] ?? '')))
+                    ->values();
+            }
+
+            $currentWeekKey = $weekStart->toDateString();
+            $savedCurrentRows = $weeklySavedByWeek[$currentWeekKey] ?? [];
+            $existingSavedKeys = collect($savedCurrentRows)
+                ->map(fn ($row) => Str::lower(trim((string) (is_array($row) ? ($row['scope_of_work'] ?? '') : ($row['scope_of_work'] ?? '')))))
+                ->filter(fn (string $key) => $key !== '')
+                ->values()
+                ->all();
+            $existingSavedLookup = array_fill_keys($existingSavedKeys, true);
+            foreach ($planByScopeKey as $scopeKey => $planRow) {
+                if (!isset($existingSavedLookup[$scopeKey])) {
+                    $savedCurrentRows[] = $planRow;
+                }
+            }
+            if (!empty($savedCurrentRows)) {
+                $weeklySavedByWeek[$currentWeekKey] = collect($savedCurrentRows)
+                    ->sortBy(fn ($row) => Str::lower(trim((string) (is_array($row) ? ($row['scope_of_work'] ?? '') : ($row['scope_of_work'] ?? '')))))
+                    ->values()
+                    ->all();
+            }
+        }
+
         return response()->json([
             'project' => [
                 'id' => $project->id,
@@ -373,10 +437,10 @@ class ForemanAuthController extends Controller
         }
 
         $names = collect(preg_split('/[,;]+/', (string) ($project->assigned ?? '')))
-            ->map(fn ($part) => trim((string) $part))
+            ->map(fn ($part) => Str::lower(trim((string) $part)))
             ->filter();
 
-        return $names->contains($fullname);
+        return $names->contains(Str::lower($fullname));
     }
 
     private function weeklySavedByWeek(int $foremanId, int $projectId): array
@@ -631,6 +695,11 @@ class ForemanAuthController extends Controller
         $map = [];
         $photos = ScopePhoto::query()
             ->whereIn('project_scope_id', $scopesById->keys()->all())
+            // PM uploads stay on the PM side only — never listed here.
+            ->where(function ($query) {
+                $query->whereNull('caption')
+                    ->orWhere('caption', 'not like', '[PM Weekly]%');
+            })
             ->orderByDesc('id')
             ->get(['id', 'project_scope_id', 'photo_path', 'caption', 'created_at']);
 
@@ -697,14 +766,14 @@ class ForemanAuthController extends Controller
             ->values();
 
         if ($assignedIds->isEmpty() && trim((string) ($user->fullname ?? '')) !== '') {
-            $fullname = trim((string) $user->fullname);
+            $fullname = Str::lower(trim((string) $user->fullname));
             $assignedIds = Project::query()
                 ->whereNotNull('assigned')
                 ->where('assigned', '!=', '')
                 ->get(['id', 'assigned'])
                 ->filter(function (Project $project) use ($fullname) {
                     $names = collect(preg_split('/[,;]+/', (string) $project->assigned))
-                        ->map(fn ($part) => trim((string) $part))
+                        ->map(fn ($part) => Str::lower(trim((string) $part)))
                         ->filter();
 
                     return $names->contains($fullname);
@@ -726,7 +795,8 @@ class ForemanAuthController extends Controller
             return [];
         }
 
-        // Same computation as the web /projects kanban (see below).
+        // Foreman-side progress only (deliberately NOT the /projects kanban,
+        // which is PM-based): weighted from the foreman-driven scope plan.
         $weightedByProjectId = ProjectScope::query()
             ->whereIn('project_id', $assignedIds)
             ->selectRaw('project_id, COALESCE(SUM(ROUND(weight_percent * progress_percent / 100.0, 2)), 0) as weighted_progress')
@@ -751,8 +821,8 @@ class ForemanAuthController extends Controller
                     'client' => $project->client,
                     'phase' => $project->phase,
                     'status' => $project->status,
-                // Same computation as the web /projects kanban: weighted overall
-                // progress = SUM(weight_percent * progress_percent / 100) over the
+                // Foreman-side weighted overall progress =
+                // SUM(weight_percent * progress_percent / 100) over the
                 // project's scopes, clamped to 0-100. Returned unrounded (2
                 // decimals like the web) so clients never round 3.75% up to 4%.
                 'overall_progress' => round(max(0, min(100, (float) ($weightedByProjectId[(int) $project->id] ?? 0))), 2),

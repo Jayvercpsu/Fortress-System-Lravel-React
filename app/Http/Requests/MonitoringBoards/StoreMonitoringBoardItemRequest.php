@@ -51,4 +51,27 @@ class StoreMonitoringBoardItemRequest extends FormRequest
             'design_computation_basis.*.progress' => ['nullable', 'numeric', 'min:0', 'max:100'],
         ];
     }
+
+    protected function prepareForValidation(): void
+    {
+        $this->merge([
+            'progress_percent' => $this->normalizeIntegerLike($this->input('progress_percent')),
+        ]);
+    }
+
+    private function normalizeIntegerLike(mixed $value): mixed
+    {
+        if (!is_string($value)) {
+            return $value;
+        }
+        $trimmed = trim($value);
+        if ($trimmed === '') {
+            return $value;
+        }
+        if (preg_match('/^-?0+\d+$/', $trimmed)) {
+            return (int) $trimmed;
+        }
+
+        return $value;
+    }
 }

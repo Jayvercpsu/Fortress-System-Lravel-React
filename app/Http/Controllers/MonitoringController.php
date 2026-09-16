@@ -19,6 +19,19 @@ class MonitoringController extends Controller
     ) {
     }
 
+    /**
+     * Stay on the build tracker when the request came from there;
+     * otherwise fall back to the monitoring page.
+     */
+    private function scopeRedirect(Request $request, int $projectId)
+    {
+        if (str_contains((string) $request->headers->get('referer'), '/build')) {
+            return redirect()->route('build.show', ['project' => $projectId]);
+        }
+
+        return redirect()->route('monitoring.show', ['project' => $projectId]);
+    }
+
     public function show(Request $request, Project $project)
     {
         $this->monitoringService->ensureAuthorized($request->user());
@@ -32,20 +45,18 @@ class MonitoringController extends Controller
     public function store(StoreProjectScopeRequest $request, Project $project)
     {
         $this->monitoringService->ensureAuthorized($request->user());
-        $this->monitoringService->createScope($project, $request->validated());
+        $this->monitoringService->createScope($project, $request->validated(), (int) $request->user()->id);
 
-        return redirect()
-            ->route('monitoring.show', ['project' => $project->id])
+        return $this->scopeRedirect($request, (int) $project->id)
             ->with('success', __('messages.monitoring.scope_created'));
     }
 
     public function update(UpdateProjectScopeRequest $request, ProjectScope $scope)
     {
         $this->monitoringService->ensureAuthorized($request->user());
-        $this->monitoringService->updateScope($scope, $request->validated());
+        $this->monitoringService->updateScope($scope, $request->validated(), (int) $request->user()->id);
 
-        return redirect()
-            ->route('monitoring.show', ['project' => $scope->project_id])
+        return $this->scopeRedirect($request, (int) $scope->project_id)
             ->with('success', __('messages.monitoring.scope_updated'));
     }
 
@@ -63,8 +74,7 @@ class MonitoringController extends Controller
         $projectId = (int) $scope->project_id;
         $this->monitoringService->deleteScope($scope);
 
-        return redirect()
-            ->route('monitoring.show', ['project' => $projectId])
+        return $this->scopeRedirect($request, $projectId)
             ->with('success', __('messages.monitoring.scope_deleted'));
     }
 

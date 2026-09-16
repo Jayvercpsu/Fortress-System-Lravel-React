@@ -5,7 +5,7 @@ import { CO_FOREMAN_PUBLIC_TOKEN } from './support/constants';
 const SCOPE_NAME = 'Foundation and Footings';
 const SAVED_PERCENT = '77';
 
-test('project manager fills the weekly accomplishment % and it syncs with the foreman jotform', async ({ page }) => {
+test('project manager saves independent accomplishment percents that never touch the foreman jotform', async ({ page }) => {
     await loginAs(page, 'project_manager');
 
     // loginAs restores the session without navigating, so open the
@@ -17,7 +17,8 @@ test('project manager fills the weekly accomplishment % and it syncs with the fo
     await expect(page).toHaveURL(/\/project-manager\/accomplishments(?:\?|$)/);
     await expect(page.getByText('Weekly Accomplishment %')).toBeVisible();
 
-    // The current-week grid shows the scopes assigned to the selected foreman.
+    // The PM grid shows the assigned project's scope plan (no foreman picker).
+    await expect(page.getByText('Select a foreman')).toHaveCount(0);
     const scopeRow = page.getByRole('row', { name: new RegExp(SCOPE_NAME) });
     await expect(scopeRow).toBeVisible();
 
@@ -31,10 +32,10 @@ test('project manager fills the weekly accomplishment % and it syncs with the fo
     await page.reload();
     await expect(page.getByRole('row', { name: new RegExp(SCOPE_NAME) }).locator('input[type="number"]')).toHaveValue(SAVED_PERCENT);
 
-    // The same value shows on the foreman's jotform (connected and synced).
+    // The same value never leaks into the foreman's jotform (independent data).
     await page.goto(`/progress-submit/${CO_FOREMAN_PUBLIC_TOKEN}`);
     await page.getByRole('button', { name: /Weekly Progress \(Accomplishment %\)/i }).click();
     const jotformRow = page.getByRole('row', { name: new RegExp(SCOPE_NAME) });
     await expect(jotformRow).toBeVisible();
-    await expect(jotformRow.locator('input[type="number"]')).toHaveValue(SAVED_PERCENT);
+    await expect(jotformRow.locator('input[type="number"]')).not.toHaveValue(SAVED_PERCENT);
 });

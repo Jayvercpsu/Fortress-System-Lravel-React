@@ -3,6 +3,8 @@
 namespace App\Http\Controllers;
 
 use App\Models\Project;
+use App\Models\ScopePhoto;
+use App\Services\ScopePhotoService;
 use App\Services\WeeklyAccomplishmentService;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -10,7 +12,8 @@ use Inertia\Inertia;
 class WeeklyAccomplishmentController extends Controller
 {
     public function __construct(
-        private readonly WeeklyAccomplishmentService $weeklyAccomplishmentService
+        private readonly WeeklyAccomplishmentService $weeklyAccomplishmentService,
+        private readonly ScopePhotoService $scopePhotoService
     ) {
     }
 
@@ -42,5 +45,13 @@ class WeeklyAccomplishmentController extends Controller
         return response()->json(
             $this->weeklyAccomplishmentService->detailPhotos($request, $project)
         );
+    }
+
+    public function destroyScopePhoto(Request $request, ScopePhoto $scopePhoto)
+    {
+        $this->scopePhotoService->ensureAuthorized($request->user());
+        $this->scopePhotoService->deleteScopePhoto($scopePhoto);
+
+        return back()->with('success', 'Photo deleted.');
     }
 }

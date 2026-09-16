@@ -76,6 +76,7 @@ class ProjectOwnershipTest extends TestCase
     public function test_storing_a_project_stamps_the_acting_user_as_owner(): void
     {
         $headAdmin = $this->makeUser('head_admin');
+        $pm = $this->makeUser('project_manager');
 
         $this->actingAs($headAdmin)->post('/projects', [
             'name' => 'Owned Project',
@@ -83,6 +84,7 @@ class ProjectOwnershipTest extends TestCase
             'type' => 'Residential',
             'location' => 'QC',
             'assigned' => 'Foreman A',
+            'assigned_pm_id' => $pm->id,
             'target' => '2026-12-31',
             'status' => 'PLANNING',
             'phase' => 'Design',

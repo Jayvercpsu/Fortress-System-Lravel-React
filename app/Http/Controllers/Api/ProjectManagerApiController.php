@@ -9,13 +9,11 @@ use App\Services\ProjectManagerService;
 use Illuminate\Http\Request;
 
 /**
- * Read (and counter-check) endpoints for the Project Manager mobile app.
+ * Endpoints for the Project Manager mobile app.
  *
  * Every payload reuses the exact same service logic as the web Project
- * Manager pages — which in turn read the same records foremen submit
- * through the mobile JotForm flow (weekly accomplishments, attendance,
- * payroll). Saving accomplishments reuses the same weekly-grid
- * save function the JotForm uses so both stay in sync.
+ * Manager pages: assigned projects only, independent PM accomplishment
+ * rows (never Foreman JotForm records), and PM-based progress.
  */
 class ProjectManagerApiController extends Controller
 {
@@ -50,6 +48,15 @@ class ProjectManagerApiController extends Controller
 
         return response()->json([
             'message' => 'Accomplishment updated successfully.',
+        ]);
+    }
+
+    public function destroyScopePhoto(Request $request, \App\Models\ScopePhoto $scopePhoto)
+    {
+        $this->projectManagerService->deleteScopePhoto($request, $scopePhoto);
+
+        return response()->json([
+            'message' => 'Photo deleted.',
         ]);
     }
 

@@ -1,8 +1,10 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Head } from '@inertiajs/react';
-import { ChevronsLeft, ChevronsRight, Info } from 'lucide-react';
+import { Head, router } from '@inertiajs/react';
+import { ChevronsLeft, ChevronsRight, Info, Trash2 } from 'lucide-react';
+import toast from 'react-hot-toast';
 import { useLayoutTitle } from '../../../Components/Layout';
 import ActionButton from '../../../Components/ActionButton';
+import ConfirmationModal from '../../../Components/ConfirmationModal';
 import Modal from '../../../Components/Modal';
 import SubmissionComments from '../../../Components/SubmissionComments';
 import OptimizedImage from '../../../Components/OptimizedImage';
@@ -93,6 +95,25 @@ export default function HeadAdminWeeklyAccomplishmentShow({
         setMapLoaded(false);
     }, [selectedSubmissionId]);
     const [photoPreview, setPhotoPreview] = useState(null);
+    const [photoDeleteTarget, setPhotoDeleteTarget] = useState(null);
+    const [deletingPhotoId, setDeletingPhotoId] = useState(null);
+
+    const deleteScopePhoto = (photoId) => {
+        if (!photoId) return;
+        setDeletingPhotoId(photoId);
+        router.delete(`/weekly-accomplishments/scope-photos/${photoId}`, {
+            preserveScroll: true,
+            onSuccess: () => {
+                setPhotoPreview(null);
+                toast.success('Photo deleted.');
+            },
+            onError: () => toast.error('Unable to delete the photo. Please try again.'),
+            onFinish: () => {
+                setDeletingPhotoId(null);
+                setPhotoDeleteTarget(null);
+            },
+        });
+    };
 
     const safeRows = useMemo(() => (Array.isArray(rows) ? rows : []), [rows]);
     const safeBreakdown = useMemo(() => (Array.isArray(scopeBreakdown) ? scopeBreakdown : []), [scopeBreakdown]);
@@ -580,7 +601,11 @@ export default function HeadAdminWeeklyAccomplishmentShow({
                                         {comparison?.variance !== null && comparison?.variance !== undefined && (
                                             <div style={{ marginTop: 12, fontSize: 12, background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 8, padding: 10, color: '#92400e' }}>
                                                 <div style={{ fontWeight: 700 }}>⚠ {Number(comparison.variance ?? 0)}% variance - {comparison.status}</div>
-                                                <div style={{ marginTop: 2 }}>PM progress is higher than Foreman progress by {Number(comparison.variance ?? 0)}%. Please review recent submissions.</div>
+                                                <div style={{ marginTop: 2 }}>
+                                                    {(comparison?.pm_progress ?? 0) >= (comparison?.foreman_progress ?? 0)
+                                                        ? `PM progress is higher than Foreman progress by ${Number(comparison.variance ?? 0)}%. Please review recent submissions.`
+                                                        : `Foreman progress is higher than PM progress by ${Number(comparison.variance ?? 0)}%. Please review recent submissions.`}
+                                                </div>
                                             </div>
                                         )}
                                     </div>
@@ -723,8 +748,8 @@ export default function HeadAdminWeeklyAccomplishmentShow({
                                 {allPhotos.map((photo) => {
                                     const scopeLabel = photoScopeName(photo);
                                     return (
+                                    <span key={photo.id || photo.photo_path} style={{ position: 'relative', display: 'inline-block' }}>
                                     <button
-                                        key={photo.id || photo.photo_path}
                                         type="button"
                                         onClick={() => {
                                             const scopeKey = String(photo.caption || '').match(/scope:\s*(.+)/i)?.[1]?.trim().toLowerCase()
@@ -732,7 +757,7 @@ export default function HeadAdminWeeklyAccomplishmentShow({
                                                 || '';
                                             setPhotoPreview({ scopeKey, scopeLabel: photo.caption || '', projectId: project?.id ?? null, index: 0 });
                                         }}
-                                        style={{ position: 'relative', overflow: 'hidden', border: 'none', background: 'transparent', padding: 0, cursor: 'pointer', borderRadius: 8 }}
+                                        style={{ position: 'relative', overflow: 'hidden', border: 'none', background: 'transparent', padding: 0, cursor: 'pointer', borderRadius: 8, width: '100%', display: 'block' }}
                                     >
                                         <OptimizedImage
                                             src={`/files/${photo.photo_path}`}
@@ -745,6 +770,34 @@ export default function HeadAdminWeeklyAccomplishmentShow({
                                             </span>
                                         ) : null}
                                     </button>
+                                    <button
+                                        type="button"
+                                        title="Delete photo"
+                                        aria-label="Delete scope photo"
+                                        onClick={(event) => {
+                                            event.stopPropagation();
+                                            setPhotoDeleteTarget(photo);
+                                        }}
+                                        style={{
+                                            position: 'absolute',
+                                            top: 6,
+                                            right: 6,
+                                            width: 26,
+                                            height: 26,
+                                            borderRadius: '50%',
+                                            border: '1px solid var(--ac-border, #e8edf3)',
+                                            background: '#fff',
+                                            color: '#dc2626',
+                                            cursor: 'pointer',
+                                            display: 'inline-flex',
+                                            alignItems: 'center',
+                                            justifyContent: 'center',
+                                            padding: 0,
+                                        }}
+                                    >
+                                        <Trash2 size={14} />
+                                    </button>
+                                    </span>
                                     );
                                 })}
                             </div>
@@ -980,6 +1033,19 @@ export default function HeadAdminWeeklyAccomplishmentShow({
                         </aside>
                     </>
                 )}
+
+            <ConfirmationModal
+                open={!!photoDeleteTarget}
+                title="Delete Scope Photo"
+                message={photoDeleteTarget?.caption
+                    ? `Are you sure you want to delete "${photoDeleteTarget.caption}"?`
+                    : 'Are you sure you want to delete this scope photo?'}
+                confirmLabel={deletingPhotoId ? 'Deleting...' : 'Delete'}
+                danger
+                processing={!!deletingPhotoId}
+                onClose={() => setPhotoDeleteTarget(null)}
+                onConfirm={() => deleteScopePhoto(photoDeleteTarget?.id)}
+            />
 
             <Modal
                 open={!!previewPhoto}

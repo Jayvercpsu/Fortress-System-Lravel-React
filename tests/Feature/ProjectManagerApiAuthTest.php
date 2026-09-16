@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\Project;
+use App\Models\ProjectAssignment;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
@@ -73,15 +74,30 @@ class ProjectManagerApiAuthTest extends TestCase
 
     public function test_authenticated_pm_can_fetch_profile_and_projects(): void
     {
-        User::create([
+        $pm = User::create([
             'fullname' => 'Api PM',
             'email' => 'api.pm.me@example.test',
             'password' => Hash::make('password123'),
             'role' => User::ROLE_PROJECT_MANAGER,
         ]);
 
-        Project::create([
+        $project = Project::create([
             'name' => 'PM API Project',
+            'client' => 'API Client',
+            'type' => 'Residential',
+            'location' => 'Antipolo City',
+            'status' => 'ONGOING',
+            'phase' => 'Construction',
+            'overall_progress' => 10,
+        ]);
+        ProjectAssignment::create([
+            'project_id' => $project->id,
+            'user_id' => $pm->id,
+            'role_in_project' => ProjectAssignment::ROLE_PROJECT_MANAGER,
+        ]);
+        // Unassigned projects stay invisible to this PM.
+        Project::create([
+            'name' => 'Other PM Project',
             'client' => 'API Client',
             'type' => 'Residential',
             'location' => 'Antipolo City',

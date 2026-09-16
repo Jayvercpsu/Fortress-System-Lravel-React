@@ -13,19 +13,18 @@ use Illuminate\Support\Facades\Hash;
 use Tests\TestCase;
 
 /**
- * Cross-surface ordering scenarios for weekly progress submit-all.
+ * Data-separation scenarios between foreman surfaces and the PM surface.
  *
- * Setup per scenario: create a project, assign the foreman, seed scopes
- * assigned to that foreman. Then the three surfaces submit in every order:
+ * Setup per scenario: create a project, assign the foreman AND the PM,
+ * seed scopes assigned to that foreman.
  *
- *  1. foreman jotform -> PM accomplishment -> foreman mobile
- *  2. PM accomplishment -> foreman jotform -> foreman mobile
- *  3. foreman mobile -> PM accomplishment -> foreman jotform
- *
- * Purpose: after EVERY submit, the foreman-assigned scopes must remain
- * permanently displayed on ALL THREE surfaces (public jotform payload,
- * PM accomplishments payload, mobile jotform payload), and every
- * surface's edits must accumulate instead of wiping the others out.
+ * Rules under test:
+ *  1. The foreman surfaces (public jotform + foreman mobile) share one
+ *     data source: edits on either accumulate on both.
+ *  2. The PM surface is independent: PM saves never appear on foreman
+ *     surfaces, and foreman saves never appear on the PM grid.
+ *  3. PM saves never move the shared scope-plan progress or the project
+ *     snapshot (those stay foreman-driven).
  */
 class WeeklyProgressCrossSurfaceTest extends TestCase
 {
@@ -80,6 +79,11 @@ class WeeklyProgressCrossSurfaceTest extends TestCase
             'user_id' => $this->foreman->id,
             'role_in_project' => 'foreman',
         ]);
+        ProjectAssignment::create([
+            'project_id' => $this->project->id,
+            'user_id' => $this->projectManager->id,
+            'role_in_project' => ProjectAssignment::ROLE_PROJECT_MANAGER,
+        ]);
 
         foreach ($this->scopeNames as $index => $name) {
             ProjectScope::create([
@@ -129,7 +133,6 @@ class WeeklyProgressCrossSurfaceTest extends TestCase
         $this->actingAs($this->projectManager)
             ->post('/project-manager/accomplishments', [
                 'project_id' => $this->project->id,
-                'foreman_id' => $this->foreman->id,
                 'week_start' => $this->monday(),
                 'scopes' => [
                     ['scope_of_work' => $scope, 'percent_completed' => $percent],
@@ -148,7 +151,53 @@ class WeeklyProgressCrossSurfaceTest extends TestCase
         ], $this->mobileHeaders())->assertOk();
     }
 
-    private function assertJotformListsAllScopes(string $message): void
+    private function jotformSaved(): array
+    {
+        $saved = [];
+        $monday = $this->monday();
+        $this->get("/progress-submit/{$this->token->token}")
+            ->assertOk()
+            ->assertInertia(function ($page) use (&$saved, $monday) {
+                $page
+                    ->component('Public/ProgressSubmit')
+                    ->where('submitToken.weekly_saved_by_week', function ($byWeek) use (&$saved, $monday) {
+                        $saved = collect($byWeek[$monday] ?? [])
+                            ->mapWithKeys(fn ($row) => [
+                                trim((string) ($row['scope_of_work'] ?? '')) => (float) ($row['percent_completed'] ?? 0),
+                            ])
+                            ->all();
+
+                        return true;
+                    });
+            });
+
+        return $saved;
+    }
+
+    private function pmSaved(): array
+    {
+        $saved = [];
+        $this->actingAs($this->projectManager)
+            ->get("/project-manager/accomplishments?project_id={$this->project->id}")
+            ->assertOk()
+            ->assertInertia(function ($page) use (&$saved) {
+                $page
+                    ->component('ProjectManager/Accomplishments')
+                    ->where('savedScopes', function ($scopes) use (&$saved) {
+                        $saved = collect($scopes)
+                            ->mapWithKeys(fn ($row) => [
+                                trim((string) ($row['scope_of_work'] ?? '')) => (float) ($row['percent_completed'] ?? 0),
+                            ])
+                            ->all();
+
+                        return true;
+                    });
+            });
+
+        return $saved;
+    }
+
+    private function assertForemanSurfacesListAllScopes(string $message): void
     {
         $this->get("/progress-submit/{$this->token->token}")
             ->assertOk()
@@ -163,28 +212,7 @@ class WeeklyProgressCrossSurfaceTest extends TestCase
 
                     return true;
                 }));
-    }
 
-    private function assertPmListsAllScopes(string $message): void
-    {
-        $this->actingAs($this->projectManager)
-            ->get("/project-manager/accomplishments?project_id={$this->project->id}&foreman_id={$this->foreman->id}")
-            ->assertOk()
-            ->assertInertia(fn ($page) => $page
-                ->component('ProjectManager/Accomplishments')
-                ->where('weekly.weekly_scope_of_works', function ($assigned) use ($message) {
-                    $this->assertEqualsCanonicalizing(
-                        $this->scopeNames,
-                        collect($assigned)->values()->all(),
-                        $message
-                    );
-
-                    return true;
-                }));
-    }
-
-    private function assertMobileListsAllScopes(string $message): void
-    {
         $payload = $this->getJson(
             "/api/foreman/projects/{$this->project->id}/jotform",
             $this->mobileHeaders()
@@ -197,88 +225,59 @@ class WeeklyProgressCrossSurfaceTest extends TestCase
         );
     }
 
-    private function assertAllSurfacesListAllScopes(string $step): void
+    public function test_foreman_surfaces_share_data_while_pm_stays_independent(): void
     {
-        $this->assertJotformListsAllScopes("Public jotform lost scopes after {$step}.");
-        $this->assertPmListsAllScopes("PM accomplishments lost scopes after {$step}.");
-        $this->assertMobileListsAllScopes("Mobile jotform lost scopes after {$step}.");
-    }
+        $this->assertForemanSurfacesListAllScopes('project setup');
 
-    private function assertAllEditsAccumulated(): void
-    {
-        $expected = [
-            'Cross Alpha' => 10.0,
-            'Cross Beta' => 20.0,
-            'Cross Gamma' => 30.0,
-        ];
-
-        $this->get("/progress-submit/{$this->token->token}")
-            ->assertOk()
-            ->assertInertia(fn ($page) => $page
-                ->component('Public/ProgressSubmit')
-                ->where('submitToken.weekly_saved_by_week', function ($byWeek) use ($expected) {
-                    $rows = collect($byWeek[$this->monday()] ?? [])
-                        ->mapWithKeys(fn ($row) => [
-                            trim((string) ($row['scope_of_work'] ?? '')) => (float) ($row['percent_completed'] ?? 0),
-                        ]);
-
-                    foreach ($expected as $scope => $percent) {
-                        $this->assertEquals(
-                            $percent,
-                            $rows->get($scope),
-                            "Edit for {$scope} did not survive the cross-surface submits."
-                        );
-                    }
-
-                    return true;
-                }));
-    }
-
-    public function test_order_jotform_then_pm_then_mobile(): void
-    {
-        $this->assertAllSurfacesListAllScopes('project setup');
-
+        // Foreman submits via the public jotform...
         $this->submitViaJotform('Cross Alpha', 10);
-        $this->assertAllSurfacesListAllScopes('jotform submit-all');
-
-        $this->submitViaPm('Cross Beta', 20);
-        $this->assertAllSurfacesListAllScopes('PM submit-all');
-
+        // ...and via foreman mobile: both accumulate on the foreman side.
         $this->submitViaMobile('Cross Gamma', 30);
-        $this->assertAllSurfacesListAllScopes('mobile submit-all');
 
-        $this->assertAllEditsAccumulated();
+        $saved = $this->jotformSaved();
+        $this->assertSame(10.0, $saved['Cross Alpha'] ?? null);
+        $this->assertSame(30.0, $saved['Cross Gamma'] ?? null);
+        $this->assertForemanSurfacesListAllScopes('foreman submits');
+
+        // The PM grid is untouched by foreman activity.
+        $this->assertSame([], $this->pmSaved());
+
+        // PM submits independently...
+        $this->submitViaPm('Cross Beta', 20);
+
+        // ...visible only on the PM grid...
+        $pmSaved = $this->pmSaved();
+        $this->assertSame(20.0, $pmSaved['Cross Beta'] ?? null);
+        $this->assertArrayNotHasKey('Cross Alpha', $pmSaved);
+        $this->assertArrayNotHasKey('Cross Gamma', $pmSaved);
+
+        // ...and invisible on the foreman surfaces.
+        $saved = $this->jotformSaved();
+        $this->assertSame(10.0, $saved['Cross Alpha'] ?? null);
+        $this->assertSame(30.0, $saved['Cross Gamma'] ?? null);
+        $this->assertArrayNotHasKey('Cross Beta', $saved);
     }
 
-    public function test_order_pm_then_jotform_then_mobile(): void
+    public function test_pm_save_does_not_move_plan_or_snapshot_progress(): void
     {
-        $this->assertAllSurfacesListAllScopes('project setup');
+        $this->submitViaJotform('Cross Alpha', 10);
 
-        $this->submitViaPm('Cross Alpha', 10);
-        $this->assertAllSurfacesListAllScopes('PM submit-all');
+        $this->assertSame(10, (int) $this->project->refresh()->overall_progress);
+        $this->assertSame(10, (int) ProjectScope::query()
+            ->where('project_id', $this->project->id)
+            ->where('scope_name', 'Cross Alpha')
+            ->value('progress_percent'));
 
-        $this->submitViaJotform('Cross Beta', 20);
-        $this->assertAllSurfacesListAllScopes('jotform submit-all');
+        // PM saves 90 on the same scope: shared numbers must not move.
+        $this->submitViaPm('Cross Alpha', 90);
 
-        $this->submitViaMobile('Cross Gamma', 30);
-        $this->assertAllSurfacesListAllScopes('mobile submit-all');
+        $this->assertSame(10, (int) $this->project->refresh()->overall_progress);
+        $this->assertSame(10, (int) ProjectScope::query()
+            ->where('project_id', $this->project->id)
+            ->where('scope_name', 'Cross Alpha')
+            ->value('progress_percent'));
 
-        $this->assertAllEditsAccumulated();
-    }
-
-    public function test_order_mobile_then_pm_then_jotform(): void
-    {
-        $this->assertAllSurfacesListAllScopes('project setup');
-
-        $this->submitViaMobile('Cross Alpha', 10);
-        $this->assertAllSurfacesListAllScopes('mobile submit-all');
-
-        $this->submitViaPm('Cross Beta', 20);
-        $this->assertAllSurfacesListAllScopes('PM submit-all');
-
-        $this->submitViaJotform('Cross Gamma', 30);
-        $this->assertAllSurfacesListAllScopes('jotform submit-all');
-
-        $this->assertAllEditsAccumulated();
+        // ...while the PM's own grid carries the 90.
+        $this->assertSame(90.0, $this->pmSaved()['Cross Alpha'] ?? null);
     }
 }

@@ -112,7 +112,7 @@ const normalizeAssignedRoles = (entries) => {
 
 const serializeAssignedRoles = (entries) => normalizeAssignedRoles(entries).map((entry) => entry.label).join('; ');
 
-export default function HeadAdminProjectsCreate({ foremen = [], designers = [], clientOptions = [] }) {
+export default function HeadAdminProjectsCreate({ foremen = [], pmOptions = [], designers = [], clientOptions = [] }) {
     const { data, setData, post, processing, errors } = useForm({
         name: '',
         client: '',
@@ -120,6 +120,7 @@ export default function HeadAdminProjectsCreate({ foremen = [], designers = [], 
         location: '',
         assigned_role: '',
         assigned: '',
+        assigned_pm_id: '',
         target: '',
         status: 'PLANNING',
         phase: 'Construction',
@@ -474,6 +475,33 @@ export default function HeadAdminProjectsCreate({ foremen = [], designers = [], 
                             )}
                         </div>
                         {errors.assigned && <div style={{ color: '#f87171', fontSize: 12 }}>{errors.assigned}</div>}
+                    </div>
+
+                    <div style={{ display: 'grid', gap: 6 }}>
+                        <div style={{ fontSize: 12, marginBottom: 0 }}>Assigned PM</div>
+                        <SearchableDropdown
+                            options={pmOptions}
+                            value={data.assigned_pm_id}
+                            onChange={(value) => setData('assigned_pm_id', value || '')}
+                            getOptionLabel={(option) => option.fullname}
+                            getOptionValue={(option) => option.id}
+                            placeholder={pmOptions.length === 0 ? 'No project manager users available' : 'Select project manager'}
+                            searchPlaceholder="Search project managers..."
+                            emptyMessage="No project managers found"
+                            disabled={pmOptions.length === 0}
+                            clearable={false}
+                            style={{ ...inputStyle, minHeight: 40, padding: '8px 10px' }}
+                            dropdownWidth={340}
+                        />
+                        <div style={{ color: 'var(--text-muted)', fontSize: 12 }}>
+                            One project can have only one assigned PM. Selecting a different PM replaces the current one.
+                        </div>
+                        {pmOptions.length === 0 && (
+                            <div style={{ color: 'var(--text-muted)', fontSize: 12 }}>
+                                Add a user with role `project_manager` first to assign this project.
+                            </div>
+                        )}
+                        {errors.assigned_pm_id && <div style={{ color: '#f87171', fontSize: 12 }}>{errors.assigned_pm_id}</div>}
                     </div>
 
                     <label>

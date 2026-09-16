@@ -339,6 +339,88 @@ class PublicProgressSubmitTest extends TestCase
         );
     }
 
+    public function test_foreman_page_hides_pm_scope_photos(): void
+    {
+        $token = $this->makeToken();
+        $foreman = User::query()->find($token->foreman_id);
+
+        $scope = \App\Models\ProjectScope::create([
+            'project_id' => $token->project_id,
+            'scope_name' => 'Masonry',
+            'weight_percent' => 10,
+            'progress_percent' => 0,
+            'status' => 'NOT_STARTED',
+            'assigned_personnel' => $foreman->fullname,
+        ]);
+
+        \App\Models\ScopePhoto::create([
+            'project_scope_id' => $scope->id,
+            'photo_path' => 'scope-photos/pm-hidden.jpg',
+            'caption' => '[PM Weekly] | Week: 2026-09-14 | Scope: Masonry',
+        ]);
+
+        // PM uploads stay on the PM side — the foreman grid has no key for them.
+        $this->get("/progress-submit/{$token->token}")
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page
+                ->component('Public/ProgressSubmit')
+                ->where('submitToken.weekly_scope_photo_map', fn ($map) => !isset($map['masonry'])));
+    }
+
+    public function test_foreman_page_delete_rejects_pm_scope_photo(): void
+    {
+        $token = $this->makeToken();
+        $foreman = User::query()->find($token->foreman_id);
+
+        $scope = \App\Models\ProjectScope::create([
+            'project_id' => $token->project_id,
+            'scope_name' => 'Masonry',
+            'weight_percent' => 10,
+            'progress_percent' => 0,
+            'status' => 'NOT_STARTED',
+            'assigned_personnel' => $foreman->fullname,
+        ]);
+
+        $photo = \App\Models\ScopePhoto::create([
+            'project_scope_id' => $scope->id,
+            'photo_path' => 'scope-photos/pm-hidden-delete.jpg',
+            'caption' => '[PM Weekly] | Week: 2026-09-14 | Scope: Masonry',
+        ]);
+
+        // Invisible from the foreman side: 404, photo kept.
+        $this->delete("/progress-submit/{$token->token}/weekly-photos/{$photo->id}")
+            ->assertNotFound();
+
+        $this->assertDatabaseHas('scope_photos', ['id' => $photo->id]);
+    }
+
+    public function test_foreman_page_delete_still_removes_foreman_scope_photo(): void
+    {
+        $token = $this->makeToken();
+        $foreman = User::query()->find($token->foreman_id);
+
+        $scope = \App\Models\ProjectScope::create([
+            'project_id' => $token->project_id,
+            'scope_name' => 'Masonry',
+            'weight_percent' => 10,
+            'progress_percent' => 0,
+            'status' => 'NOT_STARTED',
+            'assigned_personnel' => $foreman->fullname,
+        ]);
+
+        $photo = \App\Models\ScopePhoto::create([
+            'project_scope_id' => $scope->id,
+            'photo_path' => 'scope-photos/foreman-delete.jpg',
+            'caption' => '[Jotform Weekly] | Week: 2026-09-14 | Scope: Masonry',
+        ]);
+
+        // Same Trash2 + confirmation-modal DELETE the foreman flow always had.
+        $this->delete("/progress-submit/{$token->token}/weekly-photos/{$photo->id}")
+            ->assertRedirect("/progress-submit/{$token->token}");
+
+        $this->assertSoftDeleted('scope_photos', ['id' => $photo->id]);
+    }
+
     private function makeToken($expiresAt = null): ProgressSubmitToken
     {
         $foreman = User::create([

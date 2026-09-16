@@ -44,9 +44,16 @@ class ProjectManagerController extends Controller
         return redirect()
             ->route('project_manager.accomplishments', [
                 'project_id' => (int) $request->input('project_id'),
-                'foreman_id' => (int) $request->input('foreman_id'),
+                'week_start' => (string) $request->input('week_start', ''),
             ])
             ->with('success', 'Accomplishment updated successfully.');
+    }
+
+    public function destroyScopePhoto(Request $request, \App\Models\ScopePhoto $scopePhoto)
+    {
+        $this->projectManagerService->deleteScopePhoto($request, $scopePhoto);
+
+        return back()->with('success', 'Photo deleted.');
     }
 
     public function project(Request $request, Project $project)
