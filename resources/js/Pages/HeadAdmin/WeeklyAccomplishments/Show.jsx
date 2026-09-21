@@ -7,6 +7,7 @@ import ActionButton from '../../../Components/ActionButton';
 import ConfirmationModal from '../../../Components/ConfirmationModal';
 import Modal from '../../../Components/Modal';
 import SubmissionComments from '../../../Components/SubmissionComments';
+import AccomplishmentLocationMap from '../../../Components/AccomplishmentLocationMap';
 import OptimizedImage from '../../../Components/OptimizedImage';
 import {
     ProgressBar,
@@ -650,6 +651,11 @@ export default function HeadAdminWeeklyAccomplishmentShow({
                                         </div>
                                     </div>
                                 </div>
+                            <AccomplishmentLocationMap
+                                location={project?.location}
+                                subtitle={`${project?.name || 'Project'}${project?.location ? ` — ${project.location}` : ' — no pinned location yet'}`}
+                                height={isMobile ? 280 : 360}
+                            />
                         </>
                     )}
 
