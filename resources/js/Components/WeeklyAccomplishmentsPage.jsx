@@ -20,6 +20,7 @@ import {
     initialsOf,
     innerCardStyle,
     innerTabStyle,
+    isForemanRole,
     isPmRole,
     mockupTableCellStyle,
     mockupTableHeadStyle,
@@ -244,7 +245,7 @@ export default function WeeklyAccomplishmentsPage({    weeklyAccomplishments = [
     const tabbedRows = useMemo(() => {
         const rows = Array.isArray(weeklyAccomplishments) ? weeklyAccomplishments : [];
         if (activeTab === 'pm') return rows.filter((row) => isPmRole(row?.submitted_by_role));
-        if (activeTab === 'foreman') return rows.filter((row) => !isPmRole(row?.submitted_by_role));
+        if (activeTab === 'foreman') return rows.filter((row) => isForemanRole(row?.submitted_by_role));
         return rows;
     }, [weeklyAccomplishments, activeTab]);
 

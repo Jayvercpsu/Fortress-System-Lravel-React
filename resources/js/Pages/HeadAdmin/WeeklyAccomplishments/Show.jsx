@@ -16,6 +16,7 @@ import {
     initialsOf,
     innerCardStyle,
     innerTabStyle,
+    isForemanRole,
     isPmRole,
     mockupTableCellStyle,
     mockupTableHeadStyle,
@@ -143,13 +144,13 @@ export default function HeadAdminWeeklyAccomplishmentShow({
         error: null,
     });
     const [pmPage, setPmPage] = useState(() => seedSide(safeRows.filter((row) => isPmRole(row?.submitted_by_role))));
-    const [foremanPage, setForemanPage] = useState(() => seedSide(safeRows.filter((row) => !isPmRole(row?.submitted_by_role))));
+    const [foremanPage, setForemanPage] = useState(() => seedSide(safeRows.filter((row) => isForemanRole(row?.submitted_by_role))));
     const [photosPage, setPhotosPage] = useState(() => seedSide(flatPhotosDesc.slice(0, PHOTO_PAGE_SIZE)));
 
     // Reseed whenever the project payload changes (navigation/refresh).
     useEffect(() => {
         setPmPage(seedSide(safeRows.filter((row) => isPmRole(row?.submitted_by_role))));
-        setForemanPage(seedSide(safeRows.filter((row) => !isPmRole(row?.submitted_by_role))));
+        setForemanPage(seedSide(safeRows.filter((row) => isForemanRole(row?.submitted_by_role))));
         setPhotosPage(seedSide(flatPhotosDesc.slice(0, PHOTO_PAGE_SIZE)));
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [project?.id, rows, weeklyScopePhotoMap]);
@@ -690,7 +691,7 @@ export default function HeadAdminWeeklyAccomplishmentShow({
                             </div>
                         ) : (
                         <div style={{ overflowX: 'auto' }}>
-                            <table className="accomp-hover-table" style={{ width: '100%', minWidth: 640, borderCollapse: 'collapse' }}>
+                            <table data-testid="detail-submissions-table" className="accomp-hover-table" style={{ width: '100%', minWidth: 640, borderCollapse: 'collapse' }}>
                                 <thead>
                                     <tr>
                                         {['Submitted', 'Submitted By', 'Scope of Work', '%', 'Actions'].map((header) => (

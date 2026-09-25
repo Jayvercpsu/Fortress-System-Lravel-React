@@ -708,9 +708,6 @@ class WeeklyAccomplishmentService
             $comparison['rows'][0] = $comparisonRow;
         }
 
-        $pmRows = $rows->filter(fn (array $row) => self::isPmDetailRow($row))->values();
-        $foremanRows = $rows->filter(fn (array $row) => self::isForemanDetailRow($row))->values();
-
         $latest = $this->latestValuesBySide($rows);
         $scopeKeys = array_unique(array_merge(array_keys($latest['pm']), array_keys($latest['foreman'])));
 
@@ -734,8 +731,11 @@ class WeeklyAccomplishmentService
 
         usort($scopeBreakdown, fn (array $a, array $b) => strcmp($a['scope'], $b['scope']));
 
+        // Listing-only split. The foreman list drops rows uploaded on a
+        // foreman's behalf (Head Admin / Admin / HR jotform imports): those
+        // still drive foreman progress, but they are not foreman submissions.
         $pmRows = $rows->filter(fn (array $row) => self::isPmDetailRow($row))->values();
-        $foremanRows = $rows->filter(fn (array $row) => self::isForemanDetailRow($row))->values();
+        $foremanRows = $rows->filter(fn (array $row) => self::isForemanSubmissionRow($row))->values();
 
         $isHeadAdminView = in_array($request->user()->role, [User::ROLE_HEAD_ADMIN, User::ROLE_MASTER_ADMIN, User::ROLE_ADMIN], true);
 
@@ -788,7 +788,7 @@ class WeeklyAccomplishmentService
         [, , $rows] = $this->detailRowsData($project);
         $filtered = $rows->filter(fn (array $row) => $side === 'pm'
             ? self::isPmDetailRow($row)
-            : self::isForemanDetailRow($row))->values();
+            : self::isForemanSubmissionRow($row))->values();
 
         $total = $filtered->count();
         $data = $filtered->forPage($page, self::DETAIL_SUBMISSIONS_PER_PAGE)->values();
@@ -977,6 +977,25 @@ class WeeklyAccomplishmentService
     private static function isForemanDetailRow(array $row): bool
     {
         return self::rowSide($row) === 'foreman';
+    }
+
+    /**
+     * Listing rule for the Foreman Submissions tab: the row must sit on the
+     * foreman side AND have been submitted by a foreman. Rows uploaded on a
+     * foreman's behalf by a Head Admin / Admin / HR (the processed-record
+     * import flow stores the uploader in submitted_by) are excluded from the
+     * list while still counting toward foreman progress. A row with no
+     * recorded submitter keeps the historical 'Foreman' fallback.
+     */
+    private static function isForemanSubmissionRow(array $row): bool
+    {
+        if (! self::isForemanDetailRow($row)) {
+            return false;
+        }
+
+        $role = strtolower(trim((string) ($row['submitted_by_role'] ?? '')));
+
+        return $role === '' || $role === 'foreman';
     }
 
     private function mapDetailRow(WeeklyAccomplishment $row): array

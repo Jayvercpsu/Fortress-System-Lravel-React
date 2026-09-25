@@ -77,6 +77,16 @@ export const isPmRole = (role) => {
     return normalized === 'project_manager';
 };
 
+// Foreman-side listing rule: only rows actually submitted by a Foreman belong
+// in the Foreman Submissions list. Records uploaded on a foreman's behalf by a
+// Head Admin / Admin / HR still count toward foreman progress, but they are
+// not foreman submissions. A missing role keeps the server's legacy
+// 'Foreman' fallback so rows without a recorded submitter stay listed.
+export const isForemanRole = (role) => {
+    const normalized = String(role ?? '').trim().toLowerCase().replace(/[\s-]+/g, '_');
+    return normalized === '' || normalized === 'foreman';
+};
+
 export const statusForVariance = (variance) => {
     const value = Number(variance ?? 0);
     if (value <= 5) return 'On Track';

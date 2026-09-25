@@ -203,6 +203,78 @@ class WeeklyAccomplishmentComparisonTest extends TestCase
             ->assertJsonCount(0, 'data');
     }
 
+    public function test_foreman_listing_excludes_admin_submitted_rows_but_keeps_progress(): void
+    {
+        Carbon::setTestNow('2026-08-18 12:00:00');
+
+        try {
+            $headAdmin = $this->makeUser('head_admin');
+            $projectManager = $this->makeUser('project_manager');
+            $foreman = $this->makeUser('foreman');
+            $uploader = $this->makeUser('master_admin');
+            $project = $this->makeProject('Jotform Import Project', $headAdmin->id);
+            $this->seedScope($project, 'Column Footing', 100);
+
+            // Independent PM row.
+            WeeklyAccomplishment::create([
+                'foreman_id' => null,
+                'submitted_by' => $projectManager->id,
+                'project_id' => $project->id,
+                'scope_of_work' => 'Column Footing',
+                'percent_completed' => 62,
+                'week_start' => '2026-08-17',
+            ]);
+
+            // Genuine foreman submission.
+            WeeklyAccomplishment::create([
+                'foreman_id' => $foreman->id,
+                'submitted_by' => $foreman->id,
+                'project_id' => $project->id,
+                'scope_of_work' => 'Column Footing',
+                'percent_completed' => 55,
+                'week_start' => '2026-08-17',
+            ]);
+
+            // Imported on the foreman's behalf by a master admin. It is the
+            // latest foreman-side row, so it still drives foreman progress,
+            // but it must never be listed as a foreman submission.
+            WeeklyAccomplishment::create([
+                'foreman_id' => $foreman->id,
+                'submitted_by' => $uploader->id,
+                'project_id' => $project->id,
+                'scope_of_work' => 'Column Footing',
+                'percent_completed' => 30,
+                'week_start' => '2026-08-17',
+            ]);
+
+            $this->actingAs($headAdmin)
+                ->get('/weekly-accomplishments/' . $project->id)
+                ->assertOk()
+                ->assertInertia(fn ($page) => $page
+                    ->component('HeadAdmin/WeeklyAccomplishments/Show')
+                    // Progress still counts the admin-uploaded row.
+                    ->where('comparison.foreman_progress', 30)
+                    ->where('scopeBreakdown.0.foreman', 30)
+                    // The listing does not: PM page 1 + one foreman row.
+                    ->where('submissionTotals.pm', 1)
+                    ->where('submissionTotals.foreman', 1)
+                    ->has('rows', 2)
+                    ->where('rows.1.submitted_by_role', 'Foreman')
+                    ->where('recentForemanSubmission.submitted_by_role', 'Foreman'));
+
+            // Server pagination applies the same exclusion, so "Show more" can
+            // never append a hidden admin-uploaded row.
+            $this->actingAs($headAdmin)
+                ->getJson('/weekly-accomplishments/' . $project->id . '/submissions?side=foreman')
+                ->assertOk()
+                ->assertJsonPath('total', 1)
+                ->assertJsonCount(1, 'data')
+                ->assertJsonPath('data.0.submitted_by_role', 'Foreman');
+        } finally {
+            Carbon::setTestNow();
+        }
+    }
+
     public function test_detail_photos_paginate_by_twenty_one(): void
     {
         $headAdmin = $this->makeUser('head_admin');
